@@ -7,29 +7,9 @@ Focal point / owner / SME emails below are PLACEHOLDERS — swap for the real
 per-department contacts and the real per-deliverable owner/SME mapping when
 provided, then re-run: `python -m backend.seed` (safe to re-run, upserts).
 """
-from sqlalchemy import text
-
 from .database import SessionLocal, engine
 from . import models
 
-# ONE-TIME RESET for the Aug 2026 model rewrite: the old schema (removed
-# MilestoneEvent/MilestoneDefinition tables, renamed columns) can't be
-# reconciled by create_all alone, which only adds missing tables. This block
-# is deliberately temporary — removed again in the very next commit once the
-# live database has been confirmed rebuilt on the new schema.
-#
-# On Postgres, metadata.drop_all() removes the tables but leaves the native
-# ENUM types it created behind (a known SQLAlchemy/Postgres gap), so the
-# following create_all() fails with "type already exists". Dropping and
-# recreating the whole schema sidesteps that; SQLite has no such type objects
-# so drop_all/create_all is enough there.
-if engine.dialect.name == "postgresql":
-    with engine.connect() as conn:
-        conn.execute(text("DROP SCHEMA public CASCADE"))
-        conn.execute(text("CREATE SCHEMA public"))
-        conn.commit()
-else:
-    models.Base.metadata.drop_all(bind=engine)
 models.Base.metadata.create_all(bind=engine)
 
 TEST_EMAIL = "test-focal@example.com"  # single placeholder until real contacts are provided
