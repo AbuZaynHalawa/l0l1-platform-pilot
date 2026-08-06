@@ -135,6 +135,9 @@
       loadMatrix();
     });
   });
+  function shortenName(name, max) {
+    return name.length > max ? name.slice(0, max - 1).replace(/\s+\S*$/, "") + "&#8230;" : name;
+  }
   async function loadMatrix() {
     var data = await api("/api/dashboard/matrix?stage=" + matrixStage);
     var wrap = document.getElementById("matrixWrap");
@@ -154,7 +157,7 @@
           row.department.replace(/^\d+\.\s*/, "") + "</td></tr>";
         lastDept = row.department;
       }
-      html += '<tr><td class="matrix-row-label">' + row.item_no + " &middot; " + row.name +
+      html += '<tr><td class="matrix-row-label" title="' + row.name.replace(/"/g, "&quot;") + '">' + row.item_no + " &middot; " + shortenName(row.name, 34) +
         (row.is_milestone ? ' <span class="matrix-milestone-tag">' + row.milestone_code + "</span>" : "") + "</td>";
       data.projects.forEach(function (p) {
         var cell = row.cells[p.id];
@@ -476,6 +479,9 @@
         scopeSel.appendChild(o);
       });
       ganttOptionsLoaded = true;
+      // Default to a specific project's deliverable-level timeline (the useful
+      // view) rather than the whole-project-as-one-bar overview.
+      if (projects.length) scopeSel.value = String(projects[0].id);
     }
     await renderGanttFor(scopeSel.value);
   }

@@ -84,6 +84,12 @@
             <button class="chip" data-stage="L1">L1 Projects</button>
           </div>
         </div>
+        <div class="ann-type-key matrix-legend">
+          <span class="lg"><span class="sw" style="background:var(--ink-300)"></span> Not Due</span>
+          <span class="lg"><span class="sw" style="background:var(--warn)"></span> Due / Pending Review</span>
+          <span class="lg"><span class="sw" style="background:var(--crit)"></span> Overdue / Rejected</span>
+          <span class="lg"><span class="sw" style="background:var(--good)"></span> Approved</span>
+        </div>
         <div class="matrix-wrap" id="matrixWrap"></div>
       </div>
 
@@ -177,7 +183,7 @@
           <p class="sub">Every deliverable's window, computed from the same due-date engine driving the rest of the app.</p>
         </div>
         <div class="field" style="max-width:300px;">
-          <select id="ganttScope"><option value="">All Active Projects</option></select>
+          <select id="ganttScope"><option value="">All Active Projects (overview)</option></select>
         </div>
       </div>
       <div class="card table-card">
