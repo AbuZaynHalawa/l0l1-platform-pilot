@@ -16,6 +16,16 @@ from . import models
 PBU_CONDITIONAL_ITEMS = {"1.8", "1.9", "1.10"}
 
 
+def item_sort_key(item_no: str):
+    """Numeric sort key for item numbers like '1.10' — plain string sort
+    would put '1.10' before '1.2', since '1' < '2' lexicographically.
+    """
+    try:
+        return tuple(int(p) for p in item_no.split("."))
+    except ValueError:
+        return (999, 999)
+
+
 def _skip_weekend_forward(d: date) -> date:
     while d.weekday() in (4, 5):  # Friday=4, Saturday=5
         d += timedelta(days=1)

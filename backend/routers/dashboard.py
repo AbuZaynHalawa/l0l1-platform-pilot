@@ -51,3 +51,55 @@ def get_dashboard(db: Session = Depends(get_db)):
         "overdue": overdue, "pending_review": pending_review,
         "departments": dept_rows, "concerns": concerns,
     }
+
+
+@router.get("/matrix")
+def get_matrix(stage: str, db: Session = Depends(get_db)):
+    """Deliverables (rows, grouped by department) x active projects (columns) —
+    the live equivalent of the old Control Sheet's L0/L1 Tracking Sheets, scoped
+    to currently in-progress projects instead of every tender ever tracked.
+    """
+    projects = (
+        db.query(models.Project)
+        .filter(models.Project.stage == stage, models.Project.status == models.ProjectStatus.IN_PROGRESS)
+        .order_by(models.Project.announcement_date)
+        .all()
+    )
+    defs = (
+        db.query(models.DeliverableDefinition)
+        .join(models.Department)
+        .filter(models.DeliverableDefinition.stage == stage, models.DeliverableDefinition.active == True)  # noqa: E712
+        .order_by(models.Department.order)
+        .all()
+    )
+    defs.sort(key=lambda d: (d.department.order, rules.item_sort_key(d.item_no)))
+
+    subs = []
+    if projects:
+        subs = (
+            db.query(models.DeliverableSubmission)
+            .filter(models.DeliverableSubmission.project_id.in_([p.id for p in projects]))
+            .all()
+        )
+        for s in subs:
+            rules.refresh_status(s)
+        db.commit()
+    sub_map = {(s.project_id, s.deliverable_definition_id): s for s in subs}
+
+    rows = []
+    for d in defs:
+        cells = {}
+        for p in projects:
+            s = sub_map.get((p.id, d.id))
+            if s:
+                cells[p.id] = {"status": s.status.value, "due_date": s.due_date, "submission_id": s.id}
+        rows.append({
+            "item_no": d.item_no, "name": d.name, "department": d.department.name,
+            "is_milestone": d.is_milestone, "milestone_code": d.milestone_code,
+            "cells": cells,
+        })
+
+    return {
+        "projects": [{"id": p.id, "est_no": p.est_no, "name": p.name} for p in projects],
+        "rows": rows,
+    }

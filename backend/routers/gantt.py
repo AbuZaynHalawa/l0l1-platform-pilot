@@ -6,7 +6,7 @@ its predecessor's due date) through to its own due date.
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from .. import models
+from .. import models, rules
 from ..database import get_db
 
 router = APIRouter(prefix="/api/gantt", tags=["gantt"])
@@ -46,9 +46,10 @@ def get_project_gantt(project_id: int, db: Session = Depends(get_db)):
         .join(models.DeliverableDefinition)
         .join(models.Department)
         .filter(models.DeliverableSubmission.project_id == project_id)
-        .order_by(models.Department.order, models.DeliverableDefinition.item_no)
+        .order_by(models.Department.order)
         .all()
     )
+    subs.sort(key=lambda s: (s.definition.department.order, rules.item_sort_key(s.definition.item_no)))
     rows = []
     for s in subs:
         d = s.definition

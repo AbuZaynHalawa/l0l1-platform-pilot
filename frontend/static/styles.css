@@ -345,6 +345,25 @@
   .gantt-bar.crit { background: var(--crit); }
   .gantt-bar.neutral { background: var(--purple-1); }
   .gantt-bar.milestone { outline: 2px solid var(--purple-2); outline-offset: 1px; }
+
+  /* ---------- Deliverables Matrix ---------- */
+  .matrix-card { margin-bottom: 22px; }
+  .matrix-toggle { display: flex; gap: 8px; }
+  .matrix-toggle .chip { padding: 5px 12px; font-size: 11.5px; }
+  .matrix-wrap { overflow: auto; max-height: 560px; }
+  .matrix-table { border-collapse: collapse; font-size: 11.5px; white-space: nowrap; width: 100%; }
+  .matrix-table th, .matrix-table td { padding: 6px 10px; border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); text-align: center; }
+  .matrix-table thead th { position: sticky; top: 0; background: var(--surface); z-index: 2; font-weight: 700; color: var(--ink-700); }
+  .matrix-row-label { position: sticky; left: 0; background: var(--surface); z-index: 1; text-align: left; max-width: 340px; overflow: hidden; text-overflow: ellipsis; }
+  .matrix-table thead th:first-child { left: 0; z-index: 3; text-align: left; }
+  .matrix-dept-row { position: sticky; left: 0; text-align: left !important; background: var(--surface-sunken); font-weight: 700; color: var(--ink-700); font-size: 11px; text-transform: uppercase; letter-spacing: .02em; }
+  .matrix-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; cursor: pointer; }
+  .matrix-dot.neutral { background: var(--ink-300); }
+  .matrix-dot.warn { background: var(--warn); }
+  .matrix-dot.crit { background: var(--crit); }
+  .matrix-dot.good { background: var(--good); }
+  .matrix-empty-cell { color: var(--ink-300); }
+  .matrix-milestone-tag { font-size: 9.5px; color: var(--purple-2); font-weight: 700; }
   .form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
   .admin-lock { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--warn-bg); color: var(--warn); border-radius: 10px; font-size: 12.5px; font-weight: 600; margin-bottom: 18px; }
 

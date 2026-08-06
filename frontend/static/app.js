@@ -121,6 +121,56 @@
       digest.appendChild(row);
       row.appendChild(body);
     });
+
+    await loadMatrix();
+  }
+
+  /* ================= DELIVERABLES MATRIX ================= */
+  var matrixStage = "L0";
+  document.querySelectorAll(".matrix-toggle .chip").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.querySelectorAll(".matrix-toggle .chip").forEach(function (b) { b.classList.remove("active"); });
+      btn.classList.add("active");
+      matrixStage = btn.dataset.stage;
+      loadMatrix();
+    });
+  });
+  async function loadMatrix() {
+    var data = await api("/api/dashboard/matrix?stage=" + matrixStage);
+    var wrap = document.getElementById("matrixWrap");
+    if (!data.projects.length) {
+      wrap.innerHTML = '<div class="empty-state">No active ' + matrixStage + ' projects right now.</div>';
+      return;
+    }
+    var html = '<table class="matrix-table"><thead><tr><th>Deliverable</th>';
+    data.projects.forEach(function (p) {
+      html += '<th title="' + p.name.replace(/"/g, "&quot;") + '">' + p.est_no + "</th>";
+    });
+    html += "</tr></thead><tbody>";
+    var lastDept = null;
+    data.rows.forEach(function (row) {
+      if (row.department !== lastDept) {
+        html += '<tr><td class="matrix-dept-row" colspan="' + (data.projects.length + 1) + '">' +
+          row.department.replace(/^\d+\.\s*/, "") + "</td></tr>";
+        lastDept = row.department;
+      }
+      html += '<tr><td class="matrix-row-label">' + row.item_no + " &middot; " + row.name +
+        (row.is_milestone ? ' <span class="matrix-milestone-tag">' + row.milestone_code + "</span>" : "") + "</td>";
+      data.projects.forEach(function (p) {
+        var cell = row.cells[p.id];
+        if (!cell) { html += '<td class="matrix-empty-cell">&#8213;</td>'; return; }
+        var meta = STATUS_META[cell.status] || ["neutral", cell.status];
+        var tip = meta[1] + (cell.due_date ? " &middot; due " + fmtDate(cell.due_date) : "");
+        html += '<td><span class="matrix-dot ' + meta[0] + '" title="' + tip.replace(/"/g, "&quot;") +
+          '" data-sid="' + cell.submission_id + '" data-pid="' + p.id + '"></span></td>';
+      });
+      html += "</tr>";
+    });
+    html += "</tbody></table>";
+    wrap.innerHTML = html;
+    wrap.querySelectorAll(".matrix-dot").forEach(function (dot) {
+      dot.addEventListener("click", function () { openDetail(Number(dot.dataset.pid)); });
+    });
   }
 
   function evalFromPct(pct) {

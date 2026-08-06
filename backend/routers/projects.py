@@ -153,8 +153,10 @@ def get_deliverables(project_id: int, department: str | None = None, db: Session
     )
     if department:
         q = q.filter(models.Department.name == department)
+    subs = q.all()
+    subs.sort(key=lambda s: (s.definition.department.order, rules.item_sort_key(s.definition.item_no)))
     out = []
-    for s in q.all():
+    for s in subs:
         rules.refresh_status(s)
         out.append(schemas.SubmissionOut(
             id=s.id, item_no=s.definition.item_no, name=s.definition.name,
