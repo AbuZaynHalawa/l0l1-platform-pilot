@@ -157,7 +157,7 @@
           row.department.replace(/^\d+\.\s*/, "") + "</td></tr>";
         lastDept = row.department;
       }
-      html += '<tr><td class="matrix-row-label" title="' + row.name.replace(/"/g, "&quot;") + '">' + row.item_no + " &middot; " + shortenName(row.name, 34) +
+      html += '<tr><td class="matrix-row-label" title="' + row.name.replace(/"/g, "&quot;") + '">' + row.item_no + " &middot; " + shortenName(row.name, 18) +
         (row.is_milestone ? ' <span class="matrix-milestone-tag">' + row.milestone_code + "</span>" : "") + "</td>";
       data.projects.forEach(function (p) {
         var cell = row.cells[p.id];
