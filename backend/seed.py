@@ -1,72 +1,243 @@
-"""Seeds departments, milestone definitions, and a starter deliverable catalog.
+"""Seeds departments and the FULL real deliverable catalogs, transcribed
+directly from L0 Template (Final).xlsx (column O formulas) and New L1
+Template (Final).xlsx / L1 Template (Tracking Sheet) (columns B/C/F/I, with
+due dates from K/L). Every item, not a sample.
 
-Real department names and item numbers/descriptions are from the actual L0
-template (see architecture_map.md section 3.2). Focal point emails below are
-PLACEHOLDERS — swap TEST_EMAILS for your team's real addresses when ready,
-then re-run: `python -m app.backend.seed` (safe to re-run, it upserts).
+Focal point / owner / SME emails below are PLACEHOLDERS — swap for the real
+per-department contacts and the real per-deliverable owner/SME mapping when
+provided, then re-run: `python -m backend.seed` (safe to re-run, upserts).
 """
 from .database import SessionLocal, engine
 from . import models
 
+# ONE-TIME RESET for the Aug 2026 model rewrite: the old schema (removed
+# MilestoneEvent/MilestoneDefinition tables, renamed columns) can't be
+# reconciled by create_all alone, which only adds missing tables. This
+# drop_all is deliberately temporary — removed again in the very next commit
+# once the live database has been confirmed rebuilt on the new schema.
+models.Base.metadata.drop_all(bind=engine)
 models.Base.metadata.create_all(bind=engine)
 
-# --- Swap these for real team emails when you have them ---
-TEST_EMAILS = {
-    "Tendering": "test-owner-1@example.com",
-    "Operation": "test-owner-2@example.com",
-    "Supply Chain": "test-owner-3@example.com",
-    "Engineering": "test-owner-4@example.com",
-    "Control Department": "test-owner-5@example.com",
-    "Contract and QS": "test-owner-6@example.com",
-    "HR": "test-owner-7@example.com",
-    "Finance": "test-owner-8@example.com",
-    "Quality & HSSE": "test-owner-9@example.com",
-    "IT": "test-owner-10@example.com",
-}
+TEST_EMAIL = "test-focal@example.com"  # single placeholder until real contacts are provided
 
+# ---------------------------------------------------------------------------
+# Departments — L0 and L1 use genuinely different department breakdowns in
+# the real templates (not just renamed, e.g. L1 splits Operation into
+# TBU/PBU/BBU, Control into Planning/Cost Control, Finance into
+# Treasury/Finance/Insurance, SHEQ into Quality/HSSE). Kept as separate rows
+# to match the source, not forced into one unified list.
+# ---------------------------------------------------------------------------
 DEPARTMENTS = [
-    ("01. Tendering", "Tendering"),
-    ("02. Operation", "Operation"),
-    ("03. Supply Chain", "Supply Chain"),
-    ("04. Engineering", "Engineering"),
-    ("05. Control Department", "Control Department"),
-    ("06. Contract and QS", "Contract and QS"),
-    ("07. HR", "HR"),
-    ("08. Finance", "Finance"),
-    ("09. Quality & HSSE", "Quality & HSSE"),
-    ("10. IT", "IT"),
+    # L0 (12)
+    "01. Tendering Department", "02. Operation Units", "03. Supply Chain", "04. Engineering Department",
+    "05. Control Department", "06. Contract", "07. Human Resources", "08. Financial Department",
+    "09. SHEQ Department", "10. IT Department", "11. Risk Department", "12. Fleet and Facility Management",
+    # L1-only (additional real breakdown)
+    "L1 TBU / PBU", "L1 BBU", "L1 BBU / PBU", "L1 Planning", "L1 Cost Control", "L1 Contract",
+    "L1 Treasury", "L1 Finance", "L1 Insurance", "L1 Quality", "L1 HSSE", "L1 HSSE / Quality",
+    "L1 Risk", "L1 Fleet", "L1 FM",
 ]
 
-MILESTONES_L0 = [("M1", "GO", 1), ("M2", "Site Visit", 2), ("M3", "Schedule", 3), ("M4", "Technical Offers", 4), ("M5", "Proposal / BSD", 5)]
-MILESTONES_L1 = [("M1", "L1 Announcement", 1), ("M2", "Early Plan", 2), ("M3", "Docs Handover", 3),
-                  ("M4", "Post-Bid Starts", 4), ("M5", "LOA Received", 5), ("M6", "Contract Signed", 6)]
+# ---------------------------------------------------------------------------
+# L0 catalog — from L0 Template (Final).xlsx, sheet "Deliverables", column O.
+# Fields: item_no, name, department, anchor_type, predecessor_item_no,
+#         offset_days, offset_direction, deliverable_type, is_milestone, milestone_code
+# ---------------------------------------------------------------------------
+L0_DEPT = {
+    "tendering": "01. Tendering Department", "operation": "02. Operation Units", "supply": "03. Supply Chain",
+    "eng": "04. Engineering Department", "control": "05. Control Department", "contract": "06. Contract",
+    "hr": "07. Human Resources", "finance": "08. Financial Department", "sheq": "09. SHEQ Department",
+    "it": "10. IT Department", "risk": "11. Risk Department", "fleet": "12. Fleet and Facility Management",
+}
 
-# (stage, item_no, name, department_short_name, anchor_type, anchor(milestone code or predecessor item_no), offset_days, direction)
-DELIVERABLES = [
-    ("L0", "1.1", "Receive Approval for GO Approach & Circulate Tender Documents", "Tendering", "milestone", "M1", 0, "after"),
-    ("L0", "1.8", "Float SC RFQ's - Local", "Tendering", "milestone", "M1", 14, "after"),
-    ("L0", "2.2", "Prepare & Circulate Site Visit Report", "Operation", "milestone", "M2", 3, "after"),
-    ("L0", "3.1", "Prepare Risk Register", "Supply Chain", "milestone", "M1", 10, "after"),
-    ("L0", "4.4", "Generate Design & BOQ's for SS and UGC", "Engineering", "milestone", "M1", 21, "after"),
-    ("L0", "4.6", "Review & Evaluate Technical Offers from Vendors", "Engineering", "predecessor", "4.4", 5, "after"),
-    ("L0", "5.3", "Prepare Project Schedule Loaded with Resources", "Control Department", "milestone", "M1", 21, "after"),
-    ("L0", "6.1", "Prepare Risk Register", "Contract and QS", "milestone", "M1", 10, "after"),
-    ("L0", "7.1", "Verify Local Content Requirements with Management", "HR", "milestone", "M1", 14, "after"),
-    ("L0", "8.1", "Prepare Risk Register", "Finance", "milestone", "M1", 10, "after"),
-    ("L0", "9.4", "Prepare QA/QC Plan - Tender Level", "Quality & HSSE", "milestone", "M1", 10, "after"),
-    ("L0", "10.1", "Cost for Staff & Office Requirements", "IT", "milestone", "M1", 14, "after"),
-    ("L1", "1.1", "L1 Announcement Email", "Tendering", "milestone", "M1", 0, "after"),
-    ("L1", "2.3", "Assignment of PM + PE", "Operation", "milestone", "M1", 7, "after"),
-    ("L1", "3.1", "Issue RFQ to Vendors", "Supply Chain", "milestone", "M1", 10, "after"),
-    ("L1", "4.4", "Generate Design & BOQ's for SS and UGC", "Engineering", "milestone", "M1", 21, "after"),
-    ("L1", "4.6", "Review & Evaluate Technical Offers from Vendors", "Engineering", "predecessor", "4.4", 5, "after"),
-    ("L1", "5.3", "Prepare Baseline Project Schedule", "Control Department", "milestone", "M1", 21, "after"),
-    ("L1", "6.1", "Prepare Risk Register", "Contract and QS", "milestone", "M2", 15, "after"),
-    ("L1", "7.2", "HR Cost Estimate", "HR", "milestone", "M2", 10, "after"),
-    ("L1", "8.1", "Provide Cashflow Input", "Finance", "milestone", "M2", 12, "after"),
-    ("L1", "9.5", "Prepare HSE Plan", "Quality & HSSE", "milestone", "M2", 15, "after"),
-    ("L1", "6.4", "Prebid Agreement Review", "Contract and QS", "milestone", "M4", 10, "after"),
-    ("L1", "8.4", "Insurance Requirements (Cost & Provider)", "Finance", "milestone", "M5", 10, "after"),
+# (item_no, name, dept_key, anchor_type, pred, offset, direction, dtype, milestone_code)
+L0_ITEMS = [
+    ("1.1", "Receive Approval for GO Approach & Circulate Tender Documents", "tendering", "announcement", None, 0, "after", "date_driven", "M1"),
+    ("1.2", "Announce the date of the site visit and circulate instructions covering attendee details, permit requirements, and any other necessary preparations", "tendering", "predecessor", "1.1", 0, "after", "date_driven", None),
+    ("1.3", "Announce the date of the Pre-bid/Jobex Meetings and circulate related instructions", "tendering", "predecessor", "1.1", 0, "after", "date_driven", None),
+    ("1.4", "Announce the deadlines of the Pre-bid clarifications", "tendering", "predecessor", "1.1", 0, "after", "date_driven", None),
+    ("1.5", "Assign BID Manager / Calculation Engineer (focal for all communications)", "tendering", "predecessor", "1.1", 0, "after", "date_driven", None),
+    ("1.6", "Request Bid Bond (if applicable)", "tendering", "predecessor", "1.20", 10, "before", "date_driven", None),
+    ("1.7", "Develop Estimate Program and circulate with all departments, External consultant, SME's", "tendering", "predecessor", "1.1", 2, "after", "date_driven", None),
+    ("1.8", "Float SC RFQ's - Local", "tendering", "predecessor", "1.1", 7, "after", "date_driven", None),
+    ("1.9", "Float Materials RFQ's - Local", "tendering", "predecessor", "1.1", 7, "after", "date_driven", None),
+    ("1.10", "Float RFQ's - Consultant Services", "tendering", "predecessor", "1.1", 7, "after", "date_driven", None),
+    ("1.11", "Review Project Schedule and provide feedback (provided from Planning Department)", "tendering", "predecessor", "5.3", 2, "after", "date_driven", None),
+    ("1.12", "Review Project Execution Plan and provide feedback", "tendering", "predecessor", "2.5", 1, "after", "date_driven", None),
+    ("1.13", "Prepare Pre-bid agreements such as; handling main material linked to LME Pricing", "tendering", None, None, 0, "after", "on_request", None),
+    ("1.14", "Incorporate Consultant findings (if applicable)", "tendering", None, None, 0, "after", "on_request", None),
+    ("1.15", "Incorporate SME's findings (if applicable)", "tendering", None, None, 0, "after", "on_request", None),
+    ("1.16", "Prepare Manpower & Equipment Schedules", "tendering", "predecessor", "5.3", 1, "after", "date_driven", None),
+    ("1.17", "Circulate technical offers & Terms received from Vendors & SC & Consultant to Supply chain & Engineering", "tendering", "predecessor", "1.9", 10, "after", "date_driven", "M4"),
+    ("1.18", "Develop a comprehensive Technical-commercial proposal", "tendering", "predecessor", "1.20", 5, "before", "date_driven", None),
+    ("1.19", "Adjust Proposals based on Tender Committee and/or VC Comments", "tendering", "predecessor", "1.18", 1, "after", "date_driven", None),
+    ("1.20", "Submit Proposal to client", "tendering", "bsd", None, 0, "before", "date_driven", "M5"),
+
+    ("2.1", "Attend Site Visit (in coordination with BBU)", "operation", "site_visit", None, 0, "after", "date_driven", None),
+    ("2.2", "Prepare and circulate Site Visit Report (in coordination with BBU)", "operation", "predecessor", "2.1", 1, "after", "date_driven", "M2"),
+    ("2.3", "Highlight points require Pre-bid clarifications", "operation", "pre_bid", None, 3, "before", "date_driven", None),
+    ("2.4", "Prepare Risk Register", "operation", "predecessor", "2.2", 1, "after", "date_driven", None),
+    ("2.5", "Prepare Project Execution Plan (Methodology) - (in coordination with BBU)", "operation", "predecessor", "1.1", 7, "after", "date_driven", None),
+    ("2.6", "Review and comments on Project schedule (Execution and Productivities)", "operation", "predecessor", "5.3", 2, "after", "date_driven", None),
+    ("2.7", "Attend Site Visit (in coordination with relevant Business Unit) [PBU]", "operation", "predecessor", "2.1", 0, "after", "date_driven", None),
+    ("2.8", "Prepare and circulate Site Visit Report (in coordination with relevant Business Unit) [PBU]", "operation", "predecessor", "2.2", 0, "after", "date_driven", None),
+    ("2.9", "Highlight points require Pre-bid clarifications [PBU]", "operation", "pre_bid", None, 3, "before", "date_driven", None),
+    ("2.10", "Prepare Risk Register [PBU]", "operation", "predecessor", "2.8", 1, "after", "date_driven", None),
+    ("2.11", "Prepare Project Execution Plan (Methodology) [PBU]", "operation", "predecessor", "2.5", 0, "after", "date_driven", None),
+    ("2.12", "Review and comments on Project schedule [PBU]", "operation", "predecessor", "2.6", 0, "after", "date_driven", None),
+
+    ("3.1", "Prepare Risk Register", "supply", "predecessor", "2.2", 1, "after", "date_driven", None),
+    ("3.2", "Highlight points require Pre-bid clarifications", "supply", "pre_bid", None, 3, "before", "date_driven", None),
+    ("3.3", "Provide list of approved and acknowledge suppliers", "supply", None, None, 0, "after", "library", None),
+    ("3.4", "Provide P.O.'s and Procurement Historical Data", "supply", None, None, 0, "after", "library", None),
+    ("3.5", "Review and Evaluate of Main Materials (Long lead items) and Subcontracting Strategy", "supply", "predecessor", "1.17", 2, "after", "date_driven", None),
+    ("3.6", "Prepare List of long lead items, key materials and items fall on critical path", "supply", "predecessor", "1.17", 2, "after", "date_driven", None),
+    ("3.7", "Support tendering with required logistics pricing and provide backup data", "supply", "predecessor", "1.17", 2, "after", "date_driven", None),
+    ("3.8", "Complete Internal Prequalification of Potential Vendors (where applicable)", "supply", None, None, 0, "after", "on_request", None),
+    ("3.9", "Participate in negotiation rounds at bidding stage lead by tender team", "supply", None, None, 0, "after", "on_request", None),
+
+    ("4.1", "Prepare Risk Register", "eng", "predecessor", "2.2", 1, "after", "date_driven", None),
+    ("4.2", "Highlight points require Pre-bid clarifications", "eng", "pre_bid", None, 3, "before", "date_driven", None),
+    ("4.3", "Provide List of required Site Investigations, Studies or any Special Technical requirements", "eng", "predecessor", "1.1", 3, "after", "date_driven", None),
+    ("4.4", "Generate Design & BOQ's for the relevant scope (detailed for OHTL)", "eng", "predecessor", "1.1", 10, "after", "date_driven", None),
+    ("4.5", "Provide Studies of Value Engineering and Optimized design (wherever needed)", "eng", None, None, 0, "after", "on_request", None),
+    ("4.6", "Review and evaluate technical offers received from Vendors", "eng", "predecessor", "1.17", 2, "after", "date_driven", None),
+    ("4.7", "Support Technical Proposals with required design deliverables (if needed)", "eng", None, None, 0, "after", "on_request", None),
+
+    ("5.1", "Prepare Risk Register", "control", "predecessor", "2.2", 1, "after", "date_driven", None),
+    ("5.2", "Highlight points require Pre-bid clarifications", "control", "pre_bid", None, 3, "before", "date_driven", None),
+    ("5.3", "Prepare Project schedule (level according to client requirement, up to Level 3)", "control", "predecessor", "1.1", 15, "after", "date_driven", "M3"),
+    ("5.4", "Fleet Productivities (equipment productivity rates)", "control", None, None, 0, "after", "library", None),
+    ("5.5", "Verify Quantities for remeasured Contracts (if applicable)", "control", "predecessor", "1.1", 3, "after", "date_driven", None),
+    ("5.6", "Provide Updated Productivity Norms and Calculations (PCO-01-SPR-001)", "control", None, None, 0, "after", "library", None),
+
+    ("6.1", "Prepare Risk Register", "contract", "predecessor", "1.20", 5, "before", "date_driven", None),
+    ("6.2", "Highlight points require Pre-bid clarifications (Review Contracts and Terms)", "contract", "pre_bid", None, 3, "before", "date_driven", None),
+    ("6.3", "Prepare Non Disclosure Agreements (NDA's) (if applicable)", "contract", None, None, 0, "after", "on_request", None),
+    ("6.4", "Review Pre-bid agreements and provide Contractual comments as needed", "contract", None, None, 0, "after", "on_request", None),
+
+    ("7.1", "Verify local content requirements in coordination with the Manning Schedule", "hr", "predecessor", "5.3", 5, "after", "date_driven", None),
+    ("7.2", "Updated HR Cost Estimates (Salaries / Wages / Benefits)", "hr", None, None, 0, "after", "library", None),
+    ("7.3", "Provide updated information on Workforce availability, nationality, release dates", "hr", None, None, 0, "after", "library", None),
+    ("7.4", "Provide Supporting documents, such as team CV's, certificates and Qualifications", "hr", "predecessor", "1.1", 3, "after", "date_driven", None),
+
+    ("8.1", "Prepare Risk Register", "finance", "predecessor", "2.2", 1, "after", "date_driven", None),
+    ("8.2", "Issue Bid Bonds", "finance", "predecessor", "1.6", 3, "after", "date_driven", None),
+    ("8.3", "Provide Insurance Cost, and additional client requirements", "finance", "predecessor", "1.20", 6, "before", "date_driven", None),
+    ("8.4", "Provide Proposed Business Units, Corporate, Finance and Insurance Overheads", "finance", None, None, 0, "after", "library", None),
+    ("8.5", "Provide Proposed Cash Flow & Finance Cost and Parameters", "finance", None, None, 0, "after", "library", None),
+
+    ("9.1", "Prepare Risk Register", "sheq", "predecessor", "2.2", 1, "after", "date_driven", None),
+    ("9.2", "Highlight points require Pre-bid clarifications", "sheq", "pre_bid", None, 3, "before", "date_driven", None),
+    ("9.3", "List of Safety Requirements & PPE", "sheq", "predecessor", "1.1", 7, "after", "date_driven", None),
+    ("9.4", "Prepare QA/QC Plan - Tender Level", "sheq", "predecessor", "1.1", 7, "after", "date_driven", None),
+    ("9.5", "Prepare HSE Plan - Tender Level", "sheq", "predecessor", "1.1", 7, "after", "date_driven", None),
+    ("9.6", "Evaluate Selected subcontractors (for not Qualified / Approved Subcontractors)", "sheq", "predecessor", "1.17", 2, "after", "date_driven", None),
+    ("9.7", "Standard Personnel Requirements (Client's Standards) HSSE / Quality", "sheq", "predecessor", "1.1", 7, "after", "date_driven", None),
+
+    ("10.1", "Cost for Staff and Office Requirements (Hardware, Software, Infrastructure)", "it", "predecessor", "5.3", 3, "after", "date_driven", None),
+
+    ("11.1", "Compile risk registers received from all departments, Evaluate and present", "risk", None, None, 0, "after", "on_request", None),
+
+    ("12.1", "Recent Equipment Cost Estimates, Consumptions and Maintenance", "fleet", None, None, 0, "after", "library", None),
+    ("12.2", "Provide recent information on Equipment availability, location and release dates", "fleet", None, None, 0, "after", "library", None),
+    ("12.3", "Provide Camp Cost Estimates, Consumptions and Maintenance based on manning", "fleet", "predecessor", "5.3", 5, "after", "date_driven", None),
+]
+
+# ---------------------------------------------------------------------------
+# L1 catalog — from New L1 Template (Final).xlsx, "L1 Template (Tracking
+# Sheet)", columns B/C/F (item/name/department), I (predecessor), J
+# (duration). Items 1.1-1.6 ARE the milestones M1-M6 (column D).
+# ---------------------------------------------------------------------------
+L1_DEPT = {
+    "tendering": "01. Tendering Department", "tbupbu": "L1 TBU / PBU", "bbu": "L1 BBU", "bbupbu": "L1 BBU / PBU",
+    "supply": "03. Supply Chain", "eng": "04. Engineering Department", "planning": "L1 Planning",
+    "costctrl": "L1 Cost Control", "contract": "L1 Contract", "hr": "07. Human Resources",
+    "treasury": "L1 Treasury", "finance": "L1 Finance", "insurance": "L1 Insurance", "quality": "L1 Quality",
+    "hsse": "L1 HSSE", "hssequal": "L1 HSSE / Quality", "risk": "L1 Risk", "fleet": "L1 Fleet", "fm": "L1 FM",
+}
+
+# (item_no, name, dept_key, anchor_type, pred, offset, direction, milestone_code)
+L1_ITEMS = [
+    ("1.1", "L1 Announcement email", "tendering", "announcement", None, 0, "after", "M1"),
+    ("1.2", "Provide Early mobilization Plan, Long lead items & MEP consultancy needs", "tendering", "predecessor", "1.1", 5, "after", "M2"),
+    ("1.3", "Commercial & Technical Handover (Including list of Assumptions)", "tendering", "predecessor", "1.2", 25, "after", "M3"),
+    ("1.4", "Starting Post Bid clarification", "tendering", "client_dependent", None, 0, "after", "M4"),
+    ("1.5", "Receiving LOA / Post bid clarifications ends", "tendering", "client_dependent", None, 0, "after", "M5"),
+    ("1.6", "Contract Signing", "tendering", "client_dependent", None, 0, "after", "M6"),
+
+    ("2.1", "Submission of Cost Center request to Cost Control Department", "tbupbu", "predecessor", "1.2", 1, "after", None),
+    ("2.2", "Creating PRs for long-lead items through the system", "tbupbu", "predecessor", "5.3", 2, "after", None),
+    ("2.3", "Assignment of Temporary Project Manager & Project Engineer", "tbupbu", "predecessor", "1.1", 5, "after", None),
+    ("2.4", "Internal Kick off Meeting (to be called by Project Manager)", "tbupbu", "predecessor", "2.3", 5, "after", None),
+    ("2.5", "Draft Master Project Execution Plan ready to be submitted", "tbupbu", "predecessor", "1.2", 25, "after", None),
+    ("2.6", "Create PRs for Early Activities (Soil Investigation, Topography)", "tbupbu", "predecessor", "5.3", 2, "after", None),
+    ("2.7", "Create PR for Design Firm/Consultant", "tbupbu", "predecessor", "4.4", 2, "after", None),
+    ("2.8", "Start Activities for Geotechnical Investigation (in house or vendor)", "tbupbu", "predecessor", "3.11", 7, "after", None),
+    ("2.9", "Start Activities for Topography and Site Investigation", "tbupbu", "predecessor", "1.2", 25, "after", None),
+    ("2.10", "Provide list of project permits (Governmental, Local Authority)", "tbupbu", "predecessor", "1.2", 15, "after", None),
+    ("2.11", "Preparation of Subcontracting Strategy for (OHTL/UGC) projects", "tbupbu", "predecessor", "1.2", 5, "after", None),
+    ("2.12", "Provide Confirmation on the Proposal recommendation for working schedule", "tbupbu", "predecessor", "5.6", 3, "after", None),
+
+    ("2.13", "Submission of Cost Center request to Cost Control Department", "bbu", "predecessor", "1.2", 1, "after", None),
+    ("2.14", "Creating PRs for MEP consultancy items through system", "bbu", "predecessor", "5.3", 2, "after", None),
+    ("2.15", "BBU input for Draft Project Execution Plan", "bbu", "predecessor", "1.2", 20, "after", None),
+    ("2.16", "Provide general layout of Temporary facilities, laydown and storage", "bbupbu", "predecessor", "1.2", 7, "after", None),
+    ("2.17", "Prepare/Update Subcontracting Strategy / Model", "bbu", "predecessor", "1.2", 5, "after", None),
+    ("2.18", "Finalize Subcontract Agreement for SS projects", "bbu", "predecessor", "1.6", 10, "after", None),
+
+    ("3.1", "Issue RFQ to vendors including technical SOW, contractual and commercial baselines", "supply", "predecessor", "4.5", 7, "after", None),
+    ("3.2", "Allowable time for negotiating commercial and technical terms", "supply", "predecessor", "2.2", 10, "after", None),
+    ("3.3", "Award Approval on System (Buyer -> SCM -> Cost Control -> Operation)", "supply", "predecessor", "1.6", 5, "after", None),
+    ("3.4", "Top Management approval of awarding, if required as per Authority Matrix", "supply", "predecessor", "3.3", 5, "after", None),
+    ("3.5", "PO Approval on Oracle following Award Approval", "supply", "predecessor", "3.4", 3, "after", None),
+    ("3.6", "Electronic Internal PO Signature (SCM Director and VP Technical)", "supply", "predecessor", "3.5", 2, "after", None),
+    ("3.7", "Electronic PO Signature by Vendor", "supply", "predecessor", "3.6", 2, "after", None),
+    ("3.8", "Finalize Subcontract Agreement for OHTL/UGC Projects", "supply", "predecessor", "1.6", 10, "after", None),
+    ("3.9", "Share Design Firm Technical Offers received from vendors with Engineering", "supply", "predecessor", "4.3", 5, "after", None),
+    ("3.10", "Prepare and Issue Engineering/Design Agreement/PO", "supply", "predecessor", "2.7", 8, "after", None),
+    ("3.11", "Issue POs for Early Activities (Site Survey, Geotechnical Investigation)", "supply", "predecessor", "2.6", 8, "after", None),
+    ("3.12", "Finalize prequalification of new vendors (if any)", "supply", "predecessor", "1.2", 21, "after", None),
+
+    ("4.1", "Provide SC scope for Early Activities", "eng", "predecessor", "1.1", 9, "after", None),
+    ("4.2", "Update the initial Design and Quantities including site layout", "eng", "predecessor", "2.9", 10, "after", None),
+    ("4.3", "Provide brief SOW for Design Firm as per PTS for core project", "eng", "predecessor", "1.1", 2, "after", None),
+    ("4.4", "Review and evaluate Design Firm Technical Offers and Finalize selection", "eng", "predecessor", "3.9", 4, "after", None),
+    ("4.5", "Review Vendors technical offers received from Tendering & Procurement", "eng", "predecessor", "1.2", 10, "after", None),
+    ("4.6", "Review Vendors technical offers received from Supply Chain", "eng", "predecessor", "3.2", 5, "after", None),
+    ("4.7", "Verify site layout after approach Site for Preliminary investigation", "eng", "predecessor", "2.9", 5, "after", None),
+    ("4.8", "Update Engineering Risk Register including lesson learned", "eng", "predecessor", "4.2", 10, "after", None),
+
+    ("5.1", "Provide Project Baseline Schedule as per Contractual Milestones", "planning", "predecessor", "1.3", 20, "after", None),
+    ("5.2", "Provide Project Working Schedule (Actual Resource Loaded) with 25% reduction in overall project duration", "planning", "predecessor", "2.12", 10, "after", None),
+    ("5.3", "Prepare Temporary Project Budget on Oracle", "costctrl", "predecessor", "2.1", 3, "after", None),
+    ("5.4", "Prepare Project Baseline Budget on Oracle", "costctrl", "predecessor", "1.3", 14, "after", None),
+    ("5.5", "Prepare Project Locked Budget on Oracle (As per signed Contract)", "costctrl", "predecessor", "1.6", 14, "after", None),
+    ("5.6", "Provide Proposal recommendation for working schedule for time schedule driven items", "planning", "predecessor", "5.1", 3, "after", None),
+    ("5.7", "Update Planning Risk Register including lesson learned", "planning", "predecessor", "5.2", 3, "after", None),
+
+    ("6.1", "Update Contracts Risk Register and Contract Liabilities", "contract", "client_dependent", None, 1, "after", None),
+
+    ("7.1", "Provide Workforce Availability Plan with Hiring dates", "hr", "predecessor", "1.2", 15, "after", None),
+
+    ("8.1", "Secure Bank Facilities for the project / Project Finance Model", "treasury", "predecessor", "8.4", 10, "after", None),
+    ("8.2", "Issuance of Performance Bond", "treasury", "predecessor", "1.5", 6, "after", None),
+    ("8.3", "Issuance of Advance Payment Guarantee", "treasury", "predecessor", "1.6", 14, "after", None),
+    ("8.4", "Provide Updated Cashflow and Finance Cost", "finance", "predecessor", "1.2", 5, "after", None),
+    ("8.5", "Provide Insurance Requirements (Cost & Provider selection)", "insurance", "predecessor", "1.6", 10, "after", None),
+
+    ("9.1", "Provide QA/QC Detailed Plan including ITPs for major activities", "quality", "predecessor", "1.2", 17, "after", None),
+    ("9.2", "Provide HSE Detailed Plan (Site Safety, HSE, Safety training)", "hsse", "predecessor", "1.2", 17, "after", None),
+    ("9.3", "Provide HSSE and Quality Staffing plans", "hssequal", "predecessor", "1.2", 12, "after", None),
+    ("9.4", "Provide Risk Assessment (including identification of main hazards)", "hsse", "predecessor", "1.2", 10, "after", None),
+    ("9.5", "Provide Environmental management plan", "hsse", "predecessor", "1.2", 20, "after", None),
+    ("9.6", "Provide Waste management plan", "hsse", "predecessor", "1.2", 20, "after", None),
+
+    ("10.1", "Verify and update Project Risk register", "risk", "predecessor", "5.7", 15, "after", None),
+
+    ("11.1", "Provide Updated information on Equipment availability, location", "fleet", "predecessor", "1.6", 7, "after", None),
+
+    ("12.1", "Verify Updated Camp Cost Estimates, Consumptions and Maintenance", "fm", "predecessor", "1.2", 7, "after", None),
 ]
 
 
@@ -74,38 +245,41 @@ def run():
     db = SessionLocal()
     try:
         dept_map = {}
-        for full_name, short_name in DEPARTMENTS:
-            dept = db.query(models.Department).filter_by(name=full_name).first()
+        for i, name in enumerate(DEPARTMENTS):
+            dept = db.query(models.Department).filter_by(name=name).first()
             if not dept:
-                dept = models.Department(name=full_name, order=len(dept_map))
+                dept = models.Department(name=name, order=i)
                 db.add(dept)
                 db.flush()
-            dept.focal_point_email = TEST_EMAILS.get(short_name)
-            dept.focal_point_name = f"TEST focal ({short_name})"
-            dept_map[short_name] = dept
+            dept.focal_point_email = dept.focal_point_email or TEST_EMAIL
+            dept.focal_point_name = dept.focal_point_name or f"TEST focal ({name})"
+            dept_map[name] = dept
         db.commit()
 
-        for stage, ms_list in (("L0", MILESTONES_L0), ("L1", MILESTONES_L1)):
-            for code, name, seq in ms_list:
-                exists = db.query(models.MilestoneDefinition).filter_by(stage=stage, code=code).first()
-                if not exists:
-                    db.add(models.MilestoneDefinition(stage=stage, code=code, name=name, sequence=seq))
-        db.commit()
+        def upsert(stage, item_no, name, dept_id, anchor_type, pred, offset, direction, dtype, is_ms, ms_code):
+            existing = db.query(models.DeliverableDefinition).filter_by(
+                stage=stage, item_no=item_no, department_id=dept_id
+            ).first()
+            if existing:
+                return
+            db.add(models.DeliverableDefinition(
+                stage=stage, item_no=item_no, name=name, department_id=dept_id,
+                anchor_type=anchor_type, predecessor_item_no=pred, offset_days=offset,
+                offset_direction=direction, deliverable_type=dtype,
+                is_milestone=is_ms, milestone_code=ms_code, milestone_name=ms_code,
+                default_owner_email=TEST_EMAIL, default_sme_email=TEST_EMAIL,
+            ))
 
-        for stage, item_no, name, dept_short, anchor_type, anchor, offset, direction in DELIVERABLES:
-            dept = dept_map[dept_short]
-            exists = db.query(models.DeliverableDefinition).filter_by(stage=stage, item_no=item_no, department_id=dept.id).first()
-            if exists:
-                continue
-            kwargs = dict(stage=stage, item_no=item_no, name=name, department_id=dept.id,
-                          anchor_type=anchor_type, offset_days=offset, offset_direction=direction)
-            if anchor_type == "milestone":
-                kwargs["anchor_milestone_code"] = anchor
-            else:
-                kwargs["predecessor_item_no"] = anchor
-            db.add(models.DeliverableDefinition(**kwargs))
+        for item_no, name, dkey, anchor, pred, offset, direction, dtype, ms in L0_ITEMS:
+            dept = dept_map[L0_DEPT[dkey]]
+            upsert("L0", item_no, name, dept.id, anchor, pred, offset, direction, dtype, bool(ms), ms)
+
+        for item_no, name, dkey, anchor, pred, offset, direction, ms in L1_ITEMS:
+            dept = dept_map[L1_DEPT[dkey]]
+            upsert("L1", item_no, name, dept.id, anchor, pred, offset, direction, "date_driven", bool(ms), ms)
+
         db.commit()
-        print("Seed complete:", len(dept_map), "departments,", len(DELIVERABLES), "deliverable definitions.")
+        print(f"Seed complete: {len(dept_map)} departments, {len(L0_ITEMS)} L0 items, {len(L1_ITEMS)} L1 items.")
     finally:
         db.close()
 

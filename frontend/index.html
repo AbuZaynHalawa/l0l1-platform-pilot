@@ -22,6 +22,7 @@
       <button class="nav-item" data-view="announcements"><span class="ic">&#128276;</span> Announcements</button>
       <button class="nav-item" data-view="l0"><span class="ic">&#128196;</span> L0 Tenders</button>
       <button class="nav-item" data-view="l1"><span class="ic">&#128274;</span> L1 Projects</button>
+      <button class="nav-item" data-view="gantt"><span class="ic">&#128198;</span> Timeline</button>
       <button class="nav-item" data-view="performance"><span class="ic">&#128200;</span> Performance</button>
     </nav>
 
@@ -52,6 +53,7 @@
           <option value="SME">Viewing as: SME</option>
           <option value="Viewer">Viewing as: Viewer</option>
         </select>
+        <input class="role-select" id="actingEmail" type="text" placeholder="acting as email&#8230;" style="display:none;width:190px;" />
         <button class="theme-btn" id="themeToggle">Dark mode</button>
         <div class="avatar">YH</div>
       </div>
@@ -63,7 +65,7 @@
         <div>
           <div class="eyebrow">Overview</div>
           <h1>Good morning — here's where things stand</h1>
-          <p class="sub">Across L-Pre, L0 and L1, updated as departments submit.</p>
+          <p class="sub">Across L0 and L1, updated as departments submit.</p>
         </div>
       </div>
 
@@ -73,12 +75,6 @@
       </div>
 
       <div class="stat-row" id="statRow"></div>
-
-      <div class="card pipeline-card">
-        <h3>Where every pursuit sits, right now</h3>
-        <p class="cap">The same three-stage journey every tender goes through &#8211; L&#8209;Pre only applies to international opportunities.</p>
-        <div class="pipeline" id="pipelineRow"></div>
-      </div>
 
       <div class="split">
         <div class="card">
@@ -135,7 +131,7 @@
       <div class="card table-card">
         <div class="table-scroll">
           <table class="data" id="l0Table">
-            <thead><tr><th>Est No.</th><th>Tender</th><th>Region</th><th>Scope</th><th>Bid Manager</th><th>BSD</th><th>Status</th></tr></thead>
+            <thead><tr><th>Est No.</th><th>Tender</th><th>RFX</th><th>Region</th><th>Scope</th><th>Bid Manager</th><th>BSD</th><th>Status</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -161,6 +157,24 @@
       </div>
     </section>
 
+    <!-- TIMELINE / GANTT -->
+    <section class="view" id="view-gantt" hidden>
+      <div class="view-head">
+        <div>
+          <div class="eyebrow">Scheduling</div>
+          <h1>Timeline</h1>
+          <p class="sub">Every deliverable's window, computed from the same due-date engine driving the rest of the app.</p>
+        </div>
+        <div class="field" style="max-width:300px;">
+          <select id="ganttScope"><option value="">All Active Projects</option></select>
+        </div>
+      </div>
+      <div class="card table-card">
+        <div class="gantt-axis" id="ganttAxis"></div>
+        <div class="gantt-scroll" id="ganttRows"></div>
+      </div>
+    </section>
+
     <!-- PROJECT DETAIL -->
     <section class="view" id="view-detail" hidden>
       <button class="back-link" id="backBtn">&#8592; Back to list</button>
@@ -169,6 +183,7 @@
           <div class="detail-est" id="dEst"></div>
           <h1 class="detail-title" id="dTitle"></h1>
         </div>
+        <button class="btn" id="dGanttBtn">View Timeline</button>
         <span class="pill" id="dStatusPill"></span>
       </div>
       <div class="detail-meta-row" id="dMeta"></div>
@@ -241,32 +256,74 @@
         </div>
       </div>
       <div class="card form-card">
-        <div class="form-grid">
-          <div class="field">
-            <label>Stage <span class="req">*</span></label>
-            <select id="cfStage"><option value="L0">L0 &#8211; New Tender</option><option value="L1">L1 &#8211; Post-Bid-Win</option></select>
+        <div class="field" style="max-width:320px;margin-bottom:18px;">
+          <label>Stage <span class="req">*</span></label>
+          <select id="cfStage"><option value="L0">L0 &#8211; New Tender</option><option value="L1">L1 &#8211; Post-Bid-Win (from an L0)</option></select>
+        </div>
+
+        <!-- L0 FORM -->
+        <div id="cfL0Form">
+          <div class="form-grid">
+            <div class="field">
+              <label>Tender Name <span class="req">*</span></label>
+              <input type="text" id="cfName" placeholder="e.g. SEC OHTL 380kV &#8230;" />
+            </div>
+            <div class="field">
+              <label>RFX Number</label>
+              <input type="text" id="cfRfx" placeholder="optional" />
+            </div>
+            <div class="field">
+              <label>Bid Manager <span class="req">*</span></label>
+              <select id="cfBid"><option value="">Select&#8230;</option></select>
+            </div>
+            <div class="field">
+              <label>Announcement Date <span class="req">*</span></label>
+              <input type="date" id="cfAnnounce" />
+            </div>
+            <div class="field">
+              <label>Bid Submission Date (BSD) <span class="req">*</span></label>
+              <input type="date" id="cfBsd" />
+            </div>
+            <div class="field">
+              <label>Site Visit Date</label>
+              <input type="date" id="cfSiteVisit" />
+            </div>
+            <div class="field">
+              <label>Pre-Bid Clarification Deadline</label>
+              <input type="date" id="cfPreBid" />
+              <span class="hint">If left blank, treated as immediate.</span>
+            </div>
           </div>
-          <div class="field">
-            <label>Project Name <span class="req">*</span></label>
-            <input type="text" id="cfName" placeholder="e.g. SEC OHTL 380kV &#8230;" />
+          <div class="field" style="margin-top:8px;">
+            <label>Region <span class="req">*</span></label>
+            <div class="scope-grid" id="cfRegionGrid"></div>
+            <input type="text" id="cfRegionOther" placeholder="If Other, specify&#8230;" style="display:none;margin-top:6px;" />
           </div>
-          <div class="field">
-            <label>Region</label>
-            <input type="text" id="cfRegion" placeholder="e.g. Central" />
+          <div class="field" style="margin-top:14px;">
+            <label>Scope <span class="req">*</span></label>
+            <div class="scope-grid" id="cfScopeGrid"></div>
+            <input type="text" id="cfScopeOther" placeholder="If Other, specify&#8230;" style="display:none;margin-top:6px;" />
           </div>
-          <div class="field">
-            <label>Scope</label>
-            <input type="text" id="cfScope" placeholder="e.g. SS 110-132KV" />
-          </div>
-          <div class="field">
-            <label>Bid Manager</label>
-            <input type="text" id="cfBid" placeholder="e.g. Deeb" />
-          </div>
-          <div class="field">
-            <label>Bid Submission Date</label>
-            <input type="date" id="cfBsd" />
+          <div class="field" style="margin-top:14px;">
+            <label class="check-inline"><input type="checkbox" id="cfPbu" /> Scope contains PBU (affects RFQ float dates)</label>
           </div>
         </div>
+
+        <!-- L1 FORM -->
+        <div id="cfL1Form" hidden>
+          <div class="form-grid">
+            <div class="field">
+              <label>Select L0 Tender <span class="req">*</span></label>
+              <select id="cfL0Source"><option value="">Select an in-progress L0&#8230;</option></select>
+              <span class="hint">Name, Est No., Bid Manager, Region &amp; Scope are copied automatically.</span>
+            </div>
+            <div class="field">
+              <label>L1 Announcement Date <span class="req">*</span></label>
+              <input type="date" id="cfL1Announce" />
+            </div>
+          </div>
+        </div>
+
         <div class="form-actions">
           <button class="btn" id="cfCancel">Cancel</button>
           <button class="btn primary" id="cfSubmit">Create Project &amp; Provision Folders</button>

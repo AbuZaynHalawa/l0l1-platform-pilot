@@ -12,6 +12,16 @@ from pathlib import Path
 
 LOCAL_ROOT = Path(__file__).resolve().parent.parent.parent / "data" / "local_storage"
 
+_ILLEGAL_SEGMENT_CHARS = str.maketrans({c: "-" for c in '/\\:*?"<>|'})
+
+
+def sanitize_segment(name: str) -> str:
+    """Makes a single path segment (department/project name) safe as a folder
+    name on both the local filesystem and OneDrive — real department names
+    like "L1 TBU / PBU" contain "/", which both treat as a path separator.
+    """
+    return name.translate(_ILLEGAL_SEGMENT_CHARS).strip()
+
 
 class StorageProvider(ABC):
     @abstractmethod

@@ -1,10 +1,10 @@
-from datetime import datetime
+from datetime import datetime, date
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 
 from .. import models, schemas, announcements, rules
 from ..database import get_db
-from ..providers.storage import get_storage_provider
+from ..providers.storage import get_storage_provider, sanitize_segment
 
 router = APIRouter(prefix="/api/deliverables", tags=["deliverables"])
 _storage = get_storage_provider()
@@ -13,6 +13,18 @@ _storage = get_storage_provider()
 def _dept_label(name: str) -> str:
     parts = name.split(". ", 1)
     return parts[1] if len(parts) == 2 else name
+
+
+def _can_act(actor_role: str, actor_email: str, assigned_email: str | None) -> bool:
+    """Admins can always act. Otherwise the actor must be the specific person
+    assigned to this deliverable (owner for uploads, SME for reviews) — not
+    just 'anyone with the Owner/SME role', per the Modifications doc.
+    """
+    if actor_role == "Admin":
+        return True
+    if not assigned_email or not actor_email:
+        return False
+    return actor_email.strip().lower() == assigned_email.strip().lower()
 
 
 @router.get("")
@@ -36,35 +48,41 @@ def list_all_deliverables(status: str | None = None, db: Session = Depends(get_d
             "id": s.id, "est_no": s.project.est_no, "project_name": s.project.name,
             "department": s.definition.department.name, "item_no": s.definition.item_no,
             "name": s.definition.name, "due_date": s.due_date, "status": s.status.value,
-            "owner": s.definition.department.focal_point_name or "Unassigned",
+            "owner": s.owner_email or s.definition.default_owner_email or "Unassigned",
+            "is_milestone": s.definition.is_milestone, "milestone_code": s.definition.milestone_code,
         })
     return out
 
 
 @router.post("/{submission_id}/upload")
 async def upload_deliverable(submission_id: int, file: UploadFile = File(...),
-                              owner_name: str = Form("Owner"), db: Session = Depends(get_db)):
+                              actor_name: str = Form("Owner"), actor_role: str = Form("Owner"),
+                              actor_email: str = Form(""), db: Session = Depends(get_db)):
     sub = db.get(models.DeliverableSubmission, submission_id)
     if not sub:
         raise HTTPException(404, "Deliverable not found")
 
+    assigned = sub.owner_email or sub.definition.default_owner_email
+    if not _can_act(actor_role, actor_email, assigned):
+        raise HTTPException(403, f"Only {assigned or 'the assigned owner'} or an Admin can upload this deliverable")
+
     content = await file.read()
-    folder = f"{sub.project.onedrive_folder_path}/{sub.definition.department.name}"
+    folder = f"{sub.project.onedrive_folder_path}/{sanitize_segment(sub.definition.department.name)}"
     file_ref = _storage.upload_file(folder, file.filename, content)
 
     sub.file_name = file.filename
     sub.file_ref = file_ref
     sub.submitted_at = datetime.utcnow()
     sub.status = models.SubmissionStatus.PENDING_REVIEW
-    db.add(models.WorkflowHistory(submission_id=sub.id, action="submitted", actor_name=owner_name,
+    db.add(models.WorkflowHistory(submission_id=sub.id, action="submitted", actor_name=actor_name,
                                    note=f"Uploaded {file.filename}"))
     db.commit()
 
-    dept = sub.definition.department
-    if dept.focal_point_email:
-        announcements.sme_review_requested(db, sub.project, dept.focal_point_email, sub.definition.item_no, sub.definition.name)
+    sme_email = sub.sme_email or sub.definition.default_sme_email
+    if sme_email:
+        announcements.sme_review_requested(db, sub.project, sme_email, sub.definition.item_no, sub.definition.name)
         db.add(models.WorkflowHistory(submission_id=sub.id, action="review_requested",
-                                       actor_name="system", note=f"Sent to {dept.focal_point_name}"))
+                                       actor_name="system", note=f"Sent to {sme_email}"))
         db.commit()
 
     return {"status": "ok", "file_ref": file_ref}
@@ -78,42 +96,56 @@ def review_deliverable(submission_id: int, decision: schemas.ReviewDecision, db:
     if sub.status != models.SubmissionStatus.PENDING_REVIEW:
         raise HTTPException(400, "Deliverable is not awaiting review")
 
+    assigned_sme = sub.sme_email or sub.definition.default_sme_email
+    if not _can_act(decision.actor_role, decision.actor_email, assigned_sme):
+        raise HTTPException(403, f"Only {assigned_sme or 'the assigned SME'} or an Admin can review this deliverable")
+
     sub.status = models.SubmissionStatus.APPROVED if decision.approved else models.SubmissionStatus.REJECTED
     sub.review_comment = decision.comment
     sub.reviewed_at = datetime.utcnow()
+
+    # Client-dependent items (Contract Signing, LOA, etc.) have no computable
+    # due_date until they actually happen — approval IS that event, so freeze
+    # a real date now so downstream predecessor-chained items can anchor off it.
+    if decision.approved and sub.due_date is None:
+        sub.due_date = sub.reviewed_at.date()
+
     db.add(models.WorkflowHistory(
         submission_id=sub.id, action="approved" if decision.approved else "rejected",
         actor_name=decision.reviewer_name, note=decision.comment,
     ))
     db.commit()
 
-    owner_email = (sub.owner.email if sub.owner else sub.definition.department.focal_point_email) or ""
-    dept_label = _dept_label(sub.definition.department.name)
+    owner_email = sub.owner_email or sub.definition.default_owner_email or ""
     announcements.sme_decision(db, sub.project, owner_email, sub.definition.item_no, sub.definition.name,
                                 decision.approved, decision.comment)
 
-    # Cross-department unlock: any OTHER definition whose predecessor is this item,
-    # in the same project's stage, becomes actionable now that this one is approved.
+    if decision.approved and sub.definition.is_milestone:
+        recipients = sorted({d.focal_point_email for d in db.query(models.Department).all() if d.focal_point_email})
+        announcements.milestone_reached(db, sub.project, recipients, sub.definition.milestone_code, sub.definition.name)
+
     if decision.approved:
-        unlocked_defs = db.query(models.DeliverableDefinition).filter(
-            models.DeliverableDefinition.predecessor_item_no == sub.definition.item_no,
-            models.DeliverableDefinition.stage == sub.definition.stage,
-        ).all()
-        for ud in unlocked_defs:
-            unlocked_sub = (
-                db.query(models.DeliverableSubmission)
-                .filter(models.DeliverableSubmission.project_id == sub.project_id,
-                        models.DeliverableSubmission.deliverable_definition_id == ud.id)
-                .first()
-            )
-            if not unlocked_sub:
+        # Snapshot due dates, recompute the whole project (correctly cascades
+        # through however many chained levels), then notify whoever just
+        # became actionable as a result — the real cross-department unlock.
+        before = {
+            s.id: s.due_date
+            for s in db.query(models.DeliverableSubmission).filter(models.DeliverableSubmission.project_id == sub.project_id).all()
+        }
+        rules.recompute_project_due_dates(db, sub.project)
+        db.commit()
+        after_subs = db.query(models.DeliverableSubmission).filter(models.DeliverableSubmission.project_id == sub.project_id).all()
+        trigger_label = f"{sub.definition.item_no} {sub.definition.name}"
+        for s2 in after_subs:
+            if s2.id == sub.id:
                 continue
-            target_email = ud.department.focal_point_email or ""
-            trigger_label = f"{sub.definition.item_no} {sub.definition.name}"
-            announcements.cross_department_unlock(db, sub.project, target_email, trigger_label, ud.item_no, ud.name)
-            db.add(models.WorkflowHistory(submission_id=unlocked_sub.id, action="unlocked",
-                                           actor_name="system", note=f"Unlocked by approval of {trigger_label}"))
-    db.commit()
+            if before.get(s2.id) is None and s2.due_date is not None:
+                target_email = s2.owner_email or s2.definition.default_owner_email or ""
+                announcements.cross_department_unlock(db, sub.project, target_email, trigger_label, s2.definition.item_no, s2.definition.name)
+                db.add(models.WorkflowHistory(submission_id=s2.id, action="unlocked",
+                                               actor_name="system", note=f"Unlocked by approval of {trigger_label}"))
+        db.commit()
+
     return {"status": "ok"}
 
 

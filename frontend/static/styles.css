@@ -328,6 +328,23 @@
   .field input:focus, .field select:focus { background: var(--surface); border-color: var(--accent-line); }
   .scope-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 16px; }
   .scope-opt { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-700); }
+  .hint { font-size: 11px; color: var(--ink-500); }
+  .check-inline { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; color: var(--ink-700); }
+
+  /* ---------- Timeline / Gantt ---------- */
+  .gantt-axis { display: flex; justify-content: space-between; padding: 4px 14px 10px 234px; font-size: 11px; color: var(--ink-500); font-weight: 700; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+  .gantt-scroll { max-height: 560px; overflow-y: auto; }
+  .gantt-row { display: flex; align-items: center; gap: 12px; padding: 7px 14px; border-bottom: 1px solid var(--line); }
+  .gantt-row:last-child { border-bottom: none; }
+  .gantt-label { width: 210px; flex-shrink: 0; font-size: 12px; color: var(--ink-700); line-height: 1.35; }
+  .gantt-label b { color: var(--ink-900); }
+  .gantt-track { position: relative; flex: 1; height: 18px; background: var(--surface-sunken); border-radius: 5px; }
+  .gantt-bar { position: absolute; top: 2px; height: 14px; border-radius: 4px; min-width: 6px; }
+  .gantt-bar.good { background: var(--good); }
+  .gantt-bar.warn { background: var(--warn); }
+  .gantt-bar.crit { background: var(--crit); }
+  .gantt-bar.neutral { background: var(--purple-1); }
+  .gantt-bar.milestone { outline: 2px solid var(--purple-2); outline-offset: 1px; }
   .form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
   .admin-lock { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--warn-bg); color: var(--warn); border-radius: 10px; font-size: 12.5px; font-weight: 600; margin-bottom: 18px; }
 

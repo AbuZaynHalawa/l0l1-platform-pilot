@@ -12,7 +12,7 @@ def get_dashboard(db: Session = Depends(get_db)):
     projects = db.query(models.Project).all()
     l0_count = sum(1 for p in projects if p.stage == models.Stage.L0 and p.status == models.ProjectStatus.IN_PROGRESS)
     l1_count = sum(1 for p in projects if p.stage == models.Stage.L1 and p.status == models.ProjectStatus.IN_PROGRESS)
-    signed_count = sum(1 for p in projects if p.status == models.ProjectStatus.SIGNED)
+    signed_count = sum(1 for p in projects if p.contract_status == models.ContractStatus.SIGNED)
 
     all_subs = db.query(models.DeliverableSubmission).all()
     for s in all_subs:

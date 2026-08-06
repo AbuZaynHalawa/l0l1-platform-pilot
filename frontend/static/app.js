@@ -7,6 +7,10 @@
   "use strict";
 
   var CURRENT_ROLE = "Admin";
+  function actingEmail() {
+    var f = document.getElementById("actingEmail");
+    return f ? f.value.trim() : "";
+  }
   function can(action) {
     if (CURRENT_ROLE === "Admin") return true;
     if (action === "upload") return CURRENT_ROLE === "Owner";
@@ -28,9 +32,15 @@
   }
   async function api(path, opts) {
     var r = await fetch(path, opts);
-    if (!r.ok) { throw new Error(path + " -> " + r.status + ": " + (await r.text())); }
+    if (!r.ok) {
+      var bodyText = await r.text();
+      var err = new Error(path + " -> " + r.status + ": " + bodyText);
+      try { err.detail = JSON.parse(bodyText).detail; } catch (e) { err.detail = bodyText; }
+      throw err;
+    }
     return r.status === 204 ? null : r.json();
   }
+  function apiErrorDetail(err) { return err.detail || err.message; }
   function showToast(msg) {
     var t = document.getElementById("toast");
     document.getElementById("toastMsg").innerHTML = msg;
@@ -43,7 +53,8 @@
     not_due: ["neutral", "Not Due"], due: ["warn", "Due"], overdue: ["crit", "Overdue"],
     pending_review: ["warn", "Pending SME Review"], approved: ["good", "Approved"], rejected: ["crit", "Rejected"],
   };
-  var PROJECT_STATUS_CLASS = { "Signed": "good", "Cancelled": "crit", "Submitted": "good", "In Progress": "warn" };
+  var PROJECT_STATUS_CLASS = { "Completed": "good", "Cancelled": "crit", "Submitted": "good", "In Progress": "warn" };
+  function joinList(v) { return (v && v.length) ? v.join(", ") : "&#8213;"; }
   var ANN_ICON = {
     broadcast: ["&#128276;", "broadcast"], owner: ["&#128100;", "owner"], sme_request: ["&#128269;", "sme-request"],
     sme_decision: ["&#9989;", "sme-decision"], unlock: ["&#128275;", "unlock"], deadline: ["&#8987;", "deadline"], closed: ["&#127937;", "closed"],
@@ -53,7 +64,7 @@
   var LOADERS = {
     dashboard: loadDashboard, assigned: loadAssigned, announcements: loadAnnouncements,
     l0: function () { loadProjectsTable("L0"); }, l1: function () { loadProjectsTable("L1"); },
-    performance: loadPerformance, reports: loadReports,
+    performance: loadPerformance, reports: loadReports, create: loadCreateOptions, gantt: loadGantt,
   };
   function switchView(name) {
     if ((name === "create" || name === "reports") && !can("create")) name = "dashboard";
@@ -66,14 +77,9 @@
     btn.addEventListener("click", function () { switchView(btn.dataset.view); });
   });
   document.getElementById("backBtn").addEventListener("click", function () { switchView(lastListView); });
+  document.getElementById("dGanttBtn").addEventListener("click", function () { openProjectGantt(currentProjectId); });
 
   /* ================= DASHBOARD ================= */
-  var STAGE_META = [
-    { key: "lpre", label: "L-Pre", desc: "International BD opportunities" },
-    { key: "l0", label: "L0", desc: "Tendering &mdash; bid preparation" },
-    { key: "l1", label: "L1", desc: "Post-bid-win, M1&#8211;M6" },
-    { key: "signed", label: "Signed", desc: "Contract executed" },
-  ];
   async function loadDashboard() {
     var d = await api("/api/dashboard");
 
@@ -99,18 +105,6 @@
         tile.appendChild(v);
         stats.appendChild(tile);
       });
-
-    var counts = { lpre: 0, l0: d.active_l0, l1: d.active_l1, signed: d.signed };
-    var pipe = document.getElementById("pipelineRow");
-    pipe.innerHTML = "";
-    STAGE_META.forEach(function (s, i) {
-      var stage = el("div", "pipe-stage" + (i <= 2 ? " on" : ""));
-      stage.appendChild(el("div", "pipe-dot", s.label));
-      stage.appendChild(el("div", "pcount num", String(counts[s.key])));
-      stage.appendChild(el("div", "pname", s.label));
-      stage.appendChild(el("div", "pdesc", s.desc));
-      pipe.appendChild(stage);
-    });
 
     renderDeptGrid(document.getElementById("dashDeptGrid"), d.departments.slice(0, 6), false);
 
@@ -222,7 +216,7 @@
     tbody.innerHTML = "";
     if (!list.length) {
       var tr = el("tr");
-      tr.innerHTML = '<td colspan="7" style="text-align:center;color:var(--ink-500);padding:30px;">No ' + stage + ' projects yet.</td>';
+      tr.innerHTML = '<td colspan="8" style="text-align:center;color:var(--ink-500);padding:30px;">No ' + stage + ' projects yet.</td>';
       tbody.appendChild(tr);
       return;
     }
@@ -232,7 +226,7 @@
       var statusPill = '<span class="pill ' + (PROJECT_STATUS_CLASS[p.status] || "neutral") + '"><span class="dot"></span>' + p.status + '</span>';
       if (stage === "L0") {
         tr2.innerHTML = '<td class="est-no">' + p.est_no + '</td><td><span class="proj-name">' + p.name + '</span></td>' +
-          '<td>' + (p.region || "&#8213;") + '</td><td>' + (p.scope || "&#8213;") + '</td><td>' + (p.bid_manager || "&#8213;") + '</td>' +
+          '<td>' + (p.rfx_number || "&#8213;") + '</td><td>' + joinList(p.region) + '</td><td>' + joinList(p.scope) + '</td><td>' + (p.bid_manager || "&#8213;") + '</td>' +
           '<td class="num">' + fmtDate(p.bsd) + '</td><td>' + statusPill + '</td>';
       } else {
         var mini = '<div class="mini-stepper" data-pid="' + p.id + '">&#8230;</div>';
@@ -255,14 +249,6 @@
     target.innerHTML = ms.map(function (m) { return '<span class="mini-dot' + (m.reached ? " on" : "") + '"></span>'; }).join("");
   }
 
-  function makeReachHandler(projectId, code) {
-    return async function () {
-      await api("/api/projects/" + projectId + "/milestones/" + code + "/reach", { method: "POST" });
-      showToast(code + " marked reached &#8211; announcement sent, due dates updated");
-      openDetail(projectId);
-    };
-  }
-
   /* ================= PROJECT DETAIL ================= */
   var currentProjectId = null, currentProjectStage = "L0", currentDeptOpen = null;
   async function openDetail(id) {
@@ -277,8 +263,10 @@
     var meta = document.getElementById("dMeta");
     meta.innerHTML = "";
     var metaItems = p.stage === "L0"
-      ? [["Bid Manager", p.bid_manager || "&#8213;"], ["Region", p.region || "&#8213;"], ["Scope", p.scope || "&#8213;"], ["Bid Submission Date", fmtDate(p.bsd)]]
-      : [["Bid Manager", p.bid_manager || "&#8213;"], ["Region", p.region || "&#8213;"], ["Client", "SEC"], ["Announced", fmtDate(p.announcement_date)]];
+      ? [["Bid Manager", p.bid_manager || "&#8213;"], ["RFX", p.rfx_number || "&#8213;"], ["Region", joinList(p.region)], ["Scope", joinList(p.scope)],
+         ["Announced", fmtDate(p.announcement_date)], ["Site Visit", fmtDate(p.site_visit_date)], ["Pre-Bid Deadline", fmtDate(p.pre_bid_deadline)], ["Bid Submission Date", fmtDate(p.bsd)]]
+      : [["Bid Manager", p.bid_manager || "&#8213;"], ["Region", joinList(p.region)], ["Scope", joinList(p.scope)],
+         ["Announced", fmtDate(p.announcement_date)], ["Contract Status", p.contract_status || "&#8213;"]];
     metaItems.forEach(function (m) {
       var mi = el("div", "meta-item");
       mi.appendChild(el("div", "mk", m[0]));
@@ -301,44 +289,42 @@
         var label = el("div", "fs-label", m.code + " &middot; " + m.name);
         step.appendChild(label);
         step.appendChild(el("div", "fs-date", m.reached ? fmtDate(m.actual_date) : "&#8213;"));
-        if (!m.reached && i === lastDoneIdx + 1 && can("create")) {
-          var btn = el("button", "btn", "Mark reached");
-          btn.style.marginTop = "4px";
-          btn.addEventListener("click", makeReachHandler(id, m.code));
-          step.appendChild(btn);
-        }
         stepper.appendChild(step);
       });
     } else {
       stepperCard.style.display = "none";
     }
 
-    var depts = await api("/api/departments");
+    var allDeptsMeta = await api("/api/departments");
+    var deptFocal = {};
+    allDeptsMeta.forEach(function (d) { deptFocal[d.name] = d.focal_point_name; });
     var allDelivs = await api("/api/projects/" + id + "/deliverables");
+    var deptNames = [];
+    allDelivs.forEach(function (d) { if (deptNames.indexOf(d.department) === -1) deptNames.push(d.department); });
     var folders = document.getElementById("dFolders");
     folders.innerHTML = "";
-    document.getElementById("dFolderCount").textContent = depts.length + " total";
-    currentDeptOpen = depts.length ? depts[0].name : null;
-    depts.forEach(function (dept, i) {
-      var deptItems = allDelivs.filter(function (d) { return d.department === dept.name; });
+    document.getElementById("dFolderCount").textContent = deptNames.length + " total";
+    currentDeptOpen = deptNames.length ? deptNames[0] : null;
+    deptNames.forEach(function (deptName, i) {
+      var deptItems = allDelivs.filter(function (d) { return d.department === deptName; });
       var approved = deptItems.filter(function (d) { return d.status === "approved"; }).length;
       var pct = deptItems.length ? Math.round((approved / deptItems.length) * 100) : null;
       var row = el("div", "folder-row" + (i === 0 ? " active" : ""));
       row.innerHTML =
-        '<div class="folder-left"><span class="folder-ic">&#128193;</span><div><div class="folder-name">' + dept.name + '</div>' +
-        '<div class="folder-focal">Focal: ' + (dept.focal_point_name || "&#8213;") + '</div></div></div>' +
+        '<div class="folder-left"><span class="folder-ic">&#128193;</span><div><div class="folder-name">' + deptName + '</div>' +
+        '<div class="folder-focal">Focal: ' + (deptFocal[deptName] || "&#8213;") + '</div></div></div>' +
         '<div class="folder-right"><span class="folder-pct">' + (pct === null ? "&#8213;" : pct + "%") + '</span></div>';
       row.addEventListener("click", function () {
         document.querySelectorAll(".folder-row").forEach(function (r) { r.classList.remove("active"); });
         row.classList.add("active");
-        currentDeptOpen = dept.name;
-        document.getElementById("dDeliverTitle").textContent = dept.name.replace(/^\d+\.\s*/, "") + " Deliverables";
+        currentDeptOpen = deptName;
+        document.getElementById("dDeliverTitle").textContent = deptName.replace(/^\d+\.\s*/, "") + " Deliverables";
         renderDeliverables(deptItems);
       });
       folders.appendChild(row);
     });
-    var firstDeptItems = depts.length ? allDelivs.filter(function (d) { return d.department === depts[0].name; }) : [];
-    document.getElementById("dDeliverTitle").textContent = depts.length ? depts[0].name.replace(/^\d+\.\s*/, "") + " Deliverables" : "Deliverables";
+    var firstDeptItems = deptNames.length ? allDelivs.filter(function (d) { return d.department === deptNames[0]; }) : [];
+    document.getElementById("dDeliverTitle").textContent = deptNames.length ? deptNames[0].replace(/^\d+\.\s*/, "") + " Deliverables" : "Deliverables";
     renderDeliverables(firstDeptItems);
 
     switchView("detail");
@@ -396,8 +382,15 @@
       if (!fileInput.files[0]) return;
       var fd = new FormData();
       fd.append("file", fileInput.files[0]);
-      fd.append("owner_name", CURRENT_ROLE + " (pilot)");
-      await api("/api/deliverables/" + submissionId + "/upload", { method: "POST", body: fd });
+      fd.append("actor_name", CURRENT_ROLE + " (pilot)");
+      fd.append("actor_role", CURRENT_ROLE);
+      fd.append("actor_email", actingEmail());
+      try {
+        await api("/api/deliverables/" + submissionId + "/upload", { method: "POST", body: fd });
+      } catch (err) {
+        showToast("Upload blocked &#8211; " + apiErrorDetail(err));
+        return;
+      }
       showToast("Uploaded " + fileInput.files[0].name + " &#8211; SME notified");
       openDetail(currentProjectId);
     });
@@ -406,12 +399,84 @@
   }
   async function review(submissionId, approved, after) {
     var comment = approved ? null : prompt("Reason for rejection (shown to the owner):", "Please review and resubmit with updated supporting documents.");
-    await api("/api/deliverables/" + submissionId + "/review", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ approved: approved, comment: comment, reviewer_name: CURRENT_ROLE }),
-    });
+    try {
+      await api("/api/deliverables/" + submissionId + "/review", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          approved: approved, comment: comment, reviewer_name: CURRENT_ROLE,
+          actor_role: CURRENT_ROLE, actor_email: actingEmail(),
+        }),
+      });
+    } catch (err) {
+      showToast("Review blocked &#8211; " + apiErrorDetail(err));
+      return;
+    }
     showToast(approved ? "Approved &#8211; owner notified" : "Rejected &#8211; owner notified");
     if (after) after();
+  }
+
+  /* ================= TIMELINE / GANTT ================= */
+  var ganttOptionsLoaded = false;
+  async function loadGantt() {
+    var scopeSel = document.getElementById("ganttScope");
+    if (!ganttOptionsLoaded) {
+      var projects = await api("/api/projects?status=" + encodeURIComponent("In Progress"));
+      projects.forEach(function (p) {
+        var o = el("option", "", p.est_no + " &#8211; " + p.name); o.value = p.id;
+        scopeSel.appendChild(o);
+      });
+      ganttOptionsLoaded = true;
+    }
+    await renderGanttFor(scopeSel.value);
+  }
+  document.getElementById("ganttScope").addEventListener("change", function () { renderGanttFor(this.value); });
+  async function openProjectGantt(projectId) {
+    switchView("gantt");
+    var scopeSel = document.getElementById("ganttScope");
+    if (!ganttOptionsLoaded) await loadGantt();
+    scopeSel.value = String(projectId);
+    await renderGanttFor(scopeSel.value);
+  }
+  async function renderGanttFor(projectId) {
+    var isOverview = !projectId;
+    var rows = isOverview ? await api("/api/gantt/overview") : await api("/api/gantt/projects/" + projectId);
+    var axis = document.getElementById("ganttAxis");
+    var wrap = document.getElementById("ganttRows");
+    axis.innerHTML = "";
+    wrap.innerHTML = "";
+    if (!rows.length) {
+      wrap.appendChild(el("div", "empty-state", "Nothing scheduled yet."));
+      return;
+    }
+    var min = Math.min.apply(null, rows.map(function (r) { return new Date(r.start + "T00:00:00").getTime(); }));
+    var max = Math.max.apply(null, rows.map(function (r) { return new Date(r.end + "T00:00:00").getTime(); }));
+    var span = Math.max(1, max - min);
+    axis.appendChild(el("span", "", fmtDate(new Date(min).toISOString().slice(0, 10))));
+    axis.appendChild(el("span", "", fmtDate(new Date(max).toISOString().slice(0, 10))));
+    rows.forEach(function (r) {
+      var s = new Date(r.start + "T00:00:00").getTime();
+      var e = new Date(r.end + "T00:00:00").getTime();
+      var leftPct = ((s - min) / span) * 100;
+      var widthPct = Math.max(0.8, ((e - s) / span) * 100);
+      var row = el("div", "gantt-row");
+      var labelHtml = isOverview
+        ? "<b>" + r.est_no + "</b> &middot; " + r.name
+        : "<b>" + r.item_no + "</b> &middot; " + r.name;
+      row.appendChild(el("div", "gantt-label", labelHtml));
+      var track = el("div", "gantt-track");
+      var cls = isOverview ? (PROJECT_STATUS_CLASS[r.status] || "neutral") : ((STATUS_META[r.status] || ["neutral"])[0]);
+      var bar = el("div", "gantt-bar " + cls + (r.is_milestone ? " milestone" : ""));
+      bar.style.left = leftPct.toFixed(2) + "%";
+      bar.style.width = widthPct.toFixed(2) + "%";
+      bar.title = fmtDate(r.start) + " " + String.fromCharCode(8594) + " " + fmtDate(r.end);
+      track.appendChild(bar);
+      row.appendChild(track);
+      if (isOverview) {
+        row.style.cursor = "pointer";
+        row.addEventListener("click", function () { openDetail(r.id); });
+      }
+      wrap.appendChild(row);
+    });
   }
 
   /* ================= PERFORMANCE / REPORTS ================= */
@@ -463,18 +528,93 @@
   }
 
   /* ================= CREATE PROJECT ================= */
+  var createOptionsLoaded = false;
+  function renderCheckGroup(containerId, otherInputId, options) {
+    var grid = document.getElementById(containerId);
+    grid.innerHTML = "";
+    options.forEach(function (opt) {
+      var label = el("label", "scope-opt");
+      var cb = el("input"); cb.type = "checkbox"; cb.value = opt;
+      label.appendChild(cb);
+      label.appendChild(document.createTextNode(opt));
+      grid.appendChild(label);
+      if (opt === "Other") {
+        cb.addEventListener("change", function () {
+          document.getElementById(otherInputId).style.display = cb.checked ? "" : "none";
+        });
+      }
+    });
+  }
+  function checkedValues(containerId) {
+    return Array.prototype.slice.call(document.querySelectorAll("#" + containerId + " input:checked")).map(function (c) { return c.value; });
+  }
+  async function loadCreateOptions() {
+    if (!createOptionsLoaded) {
+      var opts = await api("/api/departments/options");
+      var bidSel = document.getElementById("cfBid");
+      opts.bid_managers.forEach(function (m) { bidSel.appendChild(el("option", "", m)).value = m; });
+      renderCheckGroup("cfRegionGrid", "cfRegionOther", opts.regions);
+      renderCheckGroup("cfScopeGrid", "cfScopeOther", opts.scopes);
+      createOptionsLoaded = true;
+    }
+    var l0List = await api("/api/projects?stage=L0&status=" + encodeURIComponent("In Progress"));
+    var sourceSel = document.getElementById("cfL0Source");
+    sourceSel.innerHTML = '<option value="">Select an in-progress L0&#8230;</option>';
+    l0List.forEach(function (p) {
+      var o = el("option", "", p.est_no + " &#8211; " + p.name); o.value = p.id;
+      sourceSel.appendChild(o);
+    });
+    applyStageToggle();
+  }
+  function applyStageToggle() {
+    var stage = document.getElementById("cfStage").value;
+    document.getElementById("cfL0Form").hidden = stage !== "L0";
+    document.getElementById("cfL1Form").hidden = stage !== "L1";
+  }
+  document.getElementById("cfStage").addEventListener("change", applyStageToggle);
+
   document.getElementById("cfSubmit").addEventListener("click", async function () {
-    var name = document.getElementById("cfName").value.trim();
-    if (!name) { showToast("Project name is required"); return; }
-    var payload = {
-      name: name, stage: document.getElementById("cfStage").value,
-      region: document.getElementById("cfRegion").value || null,
-      scope: document.getElementById("cfScope").value || null,
-      bid_manager: document.getElementById("cfBid").value || null,
-      bsd: document.getElementById("cfBsd").value || null,
-    };
-    var p = await api("/api/projects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    showToast(p.est_no + " created &#8211; announcement sent");
+    var stage = document.getElementById("cfStage").value;
+    try {
+      if (stage === "L0") {
+        var name = document.getElementById("cfName").value.trim();
+        var announce = document.getElementById("cfAnnounce").value;
+        var bsd = document.getElementById("cfBsd").value;
+        var bidManager = document.getElementById("cfBid").value;
+        var region = checkedValues("cfRegionGrid");
+        var scope = checkedValues("cfScopeGrid");
+        if (!name) { showToast("Tender name is required"); return; }
+        if (!bidManager) { showToast("Bid Manager is required"); return; }
+        if (!announce) { showToast("Announcement Date is required"); return; }
+        if (!bsd) { showToast("Bid Submission Date is required"); return; }
+        if (!region.length) { showToast("Select at least one Region"); return; }
+        if (!scope.length) { showToast("Select at least one Scope"); return; }
+        var payload = {
+          name: name, region: region, region_other: document.getElementById("cfRegionOther").value || null,
+          scope: scope, scope_other: document.getElementById("cfScopeOther").value || null,
+          rfx_number: document.getElementById("cfRfx").value || null,
+          announcement_date: announce, site_visit_date: document.getElementById("cfSiteVisit").value || null,
+          pre_bid_deadline: document.getElementById("cfPreBid").value || null,
+          bid_manager: bidManager, bsd: bsd,
+          scope_contains_pbu: document.getElementById("cfPbu").checked,
+        };
+        var p = await api("/api/projects/l0", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        showToast(p.est_no + " created &#8211; announcement sent");
+      } else {
+        var l0Id = document.getElementById("cfL0Source").value;
+        var l1Announce = document.getElementById("cfL1Announce").value;
+        if (!l0Id) { showToast("Select the L0 tender this L1 project comes from"); return; }
+        if (!l1Announce) { showToast("L1 Announcement Date is required"); return; }
+        var p1 = await api("/api/projects/l1", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ l0_source_id: Number(l0Id), announcement_date: l1Announce }),
+        });
+        showToast(p1.est_no + " created &#8211; announcement sent");
+      }
+    } catch (err) {
+      showToast("Could not create project &#8211; " + apiErrorDetail(err));
+      return;
+    }
     switchView("announcements");
   });
   document.getElementById("cfCancel").addEventListener("click", function () { switchView("dashboard"); });
@@ -494,6 +634,7 @@
     var showAdmin = can("create");
     document.getElementById("adminNav").style.display = showAdmin ? "" : "none";
     document.getElementById("adminGroupLabel").style.display = showAdmin ? "" : "none";
+    document.getElementById("actingEmail").style.display = (CURRENT_ROLE === "Owner" || CURRENT_ROLE === "SME") ? "" : "none";
     if (!showAdmin && (!document.getElementById("view-create").hidden || !document.getElementById("view-reports").hidden)) switchView("dashboard");
     if (currentProjectId && !document.getElementById("view-detail").hidden) openDetail(currentProjectId);
   });

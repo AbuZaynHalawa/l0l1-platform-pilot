@@ -1,8 +1,12 @@
-from datetime import date
+"""Milestones are derived from deliverable submissions, not manually tracked.
+Per the real templates, specific items ARE the milestones (is_milestone=True);
+a milestone is "reached" exactly when that item's submission is APPROVED.
+There is deliberately no "mark reached" endpoint — see Modifications doc.
+"""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from .. import models, rules, announcements
+from .. import models
 from ..database import get_db
 
 router = APIRouter(prefix="/api/projects", tags=["milestones"])
@@ -13,56 +17,27 @@ def get_milestones(project_id: int, db: Session = Depends(get_db)):
     project = db.get(models.Project, project_id)
     if not project:
         raise HTTPException(404, "Project not found")
-    defs = db.query(models.MilestoneDefinition).filter(models.MilestoneDefinition.stage == project.stage).order_by(models.MilestoneDefinition.sequence).all()
-    events = {e.milestone_definition_id: e for e in db.query(models.MilestoneEvent).filter(models.MilestoneEvent.project_id == project_id).all()}
+
+    subs = (
+        db.query(models.DeliverableSubmission)
+        .join(models.DeliverableDefinition)
+        .filter(
+            models.DeliverableSubmission.project_id == project_id,
+            models.DeliverableDefinition.is_milestone == True,  # noqa: E712
+        )
+        .all()
+    )
+    subs.sort(key=lambda s: s.definition.milestone_code or "")
     out = []
-    for d in defs:
-        e = events.get(d.id)
+    for s in subs:
         out.append({
-            "code": d.code, "name": d.name, "sequence": d.sequence,
-            "planned_date": e.planned_date if e else None,
-            "actual_date": e.actual_date if e else None,
-            "reached": bool(e and e.reached),
+            "code": s.definition.milestone_code,
+            "name": s.definition.name,
+            "item_no": s.definition.item_no,
+            "submission_id": s.id,
+            "due_date": s.due_date,
+            "reached": s.status == models.SubmissionStatus.APPROVED,
+            "actual_date": s.reviewed_at.date() if (s.status == models.SubmissionStatus.APPROVED and s.reviewed_at) else None,
+            "status": s.status.value,
         })
     return out
-
-
-@router.post("/{project_id}/milestones/{code}/reach")
-def reach_milestone(project_id: int, code: str, db: Session = Depends(get_db)):
-    project = db.get(models.Project, project_id)
-    if not project:
-        raise HTTPException(404, "Project not found")
-    md = db.query(models.MilestoneDefinition).filter(
-        models.MilestoneDefinition.stage == project.stage, models.MilestoneDefinition.code == code
-    ).first()
-    if not md:
-        raise HTTPException(404, "Milestone not defined for this stage")
-
-    event = db.query(models.MilestoneEvent).filter(
-        models.MilestoneEvent.project_id == project_id, models.MilestoneEvent.milestone_definition_id == md.id
-    ).first()
-    if not event:
-        event = models.MilestoneEvent(project_id=project_id, milestone_definition_id=md.id)
-        db.add(event)
-    event.actual_date = date.today()
-    event.planned_date = event.planned_date or event.actual_date
-    event.reached = True
-    db.commit()
-
-    # Recompute due dates for every submission in this project — cheap, and
-    # correctly cascades through predecessor chains anchored off this milestone.
-    all_defs = {
-        d.item_no: d for d in db.query(models.DeliverableDefinition).filter(models.DeliverableDefinition.stage == project.stage)
-    }
-    subs = db.query(models.DeliverableSubmission).filter(models.DeliverableSubmission.project_id == project_id).all()
-    by_item = {s.deliverable_definition_id: s for s in subs}
-    ordered = sorted(subs, key=lambda s: 0 if s.definition.anchor_type == "milestone" else 1)
-    for s in ordered:
-        s.due_date = rules.compute_due_date(db, s.definition, project)
-        rules.refresh_status(s)
-    db.commit()
-
-    recipients = sorted({d.focal_point_email for d in db.query(models.Department).all() if d.focal_point_email})
-    announcements.milestone_reached(db, project, recipients, code, md.name)
-
-    return {"status": "ok"}

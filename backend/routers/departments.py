@@ -14,3 +14,13 @@ def list_departments(db: Session = Depends(get_db)):
         {"id": d.id, "name": d.name, "focal_point_name": d.focal_point_name, "focal_point_email": d.focal_point_email}
         for d in depts
     ]
+
+
+@router.get("/options")
+def get_create_options():
+    """Reference lists for the Create L0/L1 form dropdowns."""
+    return {
+        "bid_managers": models.BID_MANAGERS,
+        "regions": models.REGION_OPTIONS,
+        "scopes": models.SCOPE_OPTIONS,
+    }
