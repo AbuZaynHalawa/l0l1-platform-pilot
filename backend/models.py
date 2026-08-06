@@ -137,6 +137,7 @@ class DeliverableDefinition(Base):
     stage = Column(Enum(Stage), nullable=False)
     item_no = Column(String, nullable=False)
     name = Column(String, nullable=False)
+    short_name = Column(String, nullable=True)  # curated compact label for dense views (matrix, gantt)
     department_id = Column(Integer, ForeignKey("departments.id"), nullable=False)
     anchor_type = Column(String, nullable=True)
     predecessor_item_no = Column(String, nullable=True)

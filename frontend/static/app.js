@@ -135,9 +135,6 @@
       loadMatrix();
     });
   });
-  function shortenName(name, max) {
-    return name.length > max ? name.slice(0, max - 1).replace(/\s+\S*$/, "") + "&#8230;" : name;
-  }
   async function loadMatrix() {
     var data = await api("/api/dashboard/matrix?stage=" + matrixStage);
     var wrap = document.getElementById("matrixWrap");
@@ -157,7 +154,7 @@
           row.department.replace(/^\d+\.\s*/, "") + "</td></tr>";
         lastDept = row.department;
       }
-      html += '<tr><td class="matrix-row-label" title="' + row.name.replace(/"/g, "&quot;") + '">' + row.item_no + " &middot; " + shortenName(row.name, 18) +
+      html += '<tr><td class="matrix-row-label" title="' + row.name.replace(/"/g, "&quot;") + '">' + row.item_no + " &middot; " + row.short_name +
         (row.is_milestone ? ' <span class="matrix-milestone-tag">' + row.milestone_code + "</span>" : "") + "</td>";
       data.projects.forEach(function (p) {
         var cell = row.cells[p.id];
@@ -517,8 +514,10 @@
       var row = el("div", "gantt-row");
       var labelHtml = isOverview
         ? "<b>" + r.est_no + "</b> &middot; " + r.name
-        : "<b>" + r.item_no + "</b> &middot; " + r.name;
-      row.appendChild(el("div", "gantt-label", labelHtml));
+        : "<b>" + r.item_no + "</b> &middot; " + r.short_name;
+      var label = el("div", "gantt-label", labelHtml);
+      if (!isOverview) label.title = r.name;
+      row.appendChild(label);
       var track = el("div", "gantt-track");
       var cls = isOverview ? (PROJECT_STATUS_CLASS[r.status] || "neutral") : ((STATUS_META[r.status] || ["neutral"])[0]);
       var bar = el("div", "gantt-bar " + cls + (r.is_milestone ? " milestone" : ""));

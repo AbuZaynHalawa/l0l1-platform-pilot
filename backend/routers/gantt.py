@@ -59,7 +59,8 @@ def get_project_gantt(project_id: int, db: Session = Depends(get_db)):
         if start > s.due_date:
             start = s.due_date
         rows.append({
-            "item_no": d.item_no, "name": d.name, "department": d.department.name,
+            "item_no": d.item_no, "name": d.name, "short_name": d.short_name or d.name,
+            "department": d.department.name,
             "start": start, "end": s.due_date, "status": s.status.value,
             "is_milestone": d.is_milestone, "milestone_code": d.milestone_code,
         })

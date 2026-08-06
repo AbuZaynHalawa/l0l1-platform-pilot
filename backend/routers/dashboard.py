@@ -94,7 +94,8 @@ def get_matrix(stage: str, db: Session = Depends(get_db)):
             if s:
                 cells[p.id] = {"status": s.status.value, "due_date": s.due_date, "submission_id": s.id}
         rows.append({
-            "item_no": d.item_no, "name": d.name, "department": d.department.name,
+            "item_no": d.item_no, "name": d.name, "short_name": d.short_name or d.name,
+            "department": d.department.name,
             "is_milestone": d.is_milestone, "milestone_code": d.milestone_code,
             "cells": cells,
         })

@@ -7,9 +7,10 @@ Focal point / owner / SME emails below are PLACEHOLDERS — swap for the real
 per-department contacts and the real per-deliverable owner/SME mapping when
 provided, then re-run: `python -m backend.seed` (safe to re-run, upserts).
 """
-from .database import SessionLocal, engine
+from .database import SessionLocal, engine, ensure_column
 from . import models
 
+ensure_column("deliverable_definitions", "short_name", "VARCHAR")
 models.Base.metadata.create_all(bind=engine)
 
 TEST_EMAIL = "test-focal@example.com"  # single placeholder until real contacts are provided
@@ -235,6 +236,94 @@ L1_ITEMS = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# Curated short labels for dense views (Deliverables Matrix, Timeline) —
+# keyed by (stage, item_no). Not a mechanical truncation of `name`; each one
+# is a deliberately short human summary (e.g. "Float SC RFQ", "Receive GO
+# Approval"). Falls back to the full name if an item_no is missing here.
+# ---------------------------------------------------------------------------
+L0_SHORT_NAMES = {
+    "1.1": "Receive GO Approval", "1.2": "Announce Site Visit", "1.3": "Announce Pre-bid Meeting",
+    "1.4": "Announce Clarification Deadline", "1.5": "Assign Bid Manager", "1.6": "Request Bid Bond",
+    "1.7": "Develop Estimate Program", "1.8": "Float SC RFQ", "1.9": "Float Materials RFQ",
+    "1.10": "Float Consultant RFQ", "1.11": "Review Project Schedule", "1.12": "Review Execution Plan",
+    "1.13": "Prepare Pre-bid Agreements", "1.14": "Incorporate Consultant Findings",
+    "1.15": "Incorporate SME Findings", "1.16": "Prepare Manpower Schedule",
+    "1.17": "Circulate Technical Offers", "1.18": "Develop Tech-Comm Proposal",
+    "1.19": "Adjust Proposal (Comments)", "1.20": "Submit Proposal",
+
+    "2.1": "Attend Site Visit", "2.2": "Site Visit Report", "2.3": "Highlight Pre-bid Points",
+    "2.4": "Prepare Risk Register", "2.5": "Prepare Execution Plan", "2.6": "Review Project Schedule",
+    "2.7": "Attend Site Visit (PBU)", "2.8": "Site Visit Report (PBU)", "2.9": "Pre-bid Points (PBU)",
+    "2.10": "Risk Register (PBU)", "2.11": "Execution Plan (PBU)", "2.12": "Review Schedule (PBU)",
+
+    "3.1": "Prepare Risk Register", "3.2": "Highlight Pre-bid Points", "3.3": "Approved Suppliers List",
+    "3.4": "PO & Procurement History", "3.5": "Review Materials Strategy", "3.6": "Long Lead Items List",
+    "3.7": "Logistics Pricing Support", "3.8": "Internal Prequalification", "3.9": "Negotiation Rounds",
+
+    "4.1": "Prepare Risk Register", "4.2": "Highlight Pre-bid Points", "4.3": "Site Investigations List",
+    "4.4": "Generate Design & BOQ", "4.5": "Value Engineering Studies", "4.6": "Review Technical Offers",
+    "4.7": "Support Tech Proposals",
+
+    "5.1": "Prepare Risk Register", "5.2": "Highlight Pre-bid Points", "5.3": "Prepare Project Schedule",
+    "5.4": "Fleet Productivities", "5.5": "Verify Quantities", "5.6": "Productivity Norms",
+
+    "6.1": "Prepare Risk Register", "6.2": "Review Contract Terms", "6.3": "Prepare NDA",
+    "6.4": "Review Pre-bid Agreements",
+
+    "7.1": "Verify Local Content", "7.2": "HR Cost Estimates", "7.3": "Workforce Availability",
+    "7.4": "Team CVs & Certificates",
+
+    "8.1": "Prepare Risk Register", "8.2": "Issue Bid Bonds", "8.3": "Insurance Cost",
+    "8.4": "Proposed Overheads", "8.5": "Cash Flow & Finance Cost",
+
+    "9.1": "Prepare Risk Register", "9.2": "Highlight Pre-bid Points", "9.3": "Safety Requirements & PPE",
+    "9.4": "QA/QC Plan", "9.5": "HSE Plan", "9.6": "Evaluate Subcontractors", "9.7": "Personnel Requirements",
+
+    "10.1": "Staff & Office Cost",
+    "11.1": "Compile Risk Registers",
+    "12.1": "Equipment Cost Estimates", "12.2": "Equipment Availability", "12.3": "Camp Cost Estimates",
+}
+
+L1_SHORT_NAMES = {
+    "1.1": "L1 Announcement", "1.2": "Early Mobilization Plan", "1.3": "Commercial & Tech Handover",
+    "1.4": "Start Post-Bid Clarification", "1.5": "Receive LOA", "1.6": "Contract Signing",
+
+    "2.1": "Cost Center Request", "2.2": "PR for Long-lead Items", "2.3": "Assign PM & Engineer",
+    "2.4": "Internal Kickoff Meeting", "2.5": "Draft Execution Plan", "2.6": "PR for Early Activities",
+    "2.7": "PR for Design Firm", "2.8": "Geotechnical Investigation", "2.9": "Topography Investigation",
+    "2.10": "Project Permits List", "2.11": "Subcontracting Strategy", "2.12": "Confirm Working Schedule",
+    "2.13": "Cost Center Request", "2.14": "PR for MEP Consultancy", "2.15": "BBU Execution Plan Input",
+    "2.16": "Temp Facilities Layout", "2.17": "Subcontracting Strategy", "2.18": "Finalize SS Subcontract",
+
+    "3.1": "Issue Vendor RFQ", "3.2": "Negotiate Terms", "3.3": "Award Approval",
+    "3.4": "Top Mgmt Award Approval", "3.5": "PO Approval (Oracle)", "3.6": "Internal PO Signature",
+    "3.7": "Vendor PO Signature", "3.8": "Finalize OHTL/UGC Subcontract", "3.9": "Share Design Firm Offers",
+    "3.10": "Issue Engineering PO", "3.11": "PO for Early Activities", "3.12": "Vendor Prequalification",
+
+    "4.1": "SC Scope (Early Activities)", "4.2": "Update Design & Quantities", "4.3": "SOW for Design Firm",
+    "4.4": "Review Design Firm Offers", "4.5": "Review Vendor Offers", "4.6": "Review Vendor Offers (SC)",
+    "4.7": "Verify Site Layout", "4.8": "Update Risk Register",
+
+    "5.1": "Baseline Schedule", "5.2": "Working Schedule", "5.3": "Temp Project Budget",
+    "5.4": "Baseline Budget", "5.5": "Locked Budget", "5.6": "Schedule Recommendation",
+    "5.7": "Update Risk Register",
+
+    "6.1": "Update Risk Register",
+    "7.1": "Workforce Availability Plan",
+
+    "8.1": "Secure Bank Facilities", "8.2": "Performance Bond", "8.3": "Advance Payment Guarantee",
+    "8.4": "Updated Cashflow", "8.5": "Insurance Requirements",
+
+    "9.1": "QA/QC Detailed Plan", "9.2": "HSE Detailed Plan", "9.3": "HSSE Staffing Plan",
+    "9.4": "Risk Assessment", "9.5": "Environmental Plan", "9.6": "Waste Management Plan",
+
+    "10.1": "Update Risk Register",
+    "11.1": "Equipment Availability",
+    "12.1": "Camp Cost Estimates",
+}
+
+
 def run():
     db = SessionLocal()
     try:
@@ -250,14 +339,15 @@ def run():
             dept_map[name] = dept
         db.commit()
 
-        def upsert(stage, item_no, name, dept_id, anchor_type, pred, offset, direction, dtype, is_ms, ms_code):
+        def upsert(stage, item_no, name, short_name, dept_id, anchor_type, pred, offset, direction, dtype, is_ms, ms_code):
             existing = db.query(models.DeliverableDefinition).filter_by(
                 stage=stage, item_no=item_no, department_id=dept_id
             ).first()
             if existing:
+                existing.short_name = short_name
                 return
             db.add(models.DeliverableDefinition(
-                stage=stage, item_no=item_no, name=name, department_id=dept_id,
+                stage=stage, item_no=item_no, name=name, short_name=short_name, department_id=dept_id,
                 anchor_type=anchor_type, predecessor_item_no=pred, offset_days=offset,
                 offset_direction=direction, deliverable_type=dtype,
                 is_milestone=is_ms, milestone_code=ms_code, milestone_name=ms_code,
@@ -266,11 +356,11 @@ def run():
 
         for item_no, name, dkey, anchor, pred, offset, direction, dtype, ms in L0_ITEMS:
             dept = dept_map[L0_DEPT[dkey]]
-            upsert("L0", item_no, name, dept.id, anchor, pred, offset, direction, dtype, bool(ms), ms)
+            upsert("L0", item_no, name, L0_SHORT_NAMES.get(item_no, name), dept.id, anchor, pred, offset, direction, dtype, bool(ms), ms)
 
         for item_no, name, dkey, anchor, pred, offset, direction, ms in L1_ITEMS:
             dept = dept_map[L1_DEPT[dkey]]
-            upsert("L1", item_no, name, dept.id, anchor, pred, offset, direction, "date_driven", bool(ms), ms)
+            upsert("L1", item_no, name, L1_SHORT_NAMES.get(item_no, name), dept.id, anchor, pred, offset, direction, "date_driven", bool(ms), ms)
 
         db.commit()
         print(f"Seed complete: {len(dept_map)} departments, {len(L0_ITEMS)} L0 items, {len(L1_ITEMS)} L1 items.")
