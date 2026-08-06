@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Algihaz L0/L1 Platform — Pilot</title>
+<link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+
+<div class="shell">
+  <aside class="rail">
+    <div class="brand">
+      <div class="brand-badge"><img src="/static/logo.png" alt="Algihaz Contracting" /></div>
+      <div class="brand-text"><b>L0 / L1 PLATFORM</b><span>Tendering &amp; Project Control</span></div>
+    </div>
+
+    <div class="nav-group-label">Workspace</div>
+    <nav class="nav">
+      <button class="nav-item active" data-view="dashboard"><span class="ic">&#9673;</span> Dashboard</button>
+      <button class="nav-item" data-view="assigned"><span class="ic">&#128203;</span> Assigned Deliverables <span class="nav-badge" id="assignedBadge"></span></button>
+      <button class="nav-item" data-view="announcements"><span class="ic">&#128276;</span> Announcements</button>
+      <button class="nav-item" data-view="l0"><span class="ic">&#128196;</span> L0 Tenders</button>
+      <button class="nav-item" data-view="l1"><span class="ic">&#128274;</span> L1 Projects</button>
+      <button class="nav-item" data-view="performance"><span class="ic">&#128200;</span> Performance</button>
+    </nav>
+
+    <div class="nav-group-label" id="adminGroupLabel">Admin</div>
+    <nav class="nav" id="adminNav">
+      <button class="nav-item" data-view="create"><span class="ic">&#10133;</span> Create L0 / L1</button>
+      <button class="nav-item" data-view="reports"><span class="ic">&#128202;</span> Reports</button>
+    </nav>
+
+    <div class="rail-foot">
+      <span class="concept-tag"><span class="dot"></span> Pilot &#8211; real backend</span>
+      <p class="rail-note">Real database, uploads, approvals and notifications. Files save locally and email logs to the server console until your OneDrive/Outlook connection is wired in &#8211; same interface either way.</p>
+    </div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="search-wrap">
+        <span class="sic">&#128269;</span>
+        <input id="globalSearch" type="text" placeholder="Search by Est No, project name, or client&#8230;" />
+      </div>
+      <div class="top-spacer"></div>
+      <div class="top-meta">
+        <span id="todayLabel"></span>
+        <select class="role-select" id="roleSelect">
+          <option value="Admin">Viewing as: Admin</option>
+          <option value="Owner">Viewing as: Owner</option>
+          <option value="SME">Viewing as: SME</option>
+          <option value="Viewer">Viewing as: Viewer</option>
+        </select>
+        <button class="theme-btn" id="themeToggle">Dark mode</button>
+        <div class="avatar">YH</div>
+      </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <section class="view" id="view-dashboard">
+      <div class="view-head">
+        <div>
+          <div class="eyebrow">Overview</div>
+          <h1>Good morning — here's where things stand</h1>
+          <p class="sub">Across L-Pre, L0 and L1, updated as departments submit.</p>
+        </div>
+      </div>
+
+      <div class="concerns-banner" id="concernsBanner" hidden>
+        <div class="concerns-title">&#9888; Concerns</div>
+        <ul id="concernsList"></ul>
+      </div>
+
+      <div class="stat-row" id="statRow"></div>
+
+      <div class="card pipeline-card">
+        <h3>Where every pursuit sits, right now</h3>
+        <p class="cap">The same three-stage journey every tender goes through &#8211; L&#8209;Pre only applies to international opportunities.</p>
+        <div class="pipeline" id="pipelineRow"></div>
+      </div>
+
+      <div class="split">
+        <div class="card">
+          <div class="section-title">Department status <span class="cnt">live</span></div>
+          <div class="card-pad"><div class="dept-grid" id="dashDeptGrid"></div></div>
+        </div>
+        <div class="card">
+          <div class="section-title">Latest announcements <span class="cnt">real-time log</span></div>
+          <div id="digestList"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ASSIGNED DELIVERABLES -->
+    <section class="view" id="view-assigned" hidden>
+      <div class="view-head">
+        <div>
+          <div class="eyebrow">My Work</div>
+          <h1>Assigned Deliverables</h1>
+          <p class="sub">Every deliverable across every project, in one queue.</p>
+        </div>
+      </div>
+      <div class="filter-chips" id="assignedChips"></div>
+      <div class="card table-card"><div id="assignedList"></div></div>
+    </section>
+
+    <!-- ANNOUNCEMENTS -->
+    <section class="view" id="view-announcements" hidden>
+      <div class="view-head">
+        <div>
+          <div class="eyebrow">Notifications</div>
+          <h1>Announcements</h1>
+          <p class="sub">Every announcement and targeted notification the platform has sent, automatically, from a single event stream.</p>
+        </div>
+      </div>
+      <div class="ann-type-key">
+        <span class="lg"><span class="sw" style="background:var(--purple-1)"></span> Broadcast</span>
+        <span class="lg"><span class="sw" style="background:var(--good)"></span> To Owner</span>
+        <span class="lg"><span class="sw" style="background:var(--warn)"></span> SME review request</span>
+        <span class="lg"><span class="sw" style="background:var(--purple-2)"></span> Cross-department unlock</span>
+      </div>
+      <div class="card table-card"><div id="announcementsList"></div></div>
+    </section>
+
+    <!-- L0 TABLE -->
+    <section class="view" id="view-l0" hidden>
+      <div class="view-head">
+        <div>
+          <div class="eyebrow">Tendering Stage</div>
+          <h1>L0 Tenders</h1>
+          <p class="sub">Every tender currently in bid preparation, in one list.</p>
+        </div>
+      </div>
+      <div class="card table-card">
+        <div class="table-scroll">
+          <table class="data" id="l0Table">
+            <thead><tr><th>Est No.</th><th>Tender</th><th>Region</th><th>Scope</th><th>Bid Manager</th><th>BSD</th><th>Status</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- L1 TABLE -->
+    <section class="view" id="view-l1" hidden>
+      <div class="view-head">
+        <div>
+          <div class="eyebrow">Post-Bid-Win Stage</div>
+          <h1>L1 Projects</h1>
+          <p class="sub">From announcement through to contract signature &#8211; M1 to M6.</p>
+        </div>
+      </div>
+      <div class="card table-card">
+        <div class="table-scroll">
+          <table class="data" id="l1Table">
+            <thead><tr><th>Est No.</th><th>Project</th><th>Milestones (M1&#8211;M6)</th><th>Bid Manager</th><th>Status</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- PROJECT DETAIL -->
+    <section class="view" id="view-detail" hidden>
+      <button class="back-link" id="backBtn">&#8592; Back to list</button>
+      <div class="detail-head">
+        <div>
+          <div class="detail-est" id="dEst"></div>
+          <h1 class="detail-title" id="dTitle"></h1>
+        </div>
+        <span class="pill" id="dStatusPill"></span>
+      </div>
+      <div class="detail-meta-row" id="dMeta"></div>
+
+      <div class="card full-stepper" id="dStepperCard">
+        <div class="fs-row" id="dStepper"></div>
+      </div>
+
+      <div class="split">
+        <div class="card">
+          <div class="section-title">Departments <span class="cnt" id="dFolderCount"></span></div>
+          <div class="folder-list" id="dFolders"></div>
+        </div>
+        <div class="card">
+          <div class="section-title"><span id="dDeliverTitle">Deliverables</span> <span class="cnt" id="dDeliverCount"></span></div>
+          <div class="deliv-list" id="dDeliverables"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- PERFORMANCE -->
+    <section class="view" id="view-performance" hidden>
+      <div class="view-head">
+        <div>
+          <div class="eyebrow">Company-wide</div>
+          <h1>Department Performance</h1>
+          <p class="sub">Live approval rate per department, this pilot.</p>
+        </div>
+      </div>
+      <div class="card calc-panel" style="margin-bottom:20px;">
+        <h3>How a score is calculated <span style="font-weight:400;color:var(--ink-500);font-size:12px;">&#8211; Algihaz's existing rule, carried over as-is</span></h3>
+        <p>On-time submission (within a 4-day grace period) = full point. Deliverables not yet due are excluded. Late submissions taper down; anything over 28 days late counts as not submitted.</p>
+        <div class="calc-tiers">
+          <span class="tier-chip">On time &rarr; 100%</span>
+          <span class="tier-chip">1&ndash;7d late &rarr; 90%</span>
+          <span class="tier-chip">8&ndash;14d &rarr; 80%</span>
+          <span class="tier-chip">15&ndash;21d &rarr; 70%</span>
+          <span class="tier-chip">22&ndash;28d &rarr; 60%</span>
+          <span class="tier-chip" style="color:var(--crit)">&gt;28d &rarr; 0%</span>
+        </div>
+      </div>
+      <div class="dept-grid" id="perfDeptGrid" style="grid-template-columns:repeat(3,1fr);"></div>
+    </section>
+
+    <!-- REPORTS -->
+    <section class="view" id="view-reports" hidden>
+      <div class="view-head">
+        <div>
+          <div class="eyebrow">Admin</div>
+          <h1>Reports</h1>
+          <p class="sub">Company-wide ranking behind the Performance page's headline numbers.</p>
+        </div>
+        <div class="report-actions">
+          <button class="btn" id="reportsExport">Export to Excel</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="section-title">Departments Ranked <span class="cnt">by live approval rate</span></div>
+        <div id="rankList"></div>
+      </div>
+    </section>
+
+    <!-- CREATE PROJECT -->
+    <section class="view" id="view-create" hidden>
+      <div class="view-head">
+        <div>
+          <div class="eyebrow">Admin</div>
+          <h1>Create L0 / L1 Project</h1>
+          <p class="sub">Really creates the record, really provisions folders, really sends the announcement.</p>
+        </div>
+      </div>
+      <div class="card form-card">
+        <div class="form-grid">
+          <div class="field">
+            <label>Stage <span class="req">*</span></label>
+            <select id="cfStage"><option value="L0">L0 &#8211; New Tender</option><option value="L1">L1 &#8211; Post-Bid-Win</option></select>
+          </div>
+          <div class="field">
+            <label>Project Name <span class="req">*</span></label>
+            <input type="text" id="cfName" placeholder="e.g. SEC OHTL 380kV &#8230;" />
+          </div>
+          <div class="field">
+            <label>Region</label>
+            <input type="text" id="cfRegion" placeholder="e.g. Central" />
+          </div>
+          <div class="field">
+            <label>Scope</label>
+            <input type="text" id="cfScope" placeholder="e.g. SS 110-132KV" />
+          </div>
+          <div class="field">
+            <label>Bid Manager</label>
+            <input type="text" id="cfBid" placeholder="e.g. Deeb" />
+          </div>
+          <div class="field">
+            <label>Bid Submission Date</label>
+            <input type="date" id="cfBsd" />
+          </div>
+        </div>
+        <div class="form-actions">
+          <button class="btn" id="cfCancel">Cancel</button>
+          <button class="btn primary" id="cfSubmit">Create Project &amp; Provision Folders</button>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="tic">&#9989;</span><span id="toastMsg"></span></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
