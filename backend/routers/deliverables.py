@@ -125,6 +125,9 @@ def review_deliverable(submission_id: int, decision: schemas.ReviewDecision, db:
     if decision.approved and sub.definition.is_milestone:
         recipients = sorted({d.focal_point_email for d in db.query(models.Department).all() if d.focal_point_email})
         announcements.milestone_reached(db, sub.project, recipients, sub.definition.milestone_code, sub.definition.name)
+        if sub.definition.milestone_code == "M6" and sub.project.stage == models.Stage.L1:
+            sub.project.contract_status = models.ContractStatus.SIGNED
+            db.commit()
 
     if decision.approved:
         # Snapshot due dates, recompute the whole project (correctly cascades
@@ -146,6 +149,9 @@ def review_deliverable(submission_id: int, decision: schemas.ReviewDecision, db:
                 announcements.cross_department_unlock(db, sub.project, target_email, trigger_label, s2.definition.item_no, s2.definition.name)
                 db.add(models.WorkflowHistory(submission_id=s2.id, action="unlocked",
                                                actor_name="system", note=f"Unlocked by approval of {trigger_label}"))
+        db.commit()
+
+        rules.check_l1_completion(db, sub.project)
         db.commit()
 
     return {"status": "ok"}

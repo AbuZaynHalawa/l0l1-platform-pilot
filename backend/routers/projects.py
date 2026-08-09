@@ -82,7 +82,12 @@ def create_l0_project(payload: schemas.ProjectCreateL0, db: Session = Depends(ge
     if not payload.scope:
         raise HTTPException(400, "Scope is required")
 
-    est_no = _next_est_no(db)
+    if payload.est_no:
+        est_no = payload.est_no.strip()
+        if db.query(models.Project).filter(models.Project.est_no == est_no).first():
+            raise HTTPException(400, f"Est-No {est_no} is already in use")
+    else:
+        est_no = _next_est_no(db)
     project = models.Project(
         est_no=est_no, name=payload.name, stage=models.Stage.L0,
         region=payload.region, region_other=payload.region_other,
@@ -120,6 +125,7 @@ def create_l1_project(payload: schemas.ProjectCreateL1, db: Session = Depends(ge
         announcement_date=payload.announcement_date,
         l0_source_id=l0.id, status=models.ProjectStatus.IN_PROGRESS,
         contract_status=models.ContractStatus.NOT_SIGNED,
+        project_manager=payload.project_manager,
     )
     db.add(project)
     db.commit()
@@ -172,11 +178,7 @@ def get_deliverables(project_id: int, department: str | None = None, db: Session
         ))
     db.commit()
 
-    # L1 auto-completes when every deliverable is submitted (approved), per Modifications doc.
-    if project.stage == models.Stage.L1 and project.status == models.ProjectStatus.IN_PROGRESS:
-        all_subs = q.all()
-        if all_subs and all(s.status == models.SubmissionStatus.APPROVED for s in all_subs):
-            project.status = models.ProjectStatus.COMPLETED
-            db.commit()
+    rules.check_l1_completion(db, project)
+    db.commit()
 
     return out

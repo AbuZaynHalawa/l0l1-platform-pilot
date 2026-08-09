@@ -305,6 +305,20 @@ def recompute_project_due_dates(db: Session, project: models.Project) -> None:
             break
 
 
+def check_l1_completion(db: Session, project: "models.Project") -> None:
+    """Marks an L1 project Completed the moment every one of its deliverables
+    is approved. Called right after every approval (not just as a side effect
+    of loading the deliverables list), so it fires no matter which screen the
+    approval happened from — the project detail page or the cross-project
+    Assigned Deliverables queue.
+    """
+    if project.stage != models.Stage.L1 or project.status != models.ProjectStatus.IN_PROGRESS:
+        return
+    subs = db.query(models.DeliverableSubmission).filter(models.DeliverableSubmission.project_id == project.id).all()
+    if subs and all(s.status == models.SubmissionStatus.APPROVED for s in subs):
+        project.status = models.ProjectStatus.COMPLETED
+
+
 def kpi_points(due_date: date | None, submitted_date: date | None, grace_days: int = 4) -> float | None:
     """The Calculation Criteria rule from architecture_map.md section 4.3, verbatim."""
     if due_date is None:

@@ -234,6 +234,7 @@
   .btn:hover { border-color: var(--accent-line); color: var(--purple-1); }
   .btn.primary { background: linear-gradient(135deg, var(--purple-1), var(--purple-2)); border-color: transparent; color: #fff; }
   .btn.primary:hover { filter: brightness(1.06); color: #fff; }
+  .btn-loading { opacity: .7; cursor: wait; }
   .btn.ghost-crit { color: var(--crit); border-color: var(--crit-bg); }
   .btn.ghost-crit:hover { background: var(--crit-bg); }
   .locked-note { font-size: 11px; color: var(--ink-300); font-style: italic; }

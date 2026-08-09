@@ -167,7 +167,7 @@
       <div class="card table-card">
         <div class="table-scroll">
           <table class="data" id="l1Table">
-            <thead><tr><th>Est No.</th><th>Project</th><th>Milestones (M1&#8211;M6)</th><th>Bid Manager</th><th>Status</th></tr></thead>
+            <thead><tr><th>Est No.</th><th>Project</th><th>Milestones (M1&#8211;M6)</th><th>Bid Manager</th><th>Project Manager</th><th>Status</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -275,7 +275,7 @@
       <div class="card form-card">
         <div class="field" style="max-width:320px;margin-bottom:18px;">
           <label>Stage <span class="req">*</span></label>
-          <select id="cfStage"><option value="L0">L0 &#8211; New Tender</option><option value="L1">L1 &#8211; Post-Bid-Win (from an L0)</option></select>
+          <select id="cfStage"><option value="L0">L0 Stage</option><option value="L1">L1 Stage</option></select>
         </div>
 
         <!-- L0 FORM -->
@@ -284,6 +284,10 @@
             <div class="field">
               <label>Tender Name <span class="req">*</span></label>
               <input type="text" id="cfName" placeholder="e.g. SEC OHTL 380kV &#8230;" />
+            </div>
+            <div class="field">
+              <label>Est-Num</label>
+              <input type="text" id="cfEstNo" placeholder="e.g. Est-1660 &#8211; leave blank to auto-generate" />
             </div>
             <div class="field">
               <label>RFX Number</label>
@@ -321,9 +325,6 @@
             <div class="scope-grid" id="cfScopeGrid"></div>
             <input type="text" id="cfScopeOther" placeholder="If Other, specify&#8230;" style="display:none;margin-top:6px;" />
           </div>
-          <div class="field" style="margin-top:14px;">
-            <label class="check-inline"><input type="checkbox" id="cfPbu" /> Scope contains PBU (affects RFQ float dates)</label>
-          </div>
         </div>
 
         <!-- L1 FORM -->
@@ -337,6 +338,10 @@
             <div class="field">
               <label>L1 Announcement Date <span class="req">*</span></label>
               <input type="date" id="cfL1Announce" />
+            </div>
+            <div class="field">
+              <label>Project Manager</label>
+              <input type="text" id="cfL1PM" placeholder="optional" />
             </div>
           </div>
         </div>

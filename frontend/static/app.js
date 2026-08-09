@@ -54,6 +54,10 @@
     pending_review: ["warn", "Pending SME Review"], approved: ["good", "Approved"], rejected: ["crit", "Rejected"],
   };
   var PROJECT_STATUS_CLASS = { "Completed": "good", "Cancelled": "crit", "Submitted": "good", "In Progress": "warn" };
+  var L1_MILESTONE_LABELS = {
+    M1: "Announcement", M2: "Early Plan", M3: "Handing Over",
+    M4: "Post Bid Clarifications", M5: "LOA", M6: "Contract",
+  };
   function joinList(v) { return (v && v.length) ? v.join(", ") : "&#8213;"; }
   var ANN_ICON = {
     broadcast: ["&#128276;", "broadcast"], owner: ["&#128100;", "owner"], sme_request: ["&#128269;", "sme-request"],
@@ -281,7 +285,7 @@
       } else {
         var mini = '<div class="mini-stepper" data-pid="' + p.id + '">&#8230;</div>';
         tr2.innerHTML = '<td class="est-no">' + p.est_no + '</td><td><span class="proj-name">' + p.name + '</span></td>' +
-          '<td>' + mini + '</td><td>' + (p.bid_manager || "&#8213;") + '</td><td>' + statusPill + '</td>';
+          '<td>' + mini + '</td><td>' + (p.bid_manager || "&#8213;") + '</td><td>' + (p.project_manager || "&#8213;") + '</td><td>' + statusPill + '</td>';
       }
       tr2.addEventListener("click", function (pid) { return function () { openDetail(pid); }; }(p.id));
       tbody.appendChild(tr2);
@@ -315,8 +319,12 @@
     var metaItems = p.stage === "L0"
       ? [["Bid Manager", p.bid_manager || "&#8213;"], ["RFX", p.rfx_number || "&#8213;"], ["Region", joinList(p.region)], ["Scope", joinList(p.scope)],
          ["Announced", fmtDate(p.announcement_date)], ["Site Visit", fmtDate(p.site_visit_date)], ["Pre-Bid Deadline", fmtDate(p.pre_bid_deadline)], ["Bid Submission Date", fmtDate(p.bsd)]]
-      : [["Bid Manager", p.bid_manager || "&#8213;"], ["Region", joinList(p.region)], ["Scope", joinList(p.scope)],
-         ["Announced", fmtDate(p.announcement_date)], ["Contract Status", p.contract_status || "&#8213;"]];
+      : [["Bid Manager", p.bid_manager || "&#8213;"], ["Project Manager", p.project_manager || "&#8213;"],
+         ["Region", joinList(p.region)], ["Scope", joinList(p.scope)],
+         ["Announced", fmtDate(p.announcement_date)],
+         ["Contract Status", p.contract_status === "Signed"
+           ? '<span class="pill good"><span class="dot"></span>Signed</span>'
+           : (p.contract_status || "&#8213;")]];
     metaItems.forEach(function (m) {
       var mi = el("div", "meta-item");
       mi.appendChild(el("div", "mk", m[0]));
@@ -336,7 +344,7 @@
         var cls = "fs-step" + (m.reached ? " done" : (i === lastDoneIdx + 1 ? " current" : ""));
         var step = el("div", cls);
         step.appendChild(el("div", "fs-dot", m.reached ? "&#10003;" : m.code));
-        var label = el("div", "fs-label", m.code + " &middot; " + m.name);
+        var label = el("div", "fs-label", m.code + " &middot; " + (L1_MILESTONE_LABELS[m.code] || m.name));
         step.appendChild(label);
         step.appendChild(el("div", "fs-date", m.reached ? fmtDate(m.actual_date) : "&#8213;"));
         stepper.appendChild(step);
@@ -630,6 +638,11 @@
 
   document.getElementById("cfSubmit").addEventListener("click", async function () {
     var stage = document.getElementById("cfStage").value;
+    var submitBtn = document.getElementById("cfSubmit");
+    var originalLabel = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Creating project…";
+    submitBtn.classList.add("btn-loading");
     try {
       if (stage === "L0") {
         var name = document.getElementById("cfName").value.trim();
@@ -645,13 +658,13 @@
         if (!region.length) { showToast("Select at least one Region"); return; }
         if (!scope.length) { showToast("Select at least one Scope"); return; }
         var payload = {
-          name: name, region: region, region_other: document.getElementById("cfRegionOther").value || null,
+          name: name, est_no: document.getElementById("cfEstNo").value.trim() || null,
+          region: region, region_other: document.getElementById("cfRegionOther").value || null,
           scope: scope, scope_other: document.getElementById("cfScopeOther").value || null,
           rfx_number: document.getElementById("cfRfx").value || null,
           announcement_date: announce, site_visit_date: document.getElementById("cfSiteVisit").value || null,
           pre_bid_deadline: document.getElementById("cfPreBid").value || null,
           bid_manager: bidManager, bsd: bsd,
-          scope_contains_pbu: document.getElementById("cfPbu").checked,
         };
         var p = await api("/api/projects/l0", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         showToast(p.est_no + " created &#8211; announcement sent");
@@ -662,13 +675,20 @@
         if (!l1Announce) { showToast("L1 Announcement Date is required"); return; }
         var p1 = await api("/api/projects/l1", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ l0_source_id: Number(l0Id), announcement_date: l1Announce }),
+          body: JSON.stringify({
+            l0_source_id: Number(l0Id), announcement_date: l1Announce,
+            project_manager: document.getElementById("cfL1PM").value.trim() || null,
+          }),
         });
         showToast(p1.est_no + " created &#8211; announcement sent");
       }
     } catch (err) {
       showToast("Could not create project &#8211; " + apiErrorDetail(err));
       return;
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = originalLabel;
+      submitBtn.classList.remove("btn-loading");
     }
     switchView("announcements");
   });

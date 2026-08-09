@@ -244,7 +244,7 @@ L1_ITEMS = [
 # ---------------------------------------------------------------------------
 L0_SHORT_NAMES = {
     "1.1": "Receive GO Approval", "1.2": "Announce Site Visit", "1.3": "Announce Pre-bid Meeting",
-    "1.4": "Announce Clarification Deadline", "1.5": "Assign Bid Manager", "1.6": "Request Bid Bond",
+    "1.4": "Pre-bid Deadline", "1.5": "Assign Bid Manager", "1.6": "Request Bid Bond",
     "1.7": "Develop Estimate Program", "1.8": "Float SC RFQ", "1.9": "Float Materials RFQ",
     "1.10": "Float Consultant RFQ", "1.11": "Review Project Schedule", "1.12": "Review Execution Plan",
     "1.13": "Prepare Pre-bid Agreements", "1.14": "Incorporate Consultant Findings",
