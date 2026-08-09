@@ -15,7 +15,7 @@ class ProjectCreateL0(BaseModel):
     pre_bid_deadline: date | None = None
     bid_manager: str
     bsd: date
-    scope_contains_pbu: bool = False
+    business_units: list[str] | None = None  # required (TBU/PBU/DBU/BBU/TBA) only when scope can't be auto-classified
 
 
 class ProjectCreateL1(BaseModel):
@@ -26,6 +26,10 @@ class ProjectCreateL1(BaseModel):
 
 class ProjectManagerUpdate(BaseModel):
     project_manager: str | None = None
+
+
+class ProjectStatusUpdate(BaseModel):
+    status: str
 
 
 class ProjectOut(BaseModel):
@@ -40,6 +44,7 @@ class ProjectOut(BaseModel):
     rfx_number: str | None
     bid_manager: str | None
     project_manager: str | None
+    business_units: list[str] | None
     status: str
     contract_status: str | None
     announcement_date: date
@@ -62,6 +67,7 @@ class SubmissionOut(BaseModel):
     owner_email: str | None
     sme_email: str | None
     file_name: str | None
+    file_url: str | None = None
     submitted_at: datetime | None
     review_comment: str | None
     is_milestone: bool
@@ -69,6 +75,13 @@ class SubmissionOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class MarkCompleteRequest(BaseModel):
+    comment: str
+    actor_name: str = "Owner"
+    actor_role: str = "Owner"
+    actor_email: str = ""
 
 
 class ReviewDecision(BaseModel):

@@ -10,10 +10,74 @@ from sqlalchemy.orm import Session
 from . import models
 
 # L0 items 1.8/1.9/1.10 branch on whether the project's scope includes PBU —
-# the one recurring conditional pattern in the real template. Not exposed as
-# a form field yet (Modifications doc doesn't ask for one), so it defaults
-# false; the branch is implemented so it's correct the day that field exists.
+# the one recurring conditional pattern in the real template. Driven by
+# Project.scope_contains_pbu, itself derived from business_units (see
+# compute_business_units below) at project-creation time.
 PBU_CONDITIONAL_ITEMS = {"1.8", "1.9", "1.10"}
+
+# Business Unit auto-detection from scope. A project can trigger more than
+# one BU at once (e.g. an OHTL EHV + SS MV project is both PBU and DBU).
+# Scope values outside all four rules (BESS HV/EHV, HVDC, Other) can't be
+# auto-classified — the caller must collect business_units manually instead
+# (TBA allowed) when compute_business_units reports needs_manual=True.
+_BU_TBU_SCOPES = {"SS HV (110-132 KV)", "SS EHV (230-400 KV)"}
+_BU_PBU_SCOPES = {
+    "UGC HV (110-132 KV)", "UGC EHV (230-400 KV)",
+    "OHTL HV (110-132 KV)", "OHTL EHV (230-400 KV)",
+}
+_BU_DBU_SCOPES = {
+    "SS MV (Distribution)", "UGC MV (Distribution)",
+    "OHTL MV (Distribution)", "BESS MV (Distribution)",
+}
+_BU_UNCOVERED_SCOPES = {"BESS HV (110-132 KV)", "BESS EHV (230-400 KV)", "HVDC", "Other"}
+BU_UNCOVERED_SCOPES = sorted(_BU_UNCOVERED_SCOPES)  # exposed to the create-form UI so it knows when to require a manual pick
+
+
+def compute_business_units(scope: list[str] | None) -> tuple[list[str], bool]:
+    """Returns (business_units, needs_manual). When needs_manual is True, the
+    caller must collect business_units from the user instead (scope includes
+    something outside the four auto-detectable rules).
+    """
+    scope = scope or []
+    if any(s in _BU_UNCOVERED_SCOPES for s in scope):
+        return [], True
+    bus = set()
+    if any(s in _BU_TBU_SCOPES for s in scope):
+        bus.add("TBU")
+    if any(s in _BU_PBU_SCOPES for s in scope):
+        bus.add("PBU")
+    if any(s in _BU_DBU_SCOPES for s in scope):
+        bus.add("DBU")
+    if any(s.startswith("SS ") for s in scope):  # BBU: always present for SS projects
+        bus.add("BBU")
+    return sorted(bus), False
+
+
+# L0: items 2.7-2.12 duplicate 2.1-2.6 for the case where BBU is also involved
+# on top of the main BU — only relevant when the main BU is TBU (SS HV/EHV).
+# Never applies to DBU or PBU projects, even ones that also trigger BBU.
+L0_TBU_ONLY_ITEMS = {"2.7", "2.8", "2.9", "2.10", "2.11", "2.12"}
+
+# L1: these departments only apply to BBU (buildings) projects — no folder or
+# deliverables for a project that doesn't involve BBU at all.
+L1_BBU_ONLY_DEPARTMENTS = {"BBU", "BBU / PBU"}
+
+
+def is_bu_applicable(definition: models.DeliverableDefinition, project: models.Project) -> bool:
+    """Whether a deliverable definition should be instantiated for this
+    project's Business Unit(s). Ungated (True) when business_units is empty
+    or TBA — an unknown BU shouldn't hide anything.
+    """
+    bus = project.business_units or []
+    if not bus or "TBA" in bus:
+        return True
+    if definition.stage == models.Stage.L0:
+        if definition.item_no in L0_TBU_ONLY_ITEMS:
+            return "TBU" in bus
+        return True
+    if definition.department.name in L1_BBU_ONLY_DEPARTMENTS:
+        return "BBU" in bus
+    return True
 
 # L0: these three items' duration is 3 working days if the tender window
 # (BSD - announcement) is under 30 calendar days, else 7 — independent of

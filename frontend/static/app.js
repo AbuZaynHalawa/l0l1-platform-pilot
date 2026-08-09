@@ -69,6 +69,7 @@
     dashboard: loadDashboard, assigned: loadAssigned, announcements: loadAnnouncements,
     l0: function () { loadProjectsTable("L0"); }, l1: function () { loadProjectsTable("L1"); },
     performance: loadPerformance, reports: loadReports, create: loadCreateOptions, gantt: loadGantt,
+    journey: loadJourney,
   };
   function switchView(name) {
     if ((name === "create" || name === "reports") && !can("create")) name = "dashboard";
@@ -111,6 +112,10 @@
       });
 
     renderDeptGrid(document.getElementById("dashDeptGrid"), d.departments.slice(0, 6), false);
+
+    var achievers = await api("/api/dashboard/top-achievers");
+    renderAchievers("topOwners", achievers.owners);
+    renderAchievers("topSmes", achievers.smes);
 
     var anns = await api("/api/announcements?limit=6");
     var digest = document.getElementById("digestList");
@@ -177,6 +182,22 @@
     });
   }
 
+  function renderAchievers(containerId, rows) {
+    var wrap = document.getElementById(containerId);
+    wrap.innerHTML = "";
+    if (!rows.length) { wrap.appendChild(el("div", "empty-state", "Not enough data yet.")); return; }
+    var medals = ["&#129351;", "&#129352;", "&#129353;"];
+    rows.forEach(function (r, i) {
+      var row = el("div", "achiever-row");
+      row.appendChild(el("div", "achiever-rank", medals[i] || String(i + 1)));
+      var main = el("div", "achiever-main");
+      main.appendChild(el("div", "achiever-email", r.email));
+      main.appendChild(el("div", "achiever-sub", r.approved + " / " + r.total + " approved on time"));
+      row.appendChild(main);
+      row.appendChild(el("div", "achiever-pct num", r.pct + "%"));
+      wrap.appendChild(row);
+    });
+  }
   function deptLabel(name, number) {
     return (number ? number + ". " : "") + name;
   }
@@ -249,14 +270,20 @@
       row.appendChild(main);
       row.appendChild(el("span", "pill " + sm[0], '<span class="dot"></span>' + sm[1]));
       var actions = el("div", "deliv-actions");
+      if (d.file_url) actions.appendChild(fileLink(d));
       if (d.status === "pending_review" && can("review")) {
         var appr = el("button", "btn primary", "Approve");
         appr.addEventListener("click", function () { review(d.id, true, loadAssigned); });
         var rej = el("button", "btn ghost-crit", "Reject");
         rej.addEventListener("click", function () { review(d.id, false, loadAssigned); });
         actions.appendChild(appr); actions.appendChild(rej);
-      } else if (d.status === "overdue" && can("remind")) {
+      }
+      if (d.status === "overdue" && can("remind")) {
         actions.appendChild(el("button", "btn ghost-crit", "Send reminder"));
+      }
+      if ((d.status === "not_due" || d.status === "due" || d.status === "overdue") && can("upload")) {
+        actions.appendChild(uploadButton(d.id, loadAssigned));
+        actions.appendChild(markCompleteButton(d.id, loadAssigned));
       }
       row.appendChild(actions);
       wrap.appendChild(row);
@@ -317,13 +344,41 @@
     var pill = document.getElementById("dStatusPill");
     pill.className = "pill " + (PROJECT_STATUS_CLASS[p.status] || "neutral");
     pill.innerHTML = '<span class="dot"></span>' + p.status;
+
+    var statusSel = document.getElementById("dStatusSelect");
+    if (can("create")) {
+      var statusOptions = ["In Progress"].concat(p.stage === "L0" ? ["Submitted", "Cancelled"] : ["Completed"]);
+      statusSel.innerHTML = "";
+      statusOptions.forEach(function (s) { var o = el("option", "", s); o.value = s; statusSel.appendChild(o); });
+      statusSel.value = p.status;
+      statusSel.style.display = "";
+      statusSel.onchange = async function () {
+        try {
+          await api("/api/projects/" + id + "/status", {
+            method: "PATCH", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: statusSel.value }),
+          });
+        } catch (err) {
+          showToast("Could not update status &#8211; " + apiErrorDetail(err));
+          statusSel.value = p.status;
+          return;
+        }
+        showToast("Status updated to " + statusSel.value);
+        openDetail(id);
+      };
+    } else {
+      statusSel.style.display = "none";
+    }
+
     var meta = document.getElementById("dMeta");
     meta.innerHTML = "";
+    var buLabel = (p.business_units && p.business_units.length) ? p.business_units.join(" / ") : "&#8213;";
     var metaItems = p.stage === "L0"
       ? [["Bid Manager", p.bid_manager || "&#8213;"], ["RFX", p.rfx_number || "&#8213;"], ["Region", joinList(p.region)], ["Scope", joinList(p.scope)],
+         ["Business Unit", buLabel],
          ["Announced", fmtDate(p.announcement_date)], ["Site Visit", fmtDate(p.site_visit_date)], ["Pre-Bid Deadline", fmtDate(p.pre_bid_deadline)], ["Bid Submission Date", fmtDate(p.bsd)]]
       : [["Bid Manager", p.bid_manager || "&#8213;"], ["Project Manager", p.project_manager || "&#8213;", "pm"],
-         ["Region", joinList(p.region)], ["Scope", joinList(p.scope)],
+         ["Region", joinList(p.region)], ["Scope", joinList(p.scope)], ["Business Unit", buLabel],
          ["Announced", fmtDate(p.announcement_date)],
          ["Contract Status", p.contract_status === "Signed"
            ? '<span class="pill good"><span class="dot"></span>Signed</span>'
@@ -421,12 +476,16 @@
       var row = el("div", "deliv-row");
       var body = el("div", "deliv-body");
       body.appendChild(el("div", "deliv-name", d.name));
-      body.appendChild(el("div", "deliv-due", "Due " + fmtDate(d.due_date) + ' &middot; <span class="pill ' + sm[0] + '"><span class="dot"></span>' + sm[1] + "</span>" + (d.file_name ? " &middot; " + d.file_name : "")));
+      var fileBit = d.file_name
+        ? (" &middot; " + (d.file_url ? '<a href="' + d.file_url + '" target="_blank" rel="noopener">' + d.file_name + "</a>" : d.file_name))
+        : "";
+      body.appendChild(el("div", "deliv-due", "Due " + fmtDate(d.due_date) + ' &middot; <span class="pill ' + sm[0] + '"><span class="dot"></span>' + sm[1] + "</span>" + fileBit));
       row.appendChild(el("div", "deliv-num", d.item_no));
       row.appendChild(body);
 
       var actions = el("div", "deliv-actions");
       if (d.status === "pending_review") {
+        if (d.file_url) actions.appendChild(fileLink(d));
         if (can("review")) {
           var appr = el("button", "btn primary", "Approve");
           appr.addEventListener("click", function () { review(d.id, true, function () { openDetail(currentProjectId); }); });
@@ -437,21 +496,26 @@
           actions.appendChild(el("span", "locked-note", "Awaiting SME"));
         }
       } else if (d.status === "overdue") {
-        if (can("remind")) {
-          actions.appendChild(el("button", "btn ghost-crit", "Send reminder"));
-        } else if (can("upload")) {
-          actions.appendChild(uploadButton(d.id));
-        }
+        if (can("remind")) actions.appendChild(el("button", "btn ghost-crit", "Send reminder"));
+        if (can("upload")) { actions.appendChild(uploadButton(d.id)); actions.appendChild(markCompleteButton(d.id)); }
       } else if (d.status === "not_due" || d.status === "due") {
-        if (can("upload")) actions.appendChild(uploadButton(d.id));
+        if (can("upload")) { actions.appendChild(uploadButton(d.id)); actions.appendChild(markCompleteButton(d.id)); }
+      } else if (d.file_url) {
+        actions.appendChild(fileLink(d));
       } else {
-        actions.appendChild(el("button", "btn", "View files"));
+        actions.appendChild(el("span", "locked-note", "No file attached"));
       }
       row.appendChild(actions);
       wrap.appendChild(row);
     });
   }
-  function uploadButton(submissionId) {
+  function fileLink(d) {
+    var a = el("a", "btn", "View / Download");
+    a.href = d.file_url; a.target = "_blank"; a.rel = "noopener";
+    return a;
+  }
+  function uploadButton(submissionId, after) {
+    after = after || function () { openDetail(currentProjectId); };
     var wrapper = document.createDocumentFragment();
     var fileInput = el("input"); fileInput.type = "file"; fileInput.style.display = "none";
     var btn = el("button", "btn", "Upload");
@@ -470,13 +534,43 @@
         return;
       }
       showToast("Uploaded " + fileInput.files[0].name + " &#8211; SME notified");
-      openDetail(currentProjectId);
+      after();
     });
     var span = el("span"); span.appendChild(btn); span.appendChild(fileInput);
     return span;
   }
+  function markCompleteButton(submissionId, after) {
+    after = after || function () { openDetail(currentProjectId); };
+    var btn = el("button", "btn", "Mark Completed");
+    btn.addEventListener("click", async function () {
+      var comment = prompt("Describe how this was completed (required — no file to attach):", "");
+      if (comment === null) return;
+      comment = comment.trim();
+      if (!comment) { showToast("A comment is required to mark this complete"); return; }
+      try {
+        await api("/api/deliverables/" + submissionId + "/mark-complete", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ comment: comment, actor_name: CURRENT_ROLE + " (pilot)", actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
+        });
+      } catch (err) {
+        showToast("Could not mark complete &#8211; " + apiErrorDetail(err));
+        return;
+      }
+      showToast("Marked complete &#8211; SME notified");
+      after();
+    });
+    return btn;
+  }
   async function review(submissionId, approved, after) {
-    var comment = approved ? null : prompt("Reason for rejection (shown to the owner):", "Please review and resubmit with updated supporting documents.");
+    var comment;
+    if (approved) {
+      comment = prompt("Add a comment (optional):", "");
+      if (comment === null) return;
+      comment = comment.trim() || null;
+    } else {
+      comment = prompt("Reason for rejection (shown to the owner):", "Please review and resubmit with updated supporting documents.");
+      if (comment === null) return;
+    }
     try {
       await api("/api/deliverables/" + submissionId + "/review", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -494,33 +588,100 @@
   }
 
   /* ================= TIMELINE / GANTT ================= */
-  var ganttOptionsLoaded = false;
-  async function loadGantt() {
+  var DEPT_COLORS = {
+    1: "#6366f1", 2: "#0ea5e9", 3: "#14b8a6", 4: "#22c55e", 5: "#84cc16",
+    6: "#eab308", 7: "#f97316", 8: "#ef4444", 9: "#ec4899", 10: "#a855f7",
+    11: "#8b5cf6", 12: "#64748b",
+  };
+  function deptColor(number) { return DEPT_COLORS[number] || "#94a3b8"; }
+  var ganttStage = "L0";
+  var ganttPooledRows = [];
+  document.querySelectorAll("#ganttStageToggle .chip").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.querySelectorAll("#ganttStageToggle .chip").forEach(function (b) { b.classList.remove("active"); });
+      btn.classList.add("active");
+      ganttStage = btn.dataset.stage;
+      loadGanttForStage();
+    });
+  });
+  document.getElementById("ganttDeptFilter").addEventListener("change", applyGanttFilters);
+  document.getElementById("ganttStatusFilter").addEventListener("change", applyGanttFilters);
+  document.getElementById("ganttEstFilter").addEventListener("change", applyGanttFilters);
+  document.getElementById("ganttScope").addEventListener("change", function () { renderGanttFor(this.value); });
+
+  async function loadGantt() { await loadGanttForStage(); }
+
+  async function loadGanttForStage() {
+    var list = await api("/api/projects?stage=" + ganttStage + "&status=" + encodeURIComponent("In Progress"));
     var scopeSel = document.getElementById("ganttScope");
-    if (!ganttOptionsLoaded) {
-      var projects = await api("/api/projects?status=" + encodeURIComponent("In Progress"));
-      projects.forEach(function (p) {
-        var o = el("option", "", p.est_no + " &#8211; " + p.name); o.value = p.id;
-        scopeSel.appendChild(o);
-      });
-      ganttOptionsLoaded = true;
-      // Default to a specific project's deliverable-level timeline (the useful
-      // view) rather than the whole-project-as-one-bar overview.
-      if (projects.length) scopeSel.value = String(projects[0].id);
-    }
+    scopeSel.innerHTML = '<option value="">Pooled Timeline (all active ' + ganttStage + ' projects)</option>';
+    var estSel = document.getElementById("ganttEstFilter");
+    estSel.innerHTML = '<option value="">All Est Numbers</option>';
+    list.forEach(function (p) {
+      var o = el("option", "", p.est_no + " &#8211; " + p.name); o.value = p.id;
+      scopeSel.appendChild(o);
+      var eo = el("option", "", p.est_no); eo.value = p.est_no;
+      estSel.appendChild(eo);
+    });
+    document.getElementById("ganttStatusFilter").value = "";
+    document.getElementById("ganttDeptFilter").innerHTML = '<option value="">All Departments</option>';
     await renderGanttFor(scopeSel.value);
   }
-  document.getElementById("ganttScope").addEventListener("change", function () { renderGanttFor(this.value); });
+
   async function openProjectGantt(projectId) {
     switchView("gantt");
+    ganttStage = currentProjectStage;
+    document.querySelectorAll("#ganttStageToggle .chip").forEach(function (b) {
+      b.classList.toggle("active", b.dataset.stage === ganttStage);
+    });
+    await loadGanttForStage();
     var scopeSel = document.getElementById("ganttScope");
-    if (!ganttOptionsLoaded) await loadGantt();
     scopeSel.value = String(projectId);
     await renderGanttFor(scopeSel.value);
   }
+
   async function renderGanttFor(projectId) {
-    var isOverview = !projectId;
-    var rows = isOverview ? await api("/api/gantt/overview") : await api("/api/gantt/projects/" + projectId);
+    var isPooled = !projectId;
+    document.querySelectorAll("#ganttDeptFilter,#ganttStatusFilter,#ganttEstFilter")
+      .forEach(function (s) { s.style.display = isPooled ? "" : "none"; });
+    var legend = document.getElementById("ganttDeptLegend");
+    if (isPooled) {
+      ganttPooledRows = await api("/api/gantt/timeline?stage=" + ganttStage);
+      var deptSel = document.getElementById("ganttDeptFilter");
+      var seenDepts = {};
+      ganttPooledRows.forEach(function (r) { seenDepts[r.department] = r.department_number; });
+      deptSel.innerHTML = '<option value="">All Departments</option>';
+      Object.keys(seenDepts).sort(function (a, b) { return (seenDepts[a] || 0) - (seenDepts[b] || 0); }).forEach(function (name) {
+        var o = el("option", "", deptLabel(name, seenDepts[name])); o.value = name;
+        deptSel.appendChild(o);
+      });
+      legend.innerHTML = "";
+      Object.keys(seenDepts).sort(function (a, b) { return (seenDepts[a] || 0) - (seenDepts[b] || 0); }).forEach(function (name) {
+        var lg = el("span", "lg");
+        lg.innerHTML = '<span class="sw" style="background:' + deptColor(seenDepts[name]) + '"></span>';
+        lg.appendChild(document.createTextNode(deptLabel(name, seenDepts[name])));
+        legend.appendChild(lg);
+      });
+      legend.className = "ann-type-key gantt-dept-legend";
+      applyGanttFilters();
+      return;
+    }
+    legend.innerHTML = "";
+    var rows = await api("/api/gantt/projects/" + projectId);
+    drawGanttRows(rows, false);
+  }
+
+  function applyGanttFilters() {
+    var dept = document.getElementById("ganttDeptFilter").value;
+    var status = document.getElementById("ganttStatusFilter").value;
+    var estNo = document.getElementById("ganttEstFilter").value;
+    var rows = ganttPooledRows.filter(function (r) {
+      return (!dept || r.department === dept) && (!status || r.status === status) && (!estNo || r.est_no === estNo);
+    });
+    drawGanttRows(rows, true);
+  }
+
+  function drawGanttRows(rows, isPooled) {
     var axis = document.getElementById("ganttAxis");
     var wrap = document.getElementById("ganttRows");
     axis.innerHTML = "";
@@ -540,23 +701,31 @@
       var leftPct = ((s - min) / span) * 100;
       var widthPct = Math.max(0.8, ((e - s) / span) * 100);
       var row = el("div", "gantt-row");
-      var labelHtml = isOverview
-        ? "<b>" + r.est_no + "</b> &middot; " + r.name
+      var labelHtml = isPooled
+        ? "<b>" + r.item_no + "</b> &middot; " + r.short_name + '<span class="gantt-est-tag">' + r.est_no + "</span>"
         : "<b>" + r.item_no + "</b> &middot; " + r.short_name;
       var label = el("div", "gantt-label", labelHtml);
-      if (!isOverview) label.title = r.name;
+      label.title = r.name;
       row.appendChild(label);
       var track = el("div", "gantt-track");
-      var cls = isOverview ? (PROJECT_STATUS_CLASS[r.status] || "neutral") : ((STATUS_META[r.status] || ["neutral"])[0]);
-      var bar = el("div", "gantt-bar " + cls + (r.is_milestone ? " milestone" : ""));
+      var bar;
+      if (isPooled) {
+        bar = el("div", "gantt-bar" + (r.is_milestone ? " milestone" : ""));
+        bar.style.background = deptColor(r.department_number);
+      } else {
+        var cls = (STATUS_META[r.status] || ["neutral"])[0];
+        bar = el("div", "gantt-bar " + cls + (r.is_milestone ? " milestone" : ""));
+      }
       bar.style.left = leftPct.toFixed(2) + "%";
       bar.style.width = widthPct.toFixed(2) + "%";
-      bar.title = fmtDate(r.start) + " " + String.fromCharCode(8594) + " " + fmtDate(r.end);
+      var statusLabel = (STATUS_META[r.status] || ["", r.status])[1];
+      bar.title = (isPooled ? r.department + " &#8211; " + statusLabel + " &#8211; " : "") +
+        fmtDate(r.start) + " " + String.fromCharCode(8594) + " " + fmtDate(r.end);
       track.appendChild(bar);
       row.appendChild(track);
-      if (isOverview) {
+      if (isPooled) {
         row.style.cursor = "pointer";
-        row.addEventListener("click", function () { openDetail(r.id); });
+        row.addEventListener("click", function () { openDetail(r.project_id); });
       }
       wrap.appendChild(row);
     });
@@ -590,6 +759,46 @@
     });
   }
 
+  /* ================= JOURNEY / HISTORY ================= */
+  var journeyProjectsLoaded = false;
+  var HISTORY_ACTION_ICON = {
+    submitted: "&#128228;", assigned: "&#128100;", review_requested: "&#128269;",
+    approved: "&#9989;", rejected: "&#10060;", unlocked: "&#128275;",
+  };
+  async function loadJourney() {
+    var sel = document.getElementById("journeyProjectSel");
+    if (!journeyProjectsLoaded) {
+      var list = await api("/api/projects");
+      list.forEach(function (p) {
+        var o = el("option", "", p.stage + " &middot; " + p.est_no + " &#8211; " + p.name);
+        o.value = p.id;
+        sel.appendChild(o);
+      });
+      sel.addEventListener("change", function () { renderJourneyTimeline(sel.value); });
+      journeyProjectsLoaded = true;
+    }
+    if (sel.value) renderJourneyTimeline(sel.value);
+  }
+  async function renderJourneyTimeline(projectId) {
+    var wrap = document.getElementById("journeyTimeline");
+    if (!projectId) { wrap.innerHTML = ""; return; }
+    var events = await api("/api/projects/" + projectId + "/history");
+    wrap.innerHTML = "";
+    if (!events.length) { wrap.appendChild(el("div", "empty-state", "No activity recorded yet.")); return; }
+    events.slice().reverse().forEach(function (ev) {
+      var row = el("div", "journey-event");
+      row.appendChild(el("div", "journey-event-ic", HISTORY_ACTION_ICON[ev.action] || "&#128276;"));
+      var main = el("div", "journey-event-main");
+      var when = new Date(ev.at).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+      main.appendChild(el("div", "journey-event-top",
+        "<b>" + ev.item_no + "</b> &middot; " + ev.name + '<span class="journey-event-time">' + when + "</span>"));
+      main.appendChild(el("div", "journey-event-sub",
+        ev.action.replace(/_/g, " ") + " by <b>" + (ev.actor || "system") + "</b>" + (ev.note ? " &#8212; " + ev.note : "")));
+      row.appendChild(main);
+      wrap.appendChild(row);
+    });
+  }
+
   /* ================= ANNOUNCEMENTS ================= */
   async function loadAnnouncements() {
     var list = await api("/api/announcements");
@@ -612,6 +821,12 @@
 
   /* ================= CREATE PROJECT ================= */
   var createOptionsLoaded = false;
+  var buUncoveredScopes = [];
+  function refreshBuFieldVisibility() {
+    var scope = checkedValues("cfScopeGrid");
+    var needed = scope.some(function (s) { return buUncoveredScopes.indexOf(s) !== -1; });
+    document.getElementById("cfBuField").style.display = needed ? "" : "none";
+  }
   function renderCheckGroup(containerId, otherInputId, options) {
     var grid = document.getElementById(containerId);
     grid.innerHTML = "";
@@ -638,6 +853,11 @@
       opts.bid_managers.forEach(function (m) { bidSel.appendChild(el("option", "", m)).value = m; });
       renderCheckGroup("cfRegionGrid", "cfRegionOther", opts.regions);
       renderCheckGroup("cfScopeGrid", "cfScopeOther", opts.scopes);
+      renderCheckGroup("cfBuGrid", "", opts.business_units);
+      buUncoveredScopes = opts.bu_uncovered_scopes || [];
+      document.querySelectorAll("#cfScopeGrid input").forEach(function (cb) {
+        cb.addEventListener("change", refreshBuFieldVisibility);
+      });
       createOptionsLoaded = true;
     }
     var l0List = await api("/api/projects?stage=L0&status=" + encodeURIComponent("In Progress"));
@@ -679,6 +899,9 @@
         if (!bsd) { showToast("Bid Submission Date is required"); return; }
         if (!region.length) { showToast("Select at least one Region"); return; }
         if (!scope.length) { showToast("Select at least one Scope"); return; }
+        var needsManualBu = scope.some(function (s) { return buUncoveredScopes.indexOf(s) !== -1; });
+        var businessUnits = checkedValues("cfBuGrid");
+        if (needsManualBu && !businessUnits.length) { showToast("Business Unit is required for this scope"); return; }
         var payload = {
           name: name, est_no: estNo,
           region: region, region_other: document.getElementById("cfRegionOther").value || null,
@@ -687,6 +910,7 @@
           announcement_date: announce, site_visit_date: document.getElementById("cfSiteVisit").value || null,
           pre_bid_deadline: document.getElementById("cfPreBid").value || null,
           bid_manager: bidManager, bsd: bsd,
+          business_units: needsManualBu ? businessUnits : null,
         };
         var p = await api("/api/projects/l0", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         showToast(p.est_no + " created &#8211; announcement sent");

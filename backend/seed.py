@@ -8,10 +8,11 @@ per-department contacts and the real per-deliverable owner/SME mapping when
 provided, then re-run: `python -m backend.seed` (safe to re-run, upserts).
 """
 from .database import SessionLocal, engine, ensure_column
-from . import models
+from . import models, rules
 
 ensure_column("deliverable_definitions", "short_name", "VARCHAR")
 ensure_column("departments", "number", "INTEGER")
+ensure_column("projects", "business_units", "JSON")
 models.Base.metadata.create_all(bind=engine)
 
 TEST_EMAIL = "test-focal@example.com"  # single placeholder until real contacts are provided
@@ -462,6 +463,18 @@ def run():
         if m6_approved_projects:
             db.commit()
             print(f"Backfilled contract_status=Signed for {len(m6_approved_projects)} project(s).")
+
+        # Backfill: business_units didn't exist for projects created before this
+        # field shipped. Display/reporting only — deliverables already
+        # instantiated for these projects are left exactly as they are, never
+        # retroactively gated or removed.
+        unset_bu_projects = db.query(models.Project).filter(models.Project.business_units.is_(None)).all()
+        for p in unset_bu_projects:
+            bus, needs_manual = rules.compute_business_units(p.scope)
+            p.business_units = [] if needs_manual else bus
+        if unset_bu_projects:
+            db.commit()
+            print(f"Backfilled business_units for {len(unset_bu_projects)} project(s).")
         print(f"Seed complete: {len(dept_map)} departments, {len(L0_ITEMS)} L0 items, {len(L1_ITEMS)} L1 items.")
     finally:
         db.close()

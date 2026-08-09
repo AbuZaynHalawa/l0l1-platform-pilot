@@ -24,6 +24,7 @@
       <button class="nav-item" data-view="l1"><span class="ic">&#128274;</span> L1 Projects</button>
       <button class="nav-item" data-view="gantt"><span class="ic">&#128198;</span> Timeline</button>
       <button class="nav-item" data-view="performance"><span class="ic">&#128200;</span> Performance</button>
+      <button class="nav-item" data-view="journey"><span class="ic">&#128337;</span> Journey</button>
     </nav>
 
     <div class="nav-group-label" id="adminGroupLabel">Admin</div>
@@ -75,6 +76,17 @@
       </div>
 
       <div class="stat-row" id="statRow"></div>
+
+      <div class="split achievers-row">
+        <div class="card">
+          <div class="section-title">Top Achievers &#8211; Owners <span class="cnt">on-time approval rate</span></div>
+          <div class="card-pad"><div id="topOwners" class="achiever-list"></div></div>
+        </div>
+        <div class="card">
+          <div class="section-title">Top Achievers &#8211; SME <span class="cnt">on-time approval rate</span></div>
+          <div class="card-pad"><div id="topSmes" class="achiever-list"></div></div>
+        </div>
+      </div>
 
       <div class="card table-card matrix-card">
         <div class="section-title">
@@ -180,15 +192,75 @@
         <div>
           <div class="eyebrow">Scheduling</div>
           <h1>Timeline</h1>
-          <p class="sub">Every deliverable's window, computed from the same due-date engine driving the rest of the app.</p>
+          <p class="sub">Every active deliverable, pooled across projects and sorted by due date.</p>
         </div>
-        <div class="field" style="max-width:300px;">
-          <select id="ganttScope"><option value="">All Active Projects (overview)</option></select>
+        <div class="matrix-toggle" id="ganttStageToggle">
+          <button class="chip active" data-stage="L0">L0 Tenders</button>
+          <button class="chip" data-stage="L1">L1 Projects</button>
         </div>
       </div>
+      <div class="gantt-filter-row" id="ganttFilterRow">
+        <select id="ganttScope"><option value="">Pooled Timeline (all active projects)</option></select>
+        <select id="ganttEstFilter"><option value="">All Est Numbers</option></select>
+        <select id="ganttDeptFilter"><option value="">All Departments</option></select>
+        <select id="ganttStatusFilter">
+          <option value="">All Statuses</option>
+          <option value="not_due">Not Due</option>
+          <option value="due">Due</option>
+          <option value="overdue">Overdue</option>
+          <option value="pending_review">Pending SME Review</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      </div>
+      <div class="gantt-dept-legend" id="ganttDeptLegend"></div>
       <div class="card table-card">
         <div class="gantt-axis" id="ganttAxis"></div>
         <div class="gantt-scroll" id="ganttRows"></div>
+      </div>
+    </section>
+
+    <!-- JOURNEY / HISTORY -->
+    <section class="view" id="view-journey" hidden>
+      <div class="view-head">
+        <div>
+          <div class="eyebrow">How It Works</div>
+          <h1>The L0 &#8594; L1 Journey</h1>
+          <p class="sub">The process this platform automates, and the live activity trail behind any project.</p>
+        </div>
+      </div>
+
+      <div class="card journey-explainer">
+        <div class="journey-stage">
+          <div class="journey-stage-head"><span class="journey-badge l0">L0</span> Tendering</div>
+          <p>A tender opens at <b>Announcement (M1)</b>. Site visit, pre-bid meeting, and pre-bid clarification
+             deadlines are announced, and every department (Operations, Supply Chain, Engineering, Control,
+             Contract, HR, Finance, SHEQ, IT, Risk, Fleet) prepares its risk register, execution plan, and
+             schedule in parallel. The <b>Project Schedule (M3)</b> anchors most department deliverables.
+             Technical offers are circulated once RFQs return (<b>M4</b>), and the tender closes with the
+             <b>Proposal Submitted to client (M5)</b>, timed to the Bid Submission Date.</p>
+        </div>
+        <div class="journey-arrow">&#8595;</div>
+        <div class="journey-stage">
+          <div class="journey-stage-head"><span class="journey-badge l1">L1</span> Execution</div>
+          <p>Once a tender is awarded, an L1 project starts from the same scope: <b>L1 Announcement (M1)</b>,
+             an <b>Early Mobilization Plan (M2)</b>, then full <b>Commercial &amp; Technical Handover (M3)</b>
+             from the tendering team to the project team. <b>Post-Bid Clarification (M4)</b> runs until the
+             <b>LOA is received (M5)</b>, and the project formally begins execution at <b>Contract Signing
+             (M6)</b> &#8212; the point the platform marks the project's Contract Status as Signed. From there,
+             Planning, Cost Control, Supply Chain, Engineering, HSSE and the rest of the departments carry the
+             project through its execution deliverables.</p>
+        </div>
+      </div>
+
+      <div class="card table-card" style="margin-top:18px;">
+        <div class="section-title">
+          <span>Project Activity Trail</span>
+          <div class="field" style="max-width:320px;margin:0;">
+            <select id="journeyProjectSel"><option value="">Select a project&#8230;</option></select>
+          </div>
+        </div>
+        <div id="journeyTimeline"></div>
       </div>
     </section>
 
@@ -202,6 +274,7 @@
         </div>
         <button class="btn" id="dGanttBtn">View Timeline</button>
         <span class="pill" id="dStatusPill"></span>
+        <select id="dStatusSelect" style="display:none;"></select>
       </div>
       <div class="detail-meta-row" id="dMeta"></div>
 
@@ -324,6 +397,11 @@
             <label>Scope <span class="req">*</span></label>
             <div class="scope-grid" id="cfScopeGrid"></div>
             <input type="text" id="cfScopeOther" placeholder="If Other, specify&#8230;" style="display:none;margin-top:6px;" />
+          </div>
+          <div class="field" id="cfBuField" style="margin-top:14px;display:none;">
+            <label>Business Unit <span class="req">*</span></label>
+            <div class="scope-grid" id="cfBuGrid"></div>
+            <span class="hint">This scope can't be auto-classified &#8212; choose the applicable unit(s), or TBA.</span>
           </div>
         </div>
 

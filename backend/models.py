@@ -104,6 +104,7 @@ class Project(Base):
     scope_other = Column(String, nullable=True)
     rfx_number = Column(String, nullable=True)
     scope_contains_pbu = Column(Boolean, default=False)  # drives the 1.8/1.9/1.10 conditional in rules.py
+    business_units = Column(JSON, nullable=True)  # list of "TBU"/"PBU"/"DBU"/"BBU"/"TBA", see rules.compute_business_units
     bid_manager = Column(String, nullable=True)
     project_manager = Column(String, nullable=True)
     status = Column(Enum(ProjectStatus), default=ProjectStatus.IN_PROGRESS)

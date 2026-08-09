@@ -191,6 +191,7 @@
   .mini-dot.on { background: var(--purple-1); }
 
   .detail-head { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; margin-bottom: 6px; flex-wrap: wrap; }
+  #dStatusSelect { border: 1px solid var(--line); background: var(--surface); color: var(--ink-700); border-radius: 20px; padding: 7px 12px; font-size: 12px; font-weight: 700; }
   .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-500); font-size: 12.5px; font-weight: 600; cursor: pointer; margin-bottom: 14px; background: none; border: none; padding: 0; }
   .back-link:hover { color: var(--purple-1); }
   .detail-title { font-size: 20px; max-width: 700px; }
@@ -335,6 +336,10 @@
   .check-inline { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; color: var(--ink-700); }
 
   /* ---------- Timeline / Gantt ---------- */
+  .gantt-filter-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+  .gantt-filter-row select { border: 1px solid var(--line); background: var(--surface); color: var(--ink-700); border-radius: 9px; padding: 8px 12px; font-size: 12.5px; font-weight: 600; min-width: 160px; }
+  .gantt-dept-legend { margin-bottom: 14px; }
+  .gantt-est-tag { display: inline-block; margin-left: 6px; font-size: 10.5px; font-weight: 700; color: var(--ink-500); background: var(--surface-sunken); border-radius: 6px; padding: 1px 6px; }
   .gantt-axis { display: flex; justify-content: space-between; padding: 4px 14px 10px 234px; font-size: 11px; color: var(--ink-500); font-weight: 700; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
   .gantt-scroll { max-height: 560px; overflow-y: auto; }
   .gantt-row { display: flex; align-items: center; gap: 12px; padding: 7px 14px; border-bottom: 1px solid var(--line); }
@@ -372,6 +377,33 @@
   .admin-lock { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--warn-bg); color: var(--warn); border-radius: 10px; font-size: 12.5px; font-weight: 600; margin-bottom: 18px; }
 
   .role-gate-note { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: var(--accent-soft); border: 1px solid var(--accent-line); border-radius: 10px; font-size: 12px; color: var(--purple-2); margin-bottom: 16px; font-weight: 600; }
+
+  /* ---------- journey / history ---------- */
+  .journey-explainer { padding: 22px 24px; display: flex; flex-direction: column; gap: 4px; }
+  .journey-stage p { font-size: 13px; line-height: 1.65; color: var(--ink-700); margin: 0; }
+  .journey-stage-head { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 14px; margin-bottom: 8px; }
+  .journey-badge { font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: 999px; }
+  .journey-badge.l0 { background: var(--accent-soft); color: var(--purple-1); }
+  .journey-badge.l1 { background: var(--good-bg); color: var(--good); }
+  .journey-arrow { text-align: center; font-size: 18px; color: var(--ink-300); margin: 10px 0; }
+  .journey-event { display: flex; gap: 12px; padding: 13px 18px; border-bottom: 1px solid var(--line); }
+  .journey-event:last-child { border-bottom: none; }
+  .journey-event-ic { width: 30px; height: 30px; border-radius: 50%; background: var(--accent-soft); flex: none; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+  .journey-event-main { flex: 1; min-width: 0; }
+  .journey-event-top { font-size: 13px; }
+  .journey-event-time { float: right; font-size: 11px; color: var(--ink-300); }
+  .journey-event-sub { font-size: 12px; color: var(--ink-500); margin-top: 3px; text-transform: capitalize; }
+  .journey-event-sub b { color: var(--ink-700); font-weight: 700; text-transform: none; }
+
+  /* ---------- top achievers ---------- */
+  .achievers-row { margin-bottom: 18px; }
+  .achiever-row { display: flex; align-items: center; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--line); }
+  .achiever-row:last-child { border-bottom: none; }
+  .achiever-rank { font-size: 17px; width: 24px; text-align: center; }
+  .achiever-main { flex: 1; min-width: 0; }
+  .achiever-email { font-size: 13px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .achiever-sub { font-size: 11.5px; color: var(--ink-500); margin-top: 1px; }
+  .achiever-pct { font-size: 15px; font-weight: 700; color: var(--good); }
 
   /* ---------- reports / graphs ---------- */
   .report-actions { display: flex; gap: 10px; margin-bottom: 18px; }

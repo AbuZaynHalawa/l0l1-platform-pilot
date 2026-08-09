@@ -57,7 +57,7 @@ class LocalStorageProvider(StorageProvider):
         return str(Path(folder_ref) / filename)
 
     def file_url(self, file_ref: str) -> str:
-        return f"/local-files/{file_ref}"
+        return f"/local-files/{file_ref.replace(chr(92), '/')}"  # URL path needs "/" even on Windows, where file_ref carries native "\"
 
 
 class OneDriveStorageProvider(StorageProvider):

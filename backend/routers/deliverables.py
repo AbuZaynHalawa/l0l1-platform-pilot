@@ -53,6 +53,7 @@ def list_all_deliverables(status: str | None = None, db: Session = Depends(get_d
             "name": s.definition.name, "due_date": s.due_date, "status": s.status.value,
             "owner": s.owner_email or s.definition.default_owner_email or "Unassigned",
             "is_milestone": s.definition.is_milestone, "milestone_code": s.definition.milestone_code,
+            "file_name": s.file_name, "file_url": _storage.file_url(s.file_ref) if s.file_ref else None,
         })
     return out
 
@@ -89,6 +90,42 @@ async def upload_deliverable(submission_id: int, file: UploadFile = File(...),
         db.commit()
 
     return {"status": "ok", "file_ref": file_ref}
+
+
+@router.post("/{submission_id}/mark-complete")
+def mark_complete(submission_id: int, payload: schemas.MarkCompleteRequest, db: Session = Depends(get_db)):
+    """Owner alternative to uploading a file: attests the deliverable is done
+    with a required comment instead of a document. Still goes to the SME for
+    approval, exactly like an upload — this only replaces the file, not the
+    review workflow.
+    """
+    sub = db.get(models.DeliverableSubmission, submission_id)
+    if not sub:
+        raise HTTPException(404, "Deliverable not found")
+    if sub.status in (models.SubmissionStatus.PENDING_REVIEW, models.SubmissionStatus.APPROVED):
+        raise HTTPException(400, "Deliverable has already been submitted")
+
+    assigned = sub.owner_email or sub.definition.default_owner_email
+    if not _can_act(payload.actor_role, payload.actor_email, assigned):
+        raise HTTPException(403, f"Only {assigned or 'the assigned owner'} or an Admin can complete this deliverable")
+
+    comment = payload.comment.strip()
+    if not comment:
+        raise HTTPException(400, "A comment is required to mark this complete without a file")
+
+    sub.submitted_at = datetime.utcnow()
+    sub.status = models.SubmissionStatus.PENDING_REVIEW
+    db.add(models.WorkflowHistory(submission_id=sub.id, action="submitted", actor_name=payload.actor_name, note=comment))
+    db.commit()
+
+    sme_email = sub.sme_email or sub.definition.default_sme_email
+    if sme_email:
+        announcements.sme_review_requested(db, sub.project, sme_email, sub.definition.item_no, sub.definition.name)
+        db.add(models.WorkflowHistory(submission_id=sub.id, action="review_requested",
+                                       actor_name="system", note=f"Sent to {sme_email}"))
+        db.commit()
+
+    return {"status": "ok"}
 
 
 @router.post("/{submission_id}/review")

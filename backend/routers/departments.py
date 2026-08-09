@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from .. import models
+from .. import models, rules
 from ..database import get_db
 
 router = APIRouter(prefix="/api/departments", tags=["departments"])
@@ -23,4 +23,6 @@ def get_create_options():
         "bid_managers": models.BID_MANAGERS,
         "regions": models.REGION_OPTIONS,
         "scopes": models.SCOPE_OPTIONS,
+        "bu_uncovered_scopes": rules.BU_UNCOVERED_SCOPES,
+        "business_units": ["TBU", "PBU", "DBU", "BBU", "TBA"],
     }

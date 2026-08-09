@@ -71,27 +71,46 @@ def get_project_gantt(project_id: int, db: Session = Depends(get_db)):
     return rows
 
 
-@router.get("/overview")
-def get_overview_gantt(db: Session = Depends(get_db)):
-    """One bar per active project, spanning announcement to its latest due date."""
+@router.get("/timeline")
+def get_stage_timeline(stage: str, db: Session = Depends(get_db)):
+    """Every active project's deliverable-level bars for one stage, pooled
+    together (not grouped by project) and sorted by due date — e.g. item 3.3
+    from one project can sit right next to item 2.1 from another, whichever
+    is due sooner.
+    """
     projects = (
         db.query(models.Project)
-        .filter(models.Project.status == models.ProjectStatus.IN_PROGRESS)
-        .order_by(models.Project.announcement_date)
+        .filter(models.Project.stage == stage, models.Project.status == models.ProjectStatus.IN_PROGRESS)
         .all()
     )
-    rows = []
     for p in projects:
         rules.recompute_project_due_dates(db, p)
-        due_dates = [
-            s.due_date
-            for s in db.query(models.DeliverableSubmission).filter(models.DeliverableSubmission.project_id == p.id).all()
-            if s.due_date
-        ]
-        end = max(due_dates) if due_dates else (p.bsd or p.announcement_date)
-        rows.append({
-            "id": p.id, "est_no": p.est_no, "name": p.name, "stage": p.stage.value,
-            "start": p.announcement_date, "end": end, "status": p.status.value,
-        })
     db.commit()
+
+    rows = []
+    if projects:
+        proj_by_id = {p.id: p for p in projects}
+        subs = (
+            db.query(models.DeliverableSubmission)
+            .join(models.DeliverableDefinition)
+            .join(models.Department)
+            .filter(models.DeliverableSubmission.project_id.in_(proj_by_id.keys()))
+            .all()
+        )
+        for s in subs:
+            if s.due_date is None:
+                continue  # unscheduled: client-dependent not yet approved, or library/on_request items
+            d = s.definition
+            project = proj_by_id[s.project_id]
+            start = _bar_start(db, project, d) or s.due_date
+            if start > s.due_date:
+                start = s.due_date
+            rows.append({
+                "item_no": d.item_no, "name": d.name, "short_name": d.short_name or d.name,
+                "department": d.department.name, "department_number": d.department.number,
+                "est_no": project.est_no, "project_id": project.id, "project_name": project.name,
+                "start": start, "end": s.due_date, "status": s.status.value,
+                "is_milestone": d.is_milestone, "milestone_code": d.milestone_code,
+            })
+    rows.sort(key=lambda r: (r["end"], r["est_no"], rules.item_sort_key(r["item_no"])))
     return rows

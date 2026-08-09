@@ -35,6 +35,7 @@ def _provision_and_instantiate(db: Session, project: models.Project):
         .filter(models.DeliverableDefinition.stage == stage, models.DeliverableDefinition.active == True)  # noqa: E712
         .all()
     )
+    defs = [d for d in defs if rules.is_bu_applicable(d, project)]
     dept_seen = set()
     for d in defs:
         if d.department_id not in dept_seen:
@@ -87,6 +88,13 @@ def create_l0_project(payload: schemas.ProjectCreateL0, db: Session = Depends(ge
     if db.query(models.Project).filter(models.Project.est_no == est_no).first():
         raise HTTPException(400, f"Est-No {est_no} is already in use")
 
+    business_units, needs_manual = rules.compute_business_units(payload.scope)
+    if needs_manual:
+        chosen = [b for b in (payload.business_units or []) if b in ("TBU", "PBU", "DBU", "BBU", "TBA")]
+        if not chosen:
+            raise HTTPException(400, "Business Unit is required for this scope (choose TBU/PBU/DBU/BBU, or TBA)")
+        business_units = chosen
+
     project = models.Project(
         est_no=est_no, name=payload.name, stage=models.Stage.L0,
         region=payload.region, region_other=payload.region_other,
@@ -94,7 +102,7 @@ def create_l0_project(payload: schemas.ProjectCreateL0, db: Session = Depends(ge
         rfx_number=payload.rfx_number, bid_manager=payload.bid_manager,
         announcement_date=payload.announcement_date, bsd=payload.bsd,
         site_visit_date=payload.site_visit_date, pre_bid_deadline=payload.pre_bid_deadline,
-        scope_contains_pbu=payload.scope_contains_pbu,
+        business_units=business_units, scope_contains_pbu="PBU" in business_units,
         status=models.ProjectStatus.IN_PROGRESS,
     )
     db.add(project)
@@ -121,6 +129,7 @@ def create_l1_project(payload: schemas.ProjectCreateL1, db: Session = Depends(ge
         est_no=est_no, name=l0.name, stage=models.Stage.L1,
         region=l0.region, region_other=l0.region_other, scope=l0.scope, scope_other=l0.scope_other,
         rfx_number=l0.rfx_number, bid_manager=l0.bid_manager,
+        business_units=l0.business_units, scope_contains_pbu=l0.scope_contains_pbu,
         announcement_date=payload.announcement_date,
         l0_source_id=l0.id, status=models.ProjectStatus.IN_PROGRESS,
         contract_status=models.ContractStatus.NOT_SIGNED,
@@ -156,6 +165,41 @@ def update_project_manager(project_id: int, payload: schemas.ProjectManagerUpdat
     return project
 
 
+@router.patch("/{project_id}/status", response_model=schemas.ProjectOut)
+def update_project_status(project_id: int, payload: schemas.ProjectStatusUpdate, db: Session = Depends(get_db)):
+    project = db.get(models.Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    valid = {"In Progress"} | ({"Submitted", "Cancelled"} if project.stage == models.Stage.L0 else {"Completed"})
+    if payload.status not in valid:
+        raise HTTPException(400, f"Invalid status for {project.stage.value}: must be one of {sorted(valid)}")
+    project.status = models.ProjectStatus(payload.status)
+    db.commit()
+    db.refresh(project)
+    return project
+
+
+@router.get("/{project_id}/history")
+def get_project_history(project_id: int, db: Session = Depends(get_db)):
+    project = db.get(models.Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    rows = (
+        db.query(models.WorkflowHistory)
+        .join(models.DeliverableSubmission)
+        .filter(models.DeliverableSubmission.project_id == project_id)
+        .order_by(models.WorkflowHistory.created_at)
+        .all()
+    )
+    return [
+        {
+            "action": h.action, "actor": h.actor_name, "note": h.note, "at": h.created_at,
+            "item_no": h.submission.definition.item_no, "name": h.submission.definition.name,
+        }
+        for h in rows
+    ]
+
+
 @router.get("/{project_id}/deliverables", response_model=list[schemas.SubmissionOut])
 def get_deliverables(project_id: int, department: str | None = None, db: Session = Depends(get_db)):
     project = db.get(models.Project, project_id)
@@ -183,7 +227,8 @@ def get_deliverables(project_id: int, department: str | None = None, db: Session
             department=s.definition.department.name, due_date=s.due_date, status=s.status.value,
             owner_email=s.owner_email or s.definition.default_owner_email,
             sme_email=s.sme_email or s.definition.default_sme_email,
-            file_name=s.file_name, submitted_at=s.submitted_at, review_comment=s.review_comment,
+            file_name=s.file_name, file_url=_storage.file_url(s.file_ref) if s.file_ref else None,
+            submitted_at=s.submitted_at, review_comment=s.review_comment,
             is_milestone=s.definition.is_milestone, milestone_code=s.definition.milestone_code,
         ))
     db.commit()

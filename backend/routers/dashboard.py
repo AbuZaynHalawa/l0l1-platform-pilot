@@ -54,6 +54,47 @@ def get_dashboard(db: Session = Depends(get_db)):
     }
 
 
+def _rank_people(subs, email_attr, default_attr):
+    """Ranks people by on-time approval rate: approved / (approved + overdue +
+    pending_review) — the same cohort/formula already used for department
+    Live Score, just grouped by person instead of department.
+    """
+    stats: dict[str, dict] = {}
+    for s in subs:
+        email = getattr(s, email_attr) or getattr(s.definition, default_attr)
+        if not email:
+            continue
+        st = stats.setdefault(email, {"approved": 0, "cohort": 0})
+        if s.status in (models.SubmissionStatus.APPROVED, models.SubmissionStatus.OVERDUE, models.SubmissionStatus.PENDING_REVIEW):
+            st["cohort"] += 1
+            if s.status == models.SubmissionStatus.APPROVED:
+                st["approved"] += 1
+    ranked = [
+        {"email": email, "approved": st["approved"], "total": st["cohort"], "pct": round((st["approved"] / st["cohort"]) * 100, 1)}
+        for email, st in stats.items() if st["cohort"]
+    ]
+    ranked.sort(key=lambda r: (-r["pct"], -r["total"]))
+    return ranked[:3]
+
+
+@router.get("/top-achievers")
+def get_top_achievers(db: Session = Depends(get_db)):
+    active_projects = db.query(models.Project).filter(models.Project.status == models.ProjectStatus.IN_PROGRESS).all()
+    for p in active_projects:
+        rules.recompute_project_due_dates(db, p)
+    db.commit()
+    subs = []
+    if active_projects:
+        subs = (
+            db.query(models.DeliverableSubmission)
+            .join(models.DeliverableDefinition)
+            .filter(models.DeliverableSubmission.project_id.in_([p.id for p in active_projects]))
+            .all()
+        )
+    return {"owners": _rank_people(subs, "owner_email", "default_owner_email"),
+            "smes": _rank_people(subs, "sme_email", "default_sme_email")}
+
+
 @router.get("/matrix")
 def get_matrix(stage: str, db: Session = Depends(get_db)):
     """Deliverables (rows, grouped by department) x active projects (columns) —
