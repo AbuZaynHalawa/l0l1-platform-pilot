@@ -26,7 +26,7 @@ def item_sort_key(item_no: str):
         return (999, 999)
 
 
-def _skip_weekend_forward(d: date) -> date:
+def skip_weekend_forward(d: date) -> date:
     while d.weekday() in (4, 5):  # Friday=4, Saturday=5
         d += timedelta(days=1)
     return d
@@ -36,6 +36,35 @@ def _skip_weekend_backward(d: date) -> date:
     while d.weekday() in (4, 5):
         d -= timedelta(days=1)
     return d
+
+
+def next_workday_after(d: date) -> date:
+    """The next working day after d. A dependent item's work can't start the
+    same calendar day its predecessor is due — it starts the day after, at
+    the earliest (and later still if that lands on a weekend).
+    """
+    return skip_weekend_forward(d + timedelta(days=1))
+
+
+def _predecessor_anchor_date(pred_sub: "models.DeliverableSubmission") -> date | None:
+    """What a downstream item should actually chain off, as distinct from
+    the predecessor's own `due_date` (which stays the ORIGINAL PLANNED
+    deadline — untouched — because Performance/KPI scoring compares actual
+    submission date against it to measure lateness; overwriting it would
+    make everything score as always-on-time).
+
+    - Approved: the real finish date (reviewed_at), not the possibly-stale
+      plan — a predecessor finished 5 days late means downstream work
+      genuinely could only start from that later date.
+    - Not yet approved: the planned due date, unless that date has already
+      passed and it's still not done — then anchor to today, so downstream
+      dates keep sliding forward for as long as the predecessor stays late.
+    """
+    if pred_sub.status == models.SubmissionStatus.APPROVED and pred_sub.reviewed_at:
+        return pred_sub.reviewed_at.date()
+    if pred_sub.due_date is None:
+        return None
+    return max(pred_sub.due_date, date.today())
 
 
 def _get_submission(db: Session, project_id: int, item_no: str, stage) -> "models.DeliverableSubmission | None":
@@ -60,7 +89,7 @@ def compute_due_date(db: Session, definition: models.DeliverableDefinition, proj
         if anchor is None:
             return None
         result = anchor + timedelta(days=definition.offset_days or 0)
-        return _skip_weekend_forward(result)
+        return skip_weekend_forward(result)
 
     if anchor_type == "bsd":
         anchor = project.bsd
@@ -74,7 +103,7 @@ def compute_due_date(db: Session, definition: models.DeliverableDefinition, proj
         if anchor is None:
             return None  # optional field — stays undated until it's provided
         result = anchor + timedelta(days=definition.offset_days or 0)
-        return _skip_weekend_forward(result)
+        return skip_weekend_forward(result)
 
     if anchor_type == "pre_bid":
         # Modifications doc: if Pre-Bid Clarification Deadline isn't entered,
@@ -90,22 +119,33 @@ def compute_due_date(db: Session, definition: models.DeliverableDefinition, proj
         if definition.item_no in PBU_CONDITIONAL_ITEMS and getattr(project, "scope_contains_pbu", False):
             pred_item_no = "4.4"
             pred_sub = _get_submission(db, project.id, pred_item_no, definition.stage)
-            if pred_sub is None or pred_sub.due_date is None:
+            if pred_sub is None:
                 return None
-            return _skip_weekend_forward(pred_sub.due_date + timedelta(days=1))
+            anchor = _predecessor_anchor_date(pred_sub)
+            if anchor is None:
+                return None
+            return next_workday_after(anchor)
 
         if not pred_item_no:
             return None
         pred_sub = _get_submission(db, project.id, pred_item_no, definition.stage)
-        if pred_sub is None or pred_sub.due_date is None:
+        if pred_sub is None:
+            return None
+        anchor = _predecessor_anchor_date(pred_sub)
+        if anchor is None:
             return None
         offset = definition.offset_days or 0
         if definition.offset_direction == "before":
-            result = pred_sub.due_date - timedelta(days=offset)
+            # Counting backward from a downstream deadline (e.g. BSD-anchored
+            # item 1.20), not waiting on this predecessor to finish — no
+            # next-workday shift here.
+            result = anchor - timedelta(days=offset)
             return _skip_weekend_backward(result)
         else:
-            result = pred_sub.due_date + timedelta(days=offset)
-            return _skip_weekend_forward(result)
+            # Genuine dependency: work starts the day after the predecessor
+            # is due, then runs for `offset` more days from that start.
+            start = next_workday_after(anchor)
+            return skip_weekend_forward(start + timedelta(days=offset))
 
     # "client_dependent" and library/on_request (anchor_type is None) both have no computable date.
     return None

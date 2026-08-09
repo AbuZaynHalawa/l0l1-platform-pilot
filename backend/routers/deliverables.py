@@ -30,6 +30,11 @@ def _can_act(actor_role: str, actor_email: str, assigned_email: str | None) -> b
 @router.get("")
 def list_all_deliverables(status: str | None = None, db: Session = Depends(get_db)):
     """Cross-project queue for the Assigned Deliverables page."""
+    active_projects = db.query(models.Project).filter(models.Project.status == models.ProjectStatus.IN_PROGRESS).all()
+    for p in active_projects:
+        rules.recompute_project_due_dates(db, p)
+    db.commit()
+
     q = (
         db.query(models.DeliverableSubmission)
         .join(models.DeliverableDefinition)
@@ -37,9 +42,6 @@ def list_all_deliverables(status: str | None = None, db: Session = Depends(get_d
         .join(models.Project)
     )
     subs = q.all()
-    for s in subs:
-        rules.refresh_status(s)
-    db.commit()
     out = []
     for s in subs:
         if status and s.status.value != status:

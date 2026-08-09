@@ -14,10 +14,11 @@ def get_dashboard(db: Session = Depends(get_db)):
     l1_count = sum(1 for p in projects if p.stage == models.Stage.L1 and p.status == models.ProjectStatus.IN_PROGRESS)
     signed_count = sum(1 for p in projects if p.contract_status == models.ContractStatus.SIGNED)
 
-    all_subs = db.query(models.DeliverableSubmission).all()
-    for s in all_subs:
-        rules.refresh_status(s)
+    for p in projects:
+        if p.status == models.ProjectStatus.IN_PROGRESS:
+            rules.recompute_project_due_dates(db, p)
     db.commit()
+    all_subs = db.query(models.DeliverableSubmission).all()
 
     overdue = sum(1 for s in all_subs if s.status == models.SubmissionStatus.OVERDUE)
     pending_review = sum(1 for s in all_subs if s.status == models.SubmissionStatus.PENDING_REVIEW)
@@ -76,14 +77,14 @@ def get_matrix(stage: str, db: Session = Depends(get_db)):
 
     subs = []
     if projects:
+        for p in projects:
+            rules.recompute_project_due_dates(db, p)
+        db.commit()
         subs = (
             db.query(models.DeliverableSubmission)
             .filter(models.DeliverableSubmission.project_id.in_([p.id for p in projects]))
             .all()
         )
-        for s in subs:
-            rules.refresh_status(s)
-        db.commit()
     sub_map = {(s.project_id, s.deliverable_definition_id): s for s in subs}
 
     rows = []

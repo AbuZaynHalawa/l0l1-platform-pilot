@@ -1,7 +1,7 @@
 """Read-only timeline views, derived from the same due-date data as the rest
 of the app — no separate schedule is stored. A deliverable's bar runs from
 whatever it's anchored to (announcement/BSD/site visit/pre-bid deadline, or
-its predecessor's due date) through to its own due date.
+the next workday after its predecessor's due date) through to its own due date.
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -32,7 +32,9 @@ def _bar_start(db: Session, project: models.Project, d: models.DeliverableDefini
             )
             .first()
         )
-        return pred.due_date if pred else None
+        if pred is None or pred.due_date is None:
+            return None
+        return rules.next_workday_after(pred.due_date)
     return None
 
 
@@ -41,6 +43,8 @@ def get_project_gantt(project_id: int, db: Session = Depends(get_db)):
     project = db.get(models.Project, project_id)
     if not project:
         raise HTTPException(404, "Project not found")
+    rules.recompute_project_due_dates(db, project)
+    db.commit()
     subs = (
         db.query(models.DeliverableSubmission)
         .join(models.DeliverableDefinition)
@@ -78,6 +82,7 @@ def get_overview_gantt(db: Session = Depends(get_db)):
     )
     rows = []
     for p in projects:
+        rules.recompute_project_due_dates(db, p)
         due_dates = [
             s.due_date
             for s in db.query(models.DeliverableSubmission).filter(models.DeliverableSubmission.project_id == p.id).all()
@@ -88,4 +93,5 @@ def get_overview_gantt(db: Session = Depends(get_db)):
             "id": p.id, "est_no": p.est_no, "name": p.name, "stage": p.stage.value,
             "start": p.announcement_date, "end": end, "status": p.status.value,
         })
+    db.commit()
     return rows

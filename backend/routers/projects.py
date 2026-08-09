@@ -145,6 +145,11 @@ def get_deliverables(project_id: int, department: str | None = None, db: Session
     project = db.get(models.Project, project_id)
     if not project:
         raise HTTPException(404, "Project not found")
+    # Not-yet-approved items' due dates can shift day to day (an overdue,
+    # still-undone predecessor keeps pushing dependents forward), so refresh
+    # on every read rather than only after the next approval event.
+    rules.recompute_project_due_dates(db, project)
+    db.commit()
     q = (
         db.query(models.DeliverableSubmission)
         .join(models.DeliverableDefinition)
@@ -157,7 +162,6 @@ def get_deliverables(project_id: int, department: str | None = None, db: Session
     subs.sort(key=lambda s: (s.definition.department.order, rules.item_sort_key(s.definition.item_no)))
     out = []
     for s in subs:
-        rules.refresh_status(s)
         out.append(schemas.SubmissionOut(
             id=s.id, item_no=s.definition.item_no, name=s.definition.name,
             department=s.definition.department.name, due_date=s.due_date, status=s.status.value,
