@@ -75,14 +75,14 @@ class User(Base):
     department = relationship("Department")
 
 
-# Real Bid Manager directory (from Modifications doc)
-BID_MANAGERS = [
+# Real Bid Manager directory (from Modifications doc), sorted alphabetically by name
+BID_MANAGERS = sorted([
     "Ahmad.Mhaidat@Algihaz.com", "Mohammad.Abujubeh@Algihaz.com", "Mohammad.Alawneh@Algihaz.com",
     "Husam.Abualhayjaa@Algihaz.com", "Abdelrahman.Deeb@Algihaz.com", "Ahmad.Awartani@Algihaz.com",
     "Abdallah.Alshorbaji@Algihaz.com", "Omar.HajKhalil@Algihaz.com", "Suhaib.Hasan@Algihaz.com",
     "Mosab.Omar@Algihaz.com", "Amer.Freihat@Algihaz.com", "Asmaa.Abdelkawy@algihaz.com",
     "Yasser.Halawa@algihaz.com",
-]
+], key=str.lower)
 REGION_OPTIONS = ["COA", "SOA", "EOA", "WOA", "Other"]
 SCOPE_OPTIONS = [
     "SS MV (Distribution)", "SS HV (110-132 KV)", "SS EHV (230-400 KV)", "UGC MV (Distribution)",
@@ -189,6 +189,34 @@ class WorkflowHistory(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     submission = relationship("DeliverableSubmission", back_populates="history")
+
+
+class Follower(Base):
+    """A person who opted in to updates on one specific deliverable submission
+    (due/uploaded/approved/rejected), independent of being its owner or SME.
+    """
+    __tablename__ = "followers"
+    id = Column(Integer, primary_key=True)
+    submission_id = Column(Integer, ForeignKey("deliverable_submissions.id"), nullable=False)
+    email = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ReassignmentRequest(Base):
+    """Owner-initiated request to hand a deliverable to someone else, subject
+    to admin approval before the submission's owner_email actually changes.
+    """
+    __tablename__ = "reassignment_requests"
+    id = Column(Integer, primary_key=True)
+    submission_id = Column(Integer, ForeignKey("deliverable_submissions.id"), nullable=False)
+    from_email = Column(String, nullable=True)
+    to_email = Column(String, nullable=False)
+    reason = Column(Text, nullable=True)
+    status = Column(String, default="pending")  # pending | approved | rejected
+    requested_at = Column(DateTime, default=datetime.utcnow)
+    decided_at = Column(DateTime, nullable=True)
+
+    submission = relationship("DeliverableSubmission")
 
 
 class Announcement(Base):

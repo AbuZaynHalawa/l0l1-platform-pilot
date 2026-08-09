@@ -4,6 +4,7 @@ column O and New L1 Template (Final).xlsx columns I/K/L, verbatim where possible
 Milestones are derived, not stored: a milestone is "reached" exactly when its
 linked deliverable (is_milestone=True) has status APPROVED for that project.
 """
+import re
 from datetime import date, timedelta
 from sqlalchemy.orm import Session
 
@@ -121,6 +122,35 @@ def _tiered_duration(item_no: str, window: int | None) -> int:
 
 def _threshold_duration(window: int | None) -> int:
     return 3 if (window is not None and window < 30) else 7
+
+
+_BBU_COORD_SUFFIX_RE = re.compile(r"\s*-?\s*\(in coordination with BBU\)\s*$")
+
+
+def display_name(definition: models.DeliverableDefinition, project: models.Project) -> str:
+    """The definition's full name, with the '(in coordination with BBU)'
+    qualifier dropped when this project doesn't involve BBU at all — the
+    phrasing only makes sense once BBU is actually part of the project.
+    """
+    name = definition.name
+    if "in coordination with BBU" in name and "BBU" not in (project.business_units or []):
+        name = _BBU_COORD_SUFFIX_RE.sub("", name).rstrip()
+    return name
+
+
+def mark_complete_note(submission: "models.DeliverableSubmission") -> str | None:
+    """The owner's completion comment when a deliverable was submitted via
+    Mark Completed instead of a file upload — the most recent 'submitted'
+    WorkflowHistory note, but only surfaced when there's genuinely no file
+    (an upload's 'submitted' note is just 'Uploaded <filename>', not a comment).
+    """
+    if submission.file_name:
+        return None
+    submitted_events = sorted(
+        (h for h in submission.history if h.action == "submitted"),
+        key=lambda h: h.created_at,
+    )
+    return submitted_events[-1].note if submitted_events else None
 
 
 def item_sort_key(item_no: str):

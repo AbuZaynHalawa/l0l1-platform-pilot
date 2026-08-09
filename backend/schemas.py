@@ -70,6 +70,7 @@ class SubmissionOut(BaseModel):
     file_url: str | None = None
     submitted_at: datetime | None
     review_comment: str | None
+    completion_note: str | None = None
     is_milestone: bool
     milestone_code: str | None
 
@@ -82,6 +83,26 @@ class MarkCompleteRequest(BaseModel):
     actor_name: str = "Owner"
     actor_role: str = "Owner"
     actor_email: str = ""
+
+
+class FollowRequest(BaseModel):
+    email: str
+
+
+class ReassignRequestCreate(BaseModel):
+    to_email: str
+    reason: str | None = None
+    from_email: str | None = None
+
+
+class ReassignmentDecision(BaseModel):
+    approved: bool
+    actor_role: str = "Admin"
+
+
+class BulkRemindRequest(BaseModel):
+    submission_ids: list[int]
+    actor_role: str = "Admin"
 
 
 class ReviewDecision(BaseModel):
@@ -100,6 +121,7 @@ class AnnouncementOut(BaseModel):
     recipients: str | None
     email_status: str
     created_at: datetime
+    project_id: int | None = None
 
     class Config:
         from_attributes = True

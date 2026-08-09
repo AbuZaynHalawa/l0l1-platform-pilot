@@ -91,6 +91,25 @@ def milestone_reached(db: Session, project: models.Project, recipients: list[str
                     recipients=recipients, project=project)
 
 
+def reminder_sent(db: Session, project: models.Project, owner_email: str, item_no: str, item_name: str,
+                   due_date) -> models.Announcement:
+    title = f"Reminder &#8211; {item_no} is due"
+    due_str = due_date.isoformat() if due_date else "unspecified"
+    body = f"{item_no} {item_name} on {project.est_no} is due ({due_str}). Please submit as soon as possible."
+    return _create(db, type=models.AnnouncementType.DEADLINE, title=title, body=body,
+                    recipients=[owner_email], project=project)
+
+
+def followers_notified(db: Session, project: models.Project, recipients: list[str],
+                        item_no: str, item_name: str, event_label: str) -> models.Announcement | None:
+    if not recipients:
+        return None
+    title = f"Followed Item Update &#8211; {item_no}"
+    body = f"{item_no} {item_name} on {project.est_no} was just {event_label}."
+    return _create(db, type=models.AnnouncementType.DEADLINE, title=title, body=body,
+                    recipients=recipients, project=project)
+
+
 def project_closed(db: Session, project: models.Project, recipients: list[str]) -> models.Announcement:
     title = "Project Closed"
     reason = "Contract Signed" if project.stage == models.Stage.L1 else "Bid Submitted"

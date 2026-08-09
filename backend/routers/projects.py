@@ -82,6 +82,10 @@ def create_l0_project(payload: schemas.ProjectCreateL0, db: Session = Depends(ge
         raise HTTPException(400, "Region is required")
     if not payload.scope:
         raise HTTPException(400, "Scope is required")
+    if "Other" in payload.region and not (payload.region_other or "").strip():
+        raise HTTPException(400, "Specify the Other region")
+    if "Other" in payload.scope and not (payload.scope_other or "").strip():
+        raise HTTPException(400, "Specify the Other scope")
     est_no = payload.est_no.strip()
     if not est_no:
         raise HTTPException(400, "Est-Num is required")
@@ -219,16 +223,17 @@ def get_deliverables(project_id: int, department: str | None = None, db: Session
     if department:
         q = q.filter(models.Department.name == department)
     subs = q.all()
-    subs.sort(key=lambda s: (s.definition.department.order, rules.item_sort_key(s.definition.item_no)))
+    subs.sort(key=lambda s: (s.definition.department.number or 0, rules.item_sort_key(s.definition.item_no)))
     out = []
     for s in subs:
         out.append(schemas.SubmissionOut(
-            id=s.id, item_no=s.definition.item_no, name=s.definition.name,
+            id=s.id, item_no=s.definition.item_no, name=rules.display_name(s.definition, project),
             department=s.definition.department.name, due_date=s.due_date, status=s.status.value,
             owner_email=s.owner_email or s.definition.default_owner_email,
             sme_email=s.sme_email or s.definition.default_sme_email,
             file_name=s.file_name, file_url=_storage.file_url(s.file_ref) if s.file_ref else None,
             submitted_at=s.submitted_at, review_comment=s.review_comment,
+            completion_note=rules.mark_complete_note(s),
             is_milestone=s.definition.is_milestone, milestone_code=s.definition.milestone_code,
         ))
     db.commit()

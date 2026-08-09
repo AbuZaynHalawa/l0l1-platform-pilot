@@ -27,8 +27,15 @@ def _can_act(actor_role: str, actor_email: str, assigned_email: str | None) -> b
     return actor_email.strip().lower() == assigned_email.strip().lower()
 
 
+def _follower_emails(db: Session, submission_id: int) -> list[str]:
+    return [
+        f.email for f in
+        db.query(models.Follower).filter(models.Follower.submission_id == submission_id).all()
+    ]
+
+
 @router.get("")
-def list_all_deliverables(status: str | None = None, db: Session = Depends(get_db)):
+def list_all_deliverables(status: str | None = None, actor_email: str | None = None, db: Session = Depends(get_db)):
     """Cross-project queue for the Assigned Deliverables page."""
     active_projects = db.query(models.Project).filter(models.Project.status == models.ProjectStatus.IN_PROGRESS).all()
     for p in active_projects:
@@ -42,6 +49,12 @@ def list_all_deliverables(status: str | None = None, db: Session = Depends(get_d
         .join(models.Project)
     )
     subs = q.all()
+    my_follows = set()
+    if actor_email:
+        my_follows = {
+            f.submission_id for f in
+            db.query(models.Follower).filter(models.Follower.email == actor_email.strip().lower()).all()
+        }
     out = []
     for s in subs:
         if status and s.status.value != status:
@@ -50,12 +63,32 @@ def list_all_deliverables(status: str | None = None, db: Session = Depends(get_d
             "id": s.id, "est_no": s.project.est_no, "project_name": s.project.name,
             "department": s.definition.department.name, "department_number": s.definition.department.number,
             "item_no": s.definition.item_no,
-            "name": s.definition.name, "due_date": s.due_date, "status": s.status.value,
+            "name": rules.display_name(s.definition, s.project), "due_date": s.due_date, "status": s.status.value,
             "owner": s.owner_email or s.definition.default_owner_email or "Unassigned",
             "is_milestone": s.definition.is_milestone, "milestone_code": s.definition.milestone_code,
             "file_name": s.file_name, "file_url": _storage.file_url(s.file_ref) if s.file_ref else None,
+            "review_comment": s.review_comment, "completion_note": rules.mark_complete_note(s),
+            "following": s.id in my_follows,
         })
     return out
+
+
+@router.post("/{submission_id}/follow")
+def toggle_follow(submission_id: int, payload: schemas.FollowRequest, db: Session = Depends(get_db)):
+    sub = db.get(models.DeliverableSubmission, submission_id)
+    if not sub:
+        raise HTTPException(404, "Deliverable not found")
+    email = payload.email.strip().lower()
+    if not email:
+        raise HTTPException(400, "Email is required to follow a deliverable")
+    existing = db.query(models.Follower).filter_by(submission_id=submission_id, email=email).first()
+    if existing:
+        db.delete(existing)
+        db.commit()
+        return {"following": False}
+    db.add(models.Follower(submission_id=submission_id, email=email))
+    db.commit()
+    return {"following": True}
 
 
 @router.post("/{submission_id}/upload")
@@ -88,6 +121,8 @@ async def upload_deliverable(submission_id: int, file: UploadFile = File(...),
         db.add(models.WorkflowHistory(submission_id=sub.id, action="review_requested",
                                        actor_name="system", note=f"Sent to {sme_email}"))
         db.commit()
+    announcements.followers_notified(db, sub.project, _follower_emails(db, sub.id),
+                                      sub.definition.item_no, sub.definition.name, "uploaded")
 
     return {"status": "ok", "file_ref": file_ref}
 
@@ -124,6 +159,8 @@ def mark_complete(submission_id: int, payload: schemas.MarkCompleteRequest, db: 
         db.add(models.WorkflowHistory(submission_id=sub.id, action="review_requested",
                                        actor_name="system", note=f"Sent to {sme_email}"))
         db.commit()
+    announcements.followers_notified(db, sub.project, _follower_emails(db, sub.id),
+                                      sub.definition.item_no, sub.definition.name, "marked completed")
 
     return {"status": "ok"}
 
@@ -159,12 +196,17 @@ def review_deliverable(submission_id: int, decision: schemas.ReviewDecision, db:
     owner_email = sub.owner_email or sub.definition.default_owner_email or ""
     announcements.sme_decision(db, sub.project, owner_email, sub.definition.item_no, sub.definition.name,
                                 decision.approved, decision.comment)
+    announcements.followers_notified(db, sub.project, _follower_emails(db, sub.id), sub.definition.item_no,
+                                      sub.definition.name, "approved" if decision.approved else "rejected")
 
     if decision.approved and sub.definition.is_milestone:
         recipients = sorted({d.focal_point_email for d in db.query(models.Department).all() if d.focal_point_email})
         announcements.milestone_reached(db, sub.project, recipients, sub.definition.milestone_code, sub.definition.name)
         if sub.definition.milestone_code == "M6" and sub.project.stage == models.Stage.L1:
             sub.project.contract_status = models.ContractStatus.SIGNED
+            db.commit()
+        if sub.definition.milestone_code == "M5" and sub.project.stage == models.Stage.L0:
+            sub.project.status = models.ProjectStatus.SUBMITTED
             db.commit()
 
     if decision.approved:
@@ -193,6 +235,103 @@ def review_deliverable(submission_id: int, decision: schemas.ReviewDecision, db:
         db.commit()
 
     return {"status": "ok"}
+
+
+@router.post("/{submission_id}/reassign-request")
+def request_reassignment(submission_id: int, payload: schemas.ReassignRequestCreate, db: Session = Depends(get_db)):
+    sub = db.get(models.DeliverableSubmission, submission_id)
+    if not sub:
+        raise HTTPException(404, "Deliverable not found")
+    to_email = payload.to_email.strip()
+    if not to_email:
+        raise HTTPException(400, "The new owner's email is required")
+    req = models.ReassignmentRequest(
+        submission_id=submission_id,
+        from_email=(payload.from_email or sub.owner_email or sub.definition.default_owner_email or "").strip() or None,
+        to_email=to_email, reason=payload.reason,
+    )
+    db.add(req)
+    db.commit()
+    return {"status": "ok", "id": req.id}
+
+
+@router.get("/reassignment-requests")
+def list_reassignment_requests(status: str = "pending", db: Session = Depends(get_db)):
+    q = db.query(models.ReassignmentRequest)
+    if status:
+        q = q.filter(models.ReassignmentRequest.status == status)
+    reqs = q.order_by(models.ReassignmentRequest.requested_at.desc()).all()
+    return [
+        {
+            "id": r.id, "submission_id": r.submission_id,
+            "est_no": r.submission.project.est_no, "item_no": r.submission.definition.item_no,
+            "name": r.submission.definition.name,
+            "from_email": r.from_email, "to_email": r.to_email, "reason": r.reason,
+            "status": r.status, "requested_at": r.requested_at,
+        }
+        for r in reqs
+    ]
+
+
+@router.post("/reassignment-requests/{request_id}/decide")
+def decide_reassignment(request_id: int, decision: schemas.ReassignmentDecision, db: Session = Depends(get_db)):
+    req = db.get(models.ReassignmentRequest, request_id)
+    if not req:
+        raise HTTPException(404, "Reassignment request not found")
+    if req.status != "pending":
+        raise HTTPException(400, "This request has already been decided")
+    if decision.actor_role != "Admin":
+        raise HTTPException(403, "Only an Admin can decide a reassignment request")
+    req.status = "approved" if decision.approved else "rejected"
+    req.decided_at = datetime.utcnow()
+    if decision.approved:
+        req.submission.owner_email = req.to_email
+    db.commit()
+    return {"status": "ok"}
+
+
+@router.get("/follow-up")
+def get_follow_up(department: str | None = None, project_id: int | None = None, db: Session = Depends(get_db)):
+    """Every currently due/overdue deliverable, for the admin Follow Up page."""
+    active_projects = db.query(models.Project).filter(models.Project.status == models.ProjectStatus.IN_PROGRESS).all()
+    for p in active_projects:
+        rules.recompute_project_due_dates(db, p)
+    db.commit()
+    q = (
+        db.query(models.DeliverableSubmission)
+        .join(models.DeliverableDefinition)
+        .join(models.Department)
+        .join(models.Project)
+        .filter(models.DeliverableSubmission.status.in_([models.SubmissionStatus.DUE, models.SubmissionStatus.OVERDUE]))
+    )
+    if department:
+        q = q.filter(models.Department.name == department)
+    if project_id:
+        q = q.filter(models.DeliverableSubmission.project_id == project_id)
+    subs = q.all()
+    return [
+        {
+            "id": s.id, "est_no": s.project.est_no, "project_name": s.project.name, "project_id": s.project_id,
+            "department": s.definition.department.name, "item_no": s.definition.item_no,
+            "name": rules.display_name(s.definition, s.project), "due_date": s.due_date, "status": s.status.value,
+            "owner": s.owner_email or s.definition.default_owner_email or "Unassigned",
+        }
+        for s in subs
+    ]
+
+
+@router.post("/bulk-remind")
+def bulk_remind(payload: schemas.BulkRemindRequest, db: Session = Depends(get_db)):
+    if payload.actor_role != "Admin":
+        raise HTTPException(403, "Only an Admin can send reminders")
+    subs = db.query(models.DeliverableSubmission).filter(models.DeliverableSubmission.id.in_(payload.submission_ids)).all()
+    sent = 0
+    for s in subs:
+        owner = s.owner_email or s.definition.default_owner_email
+        if owner:
+            announcements.reminder_sent(db, s.project, owner, s.definition.item_no, s.definition.name, s.due_date)
+            sent += 1
+    return {"sent": sent}
 
 
 @router.get("/{submission_id}/history")

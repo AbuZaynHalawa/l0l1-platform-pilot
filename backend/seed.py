@@ -464,6 +464,26 @@ def run():
             db.commit()
             print(f"Backfilled contract_status=Signed for {len(m6_approved_projects)} project(s).")
 
+        # Backfill: M5 (Submit Proposal, item 1.20) already approved on some L0
+        # project before the auto-Submitted logic existed. Idempotent.
+        m5_approved_projects = (
+            db.query(models.Project)
+            .join(models.DeliverableSubmission, models.DeliverableSubmission.project_id == models.Project.id)
+            .join(models.DeliverableDefinition)
+            .filter(
+                models.Project.stage == models.Stage.L0,
+                models.DeliverableDefinition.milestone_code == "M5",
+                models.DeliverableSubmission.status == models.SubmissionStatus.APPROVED,
+                models.Project.status == models.ProjectStatus.IN_PROGRESS,
+            )
+            .all()
+        )
+        for p in m5_approved_projects:
+            p.status = models.ProjectStatus.SUBMITTED
+        if m5_approved_projects:
+            db.commit()
+            print(f"Backfilled status=Submitted for {len(m5_approved_projects)} project(s).")
+
         # Backfill: business_units didn't exist for projects created before this
         # field shipped. Display/reporting only — deliverables already
         # instantiated for these projects are left exactly as they are, never

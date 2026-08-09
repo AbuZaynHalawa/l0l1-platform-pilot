@@ -24,7 +24,7 @@ def get_dashboard(db: Session = Depends(get_db)):
     pending_review = sum(1 for s in all_subs if s.status == models.SubmissionStatus.PENDING_REVIEW)
 
     dept_rows = []
-    for dept in db.query(models.Department).order_by(models.Department.order).all():
+    for dept in db.query(models.Department).order_by(models.Department.number).all():
         dept_subs = [s for s in all_subs if s.definition.department_id == dept.id]
         due_and_done = [s for s in dept_subs if s.status in (
             models.SubmissionStatus.APPROVED, models.SubmissionStatus.OVERDUE, models.SubmissionStatus.PENDING_REVIEW)]
@@ -54,14 +54,14 @@ def get_dashboard(db: Session = Depends(get_db)):
     }
 
 
-def _rank_people(subs, email_attr, default_attr):
-    """Ranks people by on-time approval rate: approved / (approved + overdue +
+def _rank_owners(subs):
+    """Ranks owners by on-time approval rate: approved / (approved + overdue +
     pending_review) — the same cohort/formula already used for department
     Live Score, just grouped by person instead of department.
     """
     stats: dict[str, dict] = {}
     for s in subs:
-        email = getattr(s, email_attr) or getattr(s.definition, default_attr)
+        email = s.owner_email or s.definition.default_owner_email
         if not email:
             continue
         st = stats.setdefault(email, {"approved": 0, "cohort": 0})
@@ -74,7 +74,41 @@ def _rank_people(subs, email_attr, default_attr):
         for email, st in stats.items() if st["cohort"]
     ]
     ranked.sort(key=lambda r: (-r["pct"], -r["total"]))
-    return ranked[:3]
+    return ranked
+
+
+def _format_duration(seconds: float) -> str:
+    hours = seconds / 3600
+    if hours < 1:
+        return f"{round(seconds / 60)} min"
+    if hours < 24:
+        return f"{round(hours, 1)} hrs"
+    return f"{round(hours / 24, 1)} days"
+
+
+def _rank_smes(subs):
+    """Ranks SMEs by average response time (time from submission to review
+    decision), fastest first — there's no due date on the SME's own side of
+    the workflow, so on-time-rate doesn't apply to them the way it does to owners.
+    """
+    stats: dict[str, dict] = {}
+    for s in subs:
+        if s.status not in (models.SubmissionStatus.APPROVED, models.SubmissionStatus.REJECTED):
+            continue
+        if not s.submitted_at or not s.reviewed_at:
+            continue
+        email = s.sme_email or s.definition.default_sme_email
+        if not email:
+            continue
+        st = stats.setdefault(email, {"total_seconds": 0.0, "count": 0})
+        st["total_seconds"] += (s.reviewed_at - s.submitted_at).total_seconds()
+        st["count"] += 1
+    ranked = []
+    for email, st in stats.items():
+        avg_seconds = st["total_seconds"] / st["count"]
+        ranked.append({"email": email, "reviewed": st["count"], "avg_seconds": avg_seconds, "avg_label": _format_duration(avg_seconds)})
+    ranked.sort(key=lambda r: r["avg_seconds"])
+    return ranked
 
 
 @router.get("/top-achievers")
@@ -91,8 +125,7 @@ def get_top_achievers(db: Session = Depends(get_db)):
             .filter(models.DeliverableSubmission.project_id.in_([p.id for p in active_projects]))
             .all()
         )
-    return {"owners": _rank_people(subs, "owner_email", "default_owner_email"),
-            "smes": _rank_people(subs, "sme_email", "default_sme_email")}
+    return {"owners": _rank_owners(subs), "smes": _rank_smes(subs)}
 
 
 @router.get("/matrix")
@@ -111,10 +144,10 @@ def get_matrix(stage: str, db: Session = Depends(get_db)):
         db.query(models.DeliverableDefinition)
         .join(models.Department)
         .filter(models.DeliverableDefinition.stage == stage, models.DeliverableDefinition.active == True)  # noqa: E712
-        .order_by(models.Department.order)
+        .order_by(models.Department.number)
         .all()
     )
-    defs.sort(key=lambda d: (d.department.order, rules.item_sort_key(d.item_no)))
+    defs.sort(key=lambda d: (d.department.number or 0, rules.item_sort_key(d.item_no)))
 
     subs = []
     if projects:

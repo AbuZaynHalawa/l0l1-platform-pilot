@@ -31,6 +31,9 @@
     <nav class="nav" id="adminNav">
       <button class="nav-item" data-view="create"><span class="ic">&#10133;</span> Create L0 / L1</button>
       <button class="nav-item" data-view="reports"><span class="ic">&#128202;</span> Reports</button>
+      <button class="nav-item" data-view="scores"><span class="ic">&#127942;</span> Scores</button>
+      <button class="nav-item" data-view="focalpoints"><span class="ic">&#128222;</span> Focal Points</button>
+      <button class="nav-item" data-view="followup"><span class="ic">&#128276;</span> Follow Up</button>
     </nav>
 
     <div class="rail-foot">
@@ -79,11 +82,11 @@
 
       <div class="split achievers-row">
         <div class="card">
-          <div class="section-title">Top Achievers &#8211; Owners <span class="cnt">on-time approval rate</span></div>
+          <div class="section-title">Top Achievers &#8211; Owners</div>
           <div class="card-pad"><div id="topOwners" class="achiever-list"></div></div>
         </div>
         <div class="card">
-          <div class="section-title">Top Achievers &#8211; SME <span class="cnt">on-time approval rate</span></div>
+          <div class="section-title">Top Achievers &#8211; SME</div>
           <div class="card-pad"><div id="topSmes" class="achiever-list"></div></div>
         </div>
       </div>
@@ -201,7 +204,6 @@
       </div>
       <div class="gantt-filter-row" id="ganttFilterRow">
         <select id="ganttScope"><option value="">Pooled Timeline (all active projects)</option></select>
-        <select id="ganttEstFilter"><option value="">All Est Numbers</option></select>
         <select id="ganttDeptFilter"><option value="">All Departments</option></select>
         <select id="ganttStatusFilter">
           <option value="">All Statuses</option>
@@ -264,12 +266,80 @@
       </div>
     </section>
 
+    <!-- SCORES (admin-only full leaderboard) -->
+    <section class="view" id="view-scores" hidden>
+      <div class="view-head">
+        <div>
+          <div class="eyebrow">Admin</div>
+          <h1>Scores</h1>
+          <p class="sub">Full ranking behind the Dashboard's Top Achievers &#8212; every Owner and SME, not just the top 3.</p>
+        </div>
+      </div>
+      <div class="split">
+        <div class="card table-card">
+          <div class="section-title">Owners <span class="cnt">by on-time approval rate</span></div>
+          <div id="scoresOwners" class="achiever-list"></div>
+        </div>
+        <div class="card table-card">
+          <div class="section-title">SME <span class="cnt">by average response time</span></div>
+          <div id="scoresSmes" class="achiever-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FOCAL POINTS (admin-only) -->
+    <section class="view" id="view-focalpoints" hidden>
+      <div class="view-head">
+        <div>
+          <div class="eyebrow">Admin</div>
+          <h1>Department Focal Points</h1>
+          <p class="sub">The contact each department's announcements and folder notifications go to.</p>
+        </div>
+      </div>
+      <div class="card table-card">
+        <table class="fp-table">
+          <thead><tr><th>#</th><th>Department</th><th>Focal Point Name</th><th>Focal Point Email</th><th></th></tr></thead>
+          <tbody id="focalPointsBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- FOLLOW UP (admin-only: due/overdue bulk reminders + reassignment approvals) -->
+    <section class="view" id="view-followup" hidden>
+      <div class="view-head">
+        <div>
+          <div class="eyebrow">Admin</div>
+          <h1>Follow Up</h1>
+          <p class="sub">Everything currently due or overdue, with bulk reminders &#8212; plus pending reassignment requests.</p>
+        </div>
+      </div>
+
+      <div class="card table-card" style="margin-bottom:18px;">
+        <div class="section-title">
+          <span>Reassignment Requests <span class="cnt" id="reassignCount"></span></span>
+        </div>
+        <div id="reassignList"></div>
+      </div>
+
+      <div class="card table-card">
+        <div class="section-title">
+          <span>Due &amp; Overdue Deliverables</span>
+          <div style="display:flex;gap:10px;">
+            <select id="fuDeptFilter"><option value="">All Departments</option></select>
+            <select id="fuEstFilter"><option value="">All Est Numbers</option></select>
+            <button class="btn primary" id="fuRemindAll">Send Reminders to All Shown</button>
+          </div>
+        </div>
+        <div id="followUpList"></div>
+      </div>
+    </section>
+
     <!-- PROJECT DETAIL -->
     <section class="view" id="view-detail" hidden>
       <button class="back-link" id="backBtn">&#8592; Back to list</button>
       <div class="detail-head">
         <div>
-          <div class="detail-est" id="dEst"></div>
+          <div class="detail-est"><span id="dEst"></span> <span class="stage-badge" id="dStageBadge"></span></div>
           <h1 class="detail-title" id="dTitle"></h1>
         </div>
         <button class="btn" id="dGanttBtn">View Timeline</button>
@@ -277,12 +347,13 @@
         <select id="dStatusSelect" style="display:none;"></select>
       </div>
       <div class="detail-meta-row" id="dMeta"></div>
+      <div class="terminal-banner" id="dTerminalBanner" hidden>&#128274; This project is closed &#8212; deliverables are read-only. An admin can reopen it via the status dropdown above.</div>
 
       <div class="card full-stepper" id="dStepperCard">
         <div class="fs-row" id="dStepper"></div>
       </div>
 
-      <div class="split">
+      <div class="split detail-split">
         <div class="card">
           <div class="section-title">Departments <span class="cnt" id="dFolderCount"></span></div>
           <div class="folder-list" id="dFolders"></div>
@@ -360,7 +431,10 @@
             </div>
             <div class="field">
               <label>Est-Num <span class="req">*</span></label>
-              <input type="text" id="cfEstNo" placeholder="e.g. Est-1660" />
+              <div class="est-num-input">
+                <span class="est-num-prefix">Est-</span>
+                <input type="text" id="cfEstNo" inputmode="numeric" pattern="[0-9]*" placeholder="1660" />
+              </div>
             </div>
             <div class="field">
               <label>RFX Number</label>

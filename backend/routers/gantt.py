@@ -50,10 +50,10 @@ def get_project_gantt(project_id: int, db: Session = Depends(get_db)):
         .join(models.DeliverableDefinition)
         .join(models.Department)
         .filter(models.DeliverableSubmission.project_id == project_id)
-        .order_by(models.Department.order)
+        .order_by(models.Department.number)
         .all()
     )
-    subs.sort(key=lambda s: (s.definition.department.order, rules.item_sort_key(s.definition.item_no)))
+    subs.sort(key=lambda s: (s.definition.department.number or 0, rules.item_sort_key(s.definition.item_no)))
     rows = []
     for s in subs:
         d = s.definition
@@ -63,8 +63,8 @@ def get_project_gantt(project_id: int, db: Session = Depends(get_db)):
         if start > s.due_date:
             start = s.due_date
         rows.append({
-            "item_no": d.item_no, "name": d.name, "short_name": d.short_name or d.name,
-            "department": d.department.name,
+            "item_no": d.item_no, "name": rules.display_name(d, project), "short_name": d.short_name or d.name,
+            "department": d.department.name, "submission_id": s.id,
             "start": start, "end": s.due_date, "status": s.status.value,
             "is_milestone": d.is_milestone, "milestone_code": d.milestone_code,
         })
@@ -106,9 +106,10 @@ def get_stage_timeline(stage: str, db: Session = Depends(get_db)):
             if start > s.due_date:
                 start = s.due_date
             rows.append({
-                "item_no": d.item_no, "name": d.name, "short_name": d.short_name or d.name,
+                "item_no": d.item_no, "name": rules.display_name(d, project), "short_name": d.short_name or d.name,
                 "department": d.department.name, "department_number": d.department.number,
                 "est_no": project.est_no, "project_id": project.id, "project_name": project.name,
+                "submission_id": s.id,
                 "start": start, "end": s.due_date, "status": s.status.value,
                 "is_milestone": d.is_milestone, "milestone_code": d.milestone_code,
             })
