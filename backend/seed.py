@@ -344,7 +344,16 @@ def run():
                 stage=stage, item_no=item_no, department_id=dept_id
             ).first()
             if existing:
+                existing.name = name
                 existing.short_name = short_name
+                existing.anchor_type = anchor_type
+                existing.predecessor_item_no = pred
+                existing.offset_days = offset
+                existing.offset_direction = direction
+                existing.deliverable_type = dtype
+                existing.is_milestone = is_ms
+                existing.milestone_code = ms_code
+                existing.milestone_name = ms_code
                 return
             db.add(models.DeliverableDefinition(
                 stage=stage, item_no=item_no, name=name, short_name=short_name, department_id=dept_id,
