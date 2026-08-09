@@ -27,11 +27,24 @@ DEPARTMENTS = [
     "01. Tendering Department", "02. Operation Units", "03. Supply Chain", "04. Engineering Department",
     "05. Control Department", "06. Contract", "07. Human Resources", "08. Financial Department",
     "09. SHEQ Department", "10. IT Department", "11. Risk Department", "12. Fleet and Facility Management",
-    # L1-only (additional real breakdown)
-    "L1 TBU / PBU", "L1 BBU", "L1 BBU / PBU", "L1 Planning", "L1 Cost Control", "L1 Contract",
-    "L1 Treasury", "L1 Finance", "L1 Insurance", "L1 Quality", "L1 HSSE", "L1 HSSE / Quality",
-    "L1 Risk", "L1 Fleet", "L1 FM",
+    # L1-only (additional real breakdown) — named exactly as in the source
+    # template's own Department column, no "L1 " prefix (folders never
+    # collide with L0's since each stage has its own top-level folder tree).
+    "TBU / PBU", "BBU", "BBU / PBU", "Planning", "Cost Control", "Contract",
+    "Treasury", "Finance", "Insurance", "Quality", "HSSE", "HSSE / Quality",
+    "Risk", "Fleet", "FM",
 ]
+
+# Renames existing production department rows in place (preserving id and
+# every deliverable_definition/submission already linked to them) — a plain
+# name change in DEPARTMENTS above only affects newly-created rows.
+DEPARTMENT_RENAMES = {
+    "L1 TBU / PBU": "TBU / PBU", "L1 BBU": "BBU", "L1 BBU / PBU": "BBU / PBU",
+    "L1 Planning": "Planning", "L1 Cost Control": "Cost Control", "L1 Contract": "Contract",
+    "L1 Treasury": "Treasury", "L1 Finance": "Finance", "L1 Insurance": "Insurance",
+    "L1 Quality": "Quality", "L1 HSSE": "HSSE", "L1 HSSE / Quality": "HSSE / Quality",
+    "L1 Risk": "Risk", "L1 Fleet": "Fleet", "L1 FM": "FM",
+}
 
 # ---------------------------------------------------------------------------
 # L0 catalog — from L0 Template (Final).xlsx, sheet "Deliverables", column O.
@@ -145,11 +158,11 @@ L0_ITEMS = [
 # (duration). Items 1.1-1.6 ARE the milestones M1-M6 (column D).
 # ---------------------------------------------------------------------------
 L1_DEPT = {
-    "tendering": "01. Tendering Department", "tbupbu": "L1 TBU / PBU", "bbu": "L1 BBU", "bbupbu": "L1 BBU / PBU",
-    "supply": "03. Supply Chain", "eng": "04. Engineering Department", "planning": "L1 Planning",
-    "costctrl": "L1 Cost Control", "contract": "L1 Contract", "hr": "07. Human Resources",
-    "treasury": "L1 Treasury", "finance": "L1 Finance", "insurance": "L1 Insurance", "quality": "L1 Quality",
-    "hsse": "L1 HSSE", "hssequal": "L1 HSSE / Quality", "risk": "L1 Risk", "fleet": "L1 Fleet", "fm": "L1 FM",
+    "tendering": "01. Tendering Department", "tbupbu": "TBU / PBU", "bbu": "BBU", "bbupbu": "BBU / PBU",
+    "supply": "03. Supply Chain", "eng": "04. Engineering Department", "planning": "Planning",
+    "costctrl": "Cost Control", "contract": "Contract", "hr": "07. Human Resources",
+    "treasury": "Treasury", "finance": "Finance", "insurance": "Insurance", "quality": "Quality",
+    "hsse": "HSSE", "hssequal": "HSSE / Quality", "risk": "Risk", "fleet": "Fleet", "fm": "FM",
 }
 
 # (item_no, name, dept_key, anchor_type, pred, offset, direction, milestone_code)
@@ -327,6 +340,12 @@ L1_SHORT_NAMES = {
 def run():
     db = SessionLocal()
     try:
+        for old_name, new_name in DEPARTMENT_RENAMES.items():
+            old = db.query(models.Department).filter_by(name=old_name).first()
+            if old and not db.query(models.Department).filter_by(name=new_name).first():
+                old.name = new_name
+        db.commit()
+
         dept_map = {}
         for i, name in enumerate(DEPARTMENTS):
             dept = db.query(models.Department).filter_by(name=name).first()
@@ -372,6 +391,27 @@ def run():
             upsert("L1", item_no, name, L1_SHORT_NAMES.get(item_no, name), dept.id, anchor, pred, offset, direction, "date_driven", bool(ms), ms)
 
         db.commit()
+
+        # Backfill: M6 (Contract Signing) already approved on some L1 project
+        # before the auto-sign-on-approval logic existed, so contract_status
+        # never got updated for it. Idempotent — a no-op once caught up.
+        m6_approved_projects = (
+            db.query(models.Project)
+            .join(models.DeliverableSubmission, models.DeliverableSubmission.project_id == models.Project.id)
+            .join(models.DeliverableDefinition)
+            .filter(
+                models.Project.stage == models.Stage.L1,
+                models.DeliverableDefinition.milestone_code == "M6",
+                models.DeliverableSubmission.status == models.SubmissionStatus.APPROVED,
+                models.Project.contract_status != models.ContractStatus.SIGNED,
+            )
+            .all()
+        )
+        for p in m6_approved_projects:
+            p.contract_status = models.ContractStatus.SIGNED
+        if m6_approved_projects:
+            db.commit()
+            print(f"Backfilled contract_status=Signed for {len(m6_approved_projects)} project(s).")
         print(f"Seed complete: {len(dept_map)} departments, {len(L0_ITEMS)} L0 items, {len(L1_ITEMS)} L1 items.")
     finally:
         db.close()

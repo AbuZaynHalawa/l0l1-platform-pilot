@@ -198,6 +198,8 @@
   .detail-meta-row { display: flex; gap: 22px; flex-wrap: wrap; margin: 16px 0 22px; }
   .meta-item .mk { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-500); font-weight: 700; }
   .meta-item .mv { font-size: 13.5px; margin-top: 2px; font-weight: 600; }
+  .meta-edit-link { font-size: 11px; font-weight: 600; color: var(--purple-2); text-decoration: none; }
+  .meta-edit-link:hover { text-decoration: underline; }
 
   .full-stepper { padding: 24px 26px; margin-bottom: 22px; }
   .fs-row { display: grid; grid-template-columns: repeat(6, 1fr); position: relative; }

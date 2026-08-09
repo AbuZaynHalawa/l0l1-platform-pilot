@@ -81,13 +81,12 @@ def create_l0_project(payload: schemas.ProjectCreateL0, db: Session = Depends(ge
         raise HTTPException(400, "Region is required")
     if not payload.scope:
         raise HTTPException(400, "Scope is required")
+    est_no = payload.est_no.strip()
+    if not est_no:
+        raise HTTPException(400, "Est-Num is required")
+    if db.query(models.Project).filter(models.Project.est_no == est_no).first():
+        raise HTTPException(400, f"Est-No {est_no} is already in use")
 
-    if payload.est_no:
-        est_no = payload.est_no.strip()
-        if db.query(models.Project).filter(models.Project.est_no == est_no).first():
-            raise HTTPException(400, f"Est-No {est_no} is already in use")
-    else:
-        est_no = _next_est_no(db)
     project = models.Project(
         est_no=est_no, name=payload.name, stage=models.Stage.L0,
         region=payload.region, region_other=payload.region_other,
@@ -143,6 +142,17 @@ def get_project(project_id: int, db: Session = Depends(get_db)):
     project = db.get(models.Project, project_id)
     if not project:
         raise HTTPException(404, "Project not found")
+    return project
+
+
+@router.patch("/{project_id}/project-manager", response_model=schemas.ProjectOut)
+def update_project_manager(project_id: int, payload: schemas.ProjectManagerUpdate, db: Session = Depends(get_db)):
+    project = db.get(models.Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    project.project_manager = (payload.project_manager or "").strip() or None
+    db.commit()
+    db.refresh(project)
     return project
 
 

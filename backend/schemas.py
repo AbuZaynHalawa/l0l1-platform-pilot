@@ -3,7 +3,7 @@ from pydantic import BaseModel
 
 
 class ProjectCreateL0(BaseModel):
-    est_no: str | None = None  # manual entry until auto-numbering exists; blank auto-generates one
+    est_no: str  # manual entry until auto-numbering exists
     name: str
     region: list[str]
     region_other: str | None = None
@@ -21,6 +21,10 @@ class ProjectCreateL0(BaseModel):
 class ProjectCreateL1(BaseModel):
     l0_source_id: int
     announcement_date: date
+    project_manager: str | None = None
+
+
+class ProjectManagerUpdate(BaseModel):
     project_manager: str | None = None
 
 

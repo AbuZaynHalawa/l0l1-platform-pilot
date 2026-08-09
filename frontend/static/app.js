@@ -319,7 +319,7 @@
     var metaItems = p.stage === "L0"
       ? [["Bid Manager", p.bid_manager || "&#8213;"], ["RFX", p.rfx_number || "&#8213;"], ["Region", joinList(p.region)], ["Scope", joinList(p.scope)],
          ["Announced", fmtDate(p.announcement_date)], ["Site Visit", fmtDate(p.site_visit_date)], ["Pre-Bid Deadline", fmtDate(p.pre_bid_deadline)], ["Bid Submission Date", fmtDate(p.bsd)]]
-      : [["Bid Manager", p.bid_manager || "&#8213;"], ["Project Manager", p.project_manager || "&#8213;"],
+      : [["Bid Manager", p.bid_manager || "&#8213;"], ["Project Manager", p.project_manager || "&#8213;", "pm"],
          ["Region", joinList(p.region)], ["Scope", joinList(p.scope)],
          ["Announced", fmtDate(p.announcement_date)],
          ["Contract Status", p.contract_status === "Signed"
@@ -328,7 +328,24 @@
     metaItems.forEach(function (m) {
       var mi = el("div", "meta-item");
       mi.appendChild(el("div", "mk", m[0]));
-      mi.appendChild(el("div", "mv", m[1]));
+      var mv = el("div", "mv", m[1]);
+      if (m[2] === "pm" && can("create")) {
+        var editLink = el("a", "meta-edit-link", "Edit");
+        editLink.href = "#";
+        editLink.addEventListener("click", function (e) {
+          e.preventDefault();
+          var next = prompt("Project Manager name:", p.project_manager || "");
+          if (next === null) return;
+          api("/api/projects/" + id + "/project-manager", {
+            method: "PATCH", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ project_manager: next.trim() || null }),
+          }).then(function () { showToast("Project Manager updated"); openDetail(id); })
+            .catch(function (err) { showToast("Could not update &#8211; " + apiErrorDetail(err)); });
+        });
+        mv.appendChild(document.createTextNode(" "));
+        mv.appendChild(editLink);
+      }
+      mi.appendChild(mv);
       meta.appendChild(mi);
     });
 
@@ -646,19 +663,21 @@
     try {
       if (stage === "L0") {
         var name = document.getElementById("cfName").value.trim();
+        var estNo = document.getElementById("cfEstNo").value.trim();
         var announce = document.getElementById("cfAnnounce").value;
         var bsd = document.getElementById("cfBsd").value;
         var bidManager = document.getElementById("cfBid").value;
         var region = checkedValues("cfRegionGrid");
         var scope = checkedValues("cfScopeGrid");
         if (!name) { showToast("Tender name is required"); return; }
+        if (!estNo) { showToast("Est-Num is required"); return; }
         if (!bidManager) { showToast("Bid Manager is required"); return; }
         if (!announce) { showToast("Announcement Date is required"); return; }
         if (!bsd) { showToast("Bid Submission Date is required"); return; }
         if (!region.length) { showToast("Select at least one Region"); return; }
         if (!scope.length) { showToast("Select at least one Scope"); return; }
         var payload = {
-          name: name, est_no: document.getElementById("cfEstNo").value.trim() || null,
+          name: name, est_no: estNo,
           region: region, region_other: document.getElementById("cfRegionOther").value || null,
           scope: scope, scope_other: document.getElementById("cfScopeOther").value || null,
           rfx_number: document.getElementById("cfRfx").value || null,
