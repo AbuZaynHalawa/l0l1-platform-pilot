@@ -23,14 +23,16 @@ TEST_EMAIL = "test-focal@example.com"  # single placeholder until real contacts 
 # to match the source, not forced into one unified list.
 # ---------------------------------------------------------------------------
 DEPARTMENTS = [
-    # L0 (12)
-    "01. Tendering Department", "02. Operation Units", "03. Supply Chain", "04. Engineering Department",
-    "05. Control Department", "06. Contract", "07. Human Resources", "08. Financial Department",
-    "09. SHEQ Department", "10. IT Department", "11. Risk Department", "12. Fleet and Facility Management",
-    # L1-only (additional real breakdown) — named exactly as in the source
-    # template's own Department column, no "L1 " prefix (folders never
-    # collide with L0's since each stage has its own top-level folder tree).
-    "TBU / PBU", "BBU", "BBU / PBU", "Planning", "Cost Control", "Contract",
+    # L0 (12) — named exactly as in the source template's own Department
+    # column, no invented numbering. Tendering/Supply Chain/Engineering/HR/
+    # Contract are genuinely shared with L1 (same department, same folder,
+    # same focal point across both stages) — only listed once here; L1_DEPT
+    # below just points its own dept_key at these same names.
+    "Tendering Department", "Operation Units", "Supply Chain", "Engineering Department",
+    "Control Department", "Contract", "Human Resources", "Financial Department",
+    "SHEQ Department", "IT Department", "Risk Department", "Fleet and Facility Management Department",
+    # L1-only (additional real breakdown, no "L1 " prefix)
+    "TBU / PBU", "BBU", "BBU / PBU", "Planning", "Cost Control",
     "Treasury", "Finance", "Insurance", "Quality", "HSSE", "HSSE / Quality",
     "Risk", "Fleet", "FM",
 ]
@@ -39,11 +41,20 @@ DEPARTMENTS = [
 # every deliverable_definition/submission already linked to them) — a plain
 # name change in DEPARTMENTS above only affects newly-created rows.
 DEPARTMENT_RENAMES = {
+    "01. Tendering Department": "Tendering Department", "02. Operation Units": "Operation Units",
+    "03. Supply Chain": "Supply Chain", "04. Engineering Department": "Engineering Department",
+    "05. Control Department": "Control Department", "07. Human Resources": "Human Resources",
+    "08. Financial Department": "Financial Department", "09. SHEQ Department": "SHEQ Department",
+    "10. IT Department": "IT Department", "11. Risk Department": "Risk Department",
+    "12. Fleet and Facility Management": "Fleet and Facility Management Department",
     "L1 TBU / PBU": "TBU / PBU", "L1 BBU": "BBU", "L1 BBU / PBU": "BBU / PBU",
-    "L1 Planning": "Planning", "L1 Cost Control": "Cost Control", "L1 Contract": "Contract",
+    "L1 Planning": "Planning", "L1 Cost Control": "Cost Control",
     "L1 Treasury": "Treasury", "L1 Finance": "Finance", "L1 Insurance": "Insurance",
     "L1 Quality": "Quality", "L1 HSSE": "HSSE", "L1 HSSE / Quality": "HSSE / Quality",
     "L1 Risk": "Risk", "L1 Fleet": "Fleet", "L1 FM": "FM",
+    # NOT included here: "06. Contract" -> "Contract" and "L1 Contract" -> "Contract"
+    # — both need to become the SAME row (merge), handled separately below
+    # since a plain rename would collide with whichever one already exists.
 }
 
 # ---------------------------------------------------------------------------
@@ -52,10 +63,10 @@ DEPARTMENT_RENAMES = {
 #         offset_days, offset_direction, deliverable_type, is_milestone, milestone_code
 # ---------------------------------------------------------------------------
 L0_DEPT = {
-    "tendering": "01. Tendering Department", "operation": "02. Operation Units", "supply": "03. Supply Chain",
-    "eng": "04. Engineering Department", "control": "05. Control Department", "contract": "06. Contract",
-    "hr": "07. Human Resources", "finance": "08. Financial Department", "sheq": "09. SHEQ Department",
-    "it": "10. IT Department", "risk": "11. Risk Department", "fleet": "12. Fleet and Facility Management",
+    "tendering": "Tendering Department", "operation": "Operation Units", "supply": "Supply Chain",
+    "eng": "Engineering Department", "control": "Control Department", "contract": "Contract",
+    "hr": "Human Resources", "finance": "Financial Department", "sheq": "SHEQ Department",
+    "it": "IT Department", "risk": "Risk Department", "fleet": "Fleet and Facility Management Department",
 }
 
 # (item_no, name, dept_key, anchor_type, pred, offset, direction, dtype, milestone_code)
@@ -158,9 +169,9 @@ L0_ITEMS = [
 # (duration). Items 1.1-1.6 ARE the milestones M1-M6 (column D).
 # ---------------------------------------------------------------------------
 L1_DEPT = {
-    "tendering": "01. Tendering Department", "tbupbu": "TBU / PBU", "bbu": "BBU", "bbupbu": "BBU / PBU",
-    "supply": "03. Supply Chain", "eng": "04. Engineering Department", "planning": "Planning",
-    "costctrl": "Cost Control", "contract": "Contract", "hr": "07. Human Resources",
+    "tendering": "Tendering Department", "tbupbu": "TBU / PBU", "bbu": "BBU", "bbupbu": "BBU / PBU",
+    "supply": "Supply Chain", "eng": "Engineering Department", "planning": "Planning",
+    "costctrl": "Cost Control", "contract": "Contract", "hr": "Human Resources",
     "treasury": "Treasury", "finance": "Finance", "insurance": "Insurance", "quality": "Quality",
     "hsse": "HSSE", "hssequal": "HSSE / Quality", "risk": "Risk", "fleet": "Fleet", "fm": "FM",
 }
@@ -344,6 +355,23 @@ def run():
             old = db.query(models.Department).filter_by(name=old_name).first()
             if old and not db.query(models.Department).filter_by(name=new_name).first():
                 old.name = new_name
+        db.commit()
+
+        # L0's "06. Contract" and L1's "L1 Contract" become one shared
+        # "Contract" department (matching Tendering/Supply Chain/Engineering/
+        # HR, which already work this way) — a plain rename would collide
+        # since one of the two target names may already exist, so re-point
+        # every deliverable_definition from the L0-only row onto the shared
+        # one instead, then drop the now-empty duplicate.
+        l0_contract = db.query(models.Department).filter_by(name="06. Contract").first()
+        shared_contract = db.query(models.Department).filter_by(name="Contract").first()
+        if l0_contract and shared_contract and l0_contract.id != shared_contract.id:
+            db.query(models.DeliverableDefinition).filter_by(department_id=l0_contract.id).update(
+                {"department_id": shared_contract.id}
+            )
+            db.delete(l0_contract)
+        elif l0_contract and not shared_contract:
+            l0_contract.name = "Contract"
         db.commit()
 
         dept_map = {}
