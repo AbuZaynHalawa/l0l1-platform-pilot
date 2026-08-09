@@ -11,6 +11,7 @@ from .database import SessionLocal, engine, ensure_column
 from . import models
 
 ensure_column("deliverable_definitions", "short_name", "VARCHAR")
+ensure_column("departments", "number", "INTEGER")
 models.Base.metadata.create_all(bind=engine)
 
 TEST_EMAIL = "test-focal@example.com"  # single placeholder until real contacts are provided
@@ -55,6 +56,26 @@ DEPARTMENT_RENAMES = {
     # NOT included here: "06. Contract" -> "Contract" and "L1 Contract" -> "Contract"
     # — both need to become the SAME row (merge), handled separately below
     # since a plain rename would collide with whichever one already exists.
+}
+
+# The numeric group each department's deliverable item numbers fall under
+# (item "4.5" belongs to department number 4) — kept as its own field
+# instead of folded into `name`, since several L1 departments share one
+# number (Operation's TBU/PBU/BBU split, SHEQ's Quality/HSSE split, etc.)
+# and embedding it in the name caused real collision/rename bugs before.
+DEPARTMENT_NUMBERS = {
+    "Tendering Department": 1,
+    "Operation Units": 2, "TBU / PBU": 2, "BBU": 2, "BBU / PBU": 2,
+    "Supply Chain": 3,
+    "Engineering Department": 4,
+    "Control Department": 5, "Planning": 5, "Cost Control": 5,
+    "Contract": 6,
+    "Human Resources": 7,
+    "Financial Department": 8, "Treasury": 8, "Finance": 8, "Insurance": 8,
+    "SHEQ Department": 9, "Quality": 9, "HSSE": 9, "HSSE / Quality": 9,
+    "IT Department": 10, "Risk": 10,
+    "Risk Department": 11, "Fleet": 11,
+    "Fleet and Facility Management Department": 12, "FM": 12,
 }
 
 # ---------------------------------------------------------------------------
@@ -383,6 +404,7 @@ def run():
                 db.flush()
             dept.focal_point_email = dept.focal_point_email or TEST_EMAIL
             dept.focal_point_name = dept.focal_point_name or f"TEST focal ({name})"
+            dept.number = DEPARTMENT_NUMBERS.get(name)
             dept_map[name] = dept
         db.commit()
 

@@ -48,7 +48,8 @@ def list_all_deliverables(status: str | None = None, db: Session = Depends(get_d
             continue
         out.append({
             "id": s.id, "est_no": s.project.est_no, "project_name": s.project.name,
-            "department": s.definition.department.name, "item_no": s.definition.item_no,
+            "department": s.definition.department.name, "department_number": s.definition.department.number,
+            "item_no": s.definition.item_no,
             "name": s.definition.name, "due_date": s.due_date, "status": s.status.value,
             "owner": s.owner_email or s.definition.default_owner_email or "Unassigned",
             "is_milestone": s.definition.is_milestone, "milestone_code": s.definition.milestone_code,

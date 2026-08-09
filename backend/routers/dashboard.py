@@ -31,7 +31,7 @@ def get_dashboard(db: Session = Depends(get_db)):
         approved = sum(1 for s in dept_subs if s.status == models.SubmissionStatus.APPROVED)
         pct = round((approved / len(due_and_done)) * 100, 1) if due_and_done else None
         dept_rows.append({
-            "department": dept.name, "total": len(dept_subs), "approved": approved,
+            "department": dept.name, "department_number": dept.number, "total": len(dept_subs), "approved": approved,
             "overdue": sum(1 for s in dept_subs if s.status == models.SubmissionStatus.OVERDUE),
             "pending_review": sum(1 for s in dept_subs if s.status == models.SubmissionStatus.PENDING_REVIEW),
             "pct": pct,
@@ -96,7 +96,7 @@ def get_matrix(stage: str, db: Session = Depends(get_db)):
                 cells[p.id] = {"status": s.status.value, "due_date": s.due_date, "submission_id": s.id}
         rows.append({
             "item_no": d.item_no, "name": d.name, "short_name": d.short_name or d.name,
-            "department": d.department.name,
+            "department": d.department.name, "department_number": d.department.number,
             "is_milestone": d.is_milestone, "milestone_code": d.milestone_code,
             "cells": cells,
         })

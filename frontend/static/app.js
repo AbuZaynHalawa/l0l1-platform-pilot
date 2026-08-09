@@ -155,7 +155,7 @@
     data.rows.forEach(function (row) {
       if (row.department !== lastDept) {
         html += '<tr><td class="matrix-dept-row" colspan="' + (data.projects.length + 1) + '">' +
-          row.department.replace(/^\d+\.\s*/, "") + "</td></tr>";
+          deptLabel(row.department, row.department_number) + "</td></tr>";
         lastDept = row.department;
       }
       html += '<tr><td class="matrix-row-label" title="' + row.name.replace(/"/g, "&quot;") + '">' + row.item_no + " &middot; " + row.short_name +
@@ -177,6 +177,9 @@
     });
   }
 
+  function deptLabel(name, number) {
+    return (number ? number + ". " : "") + name;
+  }
   function evalFromPct(pct) {
     if (pct === null) return { cls: "neutral", label: "No Data" };
     if (pct >= 95) return { cls: "good", label: "Excellent" };
@@ -189,7 +192,7 @@
       var ev = evalFromPct(row.pct);
       var card = el("div", "card dept-card");
       var head = el("div", "dept-head");
-      head.appendChild(el("div", "dname", row.department.replace(/^\d+\.\s*/, "")));
+      head.appendChild(el("div", "dname", deptLabel(row.department, row.department_number)));
       head.appendChild(el("span", "pill " + ev.cls, '<span class="dot"></span>' + ev.label));
       card.appendChild(head);
       var metrics = el("div", "dept-metrics");
@@ -240,7 +243,7 @@
       main.appendChild(el("div", "aq-title", d.item_no + " &middot; " + d.name));
       main.appendChild(el("div", "aq-sub",
         '<span>' + d.est_no + ' &#8211; ' + d.project_name + '</span><span class="sep">&middot;</span>' +
-        '<span>' + d.department.replace(/^\d+\.\s*/, "") + '</span><span class="sep">&middot;</span>' +
+        '<span>' + deptLabel(d.department, d.department_number) + '</span><span class="sep">&middot;</span>' +
         '<span>Owner: ' + d.owner + '</span><span class="sep">&middot;</span>' +
         '<span>Due ' + fmtDate(d.due_date) + '</span>'));
       row.appendChild(main);
@@ -371,8 +374,8 @@
     }
 
     var allDeptsMeta = await api("/api/departments");
-    var deptFocal = {};
-    allDeptsMeta.forEach(function (d) { deptFocal[d.name] = d.focal_point_name; });
+    var deptFocal = {}, deptNumber = {};
+    allDeptsMeta.forEach(function (d) { deptFocal[d.name] = d.focal_point_name; deptNumber[d.name] = d.number; });
     var allDelivs = await api("/api/projects/" + id + "/deliverables");
     var deptNames = [];
     allDelivs.forEach(function (d) { if (deptNames.indexOf(d.department) === -1) deptNames.push(d.department); });
@@ -386,20 +389,20 @@
       var pct = deptItems.length ? Math.round((approved / deptItems.length) * 100) : null;
       var row = el("div", "folder-row" + (i === 0 ? " active" : ""));
       row.innerHTML =
-        '<div class="folder-left"><span class="folder-ic">&#128193;</span><div><div class="folder-name">' + deptName + '</div>' +
+        '<div class="folder-left"><span class="folder-ic">&#128193;</span><div><div class="folder-name">' + deptLabel(deptName, deptNumber[deptName]) + '</div>' +
         '<div class="folder-focal">Focal: ' + (deptFocal[deptName] || "&#8213;") + '</div></div></div>' +
         '<div class="folder-right"><span class="folder-pct">' + (pct === null ? "&#8213;" : pct + "%") + '</span></div>';
       row.addEventListener("click", function () {
         document.querySelectorAll(".folder-row").forEach(function (r) { r.classList.remove("active"); });
         row.classList.add("active");
         currentDeptOpen = deptName;
-        document.getElementById("dDeliverTitle").textContent = deptName.replace(/^\d+\.\s*/, "") + " Deliverables";
+        document.getElementById("dDeliverTitle").textContent = deptLabel(deptName, deptNumber[deptName]) + " Deliverables";
         renderDeliverables(deptItems);
       });
       folders.appendChild(row);
     });
     var firstDeptItems = deptNames.length ? allDelivs.filter(function (d) { return d.department === deptNames[0]; }) : [];
-    document.getElementById("dDeliverTitle").textContent = deptNames.length ? deptNames[0].replace(/^\d+\.\s*/, "") + " Deliverables" : "Deliverables";
+    document.getElementById("dDeliverTitle").textContent = deptNames.length ? deptLabel(deptNames[0], deptNumber[deptNames[0]]) + " Deliverables" : "Deliverables";
     renderDeliverables(firstDeptItems);
 
     switchView("detail");
@@ -574,7 +577,7 @@
       var ev = evalFromPct(row.pct);
       var r = el("div", "rank-row");
       r.appendChild(el("div", "rank-num", "#" + (i + 1)));
-      r.appendChild(el("div", "rank-name", row.department.replace(/^\d+\.\s*/, "")));
+      r.appendChild(el("div", "rank-name", deptLabel(row.department, row.department_number)));
       var track = el("div", "rank-bar-track");
       var fill = el("div", "rank-bar-fill");
       fill.style.width = (((row.pct || 0) / max) * 100).toFixed(0) + "%";

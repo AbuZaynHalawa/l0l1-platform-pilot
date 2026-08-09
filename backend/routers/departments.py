@@ -11,7 +11,7 @@ router = APIRouter(prefix="/api/departments", tags=["departments"])
 def list_departments(db: Session = Depends(get_db)):
     depts = db.query(models.Department).order_by(models.Department.order).all()
     return [
-        {"id": d.id, "name": d.name, "focal_point_name": d.focal_point_name, "focal_point_email": d.focal_point_email}
+        {"id": d.id, "name": d.name, "number": d.number, "focal_point_name": d.focal_point_name, "focal_point_email": d.focal_point_email}
         for d in depts
     ]
 
