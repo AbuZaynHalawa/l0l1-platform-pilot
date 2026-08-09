@@ -15,6 +15,49 @@ from . import models
 # false; the branch is implemented so it's correct the day that field exists.
 PBU_CONDITIONAL_ITEMS = {"1.8", "1.9", "1.10"}
 
+# L0: these three items' duration is 3 working days if the tender window
+# (BSD - announcement) is under 30 calendar days, else 7 — independent of
+# the PBU branch above, which (when it applies) overrides the anchor entirely.
+L0_THRESHOLD_DURATION_ITEMS = {"1.8", "1.9", "1.10"}
+
+# L0: "Prepare Risk Register" items that normally chain off the site visit
+# report(s), but fall back to announcement + 3 working days if this project
+# has no site visit scheduled at all (site_visit_date left blank).
+L0_SITE_VISIT_FALLBACK_ITEMS = {"2.4", "2.10", "3.1", "4.1", "5.1", "8.1", "9.1"}
+
+
+def _tender_window_days(project: "models.Project") -> int | None:
+    if project.bsd is None or project.announcement_date is None:
+        return None
+    return (project.bsd - project.announcement_date).days
+
+
+def _tiered_duration(item_no: str, window: int | None) -> int:
+    """Step-function durations transcribed exactly from the template's own
+    formulas (column N, rows for 4.4 and 5.3) — boundaries matter here
+    (<=14 vs <30 use different comparisons), so this is spelled out
+    explicitly rather than via a generic threshold table.
+    """
+    if item_no == "4.4":
+        if window is None:
+            return 14
+        if window <= 14:
+            return 5
+        if window < 30:
+            return 7
+        if window < 45:
+            return 10
+        return 14
+    if item_no == "5.3":
+        if window is None:
+            return 15
+        return 12 if window < 14 else 15
+    raise ValueError(f"no tiered duration rule for {item_no}")
+
+
+def _threshold_duration(window: int | None) -> int:
+    return 3 if (window is not None and window < 30) else 7
+
 
 def item_sort_key(item_no: str):
     """Numeric sort key for item numbers like '1.10' — plain string sort
@@ -44,6 +87,29 @@ def next_workday_after(d: date) -> date:
     the earliest (and later still if that lands on a weekend).
     """
     return skip_weekend_forward(d + timedelta(days=1))
+
+
+def add_workdays(start: date, n: int) -> date:
+    """The date n working days after start, not counting start itself and
+    skipping Friday/Saturday — e.g. add_workdays(Monday, 1) is Tuesday.
+    n=0 returns start unchanged.
+    """
+    d = start
+    remaining = n
+    while remaining > 0:
+        d += timedelta(days=1)
+        if d.weekday() not in (4, 5):
+            remaining -= 1
+    return d
+
+
+def duration_end(start: date, duration_days: int) -> date:
+    """End date of a task that starts on `start` and runs `duration_days`
+    working days, counting `start` itself as day 1 (a 1-day duration task
+    starts and ends the same day) — the intuitive, human reading of
+    "duration", not an additive offset from start.
+    """
+    return add_workdays(start, max(duration_days - 1, 0))
 
 
 def _predecessor_anchor_date(pred_sub: "models.DeliverableSubmission") -> date | None:
@@ -80,6 +146,27 @@ def _get_submission(db: Session, project_id: int, item_no: str, stage) -> "model
     )
 
 
+def _resolve_predecessor_anchor(db: Session, project: "models.Project", pred_item_no: str) -> date | None:
+    """Resolves `predecessor_item_no`, which may list several items
+    comma-separated (an AND-dependency — e.g. "2.2,2.8" for an item that
+    needs both the main and PBU site visit reports). Unresolved (None)
+    unless every listed predecessor has resolved; the item can't start
+    until the SLOWEST of them is actually done, so the effective anchor is
+    the latest (max) of their individual anchor dates.
+    """
+    item_nos = [p.strip() for p in pred_item_no.split(",") if p.strip()]
+    anchors = []
+    for item_no in item_nos:
+        pred_sub = _get_submission(db, project.id, item_no, project.stage)
+        if pred_sub is None:
+            return None
+        anchor = _predecessor_anchor_date(pred_sub)
+        if anchor is None:
+            return None
+        anchors.append(anchor)
+    return max(anchors) if anchors else None
+
+
 def compute_due_date(db: Session, definition: models.DeliverableDefinition, project: models.Project) -> date | None:
     """Resolves a deliverable definition's due date for a specific project."""
     anchor_type = definition.anchor_type
@@ -113,28 +200,43 @@ def compute_due_date(db: Session, definition: models.DeliverableDefinition, proj
         return _skip_weekend_backward(result)
 
     if anchor_type == "predecessor":
-        pred_item_no = definition.predecessor_item_no
+        item_no = definition.item_no
+        is_l0 = definition.stage == models.Stage.L0
+        window = _tender_window_days(project) if is_l0 else None
+
         # PBU-conditional branch (L0 items 1.8/1.9/1.10): if scope includes PBU,
-        # anchor to 4.4 + 1 workday instead of the normal M1-anchored chain.
-        if definition.item_no in PBU_CONDITIONAL_ITEMS and getattr(project, "scope_contains_pbu", False):
-            pred_item_no = "4.4"
-            pred_sub = _get_submission(db, project.id, pred_item_no, definition.stage)
-            if pred_sub is None:
-                return None
-            anchor = _predecessor_anchor_date(pred_sub)
+        # anchor to 4.4 + 1 workday instead of the normal M1-anchored chain —
+        # a fixed 1-day duration regardless of the item's own stored offset
+        # (which only applies in the normal, non-PBU branch below).
+        if is_l0 and item_no in PBU_CONDITIONAL_ITEMS and getattr(project, "scope_contains_pbu", False):
+            anchor = _resolve_predecessor_anchor(db, project, "4.4")
             if anchor is None:
                 return None
             return next_workday_after(anchor)
 
+        pred_item_no = definition.predecessor_item_no
         if not pred_item_no:
             return None
-        pred_sub = _get_submission(db, project.id, pred_item_no, definition.stage)
-        if pred_sub is None:
-            return None
-        anchor = _predecessor_anchor_date(pred_sub)
+
+        if is_l0 and item_no in L0_SITE_VISIT_FALLBACK_ITEMS and project.site_visit_date is None:
+            # No site visit scheduled for this project at all — fall back to
+            # a fixed +3 working days from announcement instead of staying
+            # unresolvable forever (matches the template's IF(site_visit="N/A",...)).
+            if project.announcement_date is None:
+                return None
+            start = next_workday_after(project.announcement_date)
+            return duration_end(start, 3)  # the 3rd working day after announcement
+
+        anchor = _resolve_predecessor_anchor(db, project, pred_item_no)
         if anchor is None:
             return None
+
         offset = definition.offset_days or 0
+        if is_l0 and item_no in L0_THRESHOLD_DURATION_ITEMS:
+            offset = _threshold_duration(window)
+        elif is_l0 and item_no in ("4.4", "5.3"):
+            offset = _tiered_duration(item_no, window)
+
         if definition.offset_direction == "before":
             # Counting backward from a downstream deadline (e.g. BSD-anchored
             # item 1.20), not waiting on this predecessor to finish — no
@@ -143,9 +245,11 @@ def compute_due_date(db: Session, definition: models.DeliverableDefinition, proj
             return _skip_weekend_backward(result)
         else:
             # Genuine dependency: work starts the day after the predecessor
-            # is due, then runs for `offset` more days from that start.
+            # is due, then runs `offset` working days — offset counts the
+            # start day itself as day 1 (a 1-day item starts and ends the
+            # same day), not an additive calendar offset.
             start = next_workday_after(anchor)
-            return skip_weekend_forward(start + timedelta(days=offset))
+            return duration_end(start, offset)
 
     # "client_dependent" and library/on_request (anchor_type is None) both have no computable date.
     return None
