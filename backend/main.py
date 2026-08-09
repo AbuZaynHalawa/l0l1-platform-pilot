@@ -22,13 +22,25 @@ app.include_router(gantt.router)
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 LOCAL_FILES_DIR = Path(__file__).resolve().parent.parent / "data" / "local_storage"
 
-app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR / "static")), name="static")
+
+class NoCacheStaticFiles(StaticFiles):
+    """Pilot ships frontend changes frequently — force browsers to always
+    revalidate (still cheap, via ETag/If-None-Match) instead of silently
+    serving a stale cached app.js/styles.css after a deploy.
+    """
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
+app.mount("/static", NoCacheStaticFiles(directory=str(FRONTEND_DIR / "static")), name="static")
 app.mount("/local-files", StaticFiles(directory=str(LOCAL_FILES_DIR)), name="local-files")
 
 
 @app.get("/")
 def index():
-    return FileResponse(str(FRONTEND_DIR / "index.html"))
+    return FileResponse(str(FRONTEND_DIR / "index.html"), headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/health")
