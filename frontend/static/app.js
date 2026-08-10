@@ -958,13 +958,16 @@
     folders.innerHTML = "";
     document.getElementById("dFolderCount").textContent = deptNames.length + " total";
     currentDeptOpen = deptNames.length ? deptNames[0] : null;
-    deptNames.forEach(function (deptName, i) {
+
+    function makeFolderRow(deptName, isChild) {
       var deptItems = allDelivs.filter(function (d) { return d.department === deptName; });
       var approved = deptItems.filter(function (d) { return d.status === "approved"; }).length;
       var pct = deptItems.length ? Math.round((approved / deptItems.length) * 100) : null;
-      var row = el("div", "folder-row" + (i === 0 ? " active" : ""));
+      var row = el("div", "folder-row" + (isChild ? " folder-row-child" : ""));
+      row.dataset.dept = deptName;
+      var label = isChild ? deptName.replace(/^.* \(([^)]+)\)$/, "$1") : deptLabel(deptName, deptNumber[deptName]);
       row.innerHTML =
-        '<div class="folder-left"><span class="folder-ic">&#128193;</span><div><div class="folder-name">' + deptLabel(deptName, deptNumber[deptName]) + '</div>' +
+        '<div class="folder-left"><span class="folder-ic">&#128193;</span><div><div class="folder-name">' + label + '</div>' +
         '<div class="folder-focal">Focal: ' + (deptFocal[deptName] || "&#8213;") + '</div></div></div>' +
         '<div class="folder-right"><span class="folder-pct">' + (pct === null ? "&#8213;" : pct + "%") + '</span></div>';
       row.addEventListener("click", function () {
@@ -974,7 +977,33 @@
         document.getElementById("dDeliverTitle").textContent = deptLabel(deptName, deptNumber[deptName]) + " Deliverables";
         renderDeliverables(deptItems);
       });
-      folders.appendChild(row);
+      return row;
+    }
+    // Item 98: departments that share a common base name (e.g. Operation
+    // Units' TBU/PBU/DBU/BBU split, all "Operation Units (X)") nest as a
+    // group instead of appearing as separate same-numbered top-level rows.
+    var groupOrder = [], groups = {};
+    deptNames.forEach(function (deptName) {
+      var key = (deptName.match(/^(.*) \([^)]+\)$/) || [null, deptName])[1];
+      if (!groups[key]) { groups[key] = []; groupOrder.push(key); }
+      groups[key].push(deptName);
+    });
+    var firstRow = true;
+    groupOrder.forEach(function (key) {
+      var members = groups[key];
+      if (members.length === 1) {
+        var row = makeFolderRow(members[0], false);
+        if (firstRow) { row.classList.add("active"); firstRow = false; }
+        folders.appendChild(row);
+      } else {
+        var groupHead = el("div", "folder-group-head", '<span class="folder-ic">&#128193;</span>' + deptLabel(key, deptNumber[members[0]]));
+        folders.appendChild(groupHead);
+        members.forEach(function (deptName) {
+          var row = makeFolderRow(deptName, true);
+          if (firstRow) { row.classList.add("active"); firstRow = false; }
+          folders.appendChild(row);
+        });
+      }
     });
     var highlightItem = highlightSubmissionId
       ? allDelivs.find(function (d) { return d.id === Number(highlightSubmissionId); })
@@ -983,7 +1012,7 @@
     var initialDeptItems = deptNames.length ? allDelivs.filter(function (d) { return d.department === initialDept; }) : [];
     document.getElementById("dDeliverTitle").textContent = deptNames.length ? deptLabel(initialDept, deptNumber[initialDept]) + " Deliverables" : "Deliverables";
     currentDeptOpen = initialDept;
-    document.querySelectorAll(".folder-row").forEach(function (r, i) { r.classList.toggle("active", deptNames[i] === initialDept); });
+    document.querySelectorAll(".folder-row").forEach(function (r) { r.classList.toggle("active", r.dataset.dept === initialDept); });
     renderDeliverables(initialDeptItems);
 
     switchView("detail");
