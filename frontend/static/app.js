@@ -2305,7 +2305,20 @@
     if (!v) return;
     var list = await api("/api/projects");
     var match = list.filter(function (p) { return (p.est_no + " " + p.name).toLowerCase().indexOf(v) !== -1; });
-    if (match.length === 1) { openDetail(match[0].id); e.target.value = ""; }
+    if (match.length === 1) {
+      openDetail(match[0].id); e.target.value = "";
+      return;
+    }
+    // Item 119: an L0/L1 pair now shares one Est number, so a search that's
+    // an exact Est-No match can hit two rows instead of one -- go to
+    // whichever is still active (its L1, once the L0 auto-closes) rather
+    // than silently doing nothing the way a length!==1 check used to.
+    var exact = match.filter(function (p) { return p.est_no.toLowerCase() === v; });
+    if (exact.length > 1) {
+      var active = exact.filter(function (p) { return p.status === "In Progress"; });
+      var pick = (active.length ? active : exact).sort(function (a, b) { return b.id - a.id; })[0];
+      openDetail(pick.id); e.target.value = "";
+    }
   });
 
   /* ================= ROLE + THEME ================= */

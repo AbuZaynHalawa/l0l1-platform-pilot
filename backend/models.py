@@ -116,7 +116,11 @@ SCOPE_OPTIONS = [
 class Project(Base):
     __tablename__ = "projects"
     id = Column(Integer, primary_key=True)
-    est_no = Column(String, nullable=False, unique=True)
+    # Item 119: an L1 deliberately reuses its L0's own est_no (same tender,
+    # later stage) instead of getting a fresh number, so this is no longer
+    # unique at the database level -- `stage` + `est_no` together identify
+    # a specific project.
+    est_no = Column(String, nullable=False)
     name = Column(String, nullable=False)
     stage = Column(Enum(Stage), nullable=False)
     region = Column(JSON, nullable=True)          # list[str], multi-select

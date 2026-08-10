@@ -7,7 +7,7 @@ Focal point / owner / SME emails below are PLACEHOLDERS — swap for the real
 per-department contacts and the real per-deliverable owner/SME mapping when
 provided, then re-run: `python -m backend.seed` (safe to re-run, upserts).
 """
-from .database import SessionLocal, engine, ensure_column, ensure_enum_value, ensure_index
+from .database import SessionLocal, engine, ensure_column, ensure_enum_value, ensure_index, ensure_not_unique
 from . import models, rules
 
 ensure_column("deliverable_definitions", "short_name", "VARCHAR")
@@ -25,6 +25,7 @@ ensure_column("deliverable_definitions", "kpi_relevant", "BOOLEAN")
 ensure_enum_value("deliverable_submissions", "status", "PENDING_TRIAGE")
 ensure_enum_value("deliverable_submissions", "status", "NOT_REQUIRED")
 ensure_column("deliverable_submissions", "auto_completed", "BOOLEAN")
+ensure_not_unique("projects", "est_no")
 
 # Load-bearing indexes: every one of these columns is filtered or joined on
 # in the hot paths (dashboard, matrix, gantt, assigned deliverables), and

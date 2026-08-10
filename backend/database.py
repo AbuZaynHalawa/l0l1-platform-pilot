@@ -83,6 +83,33 @@ def ensure_index(table_name: str, index_name: str, column_name: str) -> None:
         conn.commit()
 
 
+def ensure_not_unique(table_name: str, column_name: str) -> None:
+    """Drops a UNIQUE constraint (or unique index) on a single column, if one
+    exists. Item 119: L0 and L1 rows now deliberately share one est_no, so
+    the original unique=True on Project.est_no has to come off a live
+    database too, the same way a new column needs ensure_column.
+
+    Postgres-only in practice: SQLite bakes a column's UNIQUE directly into
+    its CREATE TABLE statement with no ALTER TABLE way to remove it, so a
+    local sqlite file created before this change keeps enforcing the old
+    constraint regardless — delete data/app.db and let create_all() rebuild
+    from the model (which no longer declares unique=True) instead.
+    """
+    if not DATABASE_URL.startswith("postgres"):
+        return
+    inspector = inspect(engine)
+    if not inspector.has_table(table_name):
+        return
+    with engine.connect() as conn:
+        for uc in inspector.get_unique_constraints(table_name):
+            if uc["column_names"] == [column_name]:
+                conn.execute(text(f'ALTER TABLE {table_name} DROP CONSTRAINT "{uc["name"]}"'))
+        for idx in inspector.get_indexes(table_name):
+            if idx.get("unique") and idx["column_names"] == [column_name]:
+                conn.execute(text(f'DROP INDEX IF EXISTS "{idx["name"]}"'))
+        conn.commit()
+
+
 def get_db():
     db = SessionLocal()
     try:

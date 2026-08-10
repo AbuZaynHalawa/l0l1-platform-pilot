@@ -31,17 +31,6 @@ _L1_AUTO_DONE_FIELDS = {
 }
 
 
-def _next_est_no(db: Session) -> str:
-    last = db.query(models.Project).order_by(models.Project.id.desc()).first()
-    base = 1655
-    if last and last.est_no.startswith("Est-"):
-        try:
-            base = max(base, int(last.est_no.replace("Est-", "")) + 1)
-        except ValueError:
-            pass
-    return f"Est-{base}"
-
-
 def _provision_and_instantiate(db: Session, project: models.Project):
     """Shared by both L0 and L1 creation: provision folders, instantiate every
     active deliverable for this stage, compute due dates, auto-assign owners/SMEs.
@@ -157,7 +146,10 @@ def create_l0_project(payload: schemas.ProjectCreateL0, db: Session = Depends(ge
     est_no = payload.est_no.strip()
     if not est_no:
         raise HTTPException(400, "Est-Num is required")
-    if db.query(models.Project).filter(models.Project.est_no == est_no).first():
+    # Item 119: est_no is no longer globally unique -- an L1 deliberately
+    # reuses its L0's own number -- so this only guards against two
+    # different L0 tenders colliding, not against an L0/L1 pair sharing one.
+    if db.query(models.Project).filter(models.Project.est_no == est_no, models.Project.stage == models.Stage.L0).first():
         raise HTTPException(400, f"Est-No {est_no} is already in use")
 
     business_units, needs_manual = rules.compute_business_units(payload.scope)
@@ -197,9 +189,10 @@ def create_l1_project(payload: schemas.ProjectCreateL1, db: Session = Depends(ge
     if l0.status != models.ProjectStatus.IN_PROGRESS:
         raise HTTPException(400, "Only in-progress L0 tenders can become L1 projects")
 
-    est_no = _next_est_no(db)
+    # Item 119: keep the L0's own Est number as-is -- same tender, later
+    # stage, not a new one -- instead of minting a fresh one.
     project = models.Project(
-        est_no=est_no, name=l0.name, stage=models.Stage.L1,
+        est_no=l0.est_no, name=l0.name, stage=models.Stage.L1,
         region=l0.region, region_other=l0.region_other, scope=l0.scope, scope_other=l0.scope_other,
         rfx_number=l0.rfx_number, bid_manager=l0.bid_manager,
         business_units=l0.business_units, scope_contains_pbu=l0.scope_contains_pbu,
@@ -209,6 +202,10 @@ def create_l1_project(payload: schemas.ProjectCreateL1, db: Session = Depends(ge
         project_manager=payload.project_manager,
     )
     db.add(project)
+    # Item 119: the L0 stage is done the moment its L1 exists -- close it
+    # out immediately instead of leaving it sitting as still "In Progress"
+    # alongside its own L1.
+    l0.status = models.ProjectStatus.SUBMITTED
     db.commit()
     db.refresh(project)
 
