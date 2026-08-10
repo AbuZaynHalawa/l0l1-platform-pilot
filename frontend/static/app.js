@@ -514,12 +514,15 @@
     if (!pending.length) {
       card.appendChild(el("div", "deliv-row", '<span style="color:var(--ink-500);font-size:12.5px;">Nothing left to triage.</span>'));
     } else {
-      // Item 97: every Operation Units BU sub-department (TBU/PBU/DBU/BBU)
-      // shares one header instead of one each — they'd otherwise interleave
-      // by item_no (all sharing department number 2) and reprint a new
-      // header on nearly every row. Grouped explicitly by label instead of
-      // relying on adjacent-row department equality.
-      var groupLabel = function (dept) { return dept.indexOf("Operation Units") === 0 ? "Operation Units" : dept; };
+      // Item 118: one header per Operation Units BU sub-department
+      // (TBU/PBU/DBU/BBU), each listing its own 2.1-2.6 run — not one
+      // header per row (the original bug, items interleave by item_no
+      // since they share department number 2) and not one shared
+      // "Operation Units" header for every BU either (item 97, superseded
+      // here). Grouped explicitly by full department name so each BU's
+      // items land together under their own header regardless of the
+      // interleaved item_no order they arrive in.
+      var groupLabel = function (dept) { return dept; };
       var groups = {}, groupOrder = [];
       pending.forEach(function (d) {
         var label = groupLabel(d.department);
@@ -539,13 +542,10 @@
         var row = el("div", "deliv-row");
         row.appendChild(el("div", "deliv-num", d.item_no));
         var body = el("div", "deliv-body");
-        // The shared "Operation Units" header (item 97) collapses which BU
-        // an item belongs to, so tag it back on here — otherwise a BM
-        // triaging a multi-BU project can't tell one 2.1 from another.
-        var nameLabel = d.department.indexOf("Operation Units") === 0 && d.department !== "Operation Units"
-          ? d.name + " &#8212; " + d.department.replace("Operation Units ", "")
-          : d.name;
-        body.appendChild(el("div", "deliv-name", nameLabel));
+        // Which BU this item belongs to is now conveyed by its group
+        // header (item 118), so the row name itself doesn't need a
+        // "— DBU" suffix tacked on anymore.
+        body.appendChild(el("div", "deliv-name", d.name));
         row.appendChild(body);
         var toggle = el("div", "triage-toggle");
         var appBtn = el("button", "chip" + (remembered ? " active" : ""), "Applicable");
