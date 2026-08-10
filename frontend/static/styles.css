@@ -473,6 +473,11 @@
   .matrix-empty-cell { color: var(--ink-300); }
   .matrix-milestone-tag { font-size: 9.5px; color: var(--purple-2); font-weight: 700; }
   .form-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
+  /* Item 86's "Mark All Not Required" lives here — with 50+ pending items on
+     a large multi-BU tender, a static bar at the true bottom of the page was
+     effectively invisible. Sticking it to the viewport keeps it reachable
+     without scrolling through the whole list. */
+  #view-triage .form-actions { position: sticky; bottom: 0; background: var(--bg); z-index: 5; margin-top: 0; box-shadow: 0 -4px 12px rgba(0,0,0,.05); }
   .admin-lock { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--warn-bg); color: var(--warn); border-radius: 10px; font-size: 12.5px; font-weight: 600; margin-bottom: 18px; }
 
   .role-gate-note { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: var(--accent-soft); border: 1px solid var(--accent-line); border-radius: 10px; font-size: 12px; color: var(--purple-2); margin-bottom: 16px; font-weight: 600; }
