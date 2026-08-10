@@ -2,9 +2,8 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from sqlalchemy import text
 
-from .database import engine, DATABASE_URL
+from .database import engine
 from . import models
 from .routers import projects, deliverables, announcements_router, dashboard, departments, milestones, gantt, support
 
@@ -48,23 +47,3 @@ def index():
 @app.get("/health")
 def health():
     return {"status": "ok"}
-
-
-@app.get("/api/_debug/enum")
-def debug_enum():
-    """Temporary diagnostic — remove once the enum migration is confirmed working."""
-    if not DATABASE_URL.startswith("postgres"):
-        return {"dialect": "not postgres", "database_url_prefix": DATABASE_URL[:15]}
-    with engine.connect() as conn:
-        udt_row = conn.execute(text(
-            "SELECT column_name, udt_name, data_type FROM information_schema.columns "
-            "WHERE table_name = 'deliverable_submissions' AND column_name = 'status'"
-        )).mappings().all()
-        enum_type = udt_row[0]["udt_name"] if udt_row else None
-        values = []
-        if enum_type:
-            values = [r[0] for r in conn.execute(text(
-                "SELECT e.enumlabel FROM pg_enum e JOIN pg_type t ON e.enumtypid = t.oid "
-                "WHERE t.typname = :enum_type ORDER BY e.enumsortorder"
-            ), {"enum_type": enum_type}).all()]
-        return {"udt_row": [dict(r) for r in udt_row], "enum_type": enum_type, "current_values": values}
