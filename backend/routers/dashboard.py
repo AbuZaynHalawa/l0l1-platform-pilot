@@ -43,7 +43,12 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
         # Items 115/116: auto-completed items were never real tracked work,
         # so they're excluded from the department's on-time performance
         # cohort entirely -- not counted as a win, not counted as a miss.
-        dept_subs = [s for s in all_subs if s.definition.department_id == dept.id and not s.auto_completed]
+        # Item 117: same for any catalog item an admin has explicitly
+        # opted out of performance tracking (kpi_relevant == False).
+        dept_subs = [
+            s for s in all_subs
+            if s.definition.department_id == dept.id and not s.auto_completed and s.definition.kpi_relevant is not False
+        ]
         due_and_done = [s for s in dept_subs if s.status in (
             models.SubmissionStatus.APPROVED, models.SubmissionStatus.OVERDUE, models.SubmissionStatus.PENDING_REVIEW)]
         approved = sum(1 for s in dept_subs if s.status == models.SubmissionStatus.APPROVED)
@@ -89,6 +94,8 @@ def _rank_owners(subs, users: dict[str, "models.User"] | None = None):
     for s in subs:
         if s.auto_completed:  # items 115/116: not real tracked work
             continue
+        if s.definition.kpi_relevant is False:  # item 117: admin opted this catalog item out of tracking
+            continue
         email = s.owner_email or s.definition.default_owner_email
         if not email:
             continue
@@ -127,6 +134,8 @@ def _rank_smes(subs, users: dict[str, "models.User"] | None = None):
     stats: dict[str, dict] = {}
     for s in subs:
         if s.auto_completed:  # items 115/116: no real SME review happened, would fake a 0-second response time
+            continue
+        if s.definition.kpi_relevant is False:  # item 117: admin opted this catalog item out of tracking
             continue
         if s.status not in (models.SubmissionStatus.APPROVED, models.SubmissionStatus.REJECTED):
             continue

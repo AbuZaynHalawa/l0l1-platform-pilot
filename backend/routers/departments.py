@@ -92,6 +92,49 @@ def update_deliverable_focal(definition_id: int, payload: DeliverableFocalUpdate
 
 
 # ---------------------------------------------------------------------------
+# Performance tracking triage (item 117) — an admin call on whether a given
+# catalog item should count toward on-time-rate / performance stats at all.
+# Reuses the pre-existing (previously unwired) kpi_relevant column. NULL is
+# treated the same as True (counts) so the mtime-only ALTER TABLE migration
+# never silently drops every pre-existing item out of performance the
+# moment this column first appears on a live database.
+# ---------------------------------------------------------------------------
+@router.get("/performance-triage")
+def list_performance_triage(stage: str, db: Session = Depends(get_db)):
+    defs = (
+        db.query(models.DeliverableDefinition)
+        .join(models.Department)
+        .filter(models.DeliverableDefinition.stage == stage, models.DeliverableDefinition.active == True)  # noqa: E712
+        .order_by(models.Department.number)
+        .all()
+    )
+    defs.sort(key=lambda d: (d.department.number or 0, rules.item_sort_key(d.item_no)))
+    return [
+        {
+            "id": d.id, "item_no": d.item_no, "name": d.name,
+            "department": d.department.name, "department_number": d.department.number,
+            "is_milestone": d.is_milestone,
+            "kpi_relevant": d.kpi_relevant is not False,
+        }
+        for d in defs
+    ]
+
+
+class PerformanceTriageUpdate(BaseModel):
+    kpi_relevant: bool
+
+
+@router.patch("/performance-triage/{definition_id}")
+def update_performance_triage(definition_id: int, payload: PerformanceTriageUpdate, db: Session = Depends(get_db)):
+    d = db.get(models.DeliverableDefinition, definition_id)
+    if not d:
+        raise HTTPException(404, "Deliverable definition not found")
+    d.kpi_relevant = payload.kpi_relevant
+    db.commit()
+    return {"id": d.id, "kpi_relevant": d.kpi_relevant is not False}
+
+
+# ---------------------------------------------------------------------------
 # Bid Manager roster (item 75) — replaces the old hardcoded BID_MANAGERS list.
 # ---------------------------------------------------------------------------
 @router.get("/bid-managers")

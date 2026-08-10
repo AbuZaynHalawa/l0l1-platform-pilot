@@ -642,19 +642,38 @@
           <p class="sub">Live approval rate per department, this pilot.</p>
         </div>
       </div>
-      <div class="card calc-panel" style="margin-bottom:20px;">
-        <h3>How a score is calculated <span style="font-weight:400;color:var(--ink-500);font-size:12px;">&#8211; Algihaz's existing rule, carried over as-is</span></h3>
-        <p>On-time submission (within a 4-day grace period) = full point. Deliverables not yet due are excluded. Late submissions taper down; anything over 28 days late counts as not submitted.</p>
-        <div class="calc-tiers">
-          <span class="tier-chip">On time &rarr; 100%</span>
-          <span class="tier-chip">1&ndash;7d late &rarr; 90%</span>
-          <span class="tier-chip">8&ndash;14d &rarr; 80%</span>
-          <span class="tier-chip">15&ndash;21d &rarr; 70%</span>
-          <span class="tier-chip">22&ndash;28d &rarr; 60%</span>
-          <span class="tier-chip" style="color:var(--crit)">&gt;28d &rarr; 0%</span>
+      <div class="subtab-row" id="perfSubTabs">
+        <button class="chip active" data-pane="overview">Overview</button>
+        <button class="chip" data-pane="triage" id="perfTriageTabBtn" hidden>Manage Tracking</button>
+      </div>
+      <div id="perfOverviewPane">
+        <div class="card calc-panel" style="margin-bottom:20px;">
+          <h3>How a score is calculated <span style="font-weight:400;color:var(--ink-500);font-size:12px;">&#8211; Algihaz's existing rule, carried over as-is</span></h3>
+          <p>On-time submission (within a 4-day grace period) = full point. Deliverables not yet due are excluded. Late submissions taper down; anything over 28 days late counts as not submitted.</p>
+          <div class="calc-tiers">
+            <span class="tier-chip">On time &rarr; 100%</span>
+            <span class="tier-chip">1&ndash;7d late &rarr; 90%</span>
+            <span class="tier-chip">8&ndash;14d &rarr; 80%</span>
+            <span class="tier-chip">15&ndash;21d &rarr; 70%</span>
+            <span class="tier-chip">22&ndash;28d &rarr; 60%</span>
+            <span class="tier-chip" style="color:var(--crit)">&gt;28d &rarr; 0%</span>
+          </div>
+        </div>
+        <div class="dept-grid" id="perfDeptGrid" style="grid-template-columns:repeat(3,1fr);"></div>
+      </div>
+      <div id="perfTriagePane" hidden>
+        <p class="sub fp-hint">Choose which catalog items count toward on-time performance tracking. Turning an item off excludes it everywhere &#8212; department scores, Top Achievers, everything &#8212; for every project, past and future. Milestones stay on; they anchor the due-date chain regardless.</p>
+        <div class="focus-toggle" id="perfTriageStageToggle" style="margin:0 0 14px;">
+          <button class="chip active" data-stage="L0">L0 Tenders</button>
+          <button class="chip" data-stage="L1">L1 Projects</button>
+        </div>
+        <div class="card table-card">
+          <table class="fp-table">
+            <thead><tr><th style="width:60px;">Item</th><th>Name</th><th>Department</th><th style="width:140px;">Counts in Performance</th></tr></thead>
+            <tbody id="perfTriageBody"></tbody>
+          </table>
         </div>
       </div>
-      <div class="dept-grid" id="perfDeptGrid" style="grid-template-columns:repeat(3,1fr);"></div>
     </section>
 
     <!-- REPORTS -->

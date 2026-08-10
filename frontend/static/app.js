@@ -1430,9 +1430,72 @@
   }
 
   /* ================= PERFORMANCE / REPORTS ================= */
+  var perfTriageStage = "L0";
   async function loadPerformance() {
     var d = await api("/api/dashboard");
     renderDeptGrid(document.getElementById("perfDeptGrid"), d.departments, true);
+    // Item 117: only admins get the "Manage Tracking" sub-tab; everyone
+    // else just sees the Overview scores.
+    document.getElementById("perfTriageTabBtn").hidden = !can("create");
+    if (!can("create") && document.getElementById("perfTriagePane").hidden === false) {
+      document.querySelectorAll("#perfSubTabs .chip").forEach(function (b) { b.classList.toggle("active", b.dataset.pane === "overview"); });
+      document.getElementById("perfOverviewPane").hidden = false;
+      document.getElementById("perfTriagePane").hidden = true;
+    }
+  }
+  document.querySelectorAll("#perfSubTabs .chip").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.querySelectorAll("#perfSubTabs .chip").forEach(function (b) { b.classList.remove("active"); });
+      btn.classList.add("active");
+      var pane = btn.dataset.pane;
+      document.getElementById("perfOverviewPane").hidden = pane !== "overview";
+      document.getElementById("perfTriagePane").hidden = pane !== "triage";
+      if (pane === "triage") loadPerfTriage();
+    });
+  });
+  document.querySelectorAll("#perfTriageStageToggle .chip").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.querySelectorAll("#perfTriageStageToggle .chip").forEach(function (b) { b.classList.remove("active"); });
+      btn.classList.add("active");
+      perfTriageStage = btn.dataset.stage;
+      loadPerfTriage();
+    });
+  });
+  async function loadPerfTriage() {
+    var rows = await api("/api/departments/performance-triage?stage=" + perfTriageStage);
+    var tbody = document.getElementById("perfTriageBody");
+    tbody.innerHTML = "";
+    rows.forEach(function (r) {
+      var tr = el("tr");
+      tr.appendChild(el("td", "num", r.item_no));
+      tr.appendChild(el("td", "", r.name + (r.is_milestone ? ' <span class="gantt-est-tag">Milestone</span>' : "")));
+      tr.appendChild(el("td", "", r.department));
+      var tdToggle = el("td");
+      var toggleBtn = el("button", "chip" + (r.kpi_relevant ? " active" : ""), r.kpi_relevant ? "On" : "Off");
+      if (r.is_milestone) {
+        toggleBtn.disabled = true;
+        toggleBtn.title = "Milestones always count — they anchor the due-date chain.";
+      } else {
+        toggleBtn.addEventListener("click", async function () {
+          var next = !r.kpi_relevant;
+          try {
+            await api("/api/departments/performance-triage/" + r.id, {
+              method: "PATCH", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ kpi_relevant: next }),
+            });
+          } catch (err) {
+            showToast("Could not update &#8211; " + apiErrorDetail(err), true);
+            return;
+          }
+          r.kpi_relevant = next;
+          toggleBtn.textContent = next ? "On" : "Off";
+          toggleBtn.classList.toggle("active", next);
+        });
+      }
+      tdToggle.appendChild(toggleBtn);
+      tr.appendChild(tdToggle);
+      tbody.appendChild(tr);
+    });
   }
   async function loadReports() {
     var d = await api("/api/dashboard");
