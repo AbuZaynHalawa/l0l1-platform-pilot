@@ -122,7 +122,7 @@
     var stats = document.getElementById("statRow");
     stats.innerHTML = "";
     [["Active L0 Tenders", d.active_l0, ""], ["Active L1 Projects", d.active_l1, ""],
-     ["Pending SME Review", d.pending_review, ""], ["Overdue Right Now", d.overdue, "color:var(--crit)"]]
+     ["Not Due", d.not_due, ""], ["Pending SME Review", d.pending_review, ""], ["Overdue Right Now", d.overdue, "color:var(--crit)"]]
       .forEach(function (s) {
         var tile = el("div", "card stat-tile");
         tile.appendChild(el("div", "label", s[0]));
@@ -509,7 +509,8 @@
   });
   function closeDelivModal() { document.getElementById("delivModalOverlay").hidden = true; }
   async function openDelivModal(submissionId) {
-    var d = await api("/api/deliverables/" + submissionId);
+    var qs = actingEmail() ? "?actor_email=" + encodeURIComponent(actingEmail()) : "";
+    var d = await api("/api/deliverables/" + submissionId + qs);
     document.getElementById("delivModalEyebrow").textContent = d.est_no + " – " + deptLabel(d.department, d.department_number);
     document.getElementById("delivModalTitle").textContent = d.item_no + " · " + d.name;
     var authorized = isAssigned({ owner_email: d.owner_email, sme_email: d.sme_email });
@@ -527,6 +528,53 @@
         meta.appendChild(mi);
       });
     body.appendChild(meta);
+
+    var refreshModal = function () { openDelivModal(submissionId); };
+    var actionsRow = el("div", "modal-actions-row");
+    actionsRow.appendChild(followButton({ id: d.id, following: d.following }));
+    var eligibleStatus = d.status === "not_due" || d.status === "due" || d.status === "overdue" || d.status === "rejected";
+    if (authorized && eligibleStatus && can("upload")) {
+      actionsRow.appendChild(uploadButton(d.id, refreshModal));
+      actionsRow.appendChild(markCompleteButton(d.id, refreshModal));
+      var reassignBtn = el("button", "btn", "Reassign…");
+      reassignBtn.addEventListener("click", async function () {
+        var toEmail = prompt("Reassign " + d.item_no + " to (email):", "");
+        if (!toEmail) return;
+        toEmail = toEmail.trim();
+        if (!toEmail) return;
+        var reason = prompt("Reason (optional):", "") || null;
+        try {
+          await api("/api/deliverables/" + d.id + "/reassign-request", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ to_email: toEmail, reason: reason, from_email: d.owner_email }),
+          });
+        } catch (err) {
+          showToast("Could not request reassignment – " + apiErrorDetail(err), true);
+          return;
+        }
+        showToast("Reassignment requested — pending admin approval");
+      });
+      actionsRow.appendChild(reassignBtn);
+    }
+    var isOwnerOrAdmin = CURRENT_ROLE === "Admin" ||
+      (actingEmail() && actingEmail().trim().toLowerCase() === (d.owner_email || "").trim().toLowerCase());
+    if (d.status === "approved" && isOwnerOrAdmin) {
+      var reopenBtn = el("button", "btn ghost-crit", "Reopen");
+      reopenBtn.addEventListener("click", async function () {
+        if (!confirm("Reopen " + d.item_no + "? It'll go back into the normal workflow for more work.")) return;
+        try {
+          await api("/api/deliverables/" + d.id + "/reopen?actor_role=" + encodeURIComponent(CURRENT_ROLE) +
+            "&actor_email=" + encodeURIComponent(actingEmail()), { method: "POST" });
+        } catch (err) {
+          showToast("Could not reopen – " + apiErrorDetail(err), true);
+          return;
+        }
+        showToast(d.item_no + " reopened");
+        refreshModal();
+      });
+      actionsRow.appendChild(reopenBtn);
+    }
+    body.appendChild(actionsRow);
 
     if (authorized && d.file_url) {
       var primaryLink = el("a", "btn", "View / Download Primary File");
@@ -1308,6 +1356,7 @@
     submitted: "&#128228;", assigned: "&#128100;", review_requested: "&#128269;",
     approved: "&#9989;", rejected: "&#10060;", unlocked: "&#128275;",
     document_added: "&#128206;", document_approved: "&#9989;", document_rejected: "&#10060;",
+    reopened: "&#128257;",
   };
   var trailLoaded = { L0: false, L1: false };
   function setupActivityTrail(stage, selId, timelineId, listCardId, trailCardId, subTabsId) {

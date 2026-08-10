@@ -22,6 +22,7 @@ def get_dashboard(db: Session = Depends(get_db)):
 
     overdue = sum(1 for s in all_subs if s.status == models.SubmissionStatus.OVERDUE)
     pending_review = sum(1 for s in all_subs if s.status == models.SubmissionStatus.PENDING_REVIEW)
+    not_due = sum(1 for s in all_subs if s.status == models.SubmissionStatus.NOT_DUE)
 
     dept_rows = []
     for dept in db.query(models.Department).order_by(models.Department.number).all():
@@ -49,7 +50,7 @@ def get_dashboard(db: Session = Depends(get_db)):
 
     return {
         "active_l0": l0_count, "active_l1": l1_count, "signed": signed_count,
-        "overdue": overdue, "pending_review": pending_review,
+        "overdue": overdue, "pending_review": pending_review, "not_due": not_due,
         "departments": dept_rows, "concerns": concerns,
     }
 

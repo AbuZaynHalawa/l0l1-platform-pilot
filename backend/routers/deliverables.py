@@ -103,6 +103,10 @@ async def upload_deliverable(submission_id: int, file: UploadFile = File(...),
     sub.status = models.SubmissionStatus.PENDING_REVIEW
     db.add(models.WorkflowHistory(submission_id=sub.id, action="submitted", actor_name=actor_name,
                                    note=f"Uploaded {file.filename}"))
+    # Mirrored as a Document row too, so it shows up in the deliverable
+    # popup's document list the same way an "Add Document" upload does —
+    # one upload mechanism, one place it's visible, not two disconnected ones.
+    db.add(models.Document(submission_id=sub.id, file_name=file.filename, file_ref=file_ref, uploaded_by=actor_name))
     db.commit()
 
     sme_email = sub.sme_email or sub.definition.default_sme_email
@@ -123,45 +127,6 @@ def _document_out(d: "models.Document") -> dict:
         "id": d.id, "file_name": d.file_name, "file_url": _storage.file_url(d.file_ref),
         "uploaded_by": d.uploaded_by, "uploaded_at": d.uploaded_at, "status": d.status,
         "comment": d.comment, "reviewed_at": d.reviewed_at,
-    }
-
-
-@router.get("/{submission_id}")
-def get_deliverable_detail(submission_id: int, db: Session = Depends(get_db)):
-    """Full detail for the deliverable popup: the item itself, its workflow
-    history, and any supplementary documents on top of the primary file.
-    """
-    sub = db.get(models.DeliverableSubmission, submission_id)
-    if not sub:
-        raise HTTPException(404, "Deliverable not found")
-    history = (
-        db.query(models.WorkflowHistory)
-        .filter(models.WorkflowHistory.submission_id == submission_id)
-        .order_by(models.WorkflowHistory.created_at)
-        .all()
-    )
-    documents = (
-        db.query(models.Document)
-        .filter(models.Document.submission_id == submission_id)
-        .order_by(models.Document.uploaded_at)
-        .all()
-    )
-    return {
-        "id": sub.id, "item_no": sub.definition.item_no, "name": rules.display_name(sub.definition, sub.project),
-        "department": sub.definition.department.name, "department_number": sub.definition.department.number,
-        "est_no": sub.project.est_no, "project_id": sub.project_id, "project_name": sub.project.name,
-        "due_date": sub.due_date, "status": sub.status.value,
-        "owner_email": sub.owner_email or sub.definition.default_owner_email,
-        "sme_email": sub.sme_email or sub.definition.default_sme_email,
-        "file_name": sub.file_name, "file_url": _storage.file_url(sub.file_ref) if sub.file_ref else None,
-        "submitted_at": sub.submitted_at, "review_comment": sub.review_comment, "reviewed_at": sub.reviewed_at,
-        "completion_note": rules.mark_complete_note(sub), "is_milestone": sub.definition.is_milestone,
-        "milestone_code": sub.definition.milestone_code,
-        "history": [
-            {"action": h.action, "actor": h.actor_name, "note": h.note, "at": h.created_at}
-            for h in history
-        ],
-        "documents": [_document_out(d) for d in documents],
     }
 
 
@@ -280,6 +245,19 @@ def review_deliverable(submission_id: int, decision: schemas.ReviewDecision, db:
     if not rules.can_act(decision.actor_role, decision.actor_email, assigned_sme):
         raise HTTPException(403, f"Only {assigned_sme or 'the assigned SME'} or an Admin can review this deliverable")
 
+    if decision.approved:
+        pending_docs = (
+            db.query(models.Document)
+            .filter(models.Document.submission_id == submission_id, models.Document.status == "pending")
+            .count()
+        )
+        if pending_docs:
+            raise HTTPException(
+                400,
+                f"{pending_docs} document(s) on this deliverable are still awaiting individual review — "
+                "review those first before approving the whole deliverable",
+            )
+
     sub.status = models.SubmissionStatus.APPROVED if decision.approved else models.SubmissionStatus.REJECTED
     sub.review_comment = decision.comment
     sub.reviewed_at = datetime.utcnow()
@@ -339,6 +317,35 @@ def review_deliverable(submission_id: int, decision: schemas.ReviewDecision, db:
         rules.check_l1_completion(db, sub.project)
         db.commit()
 
+    return {"status": "ok"}
+
+
+@router.post("/{submission_id}/reopen")
+def reopen_deliverable(submission_id: int, actor_role: str = "Viewer", actor_email: str = "", db: Session = Depends(get_db)):
+    """Sends an already-approved deliverable back into the normal workflow —
+    for when something approved turns out to need more work. Leaves the
+    existing file/documents in place as a record; the owner uploads fresh
+    work the same way as any other resubmission.
+    """
+    sub = db.get(models.DeliverableSubmission, submission_id)
+    if not sub:
+        raise HTTPException(404, "Deliverable not found")
+    if sub.status != models.SubmissionStatus.APPROVED:
+        raise HTTPException(400, "Only an approved deliverable can be reopened")
+    assigned = sub.owner_email or sub.definition.default_owner_email
+    if not rules.can_act(actor_role, actor_email, assigned):
+        raise HTTPException(403, f"Only {assigned or 'the assigned owner'} or an Admin can reopen this deliverable")
+
+    sub.reviewed_at = None
+    sub.review_comment = None
+    sub.status = models.SubmissionStatus.NOT_DUE  # placeholder so refresh_status doesn't early-return on APPROVED
+    rules.refresh_status(sub)
+    db.add(models.WorkflowHistory(submission_id=sub.id, action="reopened", actor_name=actor_role,
+                                   note="Reopened after approval"))
+    db.commit()
+
+    rules.recompute_project_due_dates(db, sub.project, force=True)
+    db.commit()
     return {"status": "ok"}
 
 
@@ -438,6 +445,59 @@ def bulk_remind(payload: schemas.BulkRemindRequest, db: Session = Depends(get_db
                                          submission_id=s.id)
             sent += 1
     return {"sent": sent}
+
+
+@router.get("/{submission_id}")
+def get_deliverable_detail(submission_id: int, actor_email: str | None = None, db: Session = Depends(get_db)):
+    """Full detail for the deliverable popup: the item itself, its workflow
+    history, and any supplementary documents on top of the primary file.
+
+    Declared after every literal-path route in this router (reassignment-
+    requests, follow-up, bulk-remind, etc.) on purpose — FastAPI matches
+    routes in declaration order, so a single-segment catch-all like this one
+    has to come last among GETs or it silently swallows every literal route
+    that shares its segment count (this exact bug took down the Follow Up
+    tab: /follow-up was being routed here first, failing int-parsing on
+    "follow-up" as submission_id, and erroring out before ever reaching the
+    real handler).
+    """
+    sub = db.get(models.DeliverableSubmission, submission_id)
+    if not sub:
+        raise HTTPException(404, "Deliverable not found")
+    history = (
+        db.query(models.WorkflowHistory)
+        .filter(models.WorkflowHistory.submission_id == submission_id)
+        .order_by(models.WorkflowHistory.created_at)
+        .all()
+    )
+    documents = (
+        db.query(models.Document)
+        .filter(models.Document.submission_id == submission_id)
+        .order_by(models.Document.uploaded_at)
+        .all()
+    )
+    following = False
+    if actor_email:
+        following = db.query(models.Follower).filter_by(
+            submission_id=submission_id, email=actor_email.strip().lower()
+        ).first() is not None
+    return {
+        "id": sub.id, "item_no": sub.definition.item_no, "name": rules.display_name(sub.definition, sub.project),
+        "department": sub.definition.department.name, "department_number": sub.definition.department.number,
+        "est_no": sub.project.est_no, "project_id": sub.project_id, "project_name": sub.project.name,
+        "due_date": sub.due_date, "status": sub.status.value,
+        "owner_email": sub.owner_email or sub.definition.default_owner_email,
+        "sme_email": sub.sme_email or sub.definition.default_sme_email,
+        "file_name": sub.file_name, "file_url": _storage.file_url(sub.file_ref) if sub.file_ref else None,
+        "submitted_at": sub.submitted_at, "review_comment": sub.review_comment, "reviewed_at": sub.reviewed_at,
+        "completion_note": rules.mark_complete_note(sub), "is_milestone": sub.definition.is_milestone,
+        "milestone_code": sub.definition.milestone_code, "following": following,
+        "history": [
+            {"action": h.action, "actor": h.actor_name, "note": h.note, "at": h.created_at}
+            for h in history
+        ],
+        "documents": [_document_out(d) for d in documents],
+    }
 
 
 @router.get("/{submission_id}/history")
