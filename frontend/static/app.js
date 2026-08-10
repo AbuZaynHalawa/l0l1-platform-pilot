@@ -183,8 +183,6 @@
         stats.appendChild(tile);
       });
 
-    renderDeptGrid(document.getElementById("dashDeptGrid"), d.departments, false);
-
     var achievers = await api("/api/dashboard/top-achievers");
     renderAchievers("topOwners", achievers.owners.slice(0, 3), "owner");
     renderAchievers("topSmes", achievers.smes.slice(0, 3), "sme");

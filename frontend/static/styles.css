@@ -139,7 +139,7 @@
   .subtab-row .chip:hover { color: var(--ink-900); }
   .subtab-row .chip.active { background: none; color: var(--accent); border-bottom-color: var(--accent); }
   .subtab-row .chip .cnum { background: var(--surface-sunken); }
-  .dash-focus { display: flex; align-items: center; gap: 8px; align-self: center; }
+  .dash-focus { display: flex; align-items: center; gap: 8px; }
   .dash-focus input { border: 1px solid var(--line); background: var(--surface-sunken); border-radius: 20px; padding: 7px 14px; font-size: 12.5px; color: var(--ink-900); font-family: inherit; width: 190px; }
   .view-head h1 { font-size: 23px; }
   .view-head p.sub { color: var(--ink-500); font-size: 13.5px; margin-top: 3px; }
@@ -513,8 +513,13 @@
   .journey-event-sub b { color: var(--ink-700); font-weight: 700; text-transform: none; }
 
   /* ---------- top achievers ---------- */
-  .achievers-row { margin-bottom: 18px; margin-top: 18px; }
+  .achievers-row { margin-bottom: 18px; margin-top: 18px; align-items: stretch; }
+  .achievers-row > .card { display: flex; flex-direction: column; }
+  .achievers-row > .card > #digestList { flex: 1; overflow-y: auto; }
   .achievers-stack { display: flex; flex-direction: column; gap: 18px; }
+  .achievers-stack > .card { flex: 1; display: flex; flex-direction: column; }
+  .achievers-stack > .card > .card-pad { flex: 1; display: flex; flex-direction: column; }
+  .achievers-stack .achiever-list { flex: 1; }
   .achiever-row { display: flex; align-items: center; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--line); }
   .achiever-row:last-child { border-bottom: none; }
   .achiever-rank { font-size: 17px; width: 24px; text-align: center; }

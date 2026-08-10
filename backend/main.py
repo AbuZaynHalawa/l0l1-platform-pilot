@@ -1,7 +1,7 @@
 from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 
 from .database import engine
 from . import models
@@ -41,7 +41,18 @@ app.mount("/local-files", StaticFiles(directory=str(LOCAL_FILES_DIR)), name="loc
 
 @app.get("/")
 def index():
-    return FileResponse(str(FRONTEND_DIR / "index.html"), headers={"Cache-Control": "no-cache"})
+    # A tab left open across a deploy keeps its in-memory app.js/styles.css
+    # no matter what Cache-Control says on /static — that only governs re-fetches.
+    # Stamping the asset URLs with the file's own mtime forces a brand-new URL
+    # (and therefore a real fetch) on every deploy that changes either file.
+    html = (FRONTEND_DIR / "index.html").read_text(encoding="utf-8")
+    version = str(int(max(
+        (FRONTEND_DIR / "static" / "app.js").stat().st_mtime,
+        (FRONTEND_DIR / "static" / "styles.css").stat().st_mtime,
+    )))
+    html = html.replace('/static/app.js"', f'/static/app.js?v={version}"')
+    html = html.replace('/static/styles.css"', f'/static/styles.css?v={version}"')
+    return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/health")

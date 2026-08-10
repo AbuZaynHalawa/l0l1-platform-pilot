@@ -73,13 +73,14 @@
           <h1>Good morning — here's where things stand</h1>
           <p class="sub">Across L0 and L1, updated as departments submit.</p>
         </div>
-        <div class="dash-focus">
-          <div class="focus-toggle" id="dashFocusToggle">
-            <button class="chip active" data-focus="all">All</button>
-            <button class="chip" data-focus="mine">My Items</button>
-          </div>
-          <input type="text" id="dashFocusEmail" placeholder="your email&#8230;" style="display:none;" />
+      </div>
+
+      <div class="dash-focus">
+        <div class="subtab-row" id="dashFocusToggle">
+          <button class="chip active" data-focus="all">All</button>
+          <button class="chip" data-focus="mine">My Items</button>
         </div>
+        <input type="text" id="dashFocusEmail" placeholder="your email&#8230;" style="display:none;" />
       </div>
 
       <div class="concerns-banner" id="concernsBanner" hidden>
@@ -123,10 +124,6 @@
         </div>
       </div>
 
-      <div class="card">
-        <div class="section-title">Department status <span class="cnt">live</span></div>
-        <div class="card-pad"><div class="dept-grid" id="dashDeptGrid"></div></div>
-      </div>
     </section>
 
     <!-- ASSIGNED DELIVERABLES -->
@@ -329,7 +326,7 @@
           <div class="how-ic">&#9673;</div>
           <div class="how-title">Dashboard</div>
           <p>The org-wide snapshot: active tenders/projects, Not Due/Pending/Overdue counts, the live
-             deliverables matrix, department status, Top Achievers, and the latest announcements. Switch
+             deliverables matrix, Top Achievers, and the latest announcements. Switch
              "All" / "My Items" at the top to scope the counts to just what you own or review.</p>
         </div>
         <div class="card how-card">
