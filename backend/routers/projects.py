@@ -80,9 +80,13 @@ def list_projects(stage: str | None = None, status: str | None = None, db: Sessi
     return q.order_by(models.Project.created_at.desc()).all()
 
 
+def _active_bid_manager_emails(db: Session) -> set[str]:
+    return {b.email.lower() for b in db.query(models.BidManager).filter(models.BidManager.active == True).all()}  # noqa: E712
+
+
 @router.post("/l0", response_model=schemas.ProjectOut)
 def create_l0_project(payload: schemas.ProjectCreateL0, db: Session = Depends(get_db)):
-    if payload.bid_manager not in models.BID_MANAGERS:
+    if (payload.bid_manager or "").lower() not in _active_bid_manager_emails(db):
         raise HTTPException(400, "Bid Manager must be selected from the directory")
     if not payload.region:
         raise HTTPException(400, "Region is required")
@@ -121,7 +125,7 @@ def create_l0_project(payload: schemas.ProjectCreateL0, db: Session = Depends(ge
 
     _provision_and_instantiate(db, project)
 
-    recipients = sorted({d.focal_point_email for d in db.query(models.Department).all() if d.focal_point_email})
+    recipients = sorted({d.focal_point_email for d in db.query(models.Department).all() if d.focal_point_email} | rules.system_group_emails(db))
     announcements.project_created(db, project, recipients)
     return project
 
@@ -151,7 +155,7 @@ def create_l1_project(payload: schemas.ProjectCreateL1, db: Session = Depends(ge
 
     _provision_and_instantiate(db, project)
 
-    recipients = sorted({d.focal_point_email for d in db.query(models.Department).all() if d.focal_point_email})
+    recipients = sorted({d.focal_point_email for d in db.query(models.Department).all() if d.focal_point_email} | rules.system_group_emails(db))
     announcements.project_created(db, project, recipients)
     return project
 
@@ -251,8 +255,9 @@ def update_project_details(project_id: int, payload: schemas.ProjectDetailsUpdat
         raise HTTPException(404, "Project not found")
     data = payload.model_dump(exclude_unset=True, exclude={"actor_role"})
     if "bid_manager" in data:
-        if data["bid_manager"] not in models.BID_MANAGERS:
-            raise HTTPException(400, f"Bid Manager must be one of: {', '.join(models.BID_MANAGERS)}")
+        active_emails = _active_bid_manager_emails(db)
+        if (data["bid_manager"] or "").lower() not in active_emails:
+            raise HTTPException(400, "Bid Manager must be selected from the directory")
         project.bid_manager = data["bid_manager"]
     if "region" in data:
         if not data["region"]:

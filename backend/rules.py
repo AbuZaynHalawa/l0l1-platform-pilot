@@ -155,6 +155,29 @@ def display_name(definition: models.DeliverableDefinition, project: models.Proje
     return name
 
 
+def system_group_emails(db: Session) -> set[str]:
+    """The "L0-L1 Group" (item 75) — every admin-added email in the system
+    roster, CC'd on portal-wide broadcasts (new project, milestone reached)
+    regardless of role, since Viewers have no assigned deliverable to be
+    notified about any other way.
+    """
+    return {u.email for u in db.query(models.User).all() if u.email}
+
+
+def deliverable_focal(definition: "models.DeliverableDefinition", project: "models.Project | None" = None) -> str | None:
+    """Who to notify about this specific deliverable (item 75): Tendering
+    Department items don't have one fixed contact — the real focal is
+    whoever the project's own Bid Manager is — so that always wins when a
+    project is given. Every other department falls back from the item's
+    own focal_point_email to its department's, in that order.
+    """
+    if definition.department.name == "Tendering Department" and project is not None and project.bid_manager:
+        return project.bid_manager
+    if definition.focal_point_email:
+        return definition.focal_point_email
+    return definition.department.focal_point_email
+
+
 def mark_complete_note(submission: "models.DeliverableSubmission") -> str | None:
     """The owner's completion comment when a deliverable was submitted via
     Mark Completed instead of a file upload — the most recent 'submitted'

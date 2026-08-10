@@ -282,7 +282,7 @@ def review_deliverable(submission_id: int, decision: schemas.ReviewDecision, db:
                                       submission_id=sub.id)
 
     if decision.approved and sub.definition.is_milestone:
-        recipients = sorted({d.focal_point_email for d in db.query(models.Department).all() if d.focal_point_email})
+        recipients = sorted({d.focal_point_email for d in db.query(models.Department).all() if d.focal_point_email} | rules.system_group_emails(db))
         announcements.milestone_reached(db, sub.project, recipients, sub.definition.milestone_code, sub.definition.name)
         if sub.definition.milestone_code == "M6" and sub.project.stage == models.Stage.L1:
             sub.project.contract_status = models.ContractStatus.SIGNED

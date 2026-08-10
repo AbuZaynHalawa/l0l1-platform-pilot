@@ -1417,35 +1417,151 @@
   }
 
   /* ================= FOCAL POINTS (admin) ================= */
+  var fpTab = "L0";
+  document.querySelectorAll("#fpSubTabs .chip").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.querySelectorAll("#fpSubTabs .chip").forEach(function (b) { b.classList.remove("active"); });
+      btn.classList.add("active");
+      fpTab = btn.dataset.fp;
+      loadFocalPoints();
+    });
+  });
+
   async function loadFocalPoints() {
-    var depts = await api("/api/departments");
+    document.getElementById("fpDeliverablePanel").hidden = (fpTab !== "L0" && fpTab !== "L1");
+    document.getElementById("fpBmPanel").hidden = fpTab !== "bm";
+    document.getElementById("fpGroupPanel").hidden = fpTab !== "group";
+    if (fpTab === "L0" || fpTab === "L1") return loadFocalDeliverables(fpTab);
+    if (fpTab === "bm") return loadBidManagers();
+    return loadSystemGroup();
+  }
+
+  async function loadFocalDeliverables(stage) {
+    var rows = await api("/api/departments/deliverable-focal?stage=" + stage);
     var tbody = document.getElementById("focalPointsBody");
     tbody.innerHTML = "";
-    depts.forEach(function (d) {
+    var lastDept = null;
+    rows.forEach(function (d) {
+      if (d.department !== lastDept) {
+        var hr = el("tr");
+        var hc = el("td", "matrix-dept-row", deptLabel(d.department, d.department_number));
+        hc.setAttribute("colspan", "6");
+        hr.appendChild(hc);
+        tbody.appendChild(hr);
+        lastDept = d.department;
+      }
       var tr = el("tr");
-      var nameInput = el("input"); nameInput.type = "text"; nameInput.value = d.focal_point_name || ""; nameInput.placeholder = "Name";
-      var emailInput = el("input"); emailInput.type = "text"; emailInput.value = d.focal_point_email || ""; emailInput.placeholder = "email@algihaz.com";
-      var saveBtn = el("button", "btn", "Save");
-      saveBtn.addEventListener("click", async function () {
-        try {
-          await api("/api/departments/" + d.id + "/focal-point", {
-            method: "PATCH", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ focal_point_name: nameInput.value.trim(), focal_point_email: emailInput.value.trim() }),
-          });
-        } catch (err) {
-          showToast("Could not save &#8211; " + apiErrorDetail(err), true);
-          return;
-        }
-        showToast("Focal point updated for " + d.name);
-      });
-      var tdNum = el("td", "", d.number == null ? "&#8213;" : String(d.number));
-      var tdName = el("td", "", d.name);
-      var tdNameInput = el("td"); tdNameInput.appendChild(nameInput);
-      var tdEmailInput = el("td"); tdEmailInput.appendChild(emailInput);
-      var tdSave = el("td"); tdSave.appendChild(saveBtn);
-      tr.appendChild(tdNum); tr.appendChild(tdName); tr.appendChild(tdNameInput); tr.appendChild(tdEmailInput); tr.appendChild(tdSave);
+      tr.appendChild(el("td", "", d.item_no));
+      tr.appendChild(el("td", "", d.name));
+      tr.appendChild(el("td", "", d.department));
+      if (d.is_tendering_bm) {
+        var noteCell = el("td", "muted", "Defaults to the project's Bid Manager");
+        noteCell.setAttribute("colspan", "2");
+        tr.appendChild(noteCell);
+        tr.appendChild(el("td"));
+      } else {
+        var nameInput = el("input"); nameInput.type = "text";
+        nameInput.value = d.focal_point_name || ""; nameInput.placeholder = d.department_focal_name || "Name";
+        var emailInput = el("input"); emailInput.type = "text";
+        emailInput.value = d.focal_point_email || ""; emailInput.placeholder = d.department_focal_email || "email@algihaz.com";
+        var saveBtn = el("button", "btn", "Save");
+        saveBtn.addEventListener("click", async function () {
+          try {
+            await api("/api/departments/deliverable-focal/" + d.id, {
+              method: "PATCH", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ focal_point_name: nameInput.value.trim(), focal_point_email: emailInput.value.trim() }),
+            });
+          } catch (err) {
+            showToast("Could not save &#8211; " + apiErrorDetail(err), true);
+            return;
+          }
+          showToast("Focal point updated for " + d.item_no);
+        });
+        var tdName = el("td"); tdName.appendChild(nameInput);
+        var tdEmail = el("td"); tdEmail.appendChild(emailInput);
+        var tdSave = el("td"); tdSave.appendChild(saveBtn);
+        tr.appendChild(tdName); tr.appendChild(tdEmail); tr.appendChild(tdSave);
+      }
       tbody.appendChild(tr);
     });
+  }
+
+  async function loadBidManagers() {
+    var bms = await api("/api/departments/bid-managers");
+    var tbody = document.getElementById("bmBody");
+    tbody.innerHTML = "";
+    bms.filter(function (b) { return b.active; }).forEach(function (b) {
+      var tr = el("tr");
+      tr.appendChild(el("td", "", b.name || "&#8213;"));
+      tr.appendChild(el("td", "", b.email));
+      var removeBtn = el("button", "btn ghost-crit", "Remove");
+      removeBtn.addEventListener("click", async function () {
+        await api("/api/departments/bid-managers/" + b.id, { method: "DELETE" });
+        showToast("Removed " + b.email + " from the Bid Manager roster");
+        loadBidManagers();
+      });
+      var tdRemove = el("td"); tdRemove.appendChild(removeBtn);
+      tr.appendChild(tdRemove);
+      tbody.appendChild(tr);
+    });
+    document.getElementById("bmAddBtn").onclick = async function () {
+      var email = document.getElementById("bmNewEmail").value.trim();
+      var name = document.getElementById("bmNewName").value.trim();
+      if (!email) { showToast("Email is required", true); return; }
+      try {
+        await api("/api/departments/bid-managers", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: email, name: name || null }),
+        });
+      } catch (err) {
+        showToast("Could not add &#8211; " + apiErrorDetail(err), true);
+        return;
+      }
+      document.getElementById("bmNewEmail").value = "";
+      document.getElementById("bmNewName").value = "";
+      showToast("Bid Manager added");
+      loadBidManagers();
+    };
+  }
+
+  async function loadSystemGroup() {
+    var users = await api("/api/departments/users");
+    var tbody = document.getElementById("groupBody");
+    tbody.innerHTML = "";
+    users.forEach(function (u) {
+      var tr = el("tr");
+      tr.appendChild(el("td", "", u.name));
+      tr.appendChild(el("td", "", u.email));
+      tr.appendChild(el("td", "", u.role));
+      var removeBtn = el("button", "btn ghost-crit", "Remove");
+      removeBtn.addEventListener("click", async function () {
+        await api("/api/departments/users/" + u.id, { method: "DELETE" });
+        showToast("Removed " + u.email + " from the group");
+        loadSystemGroup();
+      });
+      var tdRemove = el("td"); tdRemove.appendChild(removeBtn);
+      tr.appendChild(tdRemove);
+      tbody.appendChild(tr);
+    });
+    document.getElementById("groupAddBtn").onclick = async function () {
+      var name = document.getElementById("groupNewName").value.trim();
+      var email = document.getElementById("groupNewEmail").value.trim();
+      var role = document.getElementById("groupNewRole").value;
+      if (!name || !email) { showToast("Name and email are required", true); return; }
+      try {
+        await api("/api/departments/users", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: name, email: email, role: role }),
+        });
+      } catch (err) {
+        showToast("Could not add &#8211; " + apiErrorDetail(err), true);
+        return;
+      }
+      document.getElementById("groupNewName").value = "";
+      document.getElementById("groupNewEmail").value = "";
+      showToast("Added to the L0-L1 Group");
+      loadSystemGroup();
+    };
   }
 
   /* ================= FOLLOW UP (admin) ================= */

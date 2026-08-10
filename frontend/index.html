@@ -439,15 +439,55 @@
       <div class="view-head">
         <div>
           <div class="eyebrow">Admin</div>
-          <h1>Department Focal Points</h1>
-          <p class="sub">The contact each department's announcements and folder notifications go to.</p>
+          <h1>Focal Points</h1>
+          <p class="sub">Who each deliverable's notifications go to, the Bid Manager roster, and the system-wide viewer list.</p>
+        </div>
+        <div class="matrix-toggle" id="fpSubTabs">
+          <button class="chip active" data-fp="L0">L0 Deliverables</button>
+          <button class="chip" data-fp="L1">L1 Deliverables</button>
+          <button class="chip" data-fp="bm">Bid Managers</button>
+          <button class="chip" data-fp="group">L0-L1 Group</button>
         </div>
       </div>
-      <div class="card table-card">
+
+      <div class="card table-card" id="fpDeliverablePanel">
+        <p class="sub fp-hint">Set a focal name/email for a specific item to override its department's default. Tendering Department items are always routed to that project's own Bid Manager, so they aren't editable here.</p>
         <table class="fp-table">
-          <thead><tr><th>#</th><th>Department</th><th>Focal Point Name</th><th>Focal Point Email</th><th></th></tr></thead>
+          <thead><tr><th>Item</th><th>Deliverable</th><th>Department</th><th>Focal Point Name</th><th>Focal Point Email</th><th></th></tr></thead>
           <tbody id="focalPointsBody"></tbody>
         </table>
+      </div>
+
+      <div class="card table-card" id="fpBmPanel" hidden>
+        <p class="sub fp-hint">The directory offered on the Bid Manager dropdown when creating or editing a tender.</p>
+        <table class="fp-table">
+          <thead><tr><th>Name</th><th>Email</th><th></th></tr></thead>
+          <tbody id="bmBody"></tbody>
+        </table>
+        <div class="fp-add-row">
+          <input type="text" id="bmNewName" placeholder="Name (optional)" />
+          <input type="text" id="bmNewEmail" placeholder="email@algihaz.com" />
+          <button class="btn primary" id="bmAddBtn">Add Bid Manager</button>
+        </div>
+      </div>
+
+      <div class="card table-card" id="fpGroupPanel" hidden>
+        <p class="sub fp-hint">Everyone with a stake in the portal — Admins, Owners, SMEs, and plain Viewers who just want visibility with nothing actioned to them. Copied on portal-wide announcements (new project, milestone reached).</p>
+        <table class="fp-table">
+          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th></th></tr></thead>
+          <tbody id="groupBody"></tbody>
+        </table>
+        <div class="fp-add-row">
+          <input type="text" id="groupNewName" placeholder="Name" />
+          <input type="text" id="groupNewEmail" placeholder="email@algihaz.com" />
+          <select id="groupNewRole">
+            <option value="Viewer">Viewer</option>
+            <option value="Owner">Owner</option>
+            <option value="SME">SME</option>
+            <option value="Admin">Admin</option>
+          </select>
+          <button class="btn primary" id="groupAddBtn">Add to Group</button>
+        </div>
       </div>
     </section>
 

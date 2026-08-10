@@ -16,6 +16,8 @@ ensure_column("projects", "business_units", "JSON")
 ensure_column("announcements", "submission_id", "INTEGER")
 ensure_column("deliverable_submissions", "applicability", "VARCHAR")
 ensure_column("projects", "due_dates_computed_on", "DATE")
+ensure_column("deliverable_definitions", "focal_point_name", "VARCHAR")
+ensure_column("deliverable_definitions", "focal_point_email", "VARCHAR")
 ensure_enum_value("deliverable_submissions", "status", "PENDING_TRIAGE")
 ensure_enum_value("deliverable_submissions", "status", "NOT_REQUIRED")
 
@@ -599,6 +601,22 @@ def run():
         if unset_applicability:
             db.commit()
             print(f"Backfilled applicability=applicable for {len(unset_applicability)} submission(s).")
+
+        # Seed the Bid Manager roster (item 75) from the old hardcoded list —
+        # one-time: from here on BidManager rows in the DB are the source of
+        # truth, admin-editable from the Focal Points tab. Only inserts
+        # emails not already present, so an admin's own additions/removals
+        # made since the last deploy are never overwritten.
+        existing_bm_emails = {e.lower() for (e,) in db.query(models.BidManager.email).all()}
+        new_bms = 0
+        for email in models.BID_MANAGERS:
+            if email.lower() not in existing_bm_emails:
+                db.add(models.BidManager(email=email))
+                new_bms += 1
+        if new_bms:
+            db.commit()
+            print(f"Seeded {new_bms} Bid Manager(s) into the roster.")
+
         print(f"Seed complete: {len(dept_map)} departments, {len(L0_ITEMS)} L0 items, {len(L1_ITEMS)} L1 items.")
     finally:
         db.close()

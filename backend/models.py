@@ -67,14 +67,32 @@ class Department(Base):
 
 
 class User(Base):
+    """The admin-managed system roster (item 75's "general L0-L1 Group") —
+    everyone with a stake in the portal, not just the people with an
+    upload/review action assigned to them on some deliverable. Admins/
+    Owners/SMEs are the roles with real actions; "Viewer" is the general,
+    view-only membership the whole roster defaults to belonging to.
+    """
     __tablename__ = "users"
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
     email = Column(String, nullable=False, unique=True)
-    role = Column(String, default="Owner")  # Admin | Owner | SME | Viewer
+    role = Column(String, default="Viewer")  # Admin | Owner | SME | Viewer
     department_id = Column(Integer, ForeignKey("departments.id"), nullable=True)
 
     department = relationship("Department")
+
+
+class BidManager(Base):
+    """Admin-managed roster backing the Bid Manager dropdown (item 75) —
+    replaces the old hardcoded BID_MANAGERS constant, which is now only
+    the one-time seed for this table's initial rows.
+    """
+    __tablename__ = "bid_managers"
+    id = Column(Integer, primary_key=True)
+    email = Column(String, nullable=False, unique=True)
+    name = Column(String, nullable=True)
+    active = Column(Boolean, default=True)
 
 
 # Real Bid Manager directory (from Modifications doc), sorted alphabetically by name
@@ -156,6 +174,13 @@ class DeliverableDefinition(Base):
     default_owner_email = Column(String, nullable=True)
     default_sme_email = Column(String, nullable=True)
     active = Column(Boolean, default=True)
+    # Per-deliverable focal contact (item 75) — overrides the department's
+    # own focal_point_name/email for notifications about this specific item.
+    # Left unset, notification routing falls back to the department's.
+    # Tendering Department items ignore this (see rules.deliverable_focal) —
+    # their focal is always whichever Bid Manager is running that project.
+    focal_point_name = Column(String, nullable=True)
+    focal_point_email = Column(String, nullable=True)
 
     department = relationship("Department", back_populates="deliverable_definitions")
 
