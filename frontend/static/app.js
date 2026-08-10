@@ -176,12 +176,19 @@
     var stats = document.getElementById("statRow");
     stats.innerHTML = "";
     var mine = !!focusEmail;
-    [["Active L0 Tenders", d.active_l0, ""], ["Active L1 Projects", d.active_l1, ""],
-     [mine ? "My Not Due" : "Not Due", d.not_due, ""],
-     [mine ? "My Pending SME Review" : "Pending SME Review", d.pending_review, ""],
-     [mine ? "My Overdue" : "Overdue Right Now", d.overdue, "color:var(--crit)"]]
+    // Item 121: the three deliverable-status cards jump straight to
+    // Assigned Deliverables pre-filtered to match what was clicked,
+    // instead of just being a number you then have to go re-find.
+    [["Active L0 Tenders", d.active_l0, "", null], ["Active L1 Projects", d.active_l1, "", null],
+     [mine ? "My Not Due" : "Not Due", d.not_due, "", "not_due"],
+     [mine ? "My Pending SME Review" : "Pending SME Review", d.pending_review, "", "pending_review"],
+     [mine ? "My Overdue" : "Overdue Right Now", d.overdue, "color:var(--crit)", "overdue"]]
       .forEach(function (s) {
         var tile = el("div", "card stat-tile");
+        if (s[3]) {
+          tile.style.cursor = "pointer";
+          tile.addEventListener("click", function () { goToAssignedFilter(s[3]); });
+        }
         tile.appendChild(el("div", "label", s[0]));
         var v = el("div", "value num", String(s[1]));
         if (s[2]) v.setAttribute("style", s[2]);
@@ -337,6 +344,15 @@
   var assignedFilter = "";
   var assignedStage = "";
   var ASSIGNED_FILTERS = [["", "All"], ["overdue", "Overdue"], ["pending_review", "Pending SME Review"], ["not_due", "Not Due Yet"], ["approved", "Approved"], ["rejected", "Rejected"]];
+  // Item 121: jump to Assigned Deliverables pre-filtered by status, from a
+  // Dashboard stat card. Resets the L0/L1 stage toggle back to "All" since
+  // the card being clicked isn't stage-specific.
+  function goToAssignedFilter(status) {
+    assignedFilter = status;
+    assignedStage = "";
+    document.querySelectorAll("#assignedStageToggle .chip").forEach(function (b) { b.classList.toggle("active", b.dataset.stage === ""); });
+    switchView("assigned");
+  }
   document.querySelectorAll("#assignedStageToggle .chip").forEach(function (btn) {
     btn.addEventListener("click", function () {
       document.querySelectorAll("#assignedStageToggle .chip").forEach(function (b) { b.classList.remove("active"); });
@@ -614,12 +630,39 @@
 
     var sm = STATUS_META[d.status] || ["neutral", d.status];
     var meta = el("div", "modal-meta-grid");
-    [["Owner", d.owner_email || "&#8213;"], ["SME", d.sme_email || "&#8213;"],
+    [["Owner", d.owner_email || "&#8213;"], ["SME", d.sme_email || "&#8213;", "sme"],
      ["Due Date", fmtDate(d.due_date)], ["Status", '<span class="pill ' + sm[0] + '"><span class="dot"></span>' + sm[1] + "</span>"]]
       .forEach(function (m) {
         var mi = el("div");
         mi.appendChild(el("div", "mk", m[0]));
-        mi.appendChild(el("div", "mv", m[1]));
+        var mv = el("div", "mv", m[1]);
+        // Item 134: admins can set/change who's SME on this specific
+        // deliverable directly -- no request/approval step needed the way
+        // owner reassignment has, since there's no "whose work is this"
+        // conflict to mediate.
+        if (m[2] === "sme" && can("create")) {
+          var editBtn = el("button", "mv-edit-btn", "&#9998;");
+          editBtn.title = "Change SME";
+          editBtn.addEventListener("click", async function () {
+            var next = prompt("SME email for " + d.item_no + ":", d.sme_email || "");
+            if (next === null) return;
+            next = next.trim();
+            if (!next) return;
+            try {
+              await api("/api/deliverables/" + d.id + "/sme", {
+                method: "PATCH", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ sme_email: next, actor_role: CURRENT_ROLE }),
+              });
+            } catch (err) {
+              showToast("Could not update SME &#8211; " + apiErrorDetail(err), true);
+              return;
+            }
+            showToast("SME updated");
+            refreshModal();
+          });
+          mv.appendChild(editBtn);
+        }
+        mi.appendChild(mv);
         meta.appendChild(mi);
       });
     body.appendChild(meta);
@@ -1646,7 +1689,9 @@
       }
       var tr = el("tr");
       tr.appendChild(el("td", "", d.item_no));
-      tr.appendChild(el("td", "", d.name));
+      var nameCell = el("td", "fp-deliv-name", d.name);
+      nameCell.title = d.name; // item 135: column is narrowed with ellipsis, full text on hover
+      tr.appendChild(nameCell);
       tr.appendChild(el("td", "", d.department));
       if (d.is_tendering_bm) {
         var noteCell = el("td", "muted", "Defaults to the project's Bid Manager");
