@@ -406,6 +406,7 @@
         if ((d.status === "not_due" || d.status === "due" || d.status === "overdue" || d.status === "rejected") && can("upload")) {
           actions.appendChild(uploadButton(d.id, loadAssigned));
           actions.appendChild(markCompleteButton(d.id, loadAssigned));
+          if (CURRENT_ROLE === "Admin") actions.appendChild(markNotRequiredButton(d.id, loadAssigned));
           var reassignBtn = el("button", "btn", "Reassign…");
           reassignBtn.addEventListener("click", async function () {
             var toEmail = prompt("Reassign " + d.item_no + " to (email):", "");
@@ -639,6 +640,7 @@
     if (authorized && eligibleStatus && can("upload")) {
       actionsRow.appendChild(uploadButton(d.id, refreshModal));
       actionsRow.appendChild(markCompleteButton(d.id, refreshModal));
+      if (CURRENT_ROLE === "Admin") actionsRow.appendChild(markNotRequiredButton(d.id, refreshModal));
       var reassignBtn = el("button", "btn", "Reassign…");
       reassignBtn.addEventListener("click", async function () {
         var toEmail = prompt("Reassign " + d.item_no + " to (email):", "");
@@ -1077,9 +1079,11 @@
       } else if (d.status === "overdue") {
         if (can("remind")) actions.appendChild(el("button", "btn ghost-crit", "Send reminder"));
         if (can("upload")) { actions.appendChild(uploadButton(d.id)); actions.appendChild(markCompleteButton(d.id)); }
+        if (CURRENT_ROLE === "Admin") actions.appendChild(markNotRequiredButton(d.id));
       } else if (d.status === "not_due" || d.status === "due" || d.status === "rejected") {
         if (d.file_url) actions.appendChild(fileLink(d));
         if (can("upload")) { actions.appendChild(uploadButton(d.id)); actions.appendChild(markCompleteButton(d.id)); }
+        if (CURRENT_ROLE === "Admin") actions.appendChild(markNotRequiredButton(d.id));
       } else if (d.file_url) {
         actions.appendChild(fileLink(d));
       }
@@ -1135,6 +1139,23 @@
         return;
       }
       showToast("Marked complete &#8211; SME notified");
+      after();
+    });
+    return btn;
+  }
+  function markNotRequiredButton(submissionId, after) {
+    after = after || function () { openDetail(currentProjectId); };
+    var btn = el("button", "btn ghost-crit", "Mark Not Required");
+    btn.addEventListener("click", async function () {
+      if (!confirm("Mark this deliverable as Not Required? It won't need a due date or a submission.")) return;
+      try {
+        await api("/api/deliverables/" + submissionId + "/mark-not-required?actor_role=" + encodeURIComponent(CURRENT_ROLE) +
+          "&actor_email=" + encodeURIComponent(actingEmail()), { method: "POST" });
+      } catch (err) {
+        showToast("Could not mark Not Required &#8211; " + apiErrorDetail(err), true);
+        return;
+      }
+      showToast("Marked Not Required");
       after();
     });
     return btn;

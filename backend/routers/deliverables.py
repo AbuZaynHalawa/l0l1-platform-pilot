@@ -358,6 +358,38 @@ def reopen_deliverable(submission_id: int, actor_role: str = "Viewer", actor_ema
     return {"status": "ok"}
 
 
+@router.post("/{submission_id}/mark-not-required")
+def mark_not_required(submission_id: int, actor_role: str = "Viewer", actor_email: str = "", db: Session = Depends(get_db)):
+    """Admin override to retire a single deliverable as Not Required at any
+    point, not just at the initial BM triage gate (item 86 originally only
+    covered that one screen) — e.g. a scope change makes an item moot after
+    the tender's already underway.
+    """
+    if actor_role != "Admin":
+        raise HTTPException(403, "Only an Admin can mark a deliverable Not Required")
+    sub = db.get(models.DeliverableSubmission, submission_id)
+    if not sub:
+        raise HTTPException(404, "Deliverable not found")
+    if sub.definition.is_milestone:
+        raise HTTPException(400, "Milestones can't be marked Not Required")
+    if sub.status in (models.SubmissionStatus.PENDING_REVIEW, models.SubmissionStatus.APPROVED):
+        raise HTTPException(400, "This deliverable already has submitted work — reopen it first")
+    if sub.applicability == "not_required":
+        return {"status": "ok"}
+
+    sub.applicability = "not_required"
+    db.add(models.WorkflowHistory(submission_id=sub.id, action="not_required", actor_name="Admin",
+                                   note="Marked Not Required"))
+    db.commit()
+
+    rules.recompute_project_due_dates(db, sub.project, force=True)
+    db.commit()
+
+    announcements.followers_notified(db, sub.project, _follower_emails(db, sub.id), sub.definition.item_no,
+                                      sub.definition.name, "marked Not Required", submission_id=sub.id)
+    return {"status": "ok"}
+
+
 @router.post("/{submission_id}/reassign-request")
 def request_reassignment(submission_id: int, payload: schemas.ReassignRequestCreate, db: Session = Depends(get_db)):
     sub = db.get(models.DeliverableSubmission, submission_id)
