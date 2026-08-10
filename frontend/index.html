@@ -32,9 +32,10 @@
     <nav class="nav" id="adminNav">
       <button class="nav-item" data-view="create"><span class="ic">&#10133;</span> Create L0 / L1</button>
       <button class="nav-item" data-view="reports"><span class="ic">&#128202;</span> Reports</button>
-      <button class="nav-item" data-view="scores"><span class="ic">&#127942;</span> Scores</button>
+      <button class="nav-item" data-view="scores"><span class="ic">&#127942;</span> Top Achievers</button>
       <button class="nav-item" data-view="focalpoints"><span class="ic">&#128222;</span> Focal Points</button>
       <button class="nav-item" data-view="followup"><span class="ic">&#128276;</span> Follow Up</button>
+      <button class="nav-item" data-view="bmtriage"><span class="ic">&#9989;</span> BM Triage Status</button>
     </nav>
 
     <div class="rail-foot">
@@ -72,6 +73,13 @@
           <h1>Good morning — here's where things stand</h1>
           <p class="sub">Across L0 and L1, updated as departments submit.</p>
         </div>
+        <div class="dash-focus">
+          <div class="focus-toggle" id="dashFocusToggle">
+            <button class="chip active" data-focus="all">All</button>
+            <button class="chip" data-focus="mine">My Items</button>
+          </div>
+          <input type="text" id="dashFocusEmail" placeholder="your email&#8230;" style="display:none;" />
+        </div>
       </div>
 
       <div class="concerns-banner" id="concernsBanner" hidden>
@@ -80,17 +88,6 @@
       </div>
 
       <div class="stat-row" id="statRow"></div>
-
-      <div class="split achievers-row">
-        <div class="card">
-          <div class="section-title">Top Achievers &#8211; Owners</div>
-          <div class="card-pad"><div id="topOwners" class="achiever-list"></div></div>
-        </div>
-        <div class="card">
-          <div class="section-title">Top Achievers &#8211; SME</div>
-          <div class="card-pad"><div id="topSmes" class="achiever-list"></div></div>
-        </div>
-      </div>
 
       <div class="card table-card matrix-card">
         <div class="section-title">
@@ -109,15 +106,26 @@
         <div class="matrix-wrap" id="matrixWrap"></div>
       </div>
 
-      <div class="split">
-        <div class="card">
-          <div class="section-title">Department status <span class="cnt">live</span></div>
-          <div class="card-pad"><div class="dept-grid" id="dashDeptGrid"></div></div>
-        </div>
+      <div class="split achievers-row">
         <div class="card">
           <div class="section-title">Latest announcements <span class="cnt">real-time log</span></div>
           <div id="digestList"></div>
         </div>
+        <div class="achievers-stack">
+          <div class="card">
+            <div class="section-title">Top Achievers &#8211; Owners</div>
+            <div class="card-pad"><div id="topOwners" class="achiever-list"></div></div>
+          </div>
+          <div class="card">
+            <div class="section-title">Top Achievers &#8211; SME</div>
+            <div class="card-pad"><div id="topSmes" class="achiever-list"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Department status <span class="cnt">live</span></div>
+        <div class="card-pad"><div class="dept-grid" id="dashDeptGrid"></div></div>
       </div>
     </section>
 
@@ -378,26 +386,19 @@
         </div>
       </div>
       <div class="card" style="max-width:640px;">
+        <p class="sub" style="margin-bottom:10px;">Sent as <b id="supAsEmail">&#8213;</b> &#8212; set your acting email above to change this.</p>
         <div class="form-grid">
-          <div class="field">
-            <label>Your Name</label>
-            <input type="text" id="supName" placeholder="optional" />
-          </div>
-          <div class="field">
-            <label>Your Email <span class="req">*</span></label>
-            <input type="email" id="supEmail" placeholder="you@algihaz.com" />
-          </div>
           <div class="field">
             <label>Stage</label>
             <select id="supStage"><option value="">Not specific to a stage</option><option value="L0">L0</option><option value="L1">L1</option></select>
           </div>
           <div class="field">
             <label>Est-Num</label>
-            <input type="text" id="supEstNo" placeholder="e.g. Est-1642 (optional)" />
+            <select id="supEstNo"><option value="">Not specific to a tender/project</option></select>
           </div>
           <div class="field" style="grid-column:1/-1;">
             <label>Deliverable</label>
-            <input type="text" id="supDeliverable" placeholder="e.g. 2.4 Risk Register (optional)" />
+            <select id="supDeliverable"><option value="">Not specific to a deliverable</option></select>
           </div>
           <div class="field" style="grid-column:1/-1;">
             <label>Message <span class="req">*</span></label>
@@ -405,6 +406,11 @@
           </div>
         </div>
         <button class="btn primary" id="supSubmit" style="margin-top:6px;">Send to Admins</button>
+      </div>
+
+      <div class="card table-card" id="supMineCard" style="margin-top:18px;">
+        <div class="section-title"><span>My Requests</span></div>
+        <div id="supMineList"></div>
       </div>
 
       <div class="card table-card" id="supInboxCard" style="margin-top:18px;display:none;">
@@ -418,8 +424,20 @@
       <div class="view-head">
         <div>
           <div class="eyebrow">Admin</div>
-          <h1>Scores</h1>
+          <h1>Top Achievers</h1>
           <p class="sub">Full ranking behind the Dashboard's Top Achievers &#8212; every Owner and SME, not just the top 3.</p>
+        </div>
+      </div>
+      <div class="card">
+        <div class="fp-add-row" style="border-top:none;padding-top:14px;">
+          <input type="text" id="scoresSearch" placeholder="Search by name or email&#8230;" />
+          <select id="scoresDeptFilter"><option value="">All Departments</option></select>
+          <select id="scoresSort">
+            <option value="rank">Sort: Default ranking</option>
+            <option value="name">Sort: Name A&#8211;Z</option>
+            <option value="pct_desc">Sort: Rate/Speed, best first</option>
+            <option value="total_desc">Sort: Most activity first</option>
+          </select>
         </div>
       </div>
       <div class="split">
@@ -442,7 +460,7 @@
           <h1>Focal Points</h1>
           <p class="sub">Who each deliverable's notifications go to, the Bid Manager roster, and the system-wide viewer list.</p>
         </div>
-        <div class="matrix-toggle" id="fpSubTabs">
+        <div class="focus-toggle" id="fpSubTabs">
           <button class="chip active" data-fp="L0">L0 Deliverables</button>
           <button class="chip" data-fp="L1">L1 Deliverables</button>
           <button class="chip" data-fp="bm">Bid Managers</button>
@@ -521,6 +539,23 @@
       </div>
     </section>
 
+    <!-- BM TRIAGE STATUS (admin-only) -->
+    <section class="view" id="view-bmtriage" hidden>
+      <div class="view-head">
+        <div>
+          <div class="eyebrow">Admin</div>
+          <h1>BM Triage Status</h1>
+          <p class="sub">Every active L0 tender's Bid Manager triage progress &#8212; pending, reminded, or done.</p>
+        </div>
+      </div>
+      <div class="card table-card">
+        <table class="fp-table">
+          <thead><tr><th>Est-No</th><th>Tender</th><th>Bid Manager</th><th>Triage</th><th>Status</th><th></th></tr></thead>
+          <tbody id="bmTriageBody"></tbody>
+        </table>
+      </div>
+    </section>
+
     <!-- PROJECT DETAIL -->
     <section class="view" id="view-detail" hidden>
       <button class="back-link" id="backBtn">&#8592; Back to list</button>
@@ -531,6 +566,7 @@
         </div>
         <div class="detail-head-actions">
           <button class="btn" id="dGanttBtn">View Timeline</button>
+          <span class="pill" id="dTriagePill" hidden></span>
           <span class="pill" id="dStatusPill"></span>
           <select id="dStatusSelect" style="display:none;"></select>
         </div>

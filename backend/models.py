@@ -138,6 +138,7 @@ class Project(Base):
     onedrive_folder_path = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     due_dates_computed_on = Column(Date, nullable=True)  # calendar date recompute_project_due_dates last actually ran
+    last_triage_reminder_at = Column(DateTime, nullable=True)  # item 79's admin "Remind BM" action
 
     submissions = relationship("DeliverableSubmission", back_populates="project", cascade="all, delete-orphan",
                                 foreign_keys="DeliverableSubmission.project_id")
@@ -284,6 +285,38 @@ class SupportRequest(Base):
     status = Column(String, default="open")  # open | resolved
     created_at = Column(DateTime, default=datetime.utcnow)
     resolved_at = Column(DateTime, nullable=True)
+
+    messages = relationship("SupportMessage", back_populates="request", cascade="all, delete-orphan",
+                             order_by="SupportMessage.created_at")
+
+
+class SupportMessage(Base):
+    """A back-and-forth reply on a SupportRequest (item 77) — admin and asker
+    keep replying here until an admin marks the request resolved, at which
+    point the asker's own reply endpoint stops accepting new messages.
+    """
+    __tablename__ = "support_messages"
+    id = Column(Integer, primary_key=True)
+    request_id = Column(Integer, ForeignKey("support_requests.id"), nullable=False)
+    author = Column(String, nullable=False)  # "admin" | "asker"
+    body = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    request = relationship("SupportRequest", back_populates="messages")
+
+
+class BmTriagePreference(Base):
+    """A Bid Manager's last applicable/not-required call for a given item_no
+    (item 79) — upserted every time that BM completes a triage, then used to
+    pre-select the same choice the next time they triage a different L0
+    tender, since the same BM tends to make the same calls project to project.
+    """
+    __tablename__ = "bm_triage_preferences"
+    id = Column(Integer, primary_key=True)
+    bid_manager = Column(String, nullable=False)
+    item_no = Column(String, nullable=False)
+    applicable = Column(Boolean, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class Announcement(Base):

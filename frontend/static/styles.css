@@ -127,6 +127,8 @@
   #view-detail { max-width: 1560px; }
   .view[hidden] { display: none; }
   .view-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+  .dash-focus { display: flex; align-items: center; gap: 8px; align-self: center; }
+  .dash-focus input { border: 1px solid var(--line); background: var(--surface-sunken); border-radius: 20px; padding: 7px 14px; font-size: 12.5px; color: var(--ink-900); font-family: inherit; width: 190px; }
   .view-head h1 { font-size: 23px; }
   .view-head p.sub { color: var(--ink-500); font-size: 13.5px; margin-top: 3px; }
   .eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--purple-1); font-weight: 700; margin-bottom: 6px; }
@@ -154,7 +156,7 @@
   .pipe-stage .pcount { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
   .pipe-stage .pdesc { font-size: 11px; color: var(--ink-500); max-width: 130px; }
 
-  .dept-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .dept-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
   .dept-card { padding: 16px 18px; cursor: pointer; transition: box-shadow .12s ease, transform .12s ease; }
   .dept-card:hover { box-shadow: var(--shadow-2); transform: translateY(-1px); }
   .dept-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; gap: 8px; }
@@ -416,6 +418,8 @@
   .matrix-card { margin-bottom: 22px; }
   .matrix-toggle { display: flex; gap: 8px; }
   .matrix-toggle .chip { padding: 5px 12px; font-size: 11.5px; }
+  .focus-toggle { display: flex; gap: 8px; }
+  .focus-toggle .chip { padding: 5px 12px; font-size: 11.5px; }
   .matrix-legend { padding: 12px 18px 0; margin-bottom: 4px; }
   .matrix-wrap { overflow: auto; max-height: 560px; }
   .fp-table { border-collapse: collapse; font-size: 12.5px; width: 100%; }
@@ -464,7 +468,8 @@
   .journey-event-sub b { color: var(--ink-700); font-weight: 700; text-transform: none; }
 
   /* ---------- top achievers ---------- */
-  .achievers-row { margin-bottom: 18px; }
+  .achievers-row { margin-bottom: 18px; margin-top: 18px; }
+  .achievers-stack { display: flex; flex-direction: column; gap: 18px; }
   .achiever-row { display: flex; align-items: center; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--line); }
   .achiever-row:last-child { border-bottom: none; }
   .achiever-rank { font-size: 17px; width: 24px; text-align: center; }

@@ -89,9 +89,9 @@
     l0: function () { loadProjectsTable("L0"); }, l1: function () { loadProjectsTable("L1"); },
     performance: loadPerformance, reports: loadReports, create: loadCreateOptions, gantt: loadGantt,
     journey: loadJourney, scores: loadScores, focalpoints: loadFocalPoints, followup: loadFollowUp,
-    support: loadSupport,
+    support: loadSupport, bmtriage: loadBmTriageStatus,
   };
-  var ADMIN_ONLY_VIEWS = ["create", "reports", "scores", "focalpoints", "followup"];
+  var ADMIN_ONLY_VIEWS = ["create", "reports", "scores", "focalpoints", "followup", "bmtriage"];
   function switchView(name) {
     if (ADMIN_ONLY_VIEWS.indexOf(name) !== -1 && !can("create")) name = "dashboard";
     document.querySelectorAll(".view").forEach(function (v) { v.hidden = true; });
@@ -106,8 +106,22 @@
   document.getElementById("dGanttBtn").addEventListener("click", function () { openProjectGantt(currentProjectId); });
 
   /* ================= DASHBOARD ================= */
+  var dashFocus = "all";
+  document.querySelectorAll("#dashFocusToggle .chip").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.querySelectorAll("#dashFocusToggle .chip").forEach(function (b) { b.classList.remove("active"); });
+      btn.classList.add("active");
+      dashFocus = btn.dataset.focus;
+      document.getElementById("dashFocusEmail").style.display = dashFocus === "mine" ? "" : "none";
+      loadDashboard();
+    });
+  });
+  document.getElementById("dashFocusEmail").addEventListener("change", loadDashboard);
+
   async function loadDashboard() {
-    var d = await api("/api/dashboard");
+    var focusEmail = (dashFocus === "mine" ? document.getElementById("dashFocusEmail").value.trim() : "");
+    var qs = focusEmail ? "?focus_email=" + encodeURIComponent(focusEmail) : "";
+    var d = await api("/api/dashboard" + qs);
 
     var banner = document.getElementById("concernsBanner");
     var list = document.getElementById("concernsList");
@@ -121,8 +135,11 @@
 
     var stats = document.getElementById("statRow");
     stats.innerHTML = "";
+    var mine = !!focusEmail;
     [["Active L0 Tenders", d.active_l0, ""], ["Active L1 Projects", d.active_l1, ""],
-     ["Not Due", d.not_due, ""], ["Pending SME Review", d.pending_review, ""], ["Overdue Right Now", d.overdue, "color:var(--crit)"]]
+     [mine ? "My Not Due" : "Not Due", d.not_due, ""],
+     [mine ? "My Pending SME Review" : "Pending SME Review", d.pending_review, ""],
+     [mine ? "My Overdue" : "Overdue Right Now", d.overdue, "color:var(--crit)"]]
       .forEach(function (s) {
         var tile = el("div", "card stat-tile");
         tile.appendChild(el("div", "label", s[0]));
@@ -132,7 +149,7 @@
         stats.appendChild(tile);
       });
 
-    renderDeptGrid(document.getElementById("dashDeptGrid"), d.departments.slice(0, 6), false);
+    renderDeptGrid(document.getElementById("dashDeptGrid"), d.departments, false);
 
     var achievers = await api("/api/dashboard/top-achievers");
     renderAchievers("topOwners", achievers.owners.slice(0, 3), "owner");
@@ -217,14 +234,17 @@
       var row = el("div", "achiever-row");
       row.appendChild(el("div", "achiever-rank", medals[i] || String(i + 1)));
       var main = el("div", "achiever-main");
-      var emailLine = r.email + (r.sample ? ' <span class="sample-tag">Sample</span>' : "");
+      var label = (r.name ? r.name + " &middot; " : "") + r.email;
+      var emailLine = label + (r.sample ? ' <span class="sample-tag">Sample</span>' : "");
       main.appendChild(el("div", "achiever-email", emailLine));
       if (kind === "sme") {
-        main.appendChild(el("div", "achiever-sub", r.reviewed + " review" + (r.reviewed === 1 ? "" : "s")));
+        var smeSub = r.reviewed + " review" + (r.reviewed === 1 ? "" : "s") + (r.department ? " &middot; " + r.department : "");
+        main.appendChild(el("div", "achiever-sub", smeSub));
         row.appendChild(main);
         row.appendChild(el("div", "achiever-pct num", r.avg_label + " avg"));
       } else {
-        main.appendChild(el("div", "achiever-sub", r.approved + " / " + r.total + " approved on time"));
+        var ownerSub = r.approved + " / " + r.total + " approved on time" + (r.department ? " &middot; " + r.department : "");
+        main.appendChild(el("div", "achiever-sub", ownerSub));
         row.appendChild(main);
         row.appendChild(el("div", "achiever-pct num", r.pct + "%"));
       }
@@ -449,6 +469,8 @@
     document.getElementById("triageTitle").textContent = "Confirm Applicable Deliverables – " + p.est_no.toUpperCase();
     var items = await api("/api/projects/" + projectId + "/deliverables");
     var pending = items.filter(function (d) { return d.status === "pending_triage"; });
+    var defaults = {};
+    try { defaults = await api("/api/projects/" + projectId + "/triage-defaults"); } catch (e) { /* no BM history yet */ }
     var card = document.getElementById("triageCard");
     card.innerHTML = "";
     var state = {};
@@ -461,15 +483,18 @@
           card.appendChild(el("div", "deliv-subheader", d.department));
           lastDept = d.department;
         }
-        state[d.id] = true;
+        // A remembered pick (item 79) from this BM's past triages pre-selects
+        // the toggle — still just a default, they can override it below.
+        var remembered = defaults.hasOwnProperty(d.item_no) ? defaults[d.item_no] : true;
+        state[d.id] = remembered;
         var row = el("div", "deliv-row");
         row.appendChild(el("div", "deliv-num", d.item_no));
         var body = el("div", "deliv-body");
         body.appendChild(el("div", "deliv-name", d.name));
         row.appendChild(body);
         var toggle = el("div", "triage-toggle");
-        var appBtn = el("button", "chip active", "Applicable");
-        var notBtn = el("button", "chip", "Not Required");
+        var appBtn = el("button", "chip" + (remembered ? " active" : ""), "Applicable");
+        var notBtn = el("button", "chip" + (remembered ? "" : " active"), "Not Required");
         appBtn.addEventListener("click", function () {
           state[d.id] = true;
           appBtn.classList.add("active"); notBtn.classList.remove("active");
@@ -531,6 +556,21 @@
 
     var refreshModal = function () { openDelivModal(submissionId); };
     var actionsRow = el("div", "modal-actions-row");
+    var shareBtn = el("button", "btn", "Share");
+    shareBtn.addEventListener("click", async function () {
+      var url = location.origin + location.pathname + "#deliverable=" + d.id;
+      if (navigator.share) {
+        try { await navigator.share({ title: d.item_no + " - " + d.name, url: url }); return; }
+        catch (e) { return; } // user cancelled the native share sheet — no error to show
+      }
+      try {
+        await navigator.clipboard.writeText(url);
+        showToast("Link copied to clipboard");
+      } catch (e) {
+        prompt("Copy this link:", url);
+      }
+    });
+    actionsRow.appendChild(shareBtn);
     actionsRow.appendChild(followButton({ id: d.id, following: d.following }));
     var eligibleStatus = d.status === "not_due" || d.status === "due" || d.status === "overdue" || d.status === "rejected";
     if (authorized && eligibleStatus && can("upload")) {
@@ -678,13 +718,23 @@
       (p.stage === "L1" && p.status === "Completed");
     document.getElementById("dTerminalBanner").hidden = !currentProjectTerminal;
     var triageBanner = document.getElementById("dTriageBanner");
-    if (p.pending_triage_count > 0) {
+    var triagePill = document.getElementById("dTriagePill");
+    if (p.stage !== "L0") {
+      triageBanner.hidden = true;
+      triagePill.hidden = true;
+    } else if (p.pending_triage_count > 0) {
       triageBanner.hidden = false;
       document.getElementById("dTriageBannerText").textContent =
         p.pending_triage_count + " deliverable(s) still need a Bid Manager applicable / not-required call.";
       document.getElementById("dTriageBannerBtn").onclick = function () { openTriage(id); };
+      triagePill.hidden = false;
+      triagePill.className = "pill crit";
+      triagePill.innerHTML = '<span class="dot"></span>Triage Pending';
     } else {
       triageBanner.hidden = true;
+      triagePill.hidden = false;
+      triagePill.className = "pill good";
+      triagePill.innerHTML = '<span class="dot"></span>Triage Completed';
     }
     var stageBadge = document.getElementById("dStageBadge");
     stageBadge.textContent = p.stage + " Stage";
@@ -1410,11 +1460,49 @@
   setupActivityTrail("L1", "l1TrailProjectSel", "l1TrailTimeline", "l1ListCard", "l1TrailCard", "l1SubTabs");
 
   /* ================= SCORES (admin full leaderboard) ================= */
+  var scoresData = { owners: [], smes: [] };
   async function loadScores() {
-    var d = await api("/api/dashboard/top-achievers");
-    renderAchievers("scoresOwners", d.owners, "owner");
-    renderAchievers("scoresSmes", d.smes, "sme");
+    scoresData = await api("/api/dashboard/top-achievers");
+    var deptSel = document.getElementById("scoresDeptFilter");
+    if (!deptSel.dataset.loaded) {
+      var depts = await api("/api/departments");
+      depts.forEach(function (dep) {
+        var opt = document.createElement("option");
+        opt.value = dep.name; opt.textContent = deptLabel(dep.name, dep.number);
+        deptSel.appendChild(opt);
+      });
+      deptSel.dataset.loaded = "1";
+    }
+    renderScores();
   }
+  function renderScores() {
+    var q = document.getElementById("scoresSearch").value.trim().toLowerCase();
+    var dept = document.getElementById("scoresDeptFilter").value;
+    var sort = document.getElementById("scoresSort").value;
+    function filterSort(rows, kind) {
+      var filtered = rows.filter(function (r) {
+        if (dept && r.department !== dept) return false;
+        if (q && ((r.name || "") + " " + r.email).toLowerCase().indexOf(q) === -1) return false;
+        return true;
+      });
+      filtered = filtered.slice();
+      if (sort === "name") {
+        filtered.sort(function (a, b) { return (a.name || a.email).localeCompare(b.name || b.email); });
+      } else if (sort === "pct_desc") {
+        filtered.sort(function (a, b) { return kind === "sme" ? a.avg_seconds - b.avg_seconds : b.pct - a.pct; });
+      } else if (sort === "total_desc") {
+        filtered.sort(function (a, b) {
+          return (kind === "sme" ? b.reviewed - a.reviewed : b.total - a.total);
+        });
+      }
+      return filtered;
+    }
+    renderAchievers("scoresOwners", filterSort(scoresData.owners || [], "owner"), "owner");
+    renderAchievers("scoresSmes", filterSort(scoresData.smes || [], "sme"), "sme");
+  }
+  document.getElementById("scoresSearch").addEventListener("input", renderScores);
+  document.getElementById("scoresDeptFilter").addEventListener("change", renderScores);
+  document.getElementById("scoresSort").addEventListener("change", renderScores);
 
   /* ================= FOCAL POINTS (admin) ================= */
   var fpTab = "L0";
@@ -1654,22 +1742,114 @@
     renderFollowUpList();
   }
 
+  /* ================= BM TRIAGE STATUS (admin) ================= */
+  var BM_TRIAGE_STATUS_META = {
+    done: ["good", "Done"], reminded: ["warn", "Reminded"], pending: ["crit", "Pending"],
+  };
+  async function loadBmTriageStatus() {
+    var rows = await api("/api/projects/bm-triage-status?actor_role=" + CURRENT_ROLE);
+    var tbody = document.getElementById("bmTriageBody");
+    tbody.innerHTML = "";
+    if (!rows.length) {
+      var tr = el("tr");
+      var td = el("td", "", "No active L0 tenders right now.");
+      td.setAttribute("colspan", "6");
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+      return;
+    }
+    rows.forEach(function (r) {
+      var tr = el("tr");
+      tr.appendChild(el("td", "", r.est_no));
+      tr.appendChild(el("td", "", r.name));
+      tr.appendChild(el("td", "", r.bid_manager || "&#8213;"));
+      tr.appendChild(el("td", "", r.total_count ? (r.total_count - r.pending_count) + " / " + r.total_count : "&#8213;"));
+      var sm = BM_TRIAGE_STATUS_META[r.status] || ["neutral", r.status];
+      tr.appendChild(el("td", "", '<span class="pill ' + sm[0] + '"><span class="dot"></span>' + sm[1] + "</span>"));
+      var tdAction = el("td");
+      if (r.status !== "done") {
+        var remindBtn = el("button", "btn", r.status === "reminded" ? "Remind Again" : "Remind BM");
+        remindBtn.addEventListener("click", async function () {
+          try {
+            await api("/api/projects/" + r.id + "/triage-reminder?actor_role=" + CURRENT_ROLE, { method: "POST" });
+          } catch (err) {
+            showToast("Could not send reminder &#8211; " + apiErrorDetail(err), true);
+            return;
+          }
+          showToast("Reminder sent to " + (r.bid_manager || "the Bid Manager"));
+          loadBmTriageStatus();
+        });
+        tdAction.appendChild(remindBtn);
+      }
+      tr.appendChild(tdAction);
+      tbody.appendChild(tr);
+    });
+  }
+
   /* ================= ASK THE TEAM ================= */
+  /* Identity for "Ask the Team" (item 77): reuses the acting-email field
+     that's already how this pilot tracks "who's doing this" everywhere else
+     (no real login exists) — falls back to a one-time prompt cached in
+     localStorage, so the asker is never made to type it twice.
+  */
+  function myIdentity() {
+    var acting = actingEmail();
+    if (acting) return acting;
+    var cached = localStorage.getItem("myEmail");
+    if (cached) return cached;
+    var entered = (prompt("Your email, so the team knows who's asking:") || "").trim();
+    if (entered) localStorage.setItem("myEmail", entered);
+    return entered;
+  }
+
+  async function _populateSupEstNo() {
+    var stage = document.getElementById("supStage").value;
+    var projects = await api("/api/projects" + (stage ? "?stage=" + stage : ""));
+    var sel = document.getElementById("supEstNo");
+    sel.innerHTML = '<option value="">Not specific to a tender/project</option>';
+    projects.forEach(function (p) {
+      var opt = document.createElement("option");
+      opt.value = p.id; opt.textContent = p.est_no + " — " + p.name;
+      sel.appendChild(opt);
+    });
+    _populateSupDeliverable();
+  }
+  async function _populateSupDeliverable() {
+    var sel = document.getElementById("supDeliverable");
+    sel.innerHTML = '<option value="">Not specific to a deliverable</option>';
+    var pid = document.getElementById("supEstNo").value;
+    if (!pid) return;
+    var delivs = await api("/api/projects/" + pid + "/deliverables");
+    delivs.forEach(function (d) {
+      var opt = document.createElement("option");
+      opt.value = d.item_no + " " + d.name; opt.textContent = d.item_no + " · " + d.name;
+      sel.appendChild(opt);
+    });
+  }
+  document.getElementById("supStage").addEventListener("change", _populateSupEstNo);
+  document.getElementById("supEstNo").addEventListener("change", _populateSupDeliverable);
+
   document.getElementById("supSubmit").addEventListener("click", async function () {
-    var email = document.getElementById("supEmail").value.trim();
+    var email = myIdentity();
     var message = document.getElementById("supMessage").value.trim();
     var errors = [];
-    if (!email) errors.push("Your Email is required");
+    if (!email) errors.push("An email is required to send this");
     if (!message) errors.push("Message is required");
     if (errors.length) { showToast(errors.join("<br>"), true); return; }
+    var estSel = document.getElementById("supEstNo");
     var payload = {
-      name: document.getElementById("supName").value.trim() || null,
+      name: null,
       email: email,
       stage: document.getElementById("supStage").value || null,
-      est_no: document.getElementById("supEstNo").value.trim() || null,
-      deliverable: document.getElementById("supDeliverable").value.trim() || null,
+      est_no: estSel.value ? estSel.options[estSel.selectedIndex].textContent.split(" — ")[0] : null,
+      deliverable: document.getElementById("supDeliverable").value || null,
       message: message,
     };
+    try {
+      var users = await api("/api/departments/users");
+      var me = users.find(function (u) { return u.email.toLowerCase() === email.toLowerCase(); });
+      if (me) payload.name = me.name;
+    } catch (e) { /* roster lookup is a nice-to-have, not required to submit */ }
     try {
       await api("/api/support", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -1680,13 +1860,93 @@
       return;
     }
     showToast("Sent to the admins &#8211; they'll follow up by email");
-    ["supName", "supEmail", "supEstNo", "supDeliverable", "supMessage"].forEach(function (id) {
-      document.getElementById(id).value = "";
-    });
+    document.getElementById("supMessage").value = "";
     document.getElementById("supStage").value = "";
-    if (can("create")) loadSupport();
+    _populateSupEstNo();
+    loadSupport();
   });
+
+  function _renderSupportThread(container, r, opts) {
+    container.innerHTML = "";
+    var context = [r.stage, r.est_no, r.deliverable].filter(Boolean).join(" &middot; ");
+    var row = el("div", "aq-row");
+    var main = el("div", "aq-main");
+    main.appendChild(el("div", "aq-title", r.name || r.email));
+    main.appendChild(el("div", "aq-sub",
+      '<span>' + r.email + '</span>' + (context ? '<span class="sep">&middot;</span><span>' + context + "</span>" : "")));
+    main.appendChild(el("div", "deliv-comment", r.message));
+    (r.messages || []).forEach(function (m) {
+      var mrow = el("div", "deliv-comment", "<b>" + (m.author === "admin" ? "Admin" : "You") + ":</b> " + m.body);
+      main.appendChild(mrow);
+    });
+    row.appendChild(main);
+    var side = el("div", "deliv-actions");
+    if (r.status === "resolved") {
+      side.appendChild(el("span", "pill good", '<span class="dot"></span>Resolved'));
+    } else {
+      side.appendChild(el("span", "pill warn", '<span class="dot"></span>Open'));
+      if (opts.canReply) {
+        var replyInput = el("input"); replyInput.setAttribute("type", "text"); replyInput.placeholder = opts.replyPlaceholder;
+        var replyBtn = el("button", "btn", "Reply");
+        replyBtn.addEventListener("click", async function () {
+          var body = replyInput.value.trim();
+          if (!body) return;
+          try {
+            await api("/api/support/" + r.id + "/" + opts.replyEndpoint, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ body: body, actor_role: CURRENT_ROLE, actor_email: myIdentity() }),
+            });
+          } catch (err) {
+            showToast("Could not reply &#8211; " + apiErrorDetail(err), true);
+            return;
+          }
+          opts.onReplied();
+        });
+        side.appendChild(replyInput);
+        side.appendChild(replyBtn);
+      }
+      if (opts.canResolve) {
+        var resolveBtn = el("button", "btn", "Mark Resolved");
+        resolveBtn.addEventListener("click", async function () {
+          await api("/api/support/" + r.id + "/resolve?actor_role=" + CURRENT_ROLE, { method: "PATCH" });
+          showToast("Marked resolved");
+          opts.onReplied();
+        });
+        side.appendChild(resolveBtn);
+      }
+    }
+    row.appendChild(side);
+    container.appendChild(row);
+  }
+
   async function loadSupport() {
+    document.getElementById("supAsEmail").textContent = actingEmail() || localStorage.getItem("myEmail") || "(not set yet)";
+    if (!document.getElementById("supEstNo").dataset.loaded) {
+      document.getElementById("supEstNo").dataset.loaded = "1";
+      await _populateSupEstNo();
+    }
+
+    var mineWrap = document.getElementById("supMineList");
+    var email = actingEmail() || localStorage.getItem("myEmail") || "";
+    mineWrap.innerHTML = "";
+    if (!email) {
+      mineWrap.appendChild(el("div", "empty-state", "Send a request above, or set your acting email, to see your own requests here."));
+    } else {
+      var mine = await api("/api/support/mine?email=" + encodeURIComponent(email));
+      if (!mine.length) {
+        mineWrap.appendChild(el("div", "empty-state", "No requests from you yet."));
+      } else {
+        mine.forEach(function (r) {
+          var holder = el("div");
+          _renderSupportThread(holder, r, {
+            canReply: true, canResolve: false, replyEndpoint: "respond", replyPlaceholder: "Reply to the admin&#8230;",
+            onReplied: loadSupport,
+          });
+          mineWrap.appendChild(holder);
+        });
+      }
+    }
+
     var inboxCard = document.getElementById("supInboxCard");
     if (!can("create")) { inboxCard.style.display = "none"; return; }
     inboxCard.style.display = "";
@@ -1695,26 +1955,12 @@
     wrap.innerHTML = "";
     if (!reqs.length) { wrap.appendChild(el("div", "empty-state", "No requests yet.")); return; }
     reqs.forEach(function (r) {
-      var row = el("div", "aq-row");
-      var main = el("div", "aq-main");
-      var context = [r.stage, r.est_no, r.deliverable].filter(Boolean).join(" &middot; ");
-      main.appendChild(el("div", "aq-title", r.name || r.email));
-      main.appendChild(el("div", "aq-sub",
-        '<span>' + r.email + '</span>' + (context ? '<span class="sep">&middot;</span><span>' + context + "</span>" : "")));
-      main.appendChild(el("div", "deliv-comment", r.message));
-      row.appendChild(main);
-      if (r.status === "resolved") {
-        row.appendChild(el("span", "pill good", '<span class="dot"></span>Resolved'));
-      } else {
-        var resolveBtn = el("button", "btn", "Mark Resolved");
-        resolveBtn.addEventListener("click", async function () {
-          await api("/api/support/" + r.id + "/resolve?actor_role=" + CURRENT_ROLE, { method: "PATCH" });
-          showToast("Marked resolved");
-          loadSupport();
-        });
-        row.appendChild(resolveBtn);
-      }
-      wrap.appendChild(row);
+      var holder = el("div");
+      _renderSupportThread(holder, r, {
+        canReply: true, canResolve: true, replyEndpoint: "reply", replyPlaceholder: "Reply to the asker&#8230;",
+        onReplied: loadSupport,
+      });
+      wrap.appendChild(holder);
     });
   }
 
@@ -1939,4 +2185,8 @@
   /* ================= INIT ================= */
   document.getElementById("todayLabel").textContent = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
   loadDashboard();
+
+  // A shared deliverable link (item 76) opens straight to that item's popup.
+  var sharedMatch = location.hash.match(/deliverable=(\d+)/);
+  if (sharedMatch) openDelivModal(parseInt(sharedMatch[1], 10));
 })();

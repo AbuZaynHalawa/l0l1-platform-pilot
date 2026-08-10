@@ -18,19 +18,44 @@ class SupportRequestCreate(BaseModel):
     message: str
 
 
+def _serialize(r: models.SupportRequest, include_messages: bool = True) -> dict:
+    out = {
+        "id": r.id, "name": r.name, "email": r.email, "stage": r.stage, "est_no": r.est_no,
+        "deliverable": r.deliverable, "message": r.message, "status": r.status,
+        "created_at": r.created_at, "resolved_at": r.resolved_at,
+    }
+    if include_messages:
+        out["messages"] = [
+            {"id": m.id, "author": m.author, "body": m.body, "created_at": m.created_at}
+            for m in r.messages
+        ]
+    return out
+
+
 @router.get("")
 def list_support_requests(actor_role: str = "Viewer", db: Session = Depends(get_db)):
     if actor_role != "Admin":
         raise HTTPException(403, "Only an Admin can view support requests")
     rows = db.query(models.SupportRequest).order_by(models.SupportRequest.created_at.desc()).all()
-    return [
-        {
-            "id": r.id, "name": r.name, "email": r.email, "stage": r.stage, "est_no": r.est_no,
-            "deliverable": r.deliverable, "message": r.message, "status": r.status,
-            "created_at": r.created_at, "resolved_at": r.resolved_at,
-        }
-        for r in rows
-    ]
+    return [_serialize(r) for r in rows]
+
+
+@router.get("/mine")
+def list_my_support_requests(email: str, db: Session = Depends(get_db)):
+    """No real login exists in this pilot, so "mine" is just a match on the
+    email the asker themselves typed in — same trust level as the rest of
+    the app's client-reported actor_email/actor_role.
+    """
+    email = email.strip()
+    if not email:
+        raise HTTPException(400, "Email is required")
+    rows = (
+        db.query(models.SupportRequest)
+        .filter(models.SupportRequest.email.ilike(email))
+        .order_by(models.SupportRequest.created_at.desc())
+        .all()
+    )
+    return [_serialize(r) for r in rows]
 
 
 @router.post("")
@@ -48,6 +73,47 @@ def create_support_request(payload: SupportRequestCreate, db: Session = Depends(
     db.commit()
     db.refresh(req)
     return {"id": req.id, "status": "ok"}
+
+
+class SupportReplyCreate(BaseModel):
+    body: str
+    actor_role: str = "Viewer"
+    actor_email: str | None = None
+
+
+@router.post("/{request_id}/reply")
+def admin_reply(request_id: int, payload: SupportReplyCreate, db: Session = Depends(get_db)):
+    if payload.actor_role != "Admin":
+        raise HTTPException(403, "Only an Admin can reply from the inbox")
+    req = db.get(models.SupportRequest, request_id)
+    if not req:
+        raise HTTPException(404, "Request not found")
+    body = payload.body.strip()
+    if not body:
+        raise HTTPException(400, "Reply can't be empty")
+    db.add(models.SupportMessage(request_id=req.id, author="admin", body=body))
+    db.commit()
+    return _serialize(req)
+
+
+@router.post("/{request_id}/respond")
+def asker_respond(request_id: int, payload: SupportReplyCreate, db: Session = Depends(get_db)):
+    """The original asker's own reply — allowed until an admin marks the
+    request resolved, matching item 77's "respond back until marked resolved".
+    """
+    req = db.get(models.SupportRequest, request_id)
+    if not req:
+        raise HTTPException(404, "Request not found")
+    if (payload.actor_email or "").strip().lower() != req.email.strip().lower():
+        raise HTTPException(403, "Only the original asker can reply here")
+    if req.status == "resolved":
+        raise HTTPException(400, "This request is already resolved")
+    body = payload.body.strip()
+    if not body:
+        raise HTTPException(400, "Reply can't be empty")
+    db.add(models.SupportMessage(request_id=req.id, author="asker", body=body))
+    db.commit()
+    return _serialize(req)
 
 
 @router.patch("/{request_id}/resolve")

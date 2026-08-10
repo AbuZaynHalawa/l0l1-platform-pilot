@@ -96,6 +96,17 @@ def milestone_reached(db: Session, project: models.Project, recipients: list[str
                     recipients=recipients, project=project)
 
 
+def triage_reminder(db: Session, project: models.Project, bm_email: str, pending_count: int) -> models.Announcement:
+    """Item 79's "Remind" action on the admin BM Triage Status page — nudges
+    the assigned Bid Manager that they still have pending applicable/
+    not-required calls to make, project-level (no single submission_id).
+    """
+    title = f"Reminder &#8211; BM Triage still pending on {project.est_no}"
+    body = f"{project.est_no} &#8211; {project.name} still has {pending_count} deliverable(s) awaiting your applicable / not-required call."
+    return _create(db, type=models.AnnouncementType.DEADLINE, title=title, body=body,
+                    recipients=[bm_email], project=project)
+
+
 def reminder_sent(db: Session, project: models.Project, owner_email: str, item_no: str, item_name: str,
                    due_date, submission_id: int | None = None) -> models.Announcement:
     title = f"Reminder &#8211; {item_no} is due"

@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -192,6 +192,44 @@ def delete_project(project_id: int, actor_role: str = "Viewer", db: Session = De
     return {"status": "ok"}
 
 
+@router.get("/bm-triage-status")
+def get_bm_triage_status(actor_role: str = "Viewer", db: Session = Depends(get_db)):
+    """Admin overview (item 79) of where every L0 tender's BM triage stands:
+    done, still pending, or pending-with-a-reminder-already-sent.
+
+    Declared here, before the /{project_id} catch-all below, on purpose —
+    a literal single-segment route registered after a same-shape dynamic
+    route gets swallowed by it (int-parsing 422 on "bm-triage-status" as
+    project_id) the same way /follow-up once broke against /{submission_id}
+    in deliverables.py. Literal routes always go first.
+    """
+    if actor_role != "Admin":
+        raise HTTPException(403, "Only an Admin can view BM triage status")
+    projects = (
+        db.query(models.Project)
+        .filter(models.Project.stage == models.Stage.L0, models.Project.status == models.ProjectStatus.IN_PROGRESS)
+        .order_by(models.Project.created_at.desc())
+        .all()
+    )
+    out = []
+    for p in projects:
+        subs = db.query(models.DeliverableSubmission).filter(models.DeliverableSubmission.project_id == p.id).all()
+        triageable = [s for s in subs if not s.definition.is_milestone]
+        pending = sum(1 for s in triageable if s.applicability == "pending")
+        if pending == 0:
+            status = "done"
+        elif p.last_triage_reminder_at:
+            status = "reminded"
+        else:
+            status = "pending"
+        out.append({
+            "id": p.id, "est_no": p.est_no, "name": p.name, "bid_manager": p.bid_manager,
+            "pending_count": pending, "total_count": len(triageable), "status": status,
+            "last_reminder_at": p.last_triage_reminder_at,
+        })
+    return out
+
+
 @router.get("/{project_id}", response_model=schemas.ProjectOut)
 def get_project(project_id: int, db: Session = Depends(get_db)):
     project = db.get(models.Project, project_id)
@@ -222,10 +260,29 @@ def triage_l0_project(project_id: int, payload: schemas.TriageRequest, db: Sessi
         s.id: s for s in
         db.query(models.DeliverableSubmission).filter(models.DeliverableSubmission.project_id == project_id).all()
     }
+    bm = (project.bid_manager or "").strip()
+    prefs_by_item = {}
+    if bm:
+        prefs_by_item = {
+            p.item_no: p for p in
+            db.query(models.BmTriagePreference).filter(models.BmTriagePreference.bid_manager == bm).all()
+        }
     for item in payload.items:
         sub = subs_by_id.get(item.submission_id)
         if sub and not sub.definition.is_milestone:
             sub.applicability = "applicable" if item.applicable else "not_required"
+            # Remember this BM's call per item_no (item 79) so it's the
+            # pre-selected default the next time they triage a different
+            # tender — most BMs repeat the same applicable/not-required
+            # pattern project to project.
+            if bm:
+                existing_pref = prefs_by_item.get(sub.definition.item_no)
+                if existing_pref:
+                    existing_pref.applicable = item.applicable
+                else:
+                    new_pref = models.BmTriagePreference(bid_manager=bm, item_no=sub.definition.item_no, applicable=item.applicable)
+                    db.add(new_pref)
+                    prefs_by_item[sub.definition.item_no] = new_pref
     db.commit()
 
     rules.recompute_project_due_dates(db, project, force=True)
@@ -233,6 +290,48 @@ def triage_l0_project(project_id: int, payload: schemas.TriageRequest, db: Sessi
     db.refresh(project)
     project.pending_triage_count = sum(1 for s in subs_by_id.values() if s.applicability == "pending")
     return project
+
+
+@router.get("/{project_id}/triage-defaults")
+def get_triage_defaults(project_id: int, db: Session = Depends(get_db)):
+    """The assigned Bid Manager's remembered applicable/not-required calls
+    (item 79), keyed by item_no, for pre-selecting the triage screen.
+    """
+    project = db.get(models.Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    bm = (project.bid_manager or "").strip()
+    if not bm:
+        return {}
+    prefs = db.query(models.BmTriagePreference).filter(models.BmTriagePreference.bid_manager == bm).all()
+    return {p.item_no: p.applicable for p in prefs}
+
+
+@router.post("/{project_id}/triage-reminder")
+def send_triage_reminder(project_id: int, actor_role: str = "Viewer", db: Session = Depends(get_db)):
+    if actor_role != "Admin":
+        raise HTTPException(403, "Only an Admin can send a triage reminder")
+    project = db.get(models.Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    if not project.bid_manager:
+        raise HTTPException(400, "This tender has no Bid Manager assigned")
+    pending = (
+        db.query(models.DeliverableSubmission)
+        .join(models.DeliverableDefinition)
+        .filter(
+            models.DeliverableSubmission.project_id == project_id,
+            models.DeliverableSubmission.applicability == "pending",
+            models.DeliverableDefinition.is_milestone == False,  # noqa: E712
+        )
+        .count()
+    )
+    if not pending:
+        raise HTTPException(400, "This tender's triage is already complete")
+    announcements.triage_reminder(db, project, project.bid_manager, pending)
+    project.last_triage_reminder_at = datetime.utcnow()
+    db.commit()
+    return {"status": "ok", "reminded": project.bid_manager}
 
 
 @router.patch("/{project_id}/project-manager", response_model=schemas.ProjectOut)

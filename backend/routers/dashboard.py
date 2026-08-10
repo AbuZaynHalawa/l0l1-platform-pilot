@@ -8,7 +8,13 @@ router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 
 @router.get("")
-def get_dashboard(db: Session = Depends(get_db)):
+def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db)):
+    """`focus_email` (item 72) scopes the stat tiles to just what that person
+    owns or reviews, instead of the whole portfolio — the project counts and
+    department breakdown stay organization-wide either way, since neither
+    "how many active L0 tenders" nor the department table means anything
+    scoped to one person.
+    """
     projects = db.query(models.Project).all()
     l0_count = sum(1 for p in projects if p.stage == models.Stage.L0 and p.status == models.ProjectStatus.IN_PROGRESS)
     l1_count = sum(1 for p in projects if p.stage == models.Stage.L1 and p.status == models.ProjectStatus.IN_PROGRESS)
@@ -20,9 +26,17 @@ def get_dashboard(db: Session = Depends(get_db)):
     db.commit()
     all_subs = db.query(models.DeliverableSubmission).all()
 
-    overdue = sum(1 for s in all_subs if s.status == models.SubmissionStatus.OVERDUE)
-    pending_review = sum(1 for s in all_subs if s.status == models.SubmissionStatus.PENDING_REVIEW)
-    not_due = sum(1 for s in all_subs if s.status == models.SubmissionStatus.NOT_DUE)
+    focus = (focus_email or "").strip().lower()
+    stat_subs = all_subs
+    if focus:
+        stat_subs = [
+            s for s in all_subs
+            if (s.owner_email or "").strip().lower() == focus or (s.sme_email or "").strip().lower() == focus
+        ]
+
+    overdue = sum(1 for s in stat_subs if s.status == models.SubmissionStatus.OVERDUE)
+    pending_review = sum(1 for s in stat_subs if s.status == models.SubmissionStatus.PENDING_REVIEW)
+    not_due = sum(1 for s in stat_subs if s.status == models.SubmissionStatus.NOT_DUE)
 
     dept_rows = []
     for dept in db.query(models.Department).order_by(models.Department.number).all():
@@ -55,7 +69,15 @@ def get_dashboard(db: Session = Depends(get_db)):
     }
 
 
-def _rank_owners(subs):
+def _user_lookup(db: Session) -> dict[str, "models.User"]:
+    """Email (lowercased) -> roster User, for attaching a name/department to
+    an owner/SME who's otherwise identified only by the email stored on
+    their submissions (item 74's department/name filters on Top Achievers).
+    """
+    return {u.email.strip().lower(): u for u in db.query(models.User).all()}
+
+
+def _rank_owners(subs, users: dict[str, "models.User"] | None = None):
     """Ranks owners by on-time approval rate: approved / (approved + overdue +
     pending_review) — the same cohort/formula already used for department
     Live Score, just grouped by person instead of department.
@@ -70,10 +92,15 @@ def _rank_owners(subs):
             st["cohort"] += 1
             if s.status == models.SubmissionStatus.APPROVED:
                 st["approved"] += 1
-    ranked = [
-        {"email": email, "approved": st["approved"], "total": st["cohort"], "pct": round((st["approved"] / st["cohort"]) * 100, 1)}
-        for email, st in stats.items() if st["cohort"]
-    ]
+    ranked = []
+    for email, st in stats.items():
+        if not st["cohort"]:
+            continue
+        u = (users or {}).get(email.strip().lower())
+        ranked.append({
+            "email": email, "approved": st["approved"], "total": st["cohort"], "pct": round((st["approved"] / st["cohort"]) * 100, 1),
+            "name": u.name if u else None, "department": u.department.name if (u and u.department) else None,
+        })
     ranked.sort(key=lambda r: (-r["pct"], -r["total"]))
     return ranked
 
@@ -87,7 +114,7 @@ def _format_duration(seconds: float) -> str:
     return f"{round(hours / 24, 1)} days"
 
 
-def _rank_smes(subs):
+def _rank_smes(subs, users: dict[str, "models.User"] | None = None):
     """Ranks SMEs by average response time (time from submission to review
     decision), fastest first — there's no due date on the SME's own side of
     the workflow, so on-time-rate doesn't apply to them the way it does to owners.
@@ -107,20 +134,24 @@ def _rank_smes(subs):
     ranked = []
     for email, st in stats.items():
         avg_seconds = st["total_seconds"] / st["count"]
-        ranked.append({"email": email, "reviewed": st["count"], "avg_seconds": avg_seconds, "avg_label": _format_duration(avg_seconds)})
+        u = (users or {}).get(email.strip().lower())
+        ranked.append({
+            "email": email, "reviewed": st["count"], "avg_seconds": avg_seconds, "avg_label": _format_duration(avg_seconds),
+            "name": u.name if u else None, "department": u.department.name if (u and u.department) else None,
+        })
     ranked.sort(key=lambda r: r["avg_seconds"])
     return ranked
 
 
 _SAMPLE_OWNERS = [
-    {"email": "sample.owner1@algihaz.com", "approved": 9, "total": 10, "pct": 90.0},
-    {"email": "sample.owner2@algihaz.com", "approved": 7, "total": 8, "pct": 87.5},
-    {"email": "sample.owner3@algihaz.com", "approved": 6, "total": 7, "pct": 85.7},
+    {"email": "sample.owner1@algihaz.com", "approved": 9, "total": 10, "pct": 90.0, "name": None, "department": None},
+    {"email": "sample.owner2@algihaz.com", "approved": 7, "total": 8, "pct": 87.5, "name": None, "department": None},
+    {"email": "sample.owner3@algihaz.com", "approved": 6, "total": 7, "pct": 85.7, "name": None, "department": None},
 ]
 _SAMPLE_SMES = [
-    {"email": "sample.sme1@algihaz.com", "reviewed": 12, "avg_seconds": 3600.0, "avg_label": "1.0 hrs"},
-    {"email": "sample.sme2@algihaz.com", "reviewed": 9, "avg_seconds": 7200.0, "avg_label": "2.0 hrs"},
-    {"email": "sample.sme3@algihaz.com", "reviewed": 6, "avg_seconds": 18000.0, "avg_label": "5.0 hrs"},
+    {"email": "sample.sme1@algihaz.com", "reviewed": 12, "avg_seconds": 3600.0, "avg_label": "1.0 hrs", "name": None, "department": None},
+    {"email": "sample.sme2@algihaz.com", "reviewed": 9, "avg_seconds": 7200.0, "avg_label": "2.0 hrs", "name": None, "department": None},
+    {"email": "sample.sme3@algihaz.com", "reviewed": 6, "avg_seconds": 18000.0, "avg_label": "5.0 hrs", "name": None, "department": None},
 ]
 
 
@@ -156,9 +187,10 @@ def get_top_achievers(db: Session = Depends(get_db)):
             .filter(models.DeliverableSubmission.project_id.in_([p.id for p in active_projects]))
             .all()
         )
+    users = _user_lookup(db)
     return {
-        "owners": _pad_with_samples(_rank_owners(subs), _SAMPLE_OWNERS),
-        "smes": _pad_with_samples(_rank_smes(subs), _SAMPLE_SMES),
+        "owners": _pad_with_samples(_rank_owners(subs, users), _SAMPLE_OWNERS),
+        "smes": _pad_with_samples(_rank_smes(subs, users), _SAMPLE_SMES),
     }
 
 
