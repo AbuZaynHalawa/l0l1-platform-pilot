@@ -26,6 +26,11 @@
       <button class="nav-item" data-view="performance"><span class="ic">&#128200;</span> Performance</button>
       <button class="nav-item" data-view="journey"><span class="ic">&#128337;</span> L0/L1 History</button>
       <button class="nav-item" data-view="support"><span class="ic">&#128172;</span> Ask the Team</button>
+      <!-- Item 110: visible to Admins always, and to a Bid Manager acting
+           as themselves (their own email entered) -- scoped server-side
+           to just their own tenders in that case, so it lives in the main
+           nav rather than the admin-only group. -->
+      <button class="nav-item" id="bmTriageNavItem" data-view="bmtriage"><span class="ic">&#9989;</span> BM Triage Status</button>
     </nav>
 
     <div class="nav-group-label" id="adminGroupLabel">Admin</div>
@@ -35,7 +40,6 @@
       <button class="nav-item" data-view="scores"><span class="ic">&#127942;</span> Top Achievers</button>
       <button class="nav-item" data-view="focalpoints"><span class="ic">&#128222;</span> Focal Points</button>
       <button class="nav-item" data-view="followup"><span class="ic">&#128276;</span> Follow Up</button>
-      <button class="nav-item" data-view="bmtriage"><span class="ic">&#9989;</span> BM Triage Status</button>
     </nav>
 
     <div class="rail-foot">
@@ -564,13 +568,13 @@
       </div>
     </section>
 
-    <!-- BM TRIAGE STATUS (admin-only) -->
+    <!-- BM TRIAGE STATUS (admin: all tenders; Bid Manager: their own only, item 110) -->
     <section class="view" id="view-bmtriage" hidden>
       <div class="view-head">
         <div>
-          <div class="eyebrow">Admin</div>
+          <div class="eyebrow">Bid Manager Triage</div>
           <h1>BM Triage Status</h1>
-          <p class="sub">Every active L0 tender's Bid Manager triage progress &#8212; pending, reminded, or done.</p>
+          <p class="sub" id="bmTriageSub">Every active L0 tender's Bid Manager triage progress &#8212; pending, reminded, or done.</p>
         </div>
       </div>
       <div class="card table-card">

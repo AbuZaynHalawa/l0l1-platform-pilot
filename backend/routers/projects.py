@@ -197,9 +197,11 @@ def delete_project(project_id: int, actor_role: str = "Viewer", db: Session = De
 
 
 @router.get("/bm-triage-status")
-def get_bm_triage_status(actor_role: str = "Viewer", db: Session = Depends(get_db)):
+def get_bm_triage_status(actor_role: str = "Viewer", actor_email: str = "", db: Session = Depends(get_db)):
     """Admin overview (item 79) of where every L0 tender's BM triage stands:
-    done, still pending, or pending-with-a-reminder-already-sent.
+    done, still pending, or pending-with-a-reminder-already-sent. Item 110:
+    a Bid Manager (anyone acting as their own roster email, not just Admin)
+    can see the same view too, scoped to just their own assigned tenders.
 
     Declared here, before the /{project_id} catch-all below, on purpose —
     a literal single-segment route registered after a same-shape dynamic
@@ -207,14 +209,15 @@ def get_bm_triage_status(actor_role: str = "Viewer", db: Session = Depends(get_d
     project_id) the same way /follow-up once broke against /{submission_id}
     in deliverables.py. Literal routes always go first.
     """
-    if actor_role != "Admin":
-        raise HTTPException(403, "Only an Admin can view BM triage status")
-    projects = (
-        db.query(models.Project)
-        .filter(models.Project.stage == models.Stage.L0, models.Project.status == models.ProjectStatus.IN_PROGRESS)
-        .order_by(models.Project.created_at.desc())
-        .all()
+    actor_email = actor_email.strip().lower()
+    if actor_role != "Admin" and not actor_email:
+        raise HTTPException(403, "Only an Admin, or a Bid Manager viewing their own tenders, can view BM triage status")
+    q = db.query(models.Project).filter(
+        models.Project.stage == models.Stage.L0, models.Project.status == models.ProjectStatus.IN_PROGRESS
     )
+    if actor_role != "Admin":
+        q = q.filter(models.Project.bid_manager.ilike(actor_email))
+    projects = q.order_by(models.Project.created_at.desc()).all()
     out = []
     for p in projects:
         subs = db.query(models.DeliverableSubmission).filter(models.DeliverableSubmission.project_id == p.id).all()

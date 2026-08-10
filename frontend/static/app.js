@@ -121,9 +121,15 @@
     journey: loadJourney, scores: loadScores, focalpoints: loadFocalPoints, followup: loadFollowUp,
     support: loadSupport, bmtriage: loadBmTriageStatus,
   };
-  var ADMIN_ONLY_VIEWS = ["create", "reports", "scores", "focalpoints", "followup", "bmtriage"];
+  var ADMIN_ONLY_VIEWS = ["create", "reports", "scores", "focalpoints", "followup"];
+  // Item 110: BM Triage Status isn't strictly admin-only — a Bid Manager
+  // acting as themselves (Owner role, since that's the role they'd pick to
+  // represent themselves elsewhere in the app) can see it too, scoped
+  // server-side to just their own tenders.
+  function canSeeBmTriage() { return can("create") || CURRENT_ROLE === "Owner"; }
   function switchView(name) {
     if (ADMIN_ONLY_VIEWS.indexOf(name) !== -1 && !can("create")) name = "dashboard";
+    if (name === "bmtriage" && !canSeeBmTriage()) name = "dashboard";
     document.querySelectorAll(".view").forEach(function (v) { v.hidden = true; });
     document.getElementById("view-" + name).hidden = false;
     document.querySelectorAll(".nav-item").forEach(function (n) { n.classList.toggle("active", n.dataset.view === name); });
@@ -663,10 +669,17 @@
     }
     var isOwnerOrAdmin = CURRENT_ROLE === "Admin" ||
       (actingEmail() && actingEmail().trim().toLowerCase() === (d.owner_email || "").trim().toLowerCase());
-    if (d.status === "approved" && isOwnerOrAdmin) {
+    // Item 108: reopening a Not Required item undoes an admin's earlier
+    // call, so it's admin-only — symmetric with markNotRequiredButton's
+    // own gating, unlike the approved case which the owner can also do.
+    var canReopen = (d.status === "approved" && isOwnerOrAdmin) || (d.status === "not_required" && CURRENT_ROLE === "Admin");
+    if (canReopen) {
       var reopenBtn = el("button", "btn ghost-crit", "Reopen");
       reopenBtn.addEventListener("click", async function () {
-        if (!confirm("Reopen " + d.item_no + "? It'll go back into the normal workflow for more work.")) return;
+        var confirmMsg = d.status === "not_required"
+          ? "Reopen " + d.item_no + "? It'll go back into the normal workflow and need a submission again."
+          : "Reopen " + d.item_no + "? It'll go back into the normal workflow for more work.";
+        if (!confirm(confirmMsg)) return;
         try {
           await api("/api/deliverables/" + d.id + "/reopen?actor_role=" + encodeURIComponent(CURRENT_ROLE) +
             "&actor_email=" + encodeURIComponent(actingEmail()), { method: "POST" });
@@ -681,11 +694,9 @@
     }
     body.appendChild(actionsRow);
 
-    if (authorized && d.file_url) {
-      var primaryLink = el("a", "btn", "View / Download Primary File");
-      primaryLink.href = d.file_url; primaryLink.target = "_blank"; primaryLink.rel = "noopener";
-      body.appendChild(primaryLink);
-    }
+    // Item 107: the primary upload is already mirrored into the Documents
+    // list below (same as any other upload) — a separate "Primary File"
+    // link here just duplicated it.
     if (authorized && (d.review_comment || d.completion_note)) {
       body.appendChild(el("div", "deliv-comment", "&#128172; " + (d.review_comment || d.completion_note)));
     }
@@ -782,6 +793,13 @@
     document.querySelectorAll("#dSubTabs .chip").forEach(function (b) { b.classList.toggle("active", b.dataset.tab === "deliverables"); });
     document.getElementById("dDeliverablesPane").style.display = "";
     document.getElementById("dTrailPane").style.display = "none";
+    // Item 112: hide the triage banner/pill synchronously, before the
+    // await below -- otherwise a just-completed triage's own re-render
+    // (openDetail() called right after confirming) briefly shows the
+    // previous "Complete Triage" state on screen until the fresh project
+    // data comes back and says it's actually done.
+    document.getElementById("dTriageBanner").hidden = true;
+    document.getElementById("dTriagePill").hidden = true;
     var p = await api("/api/projects/" + id);
     currentProjectStage = p.stage;
     currentProjectTerminal = (p.stage === "L0" && (p.status === "Submitted" || p.status === "Cancelled")) ||
@@ -1093,9 +1111,11 @@
     });
   }
   function fileLink(d) {
-    var a = el("a", "btn", "View / Download");
-    a.href = d.file_url; a.target = "_blank"; a.rel = "noopener";
-    return a;
+    // Item 107: opens the deliverable popup to pick which document to
+    // view/download, instead of jumping straight to just the primary file.
+    var btn = el("button", "btn", "View Document");
+    btn.addEventListener("click", function () { openDelivModal(d.id); });
+    return btn;
   }
   function uploadButton(submissionId, after) {
     after = after || function () { openDetail(currentProjectId); };
@@ -1797,7 +1817,13 @@
     done: ["good", "Done"], reminded: ["warn", "Reminded"], pending: ["crit", "Pending"],
   };
   async function loadBmTriageStatus() {
-    var rows = await api("/api/projects/bm-triage-status?actor_role=" + CURRENT_ROLE);
+    // Item 110: a Bid Manager (not just Admin) can load this, but the
+    // backend scopes the rows to just their own tenders when non-admin.
+    var rows = await api("/api/projects/bm-triage-status?actor_role=" + CURRENT_ROLE +
+      "&actor_email=" + encodeURIComponent(actingEmail()));
+    document.getElementById("bmTriageSub").textContent = can("create")
+      ? "Every active L0 tender's Bid Manager triage progress — pending, reminded, or done."
+      : "Your own active L0 tenders' triage progress — pending, reminded, or done.";
     var tbody = document.getElementById("bmTriageBody");
     tbody.innerHTML = "";
     if (!rows.length) {
@@ -1817,7 +1843,7 @@
       var sm = BM_TRIAGE_STATUS_META[r.status] || ["neutral", r.status];
       tr.appendChild(el("td", "", '<span class="pill ' + sm[0] + '"><span class="dot"></span>' + sm[1] + "</span>"));
       var tdAction = el("td");
-      if (r.status !== "done") {
+      if (r.status !== "done" && can("create")) {
         var remindBtn = el("button", "btn", r.status === "reminded" ? "Remind Again" : "Remind BM");
         remindBtn.addEventListener("click", async function () {
           try {
@@ -2226,7 +2252,9 @@
     document.getElementById("adminNav").style.display = showAdmin ? "" : "none";
     document.getElementById("adminGroupLabel").style.display = showAdmin ? "" : "none";
     document.getElementById("actingEmail").style.display = (CURRENT_ROLE === "Owner" || CURRENT_ROLE === "SME") ? "" : "none";
+    document.getElementById("bmTriageNavItem").hidden = !canSeeBmTriage();
     if (!showAdmin && ADMIN_ONLY_VIEWS.some(function (v) { return !document.getElementById("view-" + v).hidden; })) switchView("dashboard");
+    if (!canSeeBmTriage() && !document.getElementById("view-bmtriage").hidden) switchView("dashboard");
     if (currentProjectId && !document.getElementById("view-detail").hidden) openDetail(currentProjectId);
   });
   document.getElementById("themeToggle").addEventListener("click", function () {

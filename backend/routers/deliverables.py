@@ -331,16 +331,31 @@ def review_deliverable(submission_id: int, decision: schemas.ReviewDecision, db:
 
 @router.post("/{submission_id}/reopen")
 def reopen_deliverable(submission_id: int, actor_role: str = "Viewer", actor_email: str = "", db: Session = Depends(get_db)):
-    """Sends an already-approved deliverable back into the normal workflow —
-    for when something approved turns out to need more work. Leaves the
-    existing file/documents in place as a record; the owner uploads fresh
-    work the same way as any other resubmission.
+    """Sends an approved or Not-Required deliverable back into the normal
+    workflow. Approved: for when something approved turns out to need more
+    work — leaves the existing file/documents in place as a record, the
+    owner uploads fresh work like any other resubmission. Not Required
+    (item 108): undoes an earlier not-required call, e.g. a scope change
+    makes the item relevant again — admin-only, symmetric with who's
+    allowed to mark something Not Required in the first place.
     """
     sub = db.get(models.DeliverableSubmission, submission_id)
     if not sub:
         raise HTTPException(404, "Deliverable not found")
+
+    if sub.applicability == "not_required":
+        if actor_role != "Admin":
+            raise HTTPException(403, "Only an Admin can reopen a deliverable marked Not Required")
+        sub.applicability = "applicable"
+        db.add(models.WorkflowHistory(submission_id=sub.id, action="reopened", actor_name="Admin",
+                                       note="Reopened from Not Required"))
+        db.commit()
+        rules.recompute_project_due_dates(db, sub.project, force=True)
+        db.commit()
+        return {"status": "ok"}
+
     if sub.status != models.SubmissionStatus.APPROVED:
-        raise HTTPException(400, "Only an approved deliverable can be reopened")
+        raise HTTPException(400, "Only an approved or Not-Required deliverable can be reopened")
     assigned = sub.owner_email or sub.definition.default_owner_email
     if not rules.can_act(actor_role, actor_email, assigned):
         raise HTTPException(403, f"Only {assigned or 'the assigned owner'} or an Admin can reopen this deliverable")
