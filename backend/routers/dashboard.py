@@ -40,7 +40,10 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
 
     dept_rows = []
     for dept in db.query(models.Department).order_by(models.Department.number).all():
-        dept_subs = [s for s in all_subs if s.definition.department_id == dept.id]
+        # Items 115/116: auto-completed items were never real tracked work,
+        # so they're excluded from the department's on-time performance
+        # cohort entirely -- not counted as a win, not counted as a miss.
+        dept_subs = [s for s in all_subs if s.definition.department_id == dept.id and not s.auto_completed]
         due_and_done = [s for s in dept_subs if s.status in (
             models.SubmissionStatus.APPROVED, models.SubmissionStatus.OVERDUE, models.SubmissionStatus.PENDING_REVIEW)]
         approved = sum(1 for s in dept_subs if s.status == models.SubmissionStatus.APPROVED)
@@ -84,6 +87,8 @@ def _rank_owners(subs, users: dict[str, "models.User"] | None = None):
     """
     stats: dict[str, dict] = {}
     for s in subs:
+        if s.auto_completed:  # items 115/116: not real tracked work
+            continue
         email = s.owner_email or s.definition.default_owner_email
         if not email:
             continue
@@ -121,6 +126,8 @@ def _rank_smes(subs, users: dict[str, "models.User"] | None = None):
     """
     stats: dict[str, dict] = {}
     for s in subs:
+        if s.auto_completed:  # items 115/116: no real SME review happened, would fake a 0-second response time
+            continue
         if s.status not in (models.SubmissionStatus.APPROVED, models.SubmissionStatus.REJECTED):
             continue
         if not s.submitted_at or not s.reviewed_at:

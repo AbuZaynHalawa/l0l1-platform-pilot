@@ -23,6 +23,7 @@ ensure_column("users", "manager_email", "VARCHAR")
 ensure_column("projects", "pre_bid_meeting_date", "DATE")
 ensure_enum_value("deliverable_submissions", "status", "PENDING_TRIAGE")
 ensure_enum_value("deliverable_submissions", "status", "NOT_REQUIRED")
+ensure_column("deliverable_submissions", "auto_completed", "BOOLEAN")
 
 # Load-bearing indexes: every one of these columns is filtered or joined on
 # in the hot paths (dashboard, matrix, gantt, assigned deliverables), and

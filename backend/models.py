@@ -205,6 +205,13 @@ class DeliverableSubmission(Base):
     review_comment = Column(Text, nullable=True)
     reviewed_at = Column(DateTime, nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    # Items 115/116: True for a handful of Tendering items auto-approved at
+    # creation from data already on the project's own form (Announcement
+    # Date, Site Visit Date, etc.) — status is still a genuine APPROVED (so
+    # milestone "reached" logic and predecessor chaining work exactly like
+    # a real approval), this flag is what actually excludes them from
+    # Assigned Deliverables / the project detail list / Gantt / performance.
+    auto_completed = Column(Boolean, default=False)
 
     project = relationship("Project", back_populates="submissions", foreign_keys=[project_id])
     definition = relationship("DeliverableDefinition")

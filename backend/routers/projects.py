@@ -10,6 +10,27 @@ router = APIRouter(prefix="/api/projects", tags=["projects"])
 _storage = get_storage_provider()
 
 
+# Items 115/116: these Tendering Department items just restate data already
+# captured directly on the project's own creation form -- auto-complete them
+# immediately using that data instead of making someone redo it as a separate
+# deliverable. Maps item_no -> the Project attribute providing the
+# completion date. If that field is blank at creation (e.g. the optional
+# Pre-Bid Meeting Date), the item falls back to the normal manual workflow
+# instead. "1.5" (Assign Bid Manager) has no dedicated date field of its
+# own -- it's anchored to announcement_date, since the BM is set the same
+# moment the tender kicks off.
+_L0_AUTO_DONE_FIELDS = {
+    "1.1": "announcement_date",
+    "1.2": "site_visit_date",
+    "1.3": "pre_bid_meeting_date",
+    "1.4": "pre_bid_deadline",
+    "1.5": "announcement_date",
+}
+_L1_AUTO_DONE_FIELDS = {
+    "1.1": "announcement_date",
+}
+
+
 def _next_est_no(db: Session) -> str:
     last = db.query(models.Project).order_by(models.Project.id.desc()).first()
     base = 1655
@@ -36,7 +57,9 @@ def _provision_and_instantiate(db: Session, project: models.Project):
         .all()
     )
     defs = [d for d in defs if rules.is_bu_applicable(d, project)]
+    auto_done_fields = _L0_AUTO_DONE_FIELDS if stage == models.Stage.L0 else _L1_AUTO_DONE_FIELDS
     dept_seen = set()
+    auto_done_subs = []  # (sub, definition) pairs — WorkflowHistory needs real ids, added after the commit below
     for d in defs:
         if d.department_id not in dept_seen:
             _storage.create_folder(f"{folder_root}/{sanitize_segment(d.department.name)}")
@@ -49,13 +72,45 @@ def _provision_and_instantiate(db: Session, project: models.Project):
         # there's no "is this applicable to my project" call to make on
         # your own department's items, so they're excluded too (item 85).
         needs_triage = stage == models.Stage.L0 and not d.is_milestone and d.department.name != "Tendering Department"
-        sub = models.DeliverableSubmission(
-            project_id=project.id, deliverable_definition_id=d.id,
-            owner_email=d.default_owner_email, sme_email=d.default_sme_email,
-            applicability="pending" if needs_triage else "applicable",
-        )
+
+        # Items 115/116: auto-complete Tendering items that just restate a
+        # field already captured on this project's own creation form. 1.1
+        # doubles as the M1 milestone, so this stays a genuine APPROVED
+        # (not a separate status) -- milestone "reached" and predecessor
+        # chaining both key off status==APPROVED and don't need to know
+        # this was auto- rather than human-completed. auto_completed is
+        # the flag that actually drives hiding it from tracking.
+        auto_done_date = None
+        if d.department.name == "Tendering Department":
+            field = auto_done_fields.get(d.item_no)
+            if field:
+                auto_done_date = getattr(project, field, None)
+
+        if auto_done_date:
+            sub = models.DeliverableSubmission(
+                project_id=project.id, deliverable_definition_id=d.id,
+                owner_email=d.default_owner_email, sme_email=d.default_sme_email,
+                applicability="applicable", status=models.SubmissionStatus.APPROVED,
+                auto_completed=True, due_date=auto_done_date,
+                submitted_at=datetime.combine(auto_done_date, datetime.min.time()),
+                reviewed_at=datetime.combine(auto_done_date, datetime.min.time()),
+                review_comment="Auto-completed from the project's own details.",
+            )
+            auto_done_subs.append(sub)
+        else:
+            sub = models.DeliverableSubmission(
+                project_id=project.id, deliverable_definition_id=d.id,
+                owner_email=d.default_owner_email, sme_email=d.default_sme_email,
+                applicability="pending" if needs_triage else "applicable",
+            )
         db.add(sub)
     db.commit()
+
+    for sub in auto_done_subs:
+        db.add(models.WorkflowHistory(submission_id=sub.id, action="auto_done", actor_name="system",
+                                       note="Auto-completed from the project's own details"))
+    if auto_done_subs:
+        db.commit()
 
     rules.recompute_project_due_dates(db, project, force=True)
     db.commit()
@@ -435,6 +490,7 @@ def get_deliverables(project_id: int, department: str | None = None, db: Session
         .join(models.DeliverableDefinition)
         .join(models.Department)
         .filter(models.DeliverableSubmission.project_id == project_id)
+        .filter(models.DeliverableSubmission.auto_completed.isnot(True))
     )
     if department:
         q = q.filter(models.Department.name == department)

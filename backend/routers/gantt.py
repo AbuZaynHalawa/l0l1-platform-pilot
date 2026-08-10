@@ -59,6 +59,8 @@ def get_project_gantt(project_id: int, db: Session = Depends(get_db)):
         d = s.definition
         if s.due_date is None:
             continue  # unscheduled: client-dependent not yet approved, or library/on_request items
+        if s.auto_completed:
+            continue  # items 115/116: not real tracked work, keep off the chart
         start = _bar_start(db, project, d) or s.due_date
         if start > s.due_date:
             start = s.due_date
@@ -100,6 +102,8 @@ def get_stage_timeline(stage: str, db: Session = Depends(get_db)):
         for s in subs:
             if s.due_date is None:
                 continue  # unscheduled: client-dependent not yet approved, or library/on_request items
+            if s.auto_completed:
+                continue  # items 115/116: not real tracked work, keep off the chart
             d = s.definition
             project = proj_by_id[s.project_id]
             start = _bar_start(db, project, d) or s.due_date

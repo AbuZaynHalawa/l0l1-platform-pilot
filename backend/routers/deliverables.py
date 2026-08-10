@@ -35,6 +35,7 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
         .join(models.DeliverableDefinition)
         .join(models.Department)
         .join(models.Project)
+        .filter(models.DeliverableSubmission.auto_completed.isnot(True))
     )
     subs = q.all()
     my_follows = set()

@@ -1465,7 +1465,7 @@
     submitted: "&#128228;", assigned: "&#128100;", review_requested: "&#128269;",
     approved: "&#9989;", rejected: "&#10060;", unlocked: "&#128275;",
     document_added: "&#128206;", document_approved: "&#9989;", document_rejected: "&#10060;",
-    reopened: "&#128257;",
+    reopened: "&#128257;", auto_done: "&#9989;",
   };
   async function renderActivityTimeline(projectId, timelineId) {
     var wrap = document.getElementById(timelineId);
