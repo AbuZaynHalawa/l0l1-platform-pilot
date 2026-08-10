@@ -156,6 +156,38 @@ def create_l1_project(payload: schemas.ProjectCreateL1, db: Session = Depends(ge
     return project
 
 
+@router.delete("/{project_id}")
+def delete_project(project_id: int, actor_role: str = "Viewer", db: Session = Depends(get_db)):
+    """Removes a project and everything under it — mainly for cleaning up a
+    mistaken or test entry. Cascades cover submissions and workflow history
+    on their own; documents, followers, and reassignment requests aren't
+    reverse-cascaded from the submission side, so they're cleared explicitly
+    here. Announcements are detached (kept, project/submission refs nulled)
+    rather than deleted, so the activity log isn't rewritten.
+    """
+    if actor_role != "Admin":
+        raise HTTPException(403, "Only an Admin can delete a project")
+    project = db.get(models.Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    if db.query(models.Project).filter(models.Project.l0_source_id == project_id).first():
+        raise HTTPException(400, "This L0 tender has an L1 project sourced from it — delete that first")
+
+    sub_ids = [row[0] for row in db.query(models.DeliverableSubmission.id).filter(models.DeliverableSubmission.project_id == project_id).all()]
+    if sub_ids:
+        db.query(models.Document).filter(models.Document.submission_id.in_(sub_ids)).delete(synchronize_session=False)
+        db.query(models.Follower).filter(models.Follower.submission_id.in_(sub_ids)).delete(synchronize_session=False)
+        db.query(models.ReassignmentRequest).filter(models.ReassignmentRequest.submission_id.in_(sub_ids)).delete(synchronize_session=False)
+        db.query(models.Announcement).filter(models.Announcement.submission_id.in_(sub_ids)).update(
+            {"submission_id": None}, synchronize_session=False)
+    db.query(models.Announcement).filter(models.Announcement.project_id == project_id).update(
+        {"project_id": None}, synchronize_session=False)
+
+    db.delete(project)
+    db.commit()
+    return {"status": "ok"}
+
+
 @router.get("/{project_id}", response_model=schemas.ProjectOut)
 def get_project(project_id: int, db: Session = Depends(get_db)):
     project = db.get(models.Project, project_id)
