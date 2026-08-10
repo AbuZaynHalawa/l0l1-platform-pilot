@@ -15,8 +15,8 @@ ensure_column("departments", "number", "INTEGER")
 ensure_column("projects", "business_units", "JSON")
 ensure_column("announcements", "submission_id", "INTEGER")
 ensure_column("deliverable_submissions", "applicability", "VARCHAR")
-ensure_enum_value("deliverable_submissions", "status", "pending_triage")
-ensure_enum_value("deliverable_submissions", "status", "not_required")
+ensure_enum_value("deliverable_submissions", "status", "PENDING_TRIAGE")
+ensure_enum_value("deliverable_submissions", "status", "NOT_REQUIRED")
 models.Base.metadata.create_all(bind=engine)
 
 TEST_EMAIL = "test-focal@example.com"  # single placeholder until real contacts are provided
