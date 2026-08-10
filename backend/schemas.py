@@ -32,6 +32,21 @@ class ProjectStatusUpdate(BaseModel):
     status: str
 
 
+class ProjectDetailsUpdate(BaseModel):
+    """Admin-only low-risk field edits. Only fields actually sent are applied
+    (exclude_unset) — scope and BSD are deliberately not here, since they drive
+    deliverable generation and business-unit classification and need a bigger
+    conversation than a quick inline edit.
+    """
+    bid_manager: str | None = None
+    region: list[str] | None = None
+    region_other: str | None = None
+    announcement_date: date | None = None
+    site_visit_date: date | None = None
+    pre_bid_deadline: date | None = None
+    actor_role: str = "Admin"
+
+
 class ProjectOut(BaseModel):
     id: int
     est_no: str
@@ -52,9 +67,21 @@ class ProjectOut(BaseModel):
     site_visit_date: date | None
     pre_bid_deadline: date | None
     l0_source_id: int | None
+    pending_triage_count: int = 0
 
     class Config:
         from_attributes = True
+
+
+class TriageItem(BaseModel):
+    submission_id: int
+    applicable: bool
+
+
+class TriageRequest(BaseModel):
+    items: list[TriageItem]
+    actor_role: str = "Admin"
+    actor_email: str = ""
 
 
 class SubmissionOut(BaseModel):
@@ -122,6 +149,7 @@ class AnnouncementOut(BaseModel):
     email_status: str
     created_at: datetime
     project_id: int | None = None
+    submission_id: int | None = None
 
     class Config:
         from_attributes = True

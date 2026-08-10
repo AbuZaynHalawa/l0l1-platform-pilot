@@ -41,9 +41,15 @@ def _provision_and_instantiate(db: Session, project: models.Project):
         if d.department_id not in dept_seen:
             _storage.create_folder(f"{folder_root}/{sanitize_segment(d.department.name)}")
             dept_seen.add(d.department_id)
+        # New L0 non-milestone items start out unconfirmed — the BM must triage
+        # each one as applicable or not-required before it gets a due date.
+        # Milestones anchor the whole project's due-date chain, so they're
+        # never subject to triage; L1 deliverables aren't gated at all.
+        needs_triage = stage == models.Stage.L0 and not d.is_milestone
         sub = models.DeliverableSubmission(
             project_id=project.id, deliverable_definition_id=d.id,
             owner_email=d.default_owner_email, sme_email=d.default_sme_email,
+            applicability="pending" if needs_triage else "applicable",
         )
         db.add(sub)
     db.commit()
@@ -155,6 +161,41 @@ def get_project(project_id: int, db: Session = Depends(get_db)):
     project = db.get(models.Project, project_id)
     if not project:
         raise HTTPException(404, "Project not found")
+    project.pending_triage_count = (
+        db.query(models.DeliverableSubmission)
+        .filter(
+            models.DeliverableSubmission.project_id == project_id,
+            models.DeliverableSubmission.applicability == "pending",
+        )
+        .count()
+    )
+    return project
+
+
+@router.post("/{project_id}/triage", response_model=schemas.ProjectOut)
+def triage_l0_project(project_id: int, payload: schemas.TriageRequest, db: Session = Depends(get_db)):
+    project = db.get(models.Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    if project.stage != models.Stage.L0:
+        raise HTTPException(400, "Only L0 tenders go through BM triage")
+    if not rules.can_act(payload.actor_role, payload.actor_email, project.bid_manager):
+        raise HTTPException(403, f"Only {project.bid_manager or 'the assigned Bid Manager'} or an Admin can triage this tender")
+
+    subs_by_id = {
+        s.id: s for s in
+        db.query(models.DeliverableSubmission).filter(models.DeliverableSubmission.project_id == project_id).all()
+    }
+    for item in payload.items:
+        sub = subs_by_id.get(item.submission_id)
+        if sub and not sub.definition.is_milestone:
+            sub.applicability = "applicable" if item.applicable else "not_required"
+    db.commit()
+
+    rules.recompute_project_due_dates(db, project)
+    db.commit()
+    db.refresh(project)
+    project.pending_triage_count = sum(1 for s in subs_by_id.values() if s.applicability == "pending")
     return project
 
 
@@ -165,6 +206,37 @@ def update_project_manager(project_id: int, payload: schemas.ProjectManagerUpdat
         raise HTTPException(404, "Project not found")
     project.project_manager = (payload.project_manager or "").strip() or None
     db.commit()
+    db.refresh(project)
+    return project
+
+
+@router.patch("/{project_id}/details", response_model=schemas.ProjectOut)
+def update_project_details(project_id: int, payload: schemas.ProjectDetailsUpdate, db: Session = Depends(get_db)):
+    if payload.actor_role != "Admin":
+        raise HTTPException(403, "Only an Admin can edit these fields")
+    project = db.get(models.Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    data = payload.model_dump(exclude_unset=True, exclude={"actor_role"})
+    if "bid_manager" in data:
+        if data["bid_manager"] not in models.BID_MANAGERS:
+            raise HTTPException(400, f"Bid Manager must be one of: {', '.join(models.BID_MANAGERS)}")
+        project.bid_manager = data["bid_manager"]
+    if "region" in data:
+        if not data["region"]:
+            raise HTTPException(400, "Select at least one Region")
+        project.region = data["region"]
+    if "region_other" in data:
+        project.region_other = data["region_other"]
+    date_changed = False
+    for field in ("announcement_date", "site_visit_date", "pre_bid_deadline"):
+        if field in data:
+            setattr(project, field, data[field])
+            date_changed = True
+    db.commit()
+    if date_changed:
+        rules.recompute_project_due_dates(db, project)
+        db.commit()
     db.refresh(project)
     return project
 

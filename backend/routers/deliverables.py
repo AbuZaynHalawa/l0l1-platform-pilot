@@ -15,18 +15,6 @@ def _dept_label(name: str) -> str:
     return parts[1] if len(parts) == 2 else name
 
 
-def _can_act(actor_role: str, actor_email: str, assigned_email: str | None) -> bool:
-    """Admins can always act. Otherwise the actor must be the specific person
-    assigned to this deliverable (owner for uploads, SME for reviews) — not
-    just 'anyone with the Owner/SME role', per the Modifications doc.
-    """
-    if actor_role == "Admin":
-        return True
-    if not assigned_email or not actor_email:
-        return False
-    return actor_email.strip().lower() == assigned_email.strip().lower()
-
-
 def _follower_emails(db: Session, submission_id: int) -> list[str]:
     return [
         f.email for f in
@@ -60,11 +48,13 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
         if status and s.status.value != status:
             continue
         out.append({
-            "id": s.id, "est_no": s.project.est_no, "project_name": s.project.name,
+            "id": s.id, "est_no": s.project.est_no, "project_name": s.project.name, "stage": s.project.stage.value,
             "department": s.definition.department.name, "department_number": s.definition.department.number,
             "item_no": s.definition.item_no,
             "name": rules.display_name(s.definition, s.project), "due_date": s.due_date, "status": s.status.value,
             "owner": s.owner_email or s.definition.default_owner_email or "Unassigned",
+            "owner_email": s.owner_email or s.definition.default_owner_email,
+            "sme_email": s.sme_email or s.definition.default_sme_email,
             "is_milestone": s.definition.is_milestone, "milestone_code": s.definition.milestone_code,
             "file_name": s.file_name, "file_url": _storage.file_url(s.file_ref) if s.file_ref else None,
             "review_comment": s.review_comment, "completion_note": rules.mark_complete_note(s),
@@ -100,7 +90,7 @@ async def upload_deliverable(submission_id: int, file: UploadFile = File(...),
         raise HTTPException(404, "Deliverable not found")
 
     assigned = sub.owner_email or sub.definition.default_owner_email
-    if not _can_act(actor_role, actor_email, assigned):
+    if not rules.can_act(actor_role, actor_email, assigned):
         raise HTTPException(403, f"Only {assigned or 'the assigned owner'} or an Admin can upload this deliverable")
 
     content = await file.read()
@@ -117,14 +107,126 @@ async def upload_deliverable(submission_id: int, file: UploadFile = File(...),
 
     sme_email = sub.sme_email or sub.definition.default_sme_email
     if sme_email:
-        announcements.sme_review_requested(db, sub.project, sme_email, sub.definition.item_no, sub.definition.name)
+        announcements.sme_review_requested(db, sub.project, sme_email, sub.definition.item_no, sub.definition.name,
+                                            submission_id=sub.id)
         db.add(models.WorkflowHistory(submission_id=sub.id, action="review_requested",
                                        actor_name="system", note=f"Sent to {sme_email}"))
         db.commit()
     announcements.followers_notified(db, sub.project, _follower_emails(db, sub.id),
-                                      sub.definition.item_no, sub.definition.name, "uploaded")
+                                      sub.definition.item_no, sub.definition.name, "uploaded", submission_id=sub.id)
 
     return {"status": "ok", "file_ref": file_ref}
+
+
+def _document_out(d: "models.Document") -> dict:
+    return {
+        "id": d.id, "file_name": d.file_name, "file_url": _storage.file_url(d.file_ref),
+        "uploaded_by": d.uploaded_by, "uploaded_at": d.uploaded_at, "status": d.status,
+        "comment": d.comment, "reviewed_at": d.reviewed_at,
+    }
+
+
+@router.get("/{submission_id}")
+def get_deliverable_detail(submission_id: int, db: Session = Depends(get_db)):
+    """Full detail for the deliverable popup: the item itself, its workflow
+    history, and any supplementary documents on top of the primary file.
+    """
+    sub = db.get(models.DeliverableSubmission, submission_id)
+    if not sub:
+        raise HTTPException(404, "Deliverable not found")
+    history = (
+        db.query(models.WorkflowHistory)
+        .filter(models.WorkflowHistory.submission_id == submission_id)
+        .order_by(models.WorkflowHistory.created_at)
+        .all()
+    )
+    documents = (
+        db.query(models.Document)
+        .filter(models.Document.submission_id == submission_id)
+        .order_by(models.Document.uploaded_at)
+        .all()
+    )
+    return {
+        "id": sub.id, "item_no": sub.definition.item_no, "name": rules.display_name(sub.definition, sub.project),
+        "department": sub.definition.department.name, "department_number": sub.definition.department.number,
+        "est_no": sub.project.est_no, "project_id": sub.project_id, "project_name": sub.project.name,
+        "due_date": sub.due_date, "status": sub.status.value,
+        "owner_email": sub.owner_email or sub.definition.default_owner_email,
+        "sme_email": sub.sme_email or sub.definition.default_sme_email,
+        "file_name": sub.file_name, "file_url": _storage.file_url(sub.file_ref) if sub.file_ref else None,
+        "submitted_at": sub.submitted_at, "review_comment": sub.review_comment, "reviewed_at": sub.reviewed_at,
+        "completion_note": rules.mark_complete_note(sub), "is_milestone": sub.definition.is_milestone,
+        "milestone_code": sub.definition.milestone_code,
+        "history": [
+            {"action": h.action, "actor": h.actor_name, "note": h.note, "at": h.created_at}
+            for h in history
+        ],
+        "documents": [_document_out(d) for d in documents],
+    }
+
+
+@router.get("/{submission_id}/documents")
+def list_documents(submission_id: int, db: Session = Depends(get_db)):
+    sub = db.get(models.DeliverableSubmission, submission_id)
+    if not sub:
+        raise HTTPException(404, "Deliverable not found")
+    documents = (
+        db.query(models.Document)
+        .filter(models.Document.submission_id == submission_id)
+        .order_by(models.Document.uploaded_at)
+        .all()
+    )
+    return [_document_out(d) for d in documents]
+
+
+@router.post("/{submission_id}/documents")
+async def add_document(submission_id: int, file: UploadFile = File(...),
+                        actor_name: str = Form("Owner"), actor_role: str = Form("Owner"),
+                        actor_email: str = Form(""), db: Session = Depends(get_db)):
+    """Adds a supplementary document to an already-submitted deliverable —
+    e.g. extra supporting evidence while the SME is still reviewing. Doesn't
+    touch the submission's own status; that's still driven by the primary
+    upload/mark-complete/review flow.
+    """
+    sub = db.get(models.DeliverableSubmission, submission_id)
+    if not sub:
+        raise HTTPException(404, "Deliverable not found")
+    assigned = sub.owner_email or sub.definition.default_owner_email
+    if not rules.can_act(actor_role, actor_email, assigned):
+        raise HTTPException(403, f"Only {assigned or 'the assigned owner'} or an Admin can add documents to this deliverable")
+
+    content = await file.read()
+    folder = f"{sub.project.onedrive_folder_path}/{sanitize_segment(sub.definition.department.name)}"
+    file_ref = _storage.upload_file(folder, file.filename, content)
+
+    doc = models.Document(submission_id=submission_id, file_name=file.filename, file_ref=file_ref, uploaded_by=actor_name)
+    db.add(doc)
+    db.add(models.WorkflowHistory(submission_id=submission_id, action="document_added", actor_name=actor_name,
+                                   note=f"Added {file.filename}"))
+    db.commit()
+    db.refresh(doc)
+    return _document_out(doc)
+
+
+@router.post("/documents/{document_id}/review")
+def review_document(document_id: int, decision: schemas.ReviewDecision, db: Session = Depends(get_db)):
+    doc = db.get(models.Document, document_id)
+    if not doc:
+        raise HTTPException(404, "Document not found")
+    sub = doc.submission
+    assigned_sme = sub.sme_email or sub.definition.default_sme_email
+    if not rules.can_act(decision.actor_role, decision.actor_email, assigned_sme):
+        raise HTTPException(403, f"Only {assigned_sme or 'the assigned SME'} or an Admin can review this document")
+
+    doc.status = "approved" if decision.approved else "rejected"
+    doc.comment = decision.comment
+    doc.reviewed_at = datetime.utcnow()
+    db.add(models.WorkflowHistory(
+        submission_id=sub.id, action="document_approved" if decision.approved else "document_rejected",
+        actor_name=decision.reviewer_name, note=f"{doc.file_name}" + (f": {decision.comment}" if decision.comment else ""),
+    ))
+    db.commit()
+    return _document_out(doc)
 
 
 @router.post("/{submission_id}/mark-complete")
@@ -141,7 +243,7 @@ def mark_complete(submission_id: int, payload: schemas.MarkCompleteRequest, db: 
         raise HTTPException(400, "Deliverable has already been submitted")
 
     assigned = sub.owner_email or sub.definition.default_owner_email
-    if not _can_act(payload.actor_role, payload.actor_email, assigned):
+    if not rules.can_act(payload.actor_role, payload.actor_email, assigned):
         raise HTTPException(403, f"Only {assigned or 'the assigned owner'} or an Admin can complete this deliverable")
 
     comment = payload.comment.strip()
@@ -155,7 +257,8 @@ def mark_complete(submission_id: int, payload: schemas.MarkCompleteRequest, db: 
 
     sme_email = sub.sme_email or sub.definition.default_sme_email
     if sme_email:
-        announcements.sme_review_requested(db, sub.project, sme_email, sub.definition.item_no, sub.definition.name)
+        announcements.sme_review_requested(db, sub.project, sme_email, sub.definition.item_no, sub.definition.name,
+                                            submission_id=sub.id)
         db.add(models.WorkflowHistory(submission_id=sub.id, action="review_requested",
                                        actor_name="system", note=f"Sent to {sme_email}"))
         db.commit()
@@ -174,7 +277,7 @@ def review_deliverable(submission_id: int, decision: schemas.ReviewDecision, db:
         raise HTTPException(400, "Deliverable is not awaiting review")
 
     assigned_sme = sub.sme_email or sub.definition.default_sme_email
-    if not _can_act(decision.actor_role, decision.actor_email, assigned_sme):
+    if not rules.can_act(decision.actor_role, decision.actor_email, assigned_sme):
         raise HTTPException(403, f"Only {assigned_sme or 'the assigned SME'} or an Admin can review this deliverable")
 
     sub.status = models.SubmissionStatus.APPROVED if decision.approved else models.SubmissionStatus.REJECTED
@@ -195,9 +298,10 @@ def review_deliverable(submission_id: int, decision: schemas.ReviewDecision, db:
 
     owner_email = sub.owner_email or sub.definition.default_owner_email or ""
     announcements.sme_decision(db, sub.project, owner_email, sub.definition.item_no, sub.definition.name,
-                                decision.approved, decision.comment)
+                                decision.approved, decision.comment, submission_id=sub.id)
     announcements.followers_notified(db, sub.project, _follower_emails(db, sub.id), sub.definition.item_no,
-                                      sub.definition.name, "approved" if decision.approved else "rejected")
+                                      sub.definition.name, "approved" if decision.approved else "rejected",
+                                      submission_id=sub.id)
 
     if decision.approved and sub.definition.is_milestone:
         recipients = sorted({d.focal_point_email for d in db.query(models.Department).all() if d.focal_point_email})
@@ -226,7 +330,8 @@ def review_deliverable(submission_id: int, decision: schemas.ReviewDecision, db:
                 continue
             if before.get(s2.id) is None and s2.due_date is not None:
                 target_email = s2.owner_email or s2.definition.default_owner_email or ""
-                announcements.cross_department_unlock(db, sub.project, target_email, trigger_label, s2.definition.item_no, s2.definition.name)
+                announcements.cross_department_unlock(db, sub.project, target_email, trigger_label, s2.definition.item_no, s2.definition.name,
+                                                        submission_id=s2.id)
                 db.add(models.WorkflowHistory(submission_id=s2.id, action="unlocked",
                                                actor_name="system", note=f"Unlocked by approval of {trigger_label}"))
         db.commit()
@@ -329,7 +434,8 @@ def bulk_remind(payload: schemas.BulkRemindRequest, db: Session = Depends(get_db
     for s in subs:
         owner = s.owner_email or s.definition.default_owner_email
         if owner:
-            announcements.reminder_sent(db, s.project, owner, s.definition.item_no, s.definition.name, s.due_date)
+            announcements.reminder_sent(db, s.project, owner, s.definition.item_no, s.definition.name, s.due_date,
+                                         submission_id=s.id)
             sent += 1
     return {"sent": sent}
 

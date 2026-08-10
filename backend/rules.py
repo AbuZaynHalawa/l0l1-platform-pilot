@@ -64,6 +64,17 @@ L0_TBU_ONLY_ITEMS = {"2.7", "2.8", "2.9", "2.10", "2.11", "2.12"}
 L1_BBU_ONLY_DEPARTMENTS = {"BBU", "BBU / PBU"}
 
 
+def can_act(actor_role: str, actor_email: str, assigned_email: str | None) -> bool:
+    """Admins can always act. Otherwise the actor must be the specific person
+    assigned (owner, SME, or bid manager) — not just 'anyone with that role'.
+    """
+    if actor_role == "Admin":
+        return True
+    if not assigned_email or not actor_email:
+        return False
+    return actor_email.strip().lower() == assigned_email.strip().lower()
+
+
 def is_bu_applicable(definition: models.DeliverableDefinition, project: models.Project) -> bool:
     """Whether a deliverable definition should be instantiated for this
     project's Business Unit(s). Ungated (True) when business_units is empty
@@ -389,6 +400,18 @@ def recompute_project_due_dates(db: Session, project: models.Project) -> None:
             # predecessor-chained items get a real anchor instead of staying
             # unresolvable forever. Recomputing it would wipe that back to None.
             if s.status == models.SubmissionStatus.APPROVED:
+                continue
+            if s.applicability == "not_required":
+                if s.due_date is not None or s.status != models.SubmissionStatus.NOT_REQUIRED:
+                    s.due_date = None
+                    s.status = models.SubmissionStatus.NOT_REQUIRED
+                    changed = True
+                continue
+            if s.applicability == "pending":
+                if s.due_date is not None or s.status != models.SubmissionStatus.PENDING_TRIAGE:
+                    s.due_date = None
+                    s.status = models.SubmissionStatus.PENDING_TRIAGE
+                    changed = True
                 continue
             new_due = compute_due_date(db, s.definition, project)
             if new_due != s.due_date:

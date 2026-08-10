@@ -24,7 +24,8 @@
       <button class="nav-item" data-view="l1"><span class="ic">&#128274;</span> L1 Projects</button>
       <button class="nav-item" data-view="gantt"><span class="ic">&#128198;</span> Timeline</button>
       <button class="nav-item" data-view="performance"><span class="ic">&#128200;</span> Performance</button>
-      <button class="nav-item" data-view="journey"><span class="ic">&#128337;</span> Journey</button>
+      <button class="nav-item" data-view="journey"><span class="ic">&#128337;</span> L0/L1 History</button>
+      <button class="nav-item" data-view="support"><span class="ic">&#128172;</span> Ask the Team</button>
     </nav>
 
     <div class="nav-group-label" id="adminGroupLabel">Admin</div>
@@ -128,6 +129,11 @@
           <h1>Assigned Deliverables</h1>
           <p class="sub">Every deliverable across every project, in one queue.</p>
         </div>
+        <div class="matrix-toggle" id="assignedStageToggle">
+          <button class="chip active" data-stage="">All</button>
+          <button class="chip" data-stage="L0">L0 Tenders</button>
+          <button class="chip" data-stage="L1">L1 Projects</button>
+        </div>
       </div>
       <div class="filter-chips" id="assignedChips"></div>
       <div class="card table-card"><div id="assignedList"></div></div>
@@ -148,6 +154,21 @@
         <span class="lg"><span class="sw" style="background:var(--warn)"></span> SME review request</span>
         <span class="lg"><span class="sw" style="background:var(--purple-2)"></span> Cross-department unlock</span>
       </div>
+      <div class="gantt-filter-row">
+        <select id="annTypeFilter">
+          <option value="">All Types</option>
+          <option value="broadcast">Broadcast</option>
+          <option value="owner">To Owner</option>
+          <option value="sme_request">SME Review Request</option>
+          <option value="sme_decision">SME Decision</option>
+          <option value="unlock">Cross-department Unlock</option>
+          <option value="deadline">Deadline / Reminder</option>
+          <option value="closed">Closed</option>
+        </select>
+        <input type="date" id="annFromDate" title="From date" />
+        <input type="date" id="annToDate" title="To date" />
+        <button class="btn" id="annClearFilters">Clear</button>
+      </div>
       <div class="card table-card"><div id="announcementsList"></div></div>
     </section>
 
@@ -160,7 +181,11 @@
           <p class="sub">Every tender currently in bid preparation, in one list.</p>
         </div>
       </div>
-      <div class="card table-card">
+      <div class="matrix-toggle" id="l0SubTabs">
+        <button class="chip active" data-tab="list">Tenders List</button>
+        <button class="chip" data-tab="trail">Activity Trail</button>
+      </div>
+      <div class="card table-card" id="l0ListCard">
         <div class="table-scroll">
           <table class="data" id="l0Table">
             <thead><tr><th>Est No.</th><th>Tender</th><th>RFX</th><th>Region</th><th>Scope</th><th>Bid Manager</th><th>BSD</th><th>Status</th></tr></thead>
@@ -168,24 +193,46 @@
           </table>
         </div>
       </div>
+      <div class="card table-card" id="l0TrailCard" style="display:none;">
+        <div class="section-title">
+          <span>Activity Trail</span>
+          <div class="field" style="max-width:320px;margin:0;">
+            <select id="l0TrailProjectSel"><option value="">Select a tender&#8230;</option></select>
+          </div>
+        </div>
+        <div id="l0TrailTimeline"></div>
+      </div>
     </section>
 
     <!-- L1 TABLE -->
     <section class="view" id="view-l1" hidden>
       <div class="view-head">
         <div>
-          <div class="eyebrow">Post-Bid-Win Stage</div>
+          <div class="eyebrow">Post L1 Notification Stage</div>
           <h1>L1 Projects</h1>
           <p class="sub">From announcement through to contract signature &#8211; M1 to M6.</p>
         </div>
       </div>
-      <div class="card table-card">
+      <div class="matrix-toggle" id="l1SubTabs">
+        <button class="chip active" data-tab="list">Projects List</button>
+        <button class="chip" data-tab="trail">Activity Trail</button>
+      </div>
+      <div class="card table-card" id="l1ListCard">
         <div class="table-scroll">
           <table class="data" id="l1Table">
             <thead><tr><th>Est No.</th><th>Project</th><th>Milestones (M1&#8211;M6)</th><th>Bid Manager</th><th>Project Manager</th><th>Status</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
+      </div>
+      <div class="card table-card" id="l1TrailCard" style="display:none;">
+        <div class="section-title">
+          <span>Activity Trail</span>
+          <div class="field" style="max-width:320px;margin:0;">
+            <select id="l1TrailProjectSel"><option value="">Select a project&#8230;</option></select>
+          </div>
+        </div>
+        <div id="l1TrailTimeline"></div>
       </div>
     </section>
 
@@ -197,12 +244,12 @@
           <h1>Timeline</h1>
           <p class="sub">Every active deliverable, pooled across projects and sorted by due date.</p>
         </div>
+      </div>
+      <div class="gantt-filter-row" id="ganttFilterRow">
         <div class="matrix-toggle" id="ganttStageToggle">
           <button class="chip active" data-stage="L0">L0 Tenders</button>
           <button class="chip" data-stage="L1">L1 Projects</button>
         </div>
-      </div>
-      <div class="gantt-filter-row" id="ganttFilterRow">
         <select id="ganttScope"><option value="">Pooled Timeline (all active projects)</option></select>
         <select id="ganttDeptFilter"><option value="">All Departments</option></select>
         <select id="ganttStatusFilter">
@@ -217,7 +264,7 @@
       </div>
       <div class="gantt-dept-legend" id="ganttDeptLegend"></div>
       <div class="card table-card">
-        <div class="gantt-axis" id="ganttAxis"></div>
+        <div class="gantt-axis-clip"><div class="gantt-axis" id="ganttAxis"></div></div>
         <div class="gantt-scroll" id="ganttRows"></div>
       </div>
     </section>
@@ -226,12 +273,13 @@
     <section class="view" id="view-journey" hidden>
       <div class="view-head">
         <div>
-          <div class="eyebrow">How It Works</div>
-          <h1>The L0 &#8594; L1 Journey</h1>
-          <p class="sub">The process this platform automates, and the live activity trail behind any project.</p>
+          <div class="eyebrow">Program History</div>
+          <h1>L0/L1 History</h1>
+          <p class="sub">How the L0/L1 system works, and how it got here &#8211; from the Nov 2025 L0/L1 System Update.</p>
         </div>
       </div>
 
+      <div class="section-title" style="padding:0 0 10px;border:none;">How It Works</div>
       <div class="card journey-explainer">
         <div class="journey-stage">
           <div class="journey-stage-head"><span class="journey-badge l0">L0</span> Tendering</div>
@@ -255,14 +303,113 @@
         </div>
       </div>
 
-      <div class="card table-card" style="margin-top:18px;">
-        <div class="section-title">
-          <span>Project Activity Trail</span>
-          <div class="field" style="max-width:320px;margin:0;">
-            <select id="journeyProjectSel"><option value="">Select a project&#8230;</option></select>
+      <div class="section-title" style="padding:24px 0 10px;border:none;">The Program at a Glance</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="card stat-tile">
+          <div class="label">L0 Tenders Run Through the System</div>
+          <div class="value">343</div>
+          <div class="delta">as reported in the Nov 2025 program update</div>
+        </div>
+        <div class="card stat-tile">
+          <div class="label">L1 Projects Run Through the System</div>
+          <div class="value">45</div>
+          <div class="delta">as reported in the Nov 2025 program update</div>
+        </div>
+      </div>
+
+      <div class="section-title" style="padding:24px 0 10px;border:none;">How the Control System Was Rolled Out</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="card" style="padding:18px 20px;">
+          <div style="font-weight:700;font-size:13.5px;margin-bottom:10px;">Standard L0/L1 Rollout</div>
+          <ol style="margin:0;padding-left:18px;font-size:12.5px;color:var(--ink-700);line-height:1.9;">
+            <li>Set up recurring one-on-one meetings with all departments</li>
+            <li>Shared a workflow diagram of deliverables for departments</li>
+            <li>Set up a shared folder with a tree matching the deliverables</li>
+            <li>Implemented a follow-up framework to address delays or lack of response from departments</li>
+          </ol>
+        </div>
+        <div class="card" style="padding:18px 20px;">
+          <div style="font-weight:700;font-size:13.5px;margin-bottom:10px;">International L0/L1 Development</div>
+          <ol style="margin:0;padding-left:18px;font-size:12.5px;color:var(--ink-700);line-height:1.9;">
+            <li>Initiated the development of an International Projects System</li>
+            <li>Prepared a new version of the L0 and L1 Stages for International Projects</li>
+            <li>Introduced a new stage called &quot;L-Pre Stage&quot;</li>
+            <li>Conducted workshops with all involved departments</li>
+            <li>Gathering feedback and refining the final outputs</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="section-title" style="padding:24px 0 10px;border:none;">What Changed, By Department</div>
+      <div class="card" id="historyDeptCard"></div>
+
+      <div class="section-title" style="padding:24px 0 10px;border:none;">The Control Team's Role</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="card" style="padding:18px 20px;">
+          <div style="font-weight:700;font-size:13.5px;margin-bottom:10px;">Setting Up Each Project</div>
+          <ul style="margin:0;padding-left:18px;font-size:12.5px;color:var(--ink-700);line-height:1.9;">
+            <li>Conducting workshops and introducing L0/L1 to any new participants/departments (such as assigned PMs in L1 Stage)</li>
+            <li>Preparing all due dates for all deliverables in announcement sheets</li>
+            <li>Distributing all announcements to focal points (new projects / milestones / extensions / closed projects)</li>
+            <li>Setting up the shared folder for any new project and managing its security and access</li>
+            <li>Bridging the gaps and miscommunication between departments</li>
+          </ul>
+        </div>
+        <div class="card" style="padding:18px 20px;">
+          <div style="font-weight:700;font-size:13.5px;margin-bottom:10px;">Running It Day-to-Day</div>
+          <ul style="margin:0;padding-left:18px;font-size:12.5px;color:var(--ink-700);line-height:1.9;">
+            <li>Notifying all focal points of any new update/upload on any shared folder via comprehensive daily reporting</li>
+            <li>Tracking &amp; controlling all L0 &amp; L1 deliverables for all projects</li>
+            <li>Routine follow-ups with assigned focal points from each department to facilitate progress, such as internal KOMs</li>
+            <li>Preparing performance reports and updating the live performance dashboard</li>
+            <li>Continuously improving the system through feedback &amp; observations, such as converting some deliverables into Library items</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ASK THE TEAM -->
+    <section class="view" id="view-support" hidden>
+      <div class="view-head">
+        <div>
+          <div class="eyebrow">Support</div>
+          <h1>Ask the Team</h1>
+          <p class="sub">Question about a tender, a project, or a specific deliverable &#8211; this reaches the admins directly.</p>
+        </div>
+      </div>
+      <div class="card" style="max-width:640px;">
+        <div class="form-grid">
+          <div class="field">
+            <label>Your Name</label>
+            <input type="text" id="supName" placeholder="optional" />
+          </div>
+          <div class="field">
+            <label>Your Email <span class="req">*</span></label>
+            <input type="email" id="supEmail" placeholder="you@algihaz.com" />
+          </div>
+          <div class="field">
+            <label>Stage</label>
+            <select id="supStage"><option value="">Not specific to a stage</option><option value="L0">L0</option><option value="L1">L1</option></select>
+          </div>
+          <div class="field">
+            <label>Est-Num</label>
+            <input type="text" id="supEstNo" placeholder="e.g. Est-1642 (optional)" />
+          </div>
+          <div class="field" style="grid-column:1/-1;">
+            <label>Deliverable</label>
+            <input type="text" id="supDeliverable" placeholder="e.g. 2.4 Risk Register (optional)" />
+          </div>
+          <div class="field" style="grid-column:1/-1;">
+            <label>Message <span class="req">*</span></label>
+            <textarea id="supMessage" rows="4" placeholder="What do you need help with?"></textarea>
           </div>
         </div>
-        <div id="journeyTimeline"></div>
+        <button class="btn primary" id="supSubmit" style="margin-top:6px;">Send to Admins</button>
+      </div>
+
+      <div class="card table-card" id="supInboxCard" style="margin-top:18px;display:none;">
+        <div class="section-title"><span>Inbox</span></div>
+        <div id="supInboxList"></div>
       </div>
     </section>
 
@@ -338,16 +485,22 @@
     <section class="view" id="view-detail" hidden>
       <button class="back-link" id="backBtn">&#8592; Back to list</button>
       <div class="detail-head">
-        <div>
-          <div class="detail-est"><span id="dEst"></span> <span class="stage-badge" id="dStageBadge"></span></div>
+        <div class="detail-head-main">
+          <span class="stage-badge" id="dStageBadge"></span>
           <h1 class="detail-title" id="dTitle"></h1>
         </div>
-        <button class="btn" id="dGanttBtn">View Timeline</button>
-        <span class="pill" id="dStatusPill"></span>
-        <select id="dStatusSelect" style="display:none;"></select>
+        <div class="detail-head-actions">
+          <button class="btn" id="dGanttBtn">View Timeline</button>
+          <span class="pill" id="dStatusPill"></span>
+          <select id="dStatusSelect" style="display:none;"></select>
+        </div>
       </div>
       <div class="detail-meta-row" id="dMeta"></div>
       <div class="terminal-banner" id="dTerminalBanner" hidden>&#128274; This project is closed &#8212; deliverables are read-only. An admin can reopen it via the status dropdown above.</div>
+      <div class="terminal-banner" id="dTriageBanner" hidden style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <span id="dTriageBannerText"></span>
+        <button class="btn primary" id="dTriageBannerBtn">Complete Triage</button>
+      </div>
 
       <div class="card full-stepper" id="dStepperCard">
         <div class="fs-row" id="dStepper"></div>
@@ -505,10 +658,38 @@
       </div>
     </section>
 
+    <!-- BM TRIAGE (right after L0 creation) -->
+    <section class="view" id="view-triage" hidden>
+      <div class="view-head">
+        <div>
+          <div class="eyebrow">Bid Manager Triage</div>
+          <h1 id="triageTitle">Confirm Applicable Deliverables</h1>
+          <p class="sub">Mark any deliverable that doesn't apply to this tender as Not Required &#8211; everything defaults to Applicable. Not-Required items won't get a due date or count against the tender.</p>
+        </div>
+      </div>
+      <div class="card table-card" id="triageCard"></div>
+      <div class="form-actions">
+        <button class="btn primary" id="triageConfirm">Confirm &amp; Continue</button>
+      </div>
+    </section>
+
   </div>
 </div>
 
-<div class="toast" id="toast"><span class="tic">&#9989;</span><span id="toastMsg"></span></div>
+<div class="modal-overlay" id="delivModalOverlay" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <div class="eyebrow" id="delivModalEyebrow"></div>
+        <h2 id="delivModalTitle"></h2>
+      </div>
+      <button class="modal-close" id="delivModalClose">&#10005;</button>
+    </div>
+    <div class="modal-body" id="delivModalBody"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="tic" id="toastIc">&#9989;</span><span id="toastMsg"></span></div>
 
 <script src="/static/app.js"></script>
 </body>

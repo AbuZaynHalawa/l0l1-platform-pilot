@@ -12,12 +12,14 @@ _mail = get_mail_provider()
 
 
 def _create(db: Session, *, type: models.AnnouncementType, title: str, body: str,
-            recipients: list[str], project: models.Project | None = None) -> models.Announcement:
+            recipients: list[str], project: models.Project | None = None,
+            submission_id: int | None = None) -> models.Announcement:
     status = _mail.send_mail(recipients, title, body) if recipients else "simulated"
     ann = models.Announcement(
         type=type, title=title, body=body,
         recipients=", ".join(recipients) if recipients else "",
         project_id=project.id if project else None,
+        submission_id=submission_id,
         email_status=status,
     )
     db.add(ann)
@@ -46,16 +48,17 @@ def owner_assigned(db: Session, project: models.Project, owner_email: str, dept_
                     recipients=[owner_email], project=project)
 
 
-def sme_review_requested(db: Session, project: models.Project, sme_email: str, item_no: str, item_name: str) -> models.Announcement:
+def sme_review_requested(db: Session, project: models.Project, sme_email: str, item_no: str, item_name: str,
+                          submission_id: int | None = None) -> models.Announcement:
     title = "Review Requested &#8211; SME Action Needed"
     body = (f"{item_no} {item_name} was submitted on {project.est_no} and is now awaiting your review. "
             f"<b>You have 1 day to review and submit feedback.</b>")
     return _create(db, type=models.AnnouncementType.SME_REQUEST, title=title, body=body,
-                    recipients=[sme_email], project=project)
+                    recipients=[sme_email], project=project, submission_id=submission_id)
 
 
 def sme_decision(db: Session, project: models.Project, owner_email: str, item_no: str, item_name: str,
-                  approved: bool, comment: str | None = None) -> models.Announcement:
+                  approved: bool, comment: str | None = None, submission_id: int | None = None) -> models.Announcement:
     if approved:
         title = "Deliverable Approved"
         body = f"{item_no} {item_name} on {project.est_no} was reviewed and approved."
@@ -64,16 +67,18 @@ def sme_decision(db: Session, project: models.Project, owner_email: str, item_no
         note = comment or "Please review and resubmit with updated supporting documents."
         body = f"{item_no} {item_name} on {project.est_no} was rejected: &quot;{note}&quot;"
     ann_type = models.AnnouncementType.SME_DECISION
-    return _create(db, type=ann_type, title=title, body=body, recipients=[owner_email], project=project)
+    return _create(db, type=ann_type, title=title, body=body, recipients=[owner_email], project=project,
+                    submission_id=submission_id)
 
 
 def cross_department_unlock(db: Session, project: models.Project, newly_active_owner_email: str,
-                             trigger_item: str, unlocked_item_no: str, unlocked_item_name: str) -> models.Announcement:
+                             trigger_item: str, unlocked_item_no: str, unlocked_item_name: str,
+                             submission_id: int | None = None) -> models.Announcement:
     title = "Deliverable Unlocked &#8211; Predecessor Approved"
     body = (f"{trigger_item} being approved on {project.est_no} unlocks "
             f"{unlocked_item_no} {unlocked_item_name}.")
     return _create(db, type=models.AnnouncementType.UNLOCK, title=title, body=body,
-                    recipients=[newly_active_owner_email], project=project)
+                    recipients=[newly_active_owner_email], project=project, submission_id=submission_id)
 
 
 def deadline_extended(db: Session, project: models.Project, recipients: list[str], old_date: str, new_date: str) -> models.Announcement:
@@ -92,22 +97,23 @@ def milestone_reached(db: Session, project: models.Project, recipients: list[str
 
 
 def reminder_sent(db: Session, project: models.Project, owner_email: str, item_no: str, item_name: str,
-                   due_date) -> models.Announcement:
+                   due_date, submission_id: int | None = None) -> models.Announcement:
     title = f"Reminder &#8211; {item_no} is due"
     due_str = due_date.isoformat() if due_date else "unspecified"
     body = f"{item_no} {item_name} on {project.est_no} is due ({due_str}). Please submit as soon as possible."
     return _create(db, type=models.AnnouncementType.DEADLINE, title=title, body=body,
-                    recipients=[owner_email], project=project)
+                    recipients=[owner_email], project=project, submission_id=submission_id)
 
 
 def followers_notified(db: Session, project: models.Project, recipients: list[str],
-                        item_no: str, item_name: str, event_label: str) -> models.Announcement | None:
+                        item_no: str, item_name: str, event_label: str,
+                        submission_id: int | None = None) -> models.Announcement | None:
     if not recipients:
         return None
     title = f"Followed Item Update &#8211; {item_no}"
     body = f"{item_no} {item_name} on {project.est_no} was just {event_label}."
     return _create(db, type=models.AnnouncementType.DEADLINE, title=title, body=body,
-                    recipients=recipients, project=project)
+                    recipients=recipients, project=project, submission_id=submission_id)
 
 
 def project_closed(db: Session, project: models.Project, recipients: list[str]) -> models.Announcement:

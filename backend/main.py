@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse
 
 from .database import engine
 from . import models
-from .routers import projects, deliverables, announcements_router, dashboard, departments, milestones, gantt
+from .routers import projects, deliverables, announcements_router, dashboard, departments, milestones, gantt, support
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -18,6 +18,7 @@ app.include_router(dashboard.router)
 app.include_router(departments.router)
 app.include_router(milestones.router)
 app.include_router(gantt.router)
+app.include_router(support.router)
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 LOCAL_FILES_DIR = Path(__file__).resolve().parent.parent / "data" / "local_storage"

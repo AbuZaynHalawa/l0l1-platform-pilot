@@ -111,6 +111,36 @@ def _rank_smes(subs):
     return ranked
 
 
+_SAMPLE_OWNERS = [
+    {"email": "sample.owner1@algihaz.com", "approved": 9, "total": 10, "pct": 90.0},
+    {"email": "sample.owner2@algihaz.com", "approved": 7, "total": 8, "pct": 87.5},
+    {"email": "sample.owner3@algihaz.com", "approved": 6, "total": 7, "pct": 85.7},
+]
+_SAMPLE_SMES = [
+    {"email": "sample.sme1@algihaz.com", "reviewed": 12, "avg_seconds": 3600.0, "avg_label": "1.0 hrs"},
+    {"email": "sample.sme2@algihaz.com", "reviewed": 9, "avg_seconds": 7200.0, "avg_label": "2.0 hrs"},
+    {"email": "sample.sme3@algihaz.com", "reviewed": 6, "avg_seconds": 18000.0, "avg_label": "5.0 hrs"},
+]
+
+
+def _pad_with_samples(ranked, samples):
+    """Fills the leaderboard with clearly-labeled sample rows when there isn't
+    enough real data yet, so the section shows what it'll look like once
+    people are using the platform — never mixed in silently, always tagged.
+    """
+    if len(ranked) >= 3:
+        return ranked
+    real_emails = {r["email"] for r in ranked}
+    padded = list(ranked)
+    for sample in samples:
+        if len(padded) >= 3:
+            break
+        if sample["email"] in real_emails:
+            continue
+        padded.append(dict(sample, sample=True))
+    return padded
+
+
 @router.get("/top-achievers")
 def get_top_achievers(db: Session = Depends(get_db)):
     active_projects = db.query(models.Project).filter(models.Project.status == models.ProjectStatus.IN_PROGRESS).all()
@@ -125,7 +155,10 @@ def get_top_achievers(db: Session = Depends(get_db)):
             .filter(models.DeliverableSubmission.project_id.in_([p.id for p in active_projects]))
             .all()
         )
-    return {"owners": _rank_owners(subs), "smes": _rank_smes(subs)}
+    return {
+        "owners": _pad_with_samples(_rank_owners(subs), _SAMPLE_OWNERS),
+        "smes": _pad_with_samples(_rank_smes(subs), _SAMPLE_SMES),
+    }
 
 
 @router.get("/matrix")

@@ -18,6 +18,14 @@
     if (action === "remind" || action === "create") return false;
     return true;
   }
+  function isAssigned(d) {
+    if (CURRENT_ROLE === "Admin") return true;
+    var email = actingEmail().trim().toLowerCase();
+    if (!email) return false;
+    var owner = (d.owner_email || "").trim().toLowerCase();
+    var sme = (d.sme_email || "").trim().toLowerCase();
+    return (!!owner && email === owner) || (!!sme && email === sme);
+  }
 
   function el(tag, cls, html) {
     var e = document.createElement(tag);
@@ -41,17 +49,21 @@
     return r.status === 204 ? null : r.json();
   }
   function apiErrorDetail(err) { return err.detail || err.message; }
-  function showToast(msg) {
+  function showToast(msg, isError) {
     var t = document.getElementById("toast");
+    t.classList.toggle("error", !!isError);
+    document.getElementById("toastIc").textContent = isError ? "❌" : "✅";
     document.getElementById("toastMsg").innerHTML = msg;
     t.classList.add("show");
     clearTimeout(window.__toastTimer);
-    window.__toastTimer = setTimeout(function () { t.classList.remove("show"); }, 3200);
+    var duration = isError ? Math.max(3200, msg.split("<br>").length * 1600) : 3200;
+    window.__toastTimer = setTimeout(function () { t.classList.remove("show"); }, duration);
   }
 
   var STATUS_META = {
     not_due: ["neutral", "Not Due"], due: ["warn", "Due"], overdue: ["crit", "Overdue"],
     pending_review: ["warn", "Pending SME Review"], approved: ["good", "Approved"], rejected: ["crit", "Rejected"],
+    pending_triage: ["neutral", "Pending BM Triage"], not_required: ["neutral", "Not Required"],
   };
   var PROJECT_STATUS_CLASS = { "Completed": "good", "Cancelled": "crit", "Submitted": "good", "In Progress": "warn" };
   var L1_MILESTONE_LABELS = {
@@ -77,6 +89,7 @@
     l0: function () { loadProjectsTable("L0"); }, l1: function () { loadProjectsTable("L1"); },
     performance: loadPerformance, reports: loadReports, create: loadCreateOptions, gantt: loadGantt,
     journey: loadJourney, scores: loadScores, focalpoints: loadFocalPoints, followup: loadFollowUp,
+    support: loadSupport,
   };
   var ADMIN_ONLY_VIEWS = ["create", "reports", "scores", "focalpoints", "followup"];
   function switchView(name) {
@@ -140,7 +153,7 @@
       row.appendChild(body);
       if (a.project_id) {
         row.style.cursor = "pointer";
-        row.addEventListener("click", function () { openDetail(a.project_id); });
+        row.addEventListener("click", function () { openDetail(a.project_id, a.submission_id); });
       }
     });
 
@@ -204,7 +217,8 @@
       var row = el("div", "achiever-row");
       row.appendChild(el("div", "achiever-rank", medals[i] || String(i + 1)));
       var main = el("div", "achiever-main");
-      main.appendChild(el("div", "achiever-email", r.email));
+      var emailLine = r.email + (r.sample ? ' <span class="sample-tag">Sample</span>' : "");
+      main.appendChild(el("div", "achiever-email", emailLine));
       if (kind === "sme") {
         main.appendChild(el("div", "achiever-sub", r.reviewed + " review" + (r.reviewed === 1 ? "" : "s")));
         row.appendChild(main);
@@ -258,11 +272,21 @@
 
   /* ================= ASSIGNED DELIVERABLES ================= */
   var assignedFilter = "";
+  var assignedStage = "";
   var ASSIGNED_FILTERS = [["", "All"], ["overdue", "Overdue"], ["pending_review", "Pending SME Review"], ["not_due", "Not Due Yet"], ["approved", "Approved"], ["rejected", "Rejected"]];
+  document.querySelectorAll("#assignedStageToggle .chip").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.querySelectorAll("#assignedStageToggle .chip").forEach(function (b) { b.classList.remove("active"); });
+      btn.classList.add("active");
+      assignedStage = btn.dataset.stage;
+      loadAssigned();
+    });
+  });
   async function loadAssigned() {
     var followQS = actingEmail() ? "?actor_email=" + encodeURIComponent(actingEmail()) : "";
-    var all = await api("/api/deliverables" + followQS);
-    document.getElementById("assignedBadge").textContent = all.filter(function (d) { return d.status === "overdue"; }).length || "";
+    var everything = await api("/api/deliverables" + followQS);
+    var all = assignedStage ? everything.filter(function (d) { return d.stage === assignedStage; }) : everything;
+    document.getElementById("assignedBadge").textContent = everything.filter(function (d) { return d.status === "overdue"; }).length || "";
 
     var chips = document.getElementById("assignedChips");
     chips.innerHTML = "";
@@ -288,56 +312,63 @@
         '<span>' + deptLabel(d.department, d.department_number) + '</span><span class="sep">&middot;</span>' +
         '<span>Owner: ' + d.owner + '</span><span class="sep">&middot;</span>' +
         '<span>Due ' + fmtDate(d.due_date) + '</span>'));
-      if (d.completion_note) main.appendChild(el("div", "deliv-comment", "&#128172; " + d.completion_note));
+      var authorized = isAssigned(d);
+      if (authorized && d.completion_note) main.appendChild(el("div", "deliv-comment", "&#128172; " + d.completion_note));
+      main.style.cursor = "pointer";
+      main.addEventListener("click", function () { openDelivModal(d.id); });
       row.appendChild(main);
       row.appendChild(el("span", "pill " + sm[0], '<span class="dot"></span>' + sm[1]));
       var actions = el("div", "deliv-actions");
-      if (d.file_url) actions.appendChild(fileLink(d));
+      if (authorized && d.file_url) actions.appendChild(fileLink(d));
       actions.appendChild(followButton(d));
-      if (d.status === "pending_review" && can("review")) {
-        var appr = el("button", "btn primary", "Approve");
-        appr.addEventListener("click", function () { review(d.id, true, loadAssigned); });
-        var rej = el("button", "btn ghost-crit", "Reject");
-        rej.addEventListener("click", function () { review(d.id, false, loadAssigned); });
-        actions.appendChild(appr); actions.appendChild(rej);
-      }
-      if (d.status === "overdue" && can("remind")) {
-        var remindBtn = el("button", "btn ghost-crit", "Send reminder");
-        remindBtn.addEventListener("click", async function () {
-          try {
-            var res = await api("/api/deliverables/bulk-remind", {
-              method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ submission_ids: [d.id], actor_role: CURRENT_ROLE }),
-            });
-            showToast(res.sent ? "Reminder sent to " + d.owner : "No owner to remind");
-          } catch (err) {
-            showToast("Could not send reminder &#8211; " + apiErrorDetail(err));
-          }
-        });
-        actions.appendChild(remindBtn);
-      }
-      if ((d.status === "not_due" || d.status === "due" || d.status === "overdue" || d.status === "rejected") && can("upload")) {
-        actions.appendChild(uploadButton(d.id, loadAssigned));
-        actions.appendChild(markCompleteButton(d.id, loadAssigned));
-        var reassignBtn = el("button", "btn", "Reassign…");
-        reassignBtn.addEventListener("click", async function () {
-          var toEmail = prompt("Reassign " + d.item_no + " to (email):", "");
-          if (!toEmail) return;
-          toEmail = toEmail.trim();
-          if (!toEmail) return;
-          var reason = prompt("Reason (optional):", "") || null;
-          try {
-            await api("/api/deliverables/" + d.id + "/reassign-request", {
-              method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ to_email: toEmail, reason: reason, from_email: d.owner }),
-            });
-          } catch (err) {
-            showToast("Could not request reassignment &#8211; " + apiErrorDetail(err));
-            return;
-          }
-          showToast("Reassignment requested — pending admin approval");
-        });
-        actions.appendChild(reassignBtn);
+      if (!authorized) {
+        actions.appendChild(el("span", "locked-note", "Owner/SME only"));
+      } else {
+        if (d.status === "pending_review" && can("review")) {
+          var appr = el("button", "btn primary", "Approve");
+          appr.addEventListener("click", function () { review(d.id, true, loadAssigned); });
+          var rej = el("button", "btn ghost-crit", "Reject");
+          rej.addEventListener("click", function () { review(d.id, false, loadAssigned); });
+          actions.appendChild(appr); actions.appendChild(rej);
+        }
+        if (d.status === "overdue" && can("remind")) {
+          var remindBtn = el("button", "btn ghost-crit", "Send reminder");
+          remindBtn.addEventListener("click", async function () {
+            try {
+              var res = await api("/api/deliverables/bulk-remind", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ submission_ids: [d.id], actor_role: CURRENT_ROLE }),
+              });
+              showToast(res.sent ? "Reminder sent to " + d.owner : "No owner to remind");
+            } catch (err) {
+              showToast("Could not send reminder &#8211; " + apiErrorDetail(err), true);
+            }
+          });
+          actions.appendChild(remindBtn);
+        }
+        if ((d.status === "not_due" || d.status === "due" || d.status === "overdue" || d.status === "rejected") && can("upload")) {
+          actions.appendChild(uploadButton(d.id, loadAssigned));
+          actions.appendChild(markCompleteButton(d.id, loadAssigned));
+          var reassignBtn = el("button", "btn", "Reassign…");
+          reassignBtn.addEventListener("click", async function () {
+            var toEmail = prompt("Reassign " + d.item_no + " to (email):", "");
+            if (!toEmail) return;
+            toEmail = toEmail.trim();
+            if (!toEmail) return;
+            var reason = prompt("Reason (optional):", "") || null;
+            try {
+              await api("/api/deliverables/" + d.id + "/reassign-request", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ to_email: toEmail, reason: reason, from_email: d.owner }),
+              });
+            } catch (err) {
+              showToast("Could not request reassignment &#8211; " + apiErrorDetail(err), true);
+              return;
+            }
+            showToast("Reassignment requested — pending admin approval");
+          });
+          actions.appendChild(reassignBtn);
+        }
       }
       row.appendChild(actions);
       wrap.appendChild(row);
@@ -363,7 +394,7 @@
         btn.innerHTML = d.following ? "&#9733; Following" : "&#9734; Follow";
         showToast(d.following ? "Following " + d.item_no : "Unfollowed " + d.item_no);
       } catch (err) {
-        showToast("Could not update follow &#8211; " + apiErrorDetail(err));
+        showToast("Could not update follow &#8211; " + apiErrorDetail(err), true);
       }
     });
     return btn;
@@ -412,20 +443,205 @@
     target.innerHTML = ms.map(function (m) { return '<span class="mini-dot' + (m.reached ? " on" : "") + '"></span>'; }).join("");
   }
 
+  /* ================= BM TRIAGE ================= */
+  async function openTriage(projectId) {
+    var p = await api("/api/projects/" + projectId);
+    document.getElementById("triageTitle").textContent = "Confirm Applicable Deliverables – " + p.est_no.toUpperCase();
+    var items = await api("/api/projects/" + projectId + "/deliverables");
+    var pending = items.filter(function (d) { return d.status === "pending_triage"; });
+    var card = document.getElementById("triageCard");
+    card.innerHTML = "";
+    var state = {};
+    if (!pending.length) {
+      card.appendChild(el("div", "deliv-row", '<span style="color:var(--ink-500);font-size:12.5px;">Nothing left to triage.</span>'));
+    } else {
+      var lastDept = null;
+      pending.forEach(function (d) {
+        if (d.department !== lastDept) {
+          card.appendChild(el("div", "deliv-subheader", d.department));
+          lastDept = d.department;
+        }
+        state[d.id] = true;
+        var row = el("div", "deliv-row");
+        row.appendChild(el("div", "deliv-num", d.item_no));
+        var body = el("div", "deliv-body");
+        body.appendChild(el("div", "deliv-name", d.name));
+        row.appendChild(body);
+        var toggle = el("div", "triage-toggle");
+        var appBtn = el("button", "chip active", "Applicable");
+        var notBtn = el("button", "chip", "Not Required");
+        appBtn.addEventListener("click", function () {
+          state[d.id] = true;
+          appBtn.classList.add("active"); notBtn.classList.remove("active");
+        });
+        notBtn.addEventListener("click", function () {
+          state[d.id] = false;
+          notBtn.classList.add("active"); appBtn.classList.remove("active");
+        });
+        toggle.appendChild(appBtn); toggle.appendChild(notBtn);
+        row.appendChild(toggle);
+        card.appendChild(row);
+      });
+    }
+    document.getElementById("triageConfirm").onclick = async function () {
+      var payloadItems = Object.keys(state).map(function (sid) {
+        return { submission_id: Number(sid), applicable: state[sid] };
+      });
+      try {
+        await api("/api/projects/" + projectId + "/triage", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items: payloadItems, actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
+        });
+      } catch (err) {
+        showToast("Could not save triage &#8211; " + apiErrorDetail(err), true);
+        return;
+      }
+      showToast("Triage confirmed");
+      openDetail(projectId);
+    };
+    switchView("triage");
+  }
+
+  /* ================= DELIVERABLE DETAIL MODAL ================= */
+  document.getElementById("delivModalClose").addEventListener("click", closeDelivModal);
+  document.getElementById("delivModalOverlay").addEventListener("click", function (e) {
+    if (e.target.id === "delivModalOverlay") closeDelivModal();
+  });
+  function closeDelivModal() { document.getElementById("delivModalOverlay").hidden = true; }
+  async function openDelivModal(submissionId) {
+    var d = await api("/api/deliverables/" + submissionId);
+    document.getElementById("delivModalEyebrow").textContent = d.est_no + " – " + deptLabel(d.department, d.department_number);
+    document.getElementById("delivModalTitle").textContent = d.item_no + " · " + d.name;
+    var authorized = isAssigned({ owner_email: d.owner_email, sme_email: d.sme_email });
+    var body = document.getElementById("delivModalBody");
+    body.innerHTML = "";
+
+    var sm = STATUS_META[d.status] || ["neutral", d.status];
+    var meta = el("div", "modal-meta-grid");
+    [["Owner", d.owner_email || "&#8213;"], ["SME", d.sme_email || "&#8213;"],
+     ["Due Date", fmtDate(d.due_date)], ["Status", '<span class="pill ' + sm[0] + '"><span class="dot"></span>' + sm[1] + "</span>"]]
+      .forEach(function (m) {
+        var mi = el("div");
+        mi.appendChild(el("div", "mk", m[0]));
+        mi.appendChild(el("div", "mv", m[1]));
+        meta.appendChild(mi);
+      });
+    body.appendChild(meta);
+
+    if (authorized && d.file_url) {
+      var primaryLink = el("a", "btn", "View / Download Primary File");
+      primaryLink.href = d.file_url; primaryLink.target = "_blank"; primaryLink.rel = "noopener";
+      body.appendChild(primaryLink);
+    }
+    if (authorized && (d.review_comment || d.completion_note)) {
+      body.appendChild(el("div", "deliv-comment", "&#128172; " + (d.review_comment || d.completion_note)));
+    }
+
+    body.appendChild(el("div", "modal-section-title", "Documents"));
+    if (!authorized) {
+      body.appendChild(el("div", "empty-state", "Owner/SME/Admin only."));
+    } else {
+      if (!d.documents.length) body.appendChild(el("div", "empty-state", "No supplementary documents yet."));
+      d.documents.forEach(function (doc) {
+        var row = el("div", "doc-row");
+        var main = el("div", "doc-main");
+        var link = el("a", "", doc.file_name);
+        link.href = doc.file_url; link.target = "_blank"; link.rel = "noopener";
+        main.appendChild(link);
+        var docSm = { pending: ["warn", "Pending Review"], approved: ["good", "Approved"], rejected: ["crit", "Rejected"] }[doc.status] || ["neutral", doc.status];
+        main.appendChild(el("div", "doc-sub", "Uploaded by " + (doc.uploaded_by || "&#8213;") +
+          '<span class="pill ' + docSm[0] + '" style="margin-left:8px;"><span class="dot"></span>' + docSm[1] + "</span>"));
+        row.appendChild(main);
+        if (doc.status === "pending" && can("review")) {
+          var appr = el("button", "btn primary", "Approve");
+          appr.addEventListener("click", async function () {
+            await api("/api/deliverables/documents/" + doc.id + "/review", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ approved: true, reviewer_name: CURRENT_ROLE, actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
+            });
+            openDelivModal(submissionId);
+          });
+          var rej = el("button", "btn ghost-crit", "Reject");
+          rej.addEventListener("click", async function () {
+            var comment = prompt("Reason for rejecting " + doc.file_name + ":", "") || null;
+            await api("/api/deliverables/documents/" + doc.id + "/review", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ approved: false, comment: comment, reviewer_name: CURRENT_ROLE, actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
+            });
+            openDelivModal(submissionId);
+          });
+          row.appendChild(appr); row.appendChild(rej);
+        }
+        body.appendChild(row);
+      });
+      if (can("upload")) {
+        var addBtn = el("button", "btn", "Add Document");
+        var addInput = el("input"); addInput.type = "file"; addInput.style.display = "none";
+        addInput.addEventListener("change", async function () {
+          if (!addInput.files.length) return;
+          var fd = new FormData();
+          fd.append("file", addInput.files[0]);
+          fd.append("actor_name", CURRENT_ROLE + " (pilot)");
+          fd.append("actor_role", CURRENT_ROLE);
+          fd.append("actor_email", actingEmail());
+          try {
+            await api("/api/deliverables/" + submissionId + "/documents", { method: "POST", body: fd });
+          } catch (err) {
+            showToast("Could not add document &#8211; " + apiErrorDetail(err), true);
+            return;
+          }
+          showToast("Document added");
+          openDelivModal(submissionId);
+        });
+        addBtn.addEventListener("click", function () { addInput.click(); });
+        body.appendChild(addBtn); body.appendChild(addInput);
+      }
+    }
+
+    body.appendChild(el("div", "modal-section-title", "Activity"));
+    if (!authorized) {
+      body.appendChild(el("div", "empty-state", "Owner/SME/Admin only."));
+    } else if (!d.history.length) {
+      body.appendChild(el("div", "empty-state", "No activity yet."));
+    } else {
+      d.history.slice().reverse().forEach(function (ev) {
+        var row = el("div", "journey-event");
+        row.appendChild(el("div", "journey-event-ic", HISTORY_ACTION_ICON[ev.action] || "&#128276;"));
+        var main = el("div", "journey-event-main");
+        var when = new Date(ev.at).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+        main.appendChild(el("div", "journey-event-top", '<span class="journey-event-time">' + when + "</span>"));
+        main.appendChild(el("div", "journey-event-sub",
+          ev.action.replace(/_/g, " ") + " by <b>" + (ev.actor || "system") + "</b>" + (ev.note ? " &#8212; " + ev.note : "")));
+        row.appendChild(main);
+        body.appendChild(row);
+      });
+    }
+
+    document.getElementById("delivModalOverlay").hidden = false;
+  }
+
   /* ================= PROJECT DETAIL ================= */
   var currentProjectId = null, currentProjectStage = "L0", currentProjectTerminal = false, currentDeptOpen = null;
-  async function openDetail(id) {
+  async function openDetail(id, highlightSubmissionId) {
     currentProjectId = id;
     var p = await api("/api/projects/" + id);
     currentProjectStage = p.stage;
     currentProjectTerminal = (p.stage === "L0" && (p.status === "Submitted" || p.status === "Cancelled")) ||
       (p.stage === "L1" && p.status === "Completed");
     document.getElementById("dTerminalBanner").hidden = !currentProjectTerminal;
+    var triageBanner = document.getElementById("dTriageBanner");
+    if (p.pending_triage_count > 0) {
+      triageBanner.hidden = false;
+      document.getElementById("dTriageBannerText").textContent =
+        p.pending_triage_count + " deliverable(s) still need a Bid Manager applicable / not-required call.";
+      document.getElementById("dTriageBannerBtn").onclick = function () { openTriage(id); };
+    } else {
+      triageBanner.hidden = true;
+    }
     var stageBadge = document.getElementById("dStageBadge");
     stageBadge.textContent = p.stage + " Stage";
     stageBadge.className = "stage-badge " + (p.stage === "L0" ? "l0" : "l1");
-    document.getElementById("dEst").textContent = p.est_no;
-    document.getElementById("dTitle").textContent = p.name;
+    document.getElementById("dTitle").textContent = p.est_no.toUpperCase() + " – " + p.name;
     var pill = document.getElementById("dStatusPill");
     pill.className = "pill " + (PROJECT_STATUS_CLASS[p.status] || "neutral");
     pill.innerHTML = '<span class="dot"></span>' + p.status;
@@ -444,7 +660,7 @@
             body: JSON.stringify({ status: statusSel.value }),
           });
         } catch (err) {
-          showToast("Could not update status &#8211; " + apiErrorDetail(err));
+          showToast("Could not update status &#8211; " + apiErrorDetail(err), true);
           statusSel.value = p.status;
           return;
         }
@@ -459,12 +675,15 @@
     meta.innerHTML = "";
     var buLabel = (p.business_units && p.business_units.length) ? p.business_units.join(" / ") : "&#8213;";
     var metaItems = p.stage === "L0"
-      ? [["Bid Manager", p.bid_manager || "&#8213;"], ["RFX", p.rfx_number || "&#8213;"], ["Region", joinList(p.region)], ["Scope", joinList(p.scope)],
+      ? [["Bid Manager", p.bid_manager || "&#8213;", "bm"], ["RFX", p.rfx_number || "&#8213;"], ["Region", joinList(p.region), "region"], ["Scope", joinList(p.scope)],
          ["Business Unit", buLabel],
-         ["Announced", fmtDate(p.announcement_date)], ["Site Visit", fmtDate(p.site_visit_date)], ["Pre-Bid Deadline", fmtDate(p.pre_bid_deadline)], ["Bid Submission Date", fmtDate(p.bsd)]]
-      : [["Bid Manager", p.bid_manager || "&#8213;"], ["Project Manager", p.project_manager || "&#8213;", "pm"],
-         ["Region", joinList(p.region)], ["Scope", joinList(p.scope)], ["Business Unit", buLabel],
-         ["Announced", fmtDate(p.announcement_date)],
+         ["Announced", fmtDate(p.announcement_date), "date:announcement_date:Announcement Date"],
+         ["Site Visit", fmtDate(p.site_visit_date), "date:site_visit_date:Site Visit Date"],
+         ["Pre-Bid Deadline", fmtDate(p.pre_bid_deadline), "date:pre_bid_deadline:Pre-Bid Deadline"],
+         ["Bid Submission Date", fmtDate(p.bsd)]]
+      : [["Bid Manager", p.bid_manager || "&#8213;", "bm"], ["Project Manager", p.project_manager || "&#8213;", "pm"],
+         ["Region", joinList(p.region), "region"], ["Scope", joinList(p.scope)], ["Business Unit", buLabel],
+         ["Announced", fmtDate(p.announcement_date), "date:announcement_date:Announcement Date"],
          ["Contract Status", p.contract_status === "Signed"
            ? '<span class="pill good"><span class="dot"></span>Signed</span>'
            : (p.contract_status || "&#8213;")]];
@@ -472,18 +691,66 @@
       var mi = el("div", "meta-item");
       mi.appendChild(el("div", "mk", m[0]));
       var mv = el("div", "mv", m[1]);
-      if (m[2] === "pm" && can("create") && !currentProjectTerminal) {
+      var tag = m[2];
+      if (tag && can("create") && !currentProjectTerminal) {
         var editLink = el("a", "meta-edit-link", "Edit");
         editLink.href = "#";
-        editLink.addEventListener("click", function (e) {
+        editLink.addEventListener("click", async function (e) {
           e.preventDefault();
-          var next = prompt("Project Manager name:", p.project_manager || "");
-          if (next === null) return;
-          api("/api/projects/" + id + "/project-manager", {
-            method: "PATCH", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ project_manager: next.trim() || null }),
-          }).then(function () { showToast("Project Manager updated"); openDetail(id); })
-            .catch(function (err) { showToast("Could not update &#8211; " + apiErrorDetail(err)); });
+          if (tag === "pm") {
+            var nextPm = prompt("Project Manager name:", p.project_manager || "");
+            if (nextPm === null) return;
+            api("/api/projects/" + id + "/project-manager", {
+              method: "PATCH", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ project_manager: nextPm.trim() || null }),
+            }).then(function () { showToast("Project Manager updated"); openDetail(id); })
+              .catch(function (err) { showToast("Could not update &#8211; " + apiErrorDetail(err), true); });
+          } else if (tag === "bm") {
+            var opts = await getCreateOptions();
+            var list = opts.bid_managers.map(function (o) { return "&#8226; " + o; }).join("\n");
+            var nextBm = prompt("Bid Manager &#8211; enter the email exactly as listed:\n\n" + list, p.bid_manager || "");
+            if (nextBm === null) return;
+            nextBm = nextBm.trim();
+            if (!nextBm) return;
+            api("/api/projects/" + id + "/details", {
+              method: "PATCH", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ bid_manager: nextBm, actor_role: CURRENT_ROLE }),
+            }).then(function () { showToast("Bid Manager updated"); openDetail(id); })
+              .catch(function (err) { showToast("Could not update &#8211; " + apiErrorDetail(err), true); });
+          } else if (tag === "region") {
+            var ropts = await getCreateOptions();
+            var rlist = ropts.regions.map(function (o) { return "&#8226; " + o; }).join("\n");
+            var nextRegion = prompt("Region(s) &#8211; comma-separated, choose from:\n\n" + rlist, (p.region || []).join(", "));
+            if (nextRegion === null) return;
+            var regionArr = nextRegion.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+            if (!regionArr.length) { showToast("Select at least one Region", true); return; }
+            var regionOther = p.region_other || "";
+            if (regionArr.indexOf("Other") !== -1) {
+              var nextOther = prompt("Specify the Other region:", regionOther);
+              if (nextOther === null) return;
+              regionOther = nextOther.trim();
+            }
+            api("/api/projects/" + id + "/details", {
+              method: "PATCH", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ region: regionArr, region_other: regionOther || null, actor_role: CURRENT_ROLE }),
+            }).then(function () { showToast("Region updated"); openDetail(id); })
+              .catch(function (err) { showToast("Could not update &#8211; " + apiErrorDetail(err), true); });
+          } else if (tag.indexOf("date:") === 0) {
+            var parts = tag.split(":");
+            var fieldName = parts[1], fieldLabel = parts[2];
+            var currentVal = p[fieldName] || "";
+            var nextDate = prompt(fieldLabel + " (YYYY-MM-DD):", currentVal);
+            if (nextDate === null) return;
+            nextDate = nextDate.trim();
+            if (!nextDate && fieldName === "announcement_date") { showToast("Announcement Date is required", true); return; }
+            var body = { actor_role: CURRENT_ROLE };
+            body[fieldName] = nextDate || null;
+            api("/api/projects/" + id + "/details", {
+              method: "PATCH", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            }).then(function () { showToast(fieldLabel + " updated"); openDetail(id); })
+              .catch(function (err) { showToast("Could not update &#8211; " + apiErrorDetail(err), true); });
+          }
         });
         mv.appendChild(document.createTextNode(" "));
         mv.appendChild(editLink);
@@ -541,11 +808,27 @@
       });
       folders.appendChild(row);
     });
-    var firstDeptItems = deptNames.length ? allDelivs.filter(function (d) { return d.department === deptNames[0]; }) : [];
-    document.getElementById("dDeliverTitle").textContent = deptNames.length ? deptLabel(deptNames[0], deptNumber[deptNames[0]]) + " Deliverables" : "Deliverables";
-    renderDeliverables(firstDeptItems);
+    var highlightItem = highlightSubmissionId
+      ? allDelivs.find(function (d) { return d.id === Number(highlightSubmissionId); })
+      : null;
+    var initialDept = highlightItem ? highlightItem.department : deptNames[0];
+    var initialDeptItems = deptNames.length ? allDelivs.filter(function (d) { return d.department === initialDept; }) : [];
+    document.getElementById("dDeliverTitle").textContent = deptNames.length ? deptLabel(initialDept, deptNumber[initialDept]) + " Deliverables" : "Deliverables";
+    currentDeptOpen = initialDept;
+    document.querySelectorAll(".folder-row").forEach(function (r, i) { r.classList.toggle("active", deptNames[i] === initialDept); });
+    renderDeliverables(initialDeptItems);
 
     switchView("detail");
+    if (highlightItem) {
+      setTimeout(function () {
+        var target = document.querySelector('.deliv-row[data-sid="' + highlightSubmissionId + '"]');
+        if (target) {
+          target.scrollIntoView({ behavior: "smooth", block: "center" });
+          target.classList.add("flash");
+          setTimeout(function () { target.classList.remove("flash"); }, 1800);
+        }
+      }, 50);
+    }
   }
 
   function renderDeliverables(items) {
@@ -556,20 +839,33 @@
       wrap.appendChild(el("div", "deliv-row", '<span style="color:var(--ink-500);font-size:12.5px;">No deliverables catalogued for this department yet.</span>'));
       return;
     }
-    items.forEach(function (d) {
+    var hasSplit = items.some(function (d) { return /\[PBU\]/.test(d.name); }) && items.some(function (d) { return !/\[PBU\]/.test(d.name); });
+    var lastSubGroup = null;
+    items.forEach(function (d, idx) {
+      var subGroup = /\[PBU\]/.test(d.name) ? "PBU" : "Main";
+      if (hasSplit && subGroup !== lastSubGroup) {
+        wrap.appendChild(el("div", "deliv-subheader", subGroup === "PBU" ? "PBU-Specific Items" : "Main Business Unit"));
+        lastSubGroup = subGroup;
+      }
       var sm = STATUS_META[d.status] || ["neutral", d.status];
       var row = el("div", "deliv-row");
+      row.dataset.sid = String(d.id);
       var body = el("div", "deliv-body");
       body.appendChild(el("div", "deliv-name", d.name));
-      body.appendChild(el("div", "deliv-due", "Due " + fmtDate(d.due_date) + ' &middot; <span class="pill ' + sm[0] + '"><span class="dot"></span>' + sm[1] + "</span>"));
-      if (d.completion_note) {
+      body.appendChild(el("div", "deliv-due", '<span class="deliv-due-date">Due ' + fmtDate(d.due_date) + '</span> <span class="pill ' + sm[0] + '"><span class="dot"></span>' + sm[1] + "</span>"));
+      var authorized = isAssigned(d);
+      if (authorized && d.completion_note) {
         body.appendChild(el("div", "deliv-comment", "&#128172; " + d.completion_note));
       }
+      body.style.cursor = "pointer";
+      body.addEventListener("click", function () { openDelivModal(d.id); });
       row.appendChild(el("div", "deliv-num", d.item_no));
       row.appendChild(body);
 
       var actions = el("div", "deliv-actions");
-      if (currentProjectTerminal) {
+      if (!authorized) {
+        actions.appendChild(el("span", "locked-note", "Owner/SME only"));
+      } else if (currentProjectTerminal) {
         if (d.file_url) actions.appendChild(fileLink(d));
       } else if (d.status === "pending_review") {
         if (d.file_url) actions.appendChild(fileLink(d));
@@ -616,7 +912,7 @@
       try {
         await api("/api/deliverables/" + submissionId + "/upload", { method: "POST", body: fd });
       } catch (err) {
-        showToast("Upload blocked &#8211; " + apiErrorDetail(err));
+        showToast("Upload blocked &#8211; " + apiErrorDetail(err), true);
         return;
       }
       showToast("Uploaded " + fileInput.files[0].name + " &#8211; SME notified");
@@ -632,14 +928,14 @@
       var comment = prompt("Describe how this was completed (required — no file to attach):", "");
       if (comment === null) return;
       comment = comment.trim();
-      if (!comment) { showToast("A comment is required to mark this complete"); return; }
+      if (!comment) { showToast("A comment is required to mark this complete", true); return; }
       try {
         await api("/api/deliverables/" + submissionId + "/mark-complete", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ comment: comment, actor_name: CURRENT_ROLE + " (pilot)", actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
         });
       } catch (err) {
-        showToast("Could not mark complete &#8211; " + apiErrorDetail(err));
+        showToast("Could not mark complete &#8211; " + apiErrorDetail(err), true);
         return;
       }
       showToast("Marked complete &#8211; SME notified");
@@ -666,7 +962,7 @@
         }),
       });
     } catch (err) {
-      showToast("Review blocked &#8211; " + apiErrorDetail(err));
+      showToast("Review blocked &#8211; " + apiErrorDetail(err), true);
       return;
     }
     showToast(approved ? "Approved &#8211; owner notified" : "Rejected &#8211; owner notified");
@@ -675,13 +971,14 @@
 
   /* ================= TIMELINE / GANTT ================= */
   var DEPT_COLORS = {
-    1: "#e63946", 2: "#f3722c", 3: "#d4a017", 4: "#90be6d", 5: "#2a9d8f",
-    6: "#219ebc", 7: "#3a86ff", 8: "#7209b7", 9: "#b5179e", 10: "#ef476f",
-    11: "#6a4c93", 12: "#495057",
+    1: "#b91c1c", 2: "#f3722c", 3: "#ca8a04", 4: "#65a30d", 5: "#0d9488",
+    6: "#0284c7", 7: "#4f46e5", 8: "#7c3aed", 9: "#db2777", 10: "#f472b6",
+    11: "#78716c", 12: "#44403c",
   };
   function deptColor(number) { return DEPT_COLORS[number] || "#94a3b8"; }
   var ganttStage = "L0";
-  var ganttPooledRows = [];
+  var ganttRowsUnfiltered = [];
+  var ganttIsPooled = true;
   document.querySelectorAll("#ganttStageToggle .chip").forEach(function (btn) {
     btn.addEventListener("click", function () {
       document.querySelectorAll("#ganttStageToggle .chip").forEach(function (b) { b.classList.remove("active"); });
@@ -692,6 +989,9 @@
   });
   document.getElementById("ganttDeptFilter").addEventListener("change", applyGanttFilters);
   document.getElementById("ganttStatusFilter").addEventListener("change", applyGanttFilters);
+  document.getElementById("ganttRows").addEventListener("scroll", function () {
+    document.getElementById("ganttAxis").style.transform = "translateX(-" + this.scrollLeft + "px)";
+  });
   document.getElementById("ganttScope").addEventListener("change", function () { renderGanttFor(this.value); });
 
   async function loadGantt() { await loadGanttForStage(); }
@@ -721,44 +1021,44 @@
     await renderGanttFor(scopeSel.value);
   }
 
+  var ganttCurrentProjectId = null;
   async function renderGanttFor(projectId) {
-    var isPooled = !projectId;
-    document.querySelectorAll("#ganttDeptFilter,#ganttStatusFilter")
-      .forEach(function (s) { s.style.display = isPooled ? "" : "none"; });
+    ganttIsPooled = !projectId;
+    ganttCurrentProjectId = projectId || null;
+    ganttRowsUnfiltered = ganttIsPooled
+      ? await api("/api/gantt/timeline?stage=" + ganttStage)
+      : await api("/api/gantt/projects/" + projectId);
+
+    var deptSel = document.getElementById("ganttDeptFilter");
     var legend = document.getElementById("ganttDeptLegend");
-    if (isPooled) {
-      ganttPooledRows = await api("/api/gantt/timeline?stage=" + ganttStage);
-      var deptSel = document.getElementById("ganttDeptFilter");
-      var seenDepts = {};
-      ganttPooledRows.forEach(function (r) { seenDepts[r.department] = r.department_number; });
-      deptSel.innerHTML = '<option value="">All Departments</option>';
-      Object.keys(seenDepts).sort(function (a, b) { return (seenDepts[a] || 0) - (seenDepts[b] || 0); }).forEach(function (name) {
-        var o = el("option", "", deptLabel(name, seenDepts[name])); o.value = name;
-        deptSel.appendChild(o);
-      });
-      legend.innerHTML = "";
-      Object.keys(seenDepts).sort(function (a, b) { return (seenDepts[a] || 0) - (seenDepts[b] || 0); }).forEach(function (name) {
-        var lg = el("span", "lg");
-        lg.innerHTML = '<span class="sw" style="background:' + deptColor(seenDepts[name]) + '"></span>';
-        lg.appendChild(document.createTextNode(deptLabel(name, seenDepts[name])));
-        legend.appendChild(lg);
-      });
-      legend.className = "ann-type-key gantt-dept-legend";
-      applyGanttFilters();
-      return;
-    }
+    var seenDepts = {};
+    ganttRowsUnfiltered.forEach(function (r) { seenDepts[r.department] = r.department_number; });
+    var sortedDeptNames = Object.keys(seenDepts).sort(function (a, b) { return (seenDepts[a] || 0) - (seenDepts[b] || 0); });
+    deptSel.innerHTML = '<option value="">All Departments</option>';
+    sortedDeptNames.forEach(function (name) {
+      var o = el("option", "", deptLabel(name, seenDepts[name])); o.value = name;
+      deptSel.appendChild(o);
+    });
     legend.innerHTML = "";
-    var rows = await api("/api/gantt/projects/" + projectId);
-    drawGanttRows(rows, false);
+    sortedDeptNames.forEach(function (name) {
+      var lg = el("span", "lg");
+      lg.innerHTML = '<span class="sw" style="background:' + deptColor(seenDepts[name]) + '"></span>';
+      lg.appendChild(document.createTextNode(deptLabel(name, seenDepts[name])));
+      legend.appendChild(lg);
+    });
+    legend.className = "ann-type-key gantt-dept-legend";
+    legend.style.display = ganttIsPooled ? "" : "none";
+
+    applyGanttFilters();
   }
 
   function applyGanttFilters() {
     var dept = document.getElementById("ganttDeptFilter").value;
     var status = document.getElementById("ganttStatusFilter").value;
-    var rows = ganttPooledRows.filter(function (r) {
+    var rows = ganttRowsUnfiltered.filter(function (r) {
       return (!dept || r.department === dept) && (!status || r.status === status);
     });
-    drawGanttRows(rows, true);
+    drawGanttRows(rows, ganttIsPooled);
   }
 
   function drawGanttRows(rows, isPooled) {
@@ -774,45 +1074,78 @@
     var max = Math.max.apply(null, rows.map(function (r) { return new Date(r.end + "T00:00:00").getTime(); }));
     var DAY = 86400000;
     max += DAY; // include the last day's full width, not just its start instant
-    var span = Math.max(1, max - min);
-    function pct(t) { return ((t - min) / span) * 100; }
+    var totalDays = Math.max(1, Math.round((max - min) / DAY));
+    var PX_PER_DAY = 30;
+    var trackWidthPx = Math.max(500, totalDays * PX_PER_DAY);
+    function px(t) { return ((t - min) / DAY) * PX_PER_DAY; }
 
-    // Month header, one flex segment per month proportional to its share of the range.
+    // Year row
+    var yearRow = el("div", "gantt-axis-row year");
+    var yc = new Date(min); yc.setHours(0, 0, 0, 0); yc.setMonth(0, 1);
+    while (yc.getTime() <= max) {
+      var ySegStart = Math.max(yc.getTime(), min);
+      var yNext = new Date(yc.getFullYear() + 1, 0, 1).getTime();
+      var ySegEnd = Math.min(yNext, max);
+      if (ySegEnd > ySegStart) {
+        var ySeg = el("span", "", String(yc.getFullYear()));
+        ySeg.style.width = (px(ySegEnd) - px(ySegStart)) + "px";
+        yearRow.appendChild(ySeg);
+      }
+      yc = new Date(yc.getFullYear() + 1, 0, 1);
+    }
+    yearRow.style.width = trackWidthPx + "px";
+    axis.appendChild(yearRow);
+
+    // Month row
+    var monthRow = el("div", "gantt-axis-row month");
     var cur = new Date(min); cur.setHours(0, 0, 0, 0); cur.setDate(1);
     while (cur.getTime() <= max) {
       var segStart = Math.max(cur.getTime(), min);
       var next = new Date(cur.getFullYear(), cur.getMonth() + 1, 1).getTime();
       var segEnd = Math.min(next, max);
       if (segEnd > segStart) {
-        var seg = el("span", "", cur.toLocaleDateString("en-GB", { month: "short", year: "numeric" }));
-        seg.style.flex = "0 0 " + (((segEnd - segStart) / span) * 100).toFixed(3) + "%";
-        axis.appendChild(seg);
+        var seg = el("span", "", cur.toLocaleDateString("en-GB", { month: "short" }));
+        seg.style.width = (px(segEnd) - px(segStart)) + "px";
+        monthRow.appendChild(seg);
       }
       cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
     }
+    monthRow.style.width = trackWidthPx + "px";
+    axis.appendChild(monthRow);
+
+    // Day row
+    var dayRow = el("div", "gantt-axis-row day");
+    for (var d = min; d < max; d += DAY) {
+      var dSeg = el("span", "", String(new Date(d).getDate()));
+      dSeg.style.width = PX_PER_DAY + "px";
+      dayRow.appendChild(dSeg);
+    }
+    dayRow.style.width = trackWidthPx + "px";
+    axis.appendChild(dayRow);
 
     // Gridlines overlay (month boundaries + week ticks + today marker), aligned under the track area.
     var gridlines = el("div", "gantt-gridlines");
+    gridlines.style.width = trackWidthPx + "px";
     var monthCur = new Date(min); monthCur.setHours(0, 0, 0, 0); monthCur.setDate(1);
     monthCur = new Date(monthCur.getFullYear(), monthCur.getMonth() + 1, 1);
     while (monthCur.getTime() < max) {
       var mLine = el("div", "gantt-gridline month");
-      mLine.style.left = pct(monthCur.getTime()).toFixed(3) + "%";
+      mLine.style.left = px(monthCur.getTime()) + "px";
       gridlines.appendChild(mLine);
       monthCur = new Date(monthCur.getFullYear(), monthCur.getMonth() + 1, 1);
     }
-    for (var w = min + 7 * DAY; w < max; w += 7 * DAY) {
+    for (var w = min + DAY; w < max; w += DAY) {
       var wLine = el("div", "gantt-gridline week");
-      wLine.style.left = pct(w).toFixed(3) + "%";
+      wLine.style.left = px(w) + "px";
       gridlines.appendChild(wLine);
     }
     var today = new Date(); today.setHours(0, 0, 0, 0);
     if (today.getTime() >= min && today.getTime() < max) {
       var tLine = el("div", "gantt-gridline today");
-      tLine.style.left = pct(today.getTime()).toFixed(3) + "%";
+      tLine.style.left = px(today.getTime()) + "px";
       tLine.title = "Data Date: " + fmtDate(today.toISOString().slice(0, 10));
       var tLabel = el("div", "gantt-today-label", "Today");
-      tLabel.style.left = pct(today.getTime()).toFixed(3) + "%";
+      tLabel.style.left = px(today.getTime()) + "px";
       gridlines.appendChild(tLine);
       gridlines.appendChild(tLabel);
     }
@@ -821,8 +1154,8 @@
     rows.forEach(function (r) {
       var s = new Date(r.start + "T00:00:00").getTime();
       var e = new Date(r.end + "T00:00:00").getTime() + DAY;
-      var leftPct = pct(s);
-      var widthPct = Math.max(0.8, ((e - s) / span) * 100);
+      var leftPx = px(s);
+      var widthPx = Math.max(4, px(e) - px(s));
       var row = el("div", "gantt-row");
       var labelHtml = isPooled
         ? "<b>" + r.item_no + "</b> &middot; " + r.short_name + '<span class="gantt-est-tag">' + r.est_no + "</span>"
@@ -831,6 +1164,7 @@
       label.title = r.name;
       row.appendChild(label);
       var track = el("div", "gantt-track");
+      track.style.width = trackWidthPx + "px";
       var bar;
       if (isPooled) {
         bar = el("div", "gantt-bar" + (r.is_milestone ? " milestone" : ""));
@@ -839,8 +1173,8 @@
         var cls = (STATUS_META[r.status] || ["neutral"])[0];
         bar = el("div", "gantt-bar " + cls + (r.is_milestone ? " milestone" : ""));
       }
-      bar.style.left = leftPct.toFixed(2) + "%";
-      bar.style.width = widthPct.toFixed(2) + "%";
+      bar.style.left = leftPx + "px";
+      bar.style.width = widthPx + "px";
       var statusLabel = (STATUS_META[r.status] || ["", r.status])[1];
       bar.title = (isPooled ? r.department + " &#8211; " + statusLabel + " &#8211; " : "") +
         fmtDate(r.start) + " " + String.fromCharCode(8594) + " " + fmtDate(r.end);
@@ -848,24 +1182,14 @@
       row.appendChild(track);
       if (r.submission_id) {
         row.style.cursor = "pointer";
-        row.addEventListener("click", function () { jumpToAssignedItem(r.submission_id); });
+        row.addEventListener("click", function () {
+          var pid = isPooled ? r.project_id : ganttCurrentProjectId;
+          if (pid) openDetail(pid, r.submission_id);
+        });
       }
       wrap.appendChild(row);
     });
     gridlines.style.height = wrap.scrollHeight + "px";
-  }
-
-  async function jumpToAssignedItem(submissionId) {
-    if (!submissionId) return;
-    assignedFilter = "";
-    switchView("assigned");
-    await loadAssigned();
-    var target = document.querySelector('.aq-row[data-sid="' + submissionId + '"]');
-    if (target) {
-      target.scrollIntoView({ behavior: "smooth", block: "center" });
-      target.classList.add("flash");
-      setTimeout(function () { target.classList.remove("flash"); }, 1800);
-    }
   }
 
   /* ================= PERFORMANCE / REPORTS ================= */
@@ -897,27 +1221,125 @@
   }
 
   /* ================= JOURNEY / HISTORY ================= */
-  var journeyProjectsLoaded = false;
+  async function loadJourney() {}
+
+  var HISTORY_DEPARTMENTS = [
+    { name: "Tendering", items: [
+      "Introduced BBU as a separate unit with their own deliverables during both L0 &amp; L1 stages",
+    ]},
+    { name: "Supply Chain", items: [
+      "Refined L1 deliverables by relocating some items to other departments",
+      "Introduced a deliverable to provide a list of expected LCs with their respective durations during L1 Stage",
+    ]},
+    { name: "Operation", items: [
+      "S/C Strategy handed to Operation",
+      "Project DCS handed to Engineering",
+      "Provide cashflow input to the Financial Department",
+      "Provide CANDY Data as part of Handing Over Files",
+      "Provide Local Content plan prepared during L0 Stage",
+      "Introduced Performing Site Studies during L0 Stage under specific criteria",
+      "Provide Design Firm Information / Offers to Supply Chain",
+      "Provide list of Project Permits",
+      "Provide Subcontracting Strategy / Plan",
+      "Provide Vendor / Subcontractor Performance Evaluation",
+      "Provide Lessons Learned",
+      "Converted some deliverables into &quot;Library&quot; during L0 Stage to reduce unnecessary workload, such as POs and Procurement Historical Data",
+      "Currently studying preparation of Cashflow during L0 Stage",
+    ]},
+    { name: "Engineering, Contract &amp; Control", items: [
+      "Accelerated the preparation of the Baseline Schedule to be ready before contract signing during L1 Stage",
+      "Introduced Contract Department as a separate department in L1 Stage, focused on Contracts Risk Register, Contract Liabilities, feedback on Subcontract Agreements, and feedback on PO templates",
+      "Emphasized Control deliverables by relocating contractual deliverables to the Contract Department",
+      "Removed unnecessary involvement by merging Legal into the Contract Department",
+      "Introduced a deliverable to Support Technical Proposals (if applicable) during L0 Stage",
+      "Provide Engineering Risk Register including lessons learned",
+      "Provide scope for other early site studies, such as ESIA &amp; Hydrology",
+      "Provide Project Deliverable Register (DCS)",
+      "Compile all design inputs and studies for the Design Firm",
+      "Accelerated the Review of Design Firm Offers to be immediately after L1 announcement",
+      "Converted some deliverables into &quot;Library&quot; during L0 Stage, such as Fleet Productivities",
+      "Prepare an internal Working Schedule",
+      "Create a Temporary Cost Breakdown Structure to facilitate early PR/PO issuance",
+      "Converted some deliverables to be &quot;On-Request&quot; only during L0 Stage to reduce unnecessary workload",
+    ]},
+    { name: "Human Resources", items: [
+      "Completely refined HR L1 deliverables to be more practical and focused on major aspects",
+      "Introduced Cashflow Preparation during L1 Stage, immediately after L1 announcement, to secure Bank Facilities early on",
+    ]},
+    { name: "SHEQ", items: [
+      "Refined preparation of HSE and QA/QC detailed plans during L1 Stage to be after receiving the LOA",
+      "Following the HSE audit, agreed to start receiving more project-focused deliverables, such as the List of Safety Requirements &amp; PPE",
+    ]},
+    { name: "Financial", items: [
+      "Providing Workforce Availability Plan",
+      "Verifying Local Content Plan",
+      "Providing Hiring Plan",
+      "Providing Study to Enhance Skills' Gaps, after consulting with the Operation team",
+      "Refined providing Insurance Requirements (cost &amp; provider selection) during L1 Stage to be after Technical / Commercial Handing Over",
+      "Converted some deliverables into &quot;Library&quot; during L0 Stage, such as HR Cost Estimates &amp; Availability",
+      "Converted Overheads (%) into a &quot;Library&quot; item to reduce estimate-preparation time",
+    ]},
+    { name: "IT, Fleet &amp; FM, and Risk", items: [
+      "Converted IT Costs into &quot;Library&quot; during L0 Stage to reduce unnecessary workload",
+      "Introduced Risk Department as a separate department in L1 Stage, focused on reviewing &amp; compiling all risk registers received from all departments",
+      "Currently refining the Risk Register Template to be more concise, practical &amp; easy to use with the new Risk Department Management Team",
+      "Introduced Fleet Department as a separate department, providing Equipment Cost Estimates, Consumptions and Maintenance, and Equipment availability, location and release date",
+      "Introduced FM Department as a separate department to provide Camp Cost Estimates",
+      "Converted Fleet &amp; FM deliverables into &quot;Library&quot; during L0 Stage to reduce unnecessary workload",
+      "Introduced IRM (Internal Rental Module)",
+    ]},
+  ];
+  (function renderHistoryDepartments() {
+    var card = document.getElementById("historyDeptCard");
+    if (!card) return;
+    HISTORY_DEPARTMENTS.forEach(function (dept) {
+      var details = el("details", "history-dept");
+      var summary = el("summary", "", dept.name);
+      details.appendChild(summary);
+      var ul = el("ul");
+      dept.items.forEach(function (item) { ul.appendChild(el("li", "", item)); });
+      details.appendChild(ul);
+      card.appendChild(details);
+    });
+  })();
+
+  /* ================= ACTIVITY TRAIL (L0 Tenders / L1 Projects tab) ================= */
   var HISTORY_ACTION_ICON = {
     submitted: "&#128228;", assigned: "&#128100;", review_requested: "&#128269;",
     approved: "&#9989;", rejected: "&#10060;", unlocked: "&#128275;",
+    document_added: "&#128206;", document_approved: "&#9989;", document_rejected: "&#10060;",
   };
-  async function loadJourney() {
-    var sel = document.getElementById("journeyProjectSel");
-    if (!journeyProjectsLoaded) {
-      var list = await api("/api/projects");
+  var trailLoaded = { L0: false, L1: false };
+  function setupActivityTrail(stage, selId, timelineId, listCardId, trailCardId, subTabsId) {
+    var sel = document.getElementById(selId);
+    document.querySelectorAll("#" + subTabsId + " .chip").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        document.querySelectorAll("#" + subTabsId + " .chip").forEach(function (b) { b.classList.remove("active"); });
+        btn.classList.add("active");
+        var isTrail = btn.dataset.tab === "trail";
+        document.getElementById(listCardId).style.display = isTrail ? "none" : "";
+        document.getElementById(trailCardId).style.display = isTrail ? "" : "none";
+        if (isTrail) loadActivityTrail(stage, selId, timelineId);
+      });
+    });
+  }
+  async function loadActivityTrail(stage, selId, timelineId) {
+    var sel = document.getElementById(selId);
+    if (!trailLoaded[stage]) {
+      var list = await api("/api/projects?stage=" + stage);
+      sel.innerHTML = '<option value="">Select a ' + (stage === "L0" ? "tender" : "project") + "&#8230;</option>";
       list.forEach(function (p) {
-        var o = el("option", "", p.stage + " &middot; " + p.est_no + " &#8211; " + p.name);
+        var o = el("option", "", p.est_no + " &#8211; " + p.name);
         o.value = p.id;
         sel.appendChild(o);
       });
-      sel.addEventListener("change", function () { renderJourneyTimeline(sel.value); });
-      journeyProjectsLoaded = true;
+      sel.addEventListener("change", function () { renderActivityTimeline(sel.value, timelineId); });
+      trailLoaded[stage] = true;
     }
-    if (sel.value) renderJourneyTimeline(sel.value);
+    if (sel.value) renderActivityTimeline(sel.value, timelineId);
   }
-  async function renderJourneyTimeline(projectId) {
-    var wrap = document.getElementById("journeyTimeline");
+  async function renderActivityTimeline(projectId, timelineId) {
+    var wrap = document.getElementById(timelineId);
     if (!projectId) { wrap.innerHTML = ""; return; }
     var events = await api("/api/projects/" + projectId + "/history");
     wrap.innerHTML = "";
@@ -935,6 +1357,8 @@
       wrap.appendChild(row);
     });
   }
+  setupActivityTrail("L0", "l0TrailProjectSel", "l0TrailTimeline", "l0ListCard", "l0TrailCard", "l0SubTabs");
+  setupActivityTrail("L1", "l1TrailProjectSel", "l1TrailTimeline", "l1ListCard", "l1TrailCard", "l1SubTabs");
 
   /* ================= SCORES (admin full leaderboard) ================= */
   async function loadScores() {
@@ -960,7 +1384,7 @@
             body: JSON.stringify({ focal_point_name: nameInput.value.trim(), focal_point_email: emailInput.value.trim() }),
           });
         } catch (err) {
-          showToast("Could not save &#8211; " + apiErrorDetail(err));
+          showToast("Could not save &#8211; " + apiErrorDetail(err), true);
           return;
         }
         showToast("Focal point updated for " + d.name);
@@ -1065,12 +1489,99 @@
     renderFollowUpList();
   }
 
+  /* ================= ASK THE TEAM ================= */
+  document.getElementById("supSubmit").addEventListener("click", async function () {
+    var email = document.getElementById("supEmail").value.trim();
+    var message = document.getElementById("supMessage").value.trim();
+    var errors = [];
+    if (!email) errors.push("Your Email is required");
+    if (!message) errors.push("Message is required");
+    if (errors.length) { showToast(errors.join("<br>"), true); return; }
+    var payload = {
+      name: document.getElementById("supName").value.trim() || null,
+      email: email,
+      stage: document.getElementById("supStage").value || null,
+      est_no: document.getElementById("supEstNo").value.trim() || null,
+      deliverable: document.getElementById("supDeliverable").value.trim() || null,
+      message: message,
+    };
+    try {
+      await api("/api/support", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+    } catch (err) {
+      showToast("Could not send &#8211; " + apiErrorDetail(err), true);
+      return;
+    }
+    showToast("Sent to the admins &#8211; they'll follow up by email");
+    ["supName", "supEmail", "supEstNo", "supDeliverable", "supMessage"].forEach(function (id) {
+      document.getElementById(id).value = "";
+    });
+    document.getElementById("supStage").value = "";
+    if (can("create")) loadSupport();
+  });
+  async function loadSupport() {
+    var inboxCard = document.getElementById("supInboxCard");
+    if (!can("create")) { inboxCard.style.display = "none"; return; }
+    inboxCard.style.display = "";
+    var reqs = await api("/api/support?actor_role=" + CURRENT_ROLE);
+    var wrap = document.getElementById("supInboxList");
+    wrap.innerHTML = "";
+    if (!reqs.length) { wrap.appendChild(el("div", "empty-state", "No requests yet.")); return; }
+    reqs.forEach(function (r) {
+      var row = el("div", "aq-row");
+      var main = el("div", "aq-main");
+      var context = [r.stage, r.est_no, r.deliverable].filter(Boolean).join(" &middot; ");
+      main.appendChild(el("div", "aq-title", r.name || r.email));
+      main.appendChild(el("div", "aq-sub",
+        '<span>' + r.email + '</span>' + (context ? '<span class="sep">&middot;</span><span>' + context + "</span>" : "")));
+      main.appendChild(el("div", "deliv-comment", r.message));
+      row.appendChild(main);
+      if (r.status === "resolved") {
+        row.appendChild(el("span", "pill good", '<span class="dot"></span>Resolved'));
+      } else {
+        var resolveBtn = el("button", "btn", "Mark Resolved");
+        resolveBtn.addEventListener("click", async function () {
+          await api("/api/support/" + r.id + "/resolve?actor_role=" + CURRENT_ROLE, { method: "PATCH" });
+          showToast("Marked resolved");
+          loadSupport();
+        });
+        row.appendChild(resolveBtn);
+      }
+      wrap.appendChild(row);
+    });
+  }
+
   /* ================= ANNOUNCEMENTS ================= */
+  var announcementsAll = [];
+  document.getElementById("annTypeFilter").addEventListener("change", renderAnnouncements);
+  document.getElementById("annFromDate").addEventListener("change", renderAnnouncements);
+  document.getElementById("annToDate").addEventListener("change", renderAnnouncements);
+  document.getElementById("annClearFilters").addEventListener("click", function () {
+    document.getElementById("annTypeFilter").value = "";
+    document.getElementById("annFromDate").value = "";
+    document.getElementById("annToDate").value = "";
+    renderAnnouncements();
+  });
   async function loadAnnouncements() {
-    var list = await api("/api/announcements");
+    announcementsAll = await api("/api/announcements?limit=500");
+    renderAnnouncements();
+  }
+  function renderAnnouncements() {
+    var type = document.getElementById("annTypeFilter").value;
+    var from = document.getElementById("annFromDate").value;
+    var to = document.getElementById("annToDate").value;
+    var list = announcementsAll.filter(function (a) {
+      if (type && a.type !== type) return false;
+      var day = a.created_at.slice(0, 10);
+      if (from && day < from) return false;
+      if (to && day > to) return false;
+      return true;
+    });
     var wrap = document.getElementById("announcementsList");
     wrap.innerHTML = "";
-    if (!list.length) { wrap.appendChild(el("div", "empty-state", "No announcements sent yet.")); return; }
+    if (!list.length) { wrap.appendChild(el("div", "empty-state", "No announcements match this filter.")); return; }
     list.forEach(function (a) {
       var meta = annIcon(a);
       var row = el("div", "ann-row");
@@ -1083,7 +1594,7 @@
       row.appendChild(main);
       if (a.project_id) {
         row.style.cursor = "pointer";
-        row.addEventListener("click", function () { openDetail(a.project_id); });
+        row.addEventListener("click", function () { openDetail(a.project_id, a.submission_id); });
       }
       wrap.appendChild(row);
     });
@@ -1091,6 +1602,11 @@
 
   /* ================= CREATE PROJECT ================= */
   var createOptionsLoaded = false;
+  var _createOptionsCache = null;
+  async function getCreateOptions() {
+    if (!_createOptionsCache) _createOptionsCache = await api("/api/departments/options");
+    return _createOptionsCache;
+  }
   var buUncoveredScopes = [];
   function refreshBuFieldVisibility() {
     var scope = checkedValues("cfScopeGrid");
@@ -1118,7 +1634,7 @@
   }
   async function loadCreateOptions() {
     if (!createOptionsLoaded) {
-      var opts = await api("/api/departments/options");
+      var opts = await getCreateOptions();
       var bidSel = document.getElementById("cfBid");
       opts.bid_managers.forEach(function (m) { bidSel.appendChild(el("option", "", m)).value = m; });
       renderCheckGroup("cfRegionGrid", "cfRegionOther", opts.regions);
@@ -1150,6 +1666,7 @@
   });
 
   document.getElementById("cfSubmit").addEventListener("click", async function () {
+    var createdL0Id = null;
     var stage = document.getElementById("cfStage").value;
     var submitBtn = document.getElementById("cfSubmit");
     var originalLabel = submitBtn.textContent;
@@ -1165,22 +1682,24 @@
         var bidManager = document.getElementById("cfBid").value;
         var region = checkedValues("cfRegionGrid");
         var scope = checkedValues("cfScopeGrid");
-        if (!name) { showToast("Tender name is required"); return; }
-        if (!estNoDigits) { showToast("Est-Num is required"); return; }
-        if (!/^\d+$/.test(estNoDigits)) { showToast("Est-Num must be a number only"); return; }
-        var estNo = "Est-" + estNoDigits;
-        if (!bidManager) { showToast("Bid Manager is required"); return; }
-        if (!announce) { showToast("Announcement Date is required"); return; }
-        if (!bsd) { showToast("Bid Submission Date is required"); return; }
-        if (!region.length) { showToast("Select at least one Region"); return; }
-        if (!scope.length) { showToast("Select at least one Scope"); return; }
         var regionOtherVal = document.getElementById("cfRegionOther").value.trim();
         var scopeOtherVal = document.getElementById("cfScopeOther").value.trim();
-        if (region.indexOf("Other") !== -1 && !regionOtherVal) { showToast("Specify the Other region"); return; }
-        if (scope.indexOf("Other") !== -1 && !scopeOtherVal) { showToast("Specify the Other scope"); return; }
         var needsManualBu = scope.some(function (s) { return buUncoveredScopes.indexOf(s) !== -1; });
         var businessUnits = checkedValues("cfBuGrid");
-        if (needsManualBu && !businessUnits.length) { showToast("Business Unit is required for this scope"); return; }
+        var errors = [];
+        if (!name) errors.push("Tender name is required");
+        if (!estNoDigits) errors.push("Est-Num is required");
+        else if (!/^\d+$/.test(estNoDigits)) errors.push("Est-Num must be a number only");
+        if (!bidManager) errors.push("Bid Manager is required");
+        if (!announce) errors.push("Announcement Date is required");
+        if (!bsd) errors.push("Bid Submission Date is required");
+        if (!region.length) errors.push("Select at least one Region");
+        if (!scope.length) errors.push("Select at least one Scope");
+        if (region.indexOf("Other") !== -1 && !regionOtherVal) errors.push("Specify the Other region");
+        if (scope.indexOf("Other") !== -1 && !scopeOtherVal) errors.push("Specify the Other scope");
+        if (needsManualBu && !businessUnits.length) errors.push("Business Unit is required for this scope");
+        if (errors.length) { showToast(errors.join("<br>"), true); return; }
+        var estNo = "Est-" + estNoDigits;
         var payload = {
           name: name, est_no: estNo,
           region: region, region_other: regionOtherVal || null,
@@ -1193,11 +1712,14 @@
         };
         var p = await api("/api/projects/l0", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         showToast(p.est_no + " created &#8211; announcement sent");
+        createdL0Id = p.id;
       } else {
         var l0Id = document.getElementById("cfL0Source").value;
         var l1Announce = document.getElementById("cfL1Announce").value;
-        if (!l0Id) { showToast("Select the L0 tender this L1 project comes from"); return; }
-        if (!l1Announce) { showToast("L1 Announcement Date is required"); return; }
+        var l1Errors = [];
+        if (!l0Id) l1Errors.push("Select the L0 tender this L1 project comes from");
+        if (!l1Announce) l1Errors.push("L1 Announcement Date is required");
+        if (l1Errors.length) { showToast(l1Errors.join("<br>"), true); return; }
         var p1 = await api("/api/projects/l1", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -1208,14 +1730,18 @@
         showToast(p1.est_no + " created &#8211; announcement sent");
       }
     } catch (err) {
-      showToast("Could not create project &#8211; " + apiErrorDetail(err));
+      showToast("Could not create project &#8211; " + apiErrorDetail(err), true);
       return;
     } finally {
       submitBtn.disabled = false;
       submitBtn.textContent = originalLabel;
       submitBtn.classList.remove("btn-loading");
     }
-    switchView("announcements");
+    if (createdL0Id) {
+      await openTriage(createdL0Id);
+    } else {
+      switchView("announcements");
+    }
   });
   document.getElementById("cfCancel").addEventListener("click", function () { switchView("dashboard"); });
 

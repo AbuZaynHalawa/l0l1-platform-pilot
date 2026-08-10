@@ -40,6 +40,8 @@ class SubmissionStatus(str, enum.Enum):
     PENDING_REVIEW = "pending_review"
     APPROVED = "approved"
     REJECTED = "rejected"
+    PENDING_TRIAGE = "pending_triage"  # L0 only: awaiting BM applicable/not-required call
+    NOT_REQUIRED = "not_required"      # BM marked this item as not applicable to this tender
 
 
 class AnnouncementType(str, enum.Enum):
@@ -165,6 +167,7 @@ class DeliverableSubmission(Base):
     deliverable_definition_id = Column(Integer, ForeignKey("deliverable_definitions.id"), nullable=False)
     due_date = Column(Date, nullable=True)
     status = Column(Enum(SubmissionStatus), default=SubmissionStatus.NOT_DUE)
+    applicability = Column(String, default="applicable")  # applicable | not_required | pending (L0 BM triage)
     owner_email = Column(String, nullable=True)
     sme_email = Column(String, nullable=True)
     file_name = Column(String, nullable=True)
@@ -189,6 +192,27 @@ class WorkflowHistory(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     submission = relationship("DeliverableSubmission", back_populates="history")
+
+
+class Document(Base):
+    """Supplementary documents on a submission, on top of its one primary file
+    — e.g. supporting evidence added while the SME is already reviewing.
+    Each document is reviewed on its own, independent of the submission's
+    own overall status (which is still driven by the primary upload/mark-
+    complete/review flow, unchanged).
+    """
+    __tablename__ = "documents"
+    id = Column(Integer, primary_key=True)
+    submission_id = Column(Integer, ForeignKey("deliverable_submissions.id"), nullable=False)
+    file_name = Column(String, nullable=False)
+    file_ref = Column(String, nullable=False)
+    uploaded_by = Column(String, nullable=True)
+    uploaded_at = Column(DateTime, default=datetime.utcnow)
+    status = Column(String, default="pending")  # pending | approved | rejected
+    comment = Column(Text, nullable=True)
+    reviewed_at = Column(DateTime, nullable=True)
+
+    submission = relationship("DeliverableSubmission")
 
 
 class Follower(Base):
@@ -219,6 +243,23 @@ class ReassignmentRequest(Base):
     submission = relationship("DeliverableSubmission")
 
 
+class SupportRequest(Base):
+    """A question/issue raised from the 'Ask the Team' tab, routed to admins —
+    not tied to a specific submission since the asker may not know which one.
+    """
+    __tablename__ = "support_requests"
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=True)
+    email = Column(String, nullable=False)
+    stage = Column(String, nullable=True)  # "L0" | "L1" | null
+    est_no = Column(String, nullable=True)
+    deliverable = Column(String, nullable=True)  # free text, e.g. "2.4 Risk Register"
+    message = Column(Text, nullable=False)
+    status = Column(String, default="open")  # open | resolved
+    created_at = Column(DateTime, default=datetime.utcnow)
+    resolved_at = Column(DateTime, nullable=True)
+
+
 class Announcement(Base):
     __tablename__ = "announcements"
     id = Column(Integer, primary_key=True)
@@ -227,6 +268,7 @@ class Announcement(Base):
     body = Column(Text, nullable=False)
     recipients = Column(String, nullable=True)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
+    submission_id = Column(Integer, ForeignKey("deliverable_submissions.id"), nullable=True)
     email_status = Column(String, default="pending")  # pending | sent | failed | simulated
     created_at = Column(DateTime, default=datetime.utcnow)
 

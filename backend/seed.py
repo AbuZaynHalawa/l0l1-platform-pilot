@@ -13,6 +13,8 @@ from . import models, rules
 ensure_column("deliverable_definitions", "short_name", "VARCHAR")
 ensure_column("departments", "number", "INTEGER")
 ensure_column("projects", "business_units", "JSON")
+ensure_column("announcements", "submission_id", "INTEGER")
+ensure_column("deliverable_submissions", "applicability", "VARCHAR")
 models.Base.metadata.create_all(bind=engine)
 
 TEST_EMAIL = "test-focal@example.com"  # single placeholder until real contacts are provided
@@ -495,6 +497,18 @@ def run():
         if unset_bu_projects:
             db.commit()
             print(f"Backfilled business_units for {len(unset_bu_projects)} project(s).")
+
+        # Backfill: applicability didn't exist before BM triage shipped — every
+        # submission created before this defaults to "applicable" (business as
+        # usual). Only NEW L0 projects go through the triage screen from here on.
+        unset_applicability = db.query(models.DeliverableSubmission).filter(
+            models.DeliverableSubmission.applicability.is_(None)
+        ).all()
+        for s in unset_applicability:
+            s.applicability = "applicable"
+        if unset_applicability:
+            db.commit()
+            print(f"Backfilled applicability=applicable for {len(unset_applicability)} submission(s).")
         print(f"Seed complete: {len(dept_map)} departments, {len(L0_ITEMS)} L0 items, {len(L1_ITEMS)} L1 items.")
     finally:
         db.close()
