@@ -12,6 +12,7 @@ class ProjectCreateL0(BaseModel):
     rfx_number: str | None = None
     announcement_date: date
     site_visit_date: date | None = None
+    pre_bid_meeting_date: date | None = None
     pre_bid_deadline: date | None = None
     bid_manager: str
     bsd: date
@@ -43,6 +44,7 @@ class ProjectDetailsUpdate(BaseModel):
     region_other: str | None = None
     announcement_date: date | None = None
     site_visit_date: date | None = None
+    pre_bid_meeting_date: date | None = None
     pre_bid_deadline: date | None = None
     actor_role: str = "Admin"
 
@@ -65,6 +67,7 @@ class ProjectOut(BaseModel):
     announcement_date: date
     bsd: date | None
     site_visit_date: date | None
+    pre_bid_meeting_date: date | None = None
     pre_bid_deadline: date | None
     l0_source_id: int | None
     pending_triage_count: int = 0

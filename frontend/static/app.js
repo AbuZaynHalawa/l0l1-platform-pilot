@@ -847,6 +847,7 @@
          ["Business Unit", buLabel],
          ["Announced", fmtDate(p.announcement_date), "date:announcement_date:Announcement Date"],
          ["Site Visit", fmtDate(p.site_visit_date), "date:site_visit_date:Site Visit Date"],
+         ["Pre-Bid Meeting", fmtDate(p.pre_bid_meeting_date), "date:pre_bid_meeting_date:Pre-Bid Meeting Date"],
          ["Pre-Bid Deadline", fmtDate(p.pre_bid_deadline), "date:pre_bid_deadline:Pre-Bid Deadline"],
          ["Bid Submission Date", fmtDate(p.bsd)]]
       : [["Bid Manager", p.bid_manager || "&#8213;", "bm"], ["Project Manager", p.project_manager || "&#8213;", "pm"],
@@ -2169,6 +2170,7 @@
           scope: scope, scope_other: scopeOtherVal || null,
           rfx_number: document.getElementById("cfRfx").value || null,
           announcement_date: announce, site_visit_date: document.getElementById("cfSiteVisit").value || null,
+          pre_bid_meeting_date: document.getElementById("cfPreBidMeeting").value || null,
           pre_bid_deadline: document.getElementById("cfPreBid").value || null,
           bid_manager: bidManager, bsd: bsd,
           business_units: needsManualBu ? businessUnits : null,
@@ -2236,19 +2238,34 @@
 
   /* ================= INIT ================= */
   document.getElementById("todayLabel").textContent = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
-  loadDashboard();
 
-  // A shared deliverable link (item 76) opens straight to that item's popup.
+  // Item 120: loadDashboard() used to always fire immediately, then a
+  // project/view restore (below) would hide it again a moment later once
+  // its own awaits resolved — the dashboard would actually finish loading
+  // and render onscreen before being swapped out, a visible flash on every
+  // refresh. Decide the real starting view FIRST, and only load the
+  // dashboard when that's genuinely where we're landing.
   var sharedMatch = location.hash.match(/deliverable=(\d+)/);
   var projectMatch = location.hash.match(/project=(\d+)/);
   var viewMatch = location.hash.match(/view=(\w+)/);
-  if (sharedMatch) {
-    openDelivModal(parseInt(sharedMatch[1], 10));
-  } else if (projectMatch) {
+  if (projectMatch) {
     // Item 99: refreshing while on a project detail page returns to it.
-    openDetail(parseInt(projectMatch[1], 10));
+    // openDetail() makes several sequential api() calls before it finally
+    // reveals #view-detail — wrapping the whole thing in one extra
+    // start/end pair keeps the loading count above zero the entire time,
+    // so the overlay shows (at most) once instead of flickering between
+    // each individual fetch (item 120).
+    document.getElementById("view-dashboard").hidden = true;
+    _loadingStart();
+    openDetail(parseInt(projectMatch[1], 10)).finally(_loadingEnd);
   } else if (viewMatch && document.getElementById("view-" + viewMatch[1])) {
     // Item 99: refreshing on any other nav view stays on that view.
+    document.getElementById("view-dashboard").hidden = true;
     switchView(viewMatch[1]);
+  } else {
+    loadDashboard();
+    // A shared deliverable link (item 76) opens straight to that item's
+    // popup, on top of the dashboard it's actually landing on.
+    if (sharedMatch) openDelivModal(parseInt(sharedMatch[1], 10));
   }
 })();

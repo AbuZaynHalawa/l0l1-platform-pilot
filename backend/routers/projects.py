@@ -118,7 +118,8 @@ def create_l0_project(payload: schemas.ProjectCreateL0, db: Session = Depends(ge
         scope=payload.scope, scope_other=payload.scope_other,
         rfx_number=payload.rfx_number, bid_manager=payload.bid_manager,
         announcement_date=payload.announcement_date, bsd=payload.bsd,
-        site_visit_date=payload.site_visit_date, pre_bid_deadline=payload.pre_bid_deadline,
+        site_visit_date=payload.site_visit_date, pre_bid_meeting_date=payload.pre_bid_meeting_date,
+        pre_bid_deadline=payload.pre_bid_deadline,
         business_units=business_units, scope_contains_pbu="PBU" in business_units,
         status=models.ProjectStatus.IN_PROGRESS,
     )
@@ -368,7 +369,7 @@ def update_project_details(project_id: int, payload: schemas.ProjectDetailsUpdat
     if "region_other" in data:
         project.region_other = data["region_other"]
     date_changed = False
-    for field in ("announcement_date", "site_visit_date", "pre_bid_deadline"):
+    for field in ("announcement_date", "site_visit_date", "pre_bid_meeting_date", "pre_bid_deadline"):
         if field in data:
             setattr(project, field, data[field])
             date_changed = True

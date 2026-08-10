@@ -90,23 +90,6 @@
 
       <div class="stat-row" id="statRow"></div>
 
-      <div class="card table-card matrix-card">
-        <div class="section-title">
-          <span>Deliverables Matrix <span class="cnt">active projects &times; deliverables, live</span></span>
-          <div class="matrix-toggle">
-            <button class="chip active" data-stage="L0">L0 Tenders</button>
-            <button class="chip" data-stage="L1">L1 Projects</button>
-          </div>
-        </div>
-        <div class="ann-type-key matrix-legend">
-          <span class="lg"><span class="sw" style="background:var(--ink-300)"></span> Not Due</span>
-          <span class="lg"><span class="sw" style="background:var(--warn)"></span> Due / Pending Review</span>
-          <span class="lg"><span class="sw" style="background:var(--crit)"></span> Overdue / Rejected</span>
-          <span class="lg"><span class="sw" style="background:var(--good)"></span> Approved</span>
-        </div>
-        <div class="matrix-wrap" id="matrixWrap"></div>
-      </div>
-
       <div class="split achievers-row">
         <div class="card">
           <div class="section-title">Latest announcements <span class="cnt">real-time log</span></div>
@@ -122,6 +105,23 @@
             <div class="card-pad"><div id="topSmes" class="achiever-list"></div></div>
           </div>
         </div>
+      </div>
+
+      <div class="card table-card matrix-card">
+        <div class="section-title">
+          <span>Deliverables Matrix <span class="cnt">active projects &times; deliverables, live</span></span>
+          <div class="matrix-toggle">
+            <button class="chip active" data-stage="L0">L0 Tenders</button>
+            <button class="chip" data-stage="L1">L1 Projects</button>
+          </div>
+        </div>
+        <div class="ann-type-key matrix-legend">
+          <span class="lg"><span class="sw" style="background:var(--ink-300)"></span> Not Due</span>
+          <span class="lg"><span class="sw" style="background:var(--warn)"></span> Due / Pending Review</span>
+          <span class="lg"><span class="sw" style="background:var(--crit)"></span> Overdue / Rejected</span>
+          <span class="lg"><span class="sw" style="background:var(--good)"></span> Approved</span>
+        </div>
+        <div class="matrix-wrap" id="matrixWrap"></div>
       </div>
 
     </section>
@@ -492,12 +492,14 @@
         <table class="fp-table">
           <thead><tr><th>Name</th><th>Email</th><th></th></tr></thead>
           <tbody id="bmBody"></tbody>
+          <tfoot>
+            <tr class="fp-add-tr">
+              <td><input type="text" id="bmNewName" placeholder="Name (optional)" /></td>
+              <td><input type="text" id="bmNewEmail" placeholder="email@algihaz.com" /></td>
+              <td><button class="btn primary" id="bmAddBtn">Add Bid Manager</button></td>
+            </tr>
+          </tfoot>
         </table>
-        <div class="fp-add-row">
-          <input type="text" id="bmNewName" placeholder="Name (optional)" />
-          <input type="text" id="bmNewEmail" placeholder="email@algihaz.com" />
-          <button class="btn primary" id="bmAddBtn">Add Bid Manager</button>
-        </div>
       </div>
 
       <div class="card table-card" id="fpGroupPanel" hidden>
@@ -505,19 +507,23 @@
         <table class="fp-table">
           <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Manager Email</th><th></th></tr></thead>
           <tbody id="groupBody"></tbody>
+          <tfoot>
+            <tr class="fp-add-tr">
+              <td><input type="text" id="groupNewName" placeholder="Name" /></td>
+              <td><input type="text" id="groupNewEmail" placeholder="email@algihaz.com" /></td>
+              <td>
+                <select id="groupNewRole">
+                  <option value="Viewer">Viewer</option>
+                  <option value="Owner">Owner</option>
+                  <option value="SME">SME</option>
+                  <option value="Admin">Admin</option>
+                </select>
+              </td>
+              <td><input type="text" id="groupNewManager" placeholder="Manager email (optional)" /></td>
+              <td><button class="btn primary" id="groupAddBtn">Add to Group</button></td>
+            </tr>
+          </tfoot>
         </table>
-        <div class="fp-add-row">
-          <input type="text" id="groupNewName" placeholder="Name" />
-          <input type="text" id="groupNewEmail" placeholder="email@algihaz.com" />
-          <select id="groupNewRole">
-            <option value="Viewer">Viewer</option>
-            <option value="Owner">Owner</option>
-            <option value="SME">SME</option>
-            <option value="Admin">Admin</option>
-          </select>
-          <input type="text" id="groupNewManager" placeholder="Manager email (optional)" />
-          <button class="btn primary" id="groupAddBtn">Add to Group</button>
-        </div>
       </div>
     </section>
 
@@ -713,6 +719,11 @@
             <div class="field">
               <label>Site Visit Date</label>
               <input type="date" id="cfSiteVisit" />
+            </div>
+            <div class="field">
+              <label>Pre-Bid Meeting Date</label>
+              <input type="date" id="cfPreBidMeeting" />
+              <span class="hint">Optional.</span>
             </div>
             <div class="field">
               <label>Pre-Bid Clarification Deadline</label>

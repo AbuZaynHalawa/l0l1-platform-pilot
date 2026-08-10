@@ -133,6 +133,7 @@ class Project(Base):
     announcement_date = Column(Date, default=date.today)  # = M1 anchor for both stages
     bsd = Column(Date, nullable=True)               # L0 only
     site_visit_date = Column(Date, nullable=True)   # L0 only, optional
+    pre_bid_meeting_date = Column(Date, nullable=True)  # L0 only, optional (item 114)
     pre_bid_deadline = Column(Date, nullable=True)  # L0 only, optional (if blank, treated as immediate)
     l0_source_id = Column(Integer, ForeignKey("projects.id"), nullable=True)  # L1 -> the L0 it came from
     onedrive_folder_id = Column(String, nullable=True)
