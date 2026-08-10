@@ -477,6 +477,24 @@
 
   .role-gate-note { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: var(--accent-soft); border: 1px solid var(--accent-line); border-radius: 10px; font-size: 12px; color: var(--purple-2); margin-bottom: 16px; font-weight: 600; }
 
+  /* ---------- program timeline (item 103) ---------- */
+  .prog-timeline { display: flex; flex-direction: column; gap: 4px; }
+  .prog-axis { display: flex; justify-content: space-between; padding: 0 2px 14px; margin-bottom: 14px; border-bottom: 2px solid var(--line); font-size: 11px; font-weight: 700; color: var(--ink-500); text-transform: uppercase; letter-spacing: .03em; }
+  .prog-axis-today { color: var(--accent); }
+  .prog-lane { padding: 14px 0; border-top: 1px solid var(--line); }
+  .prog-lane:first-of-type { border-top: none; padding-top: 0; }
+  .prog-lane-head { font-weight: 700; font-size: 13.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .prog-lane-head::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex: none; }
+  .prog-lane-events { margin: 0; padding-left: 16px; font-size: 12.5px; color: var(--ink-700); line-height: 1.85; }
+
+  /* ---------- how-to grid (item 103) ---------- */
+  .how-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 4px; }
+  .how-card { padding: 18px 20px; }
+  .how-ic { font-size: 20px; width: 38px; height: 38px; border-radius: 10px; background: var(--accent-soft); display: flex; align-items: center; justify-content: center; margin-bottom: 10px; }
+  .how-title { font-weight: 700; font-size: 13.5px; margin-bottom: 6px; }
+  .how-card p { font-size: 12.5px; line-height: 1.65; color: var(--ink-700); margin: 0; }
+  @media (max-width: 980px) { .how-grid { grid-template-columns: 1fr 1fr; } }
+
   /* ---------- journey / history ---------- */
   .journey-explainer { padding: 22px 24px; display: flex; flex-direction: column; gap: 4px; }
   .journey-stage p { font-size: 13px; line-height: 1.65; color: var(--ink-700); margin: 0; }
