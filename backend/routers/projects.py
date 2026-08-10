@@ -54,7 +54,7 @@ def _provision_and_instantiate(db: Session, project: models.Project):
         db.add(sub)
     db.commit()
 
-    rules.recompute_project_due_dates(db, project)
+    rules.recompute_project_due_dates(db, project, force=True)
     db.commit()
 
     # Auto-assign notification: one summary per distinct owner, per Modifications doc.
@@ -224,7 +224,7 @@ def triage_l0_project(project_id: int, payload: schemas.TriageRequest, db: Sessi
             sub.applicability = "applicable" if item.applicable else "not_required"
     db.commit()
 
-    rules.recompute_project_due_dates(db, project)
+    rules.recompute_project_due_dates(db, project, force=True)
     db.commit()
     db.refresh(project)
     project.pending_triage_count = sum(1 for s in subs_by_id.values() if s.applicability == "pending")
@@ -267,7 +267,7 @@ def update_project_details(project_id: int, payload: schemas.ProjectDetailsUpdat
             date_changed = True
     db.commit()
     if date_changed:
-        rules.recompute_project_due_dates(db, project)
+        rules.recompute_project_due_dates(db, project, force=True)
         db.commit()
     db.refresh(project)
     return project
@@ -314,8 +314,9 @@ def get_deliverables(project_id: int, department: str | None = None, db: Session
     if not project:
         raise HTTPException(404, "Project not found")
     # Not-yet-approved items' due dates can shift day to day (an overdue,
-    # still-undone predecessor keeps pushing dependents forward), so refresh
-    # on every read rather than only after the next approval event.
+    # still-undone predecessor keeps pushing dependents forward), so this
+    # checks on every read rather than only after the next approval event —
+    # it's a cheap no-op past the first read of the day, see the docstring.
     rules.recompute_project_due_dates(db, project)
     db.commit()
     q = (

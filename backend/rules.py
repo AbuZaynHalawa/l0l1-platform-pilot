@@ -6,7 +6,7 @@ linked deliverable (is_milestone=True) has status APPROVED for that project.
 """
 import re
 from datetime import date, timedelta
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from . import models
 
@@ -238,7 +238,10 @@ def _predecessor_anchor_date(pred_sub: "models.DeliverableSubmission") -> date |
     return max(pred_sub.due_date, date.today())
 
 
-def _get_submission(db: Session, project_id: int, item_no: str, stage) -> "models.DeliverableSubmission | None":
+def _get_submission(db: Session, project_id: int, item_no: str, stage,
+                     lookup: dict[str, "models.DeliverableSubmission"] | None = None) -> "models.DeliverableSubmission | None":
+    if lookup is not None:
+        return lookup.get(item_no)
     return (
         db.query(models.DeliverableSubmission)
         .join(models.DeliverableDefinition)
@@ -251,7 +254,8 @@ def _get_submission(db: Session, project_id: int, item_no: str, stage) -> "model
     )
 
 
-def _resolve_predecessor_anchor(db: Session, project: "models.Project", pred_item_no: str) -> date | None:
+def _resolve_predecessor_anchor(db: Session, project: "models.Project", pred_item_no: str,
+                                 lookup: dict[str, "models.DeliverableSubmission"] | None = None) -> date | None:
     """Resolves `predecessor_item_no`, which may list several items
     comma-separated (an AND-dependency — e.g. "2.2,2.8" for an item that
     needs both the main and PBU site visit reports). Unresolved (None)
@@ -262,7 +266,7 @@ def _resolve_predecessor_anchor(db: Session, project: "models.Project", pred_ite
     item_nos = [p.strip() for p in pred_item_no.split(",") if p.strip()]
     anchors = []
     for item_no in item_nos:
-        pred_sub = _get_submission(db, project.id, item_no, project.stage)
+        pred_sub = _get_submission(db, project.id, item_no, project.stage, lookup)
         if pred_sub is None:
             return None
         anchor = _predecessor_anchor_date(pred_sub)
@@ -272,7 +276,8 @@ def _resolve_predecessor_anchor(db: Session, project: "models.Project", pred_ite
     return max(anchors) if anchors else None
 
 
-def compute_due_date(db: Session, definition: models.DeliverableDefinition, project: models.Project) -> date | None:
+def compute_due_date(db: Session, definition: models.DeliverableDefinition, project: models.Project,
+                      lookup: dict[str, "models.DeliverableSubmission"] | None = None) -> date | None:
     """Resolves a deliverable definition's due date for a specific project."""
     anchor_type = definition.anchor_type
 
@@ -314,7 +319,7 @@ def compute_due_date(db: Session, definition: models.DeliverableDefinition, proj
         # a fixed 1-day duration regardless of the item's own stored offset
         # (which only applies in the normal, non-PBU branch below).
         if is_l0 and item_no in PBU_CONDITIONAL_ITEMS and getattr(project, "scope_contains_pbu", False):
-            anchor = _resolve_predecessor_anchor(db, project, "4.4")
+            anchor = _resolve_predecessor_anchor(db, project, "4.4", lookup)
             if anchor is None:
                 return None
             return next_workday_after(anchor)
@@ -332,7 +337,7 @@ def compute_due_date(db: Session, definition: models.DeliverableDefinition, proj
             start = next_workday_after(project.announcement_date)
             return duration_end(start, 3)  # the 3rd working day after announcement
 
-        anchor = _resolve_predecessor_anchor(db, project, pred_item_no)
+        anchor = _resolve_predecessor_anchor(db, project, pred_item_no, lookup)
         if anchor is None:
             return None
 
@@ -379,18 +384,41 @@ def refresh_status(submission: models.DeliverableSubmission) -> None:
     )
 
 
-def recompute_project_due_dates(db: Session, project: models.Project) -> None:
+def recompute_project_due_dates(db: Session, project: models.Project, force: bool = False) -> None:
     """Recomputes every submission's due date for a project, in an order that
     lets predecessor chains resolve (announcement/bsd roots first, then
     predecessor-chained items, repeated until stable — chains in the real
     templates are shallow, a few passes is always enough).
+
+    Due dates for not-yet-approved, predecessor-chained items can shift
+    purely from the passage of time (an overdue predecessor keeps pushing
+    dependents forward day by day — see _predecessor_anchor_date), so this
+    has to run at least once per calendar day, not only right after a
+    mutation. It doesn't need to run more than once a day, though: every
+    caller on a plain read (dashboard, gantt, deliverables list) was re-running
+    this full O(items x passes) computation on every single page view, which
+    is the main cost driver at real project-count scale. Skip it once it's
+    already run today, unless the caller just made a change (force=True,
+    from upload/approve/triage/an admin date edit) that needs to show up in
+    this same response instead of waiting for tomorrow's first read.
     """
+    today = date.today()
+    if not force and project.due_dates_computed_on == today:
+        return
+
     subs = (
         db.query(models.DeliverableSubmission)
-        .join(models.DeliverableDefinition)
+        .options(joinedload(models.DeliverableSubmission.definition))
         .filter(models.DeliverableSubmission.project_id == project.id)
         .all()
     )
+    # Predecessor lookups (_get_submission) used to run a fresh query per
+    # item per pass — with ~75 items x up to 6 passes that's a few hundred
+    # extra round trips per project, per read. Same objects, looked up by
+    # item_no instead; mutations within the loop below (s.due_date = ...)
+    # are visible through this immediately since it holds the same instances.
+    lookup = {s.definition.item_no: s for s in subs}
+
     for _pass in range(6):
         changed = False
         for s in subs:
@@ -413,13 +441,15 @@ def recompute_project_due_dates(db: Session, project: models.Project) -> None:
                     s.status = models.SubmissionStatus.PENDING_TRIAGE
                     changed = True
                 continue
-            new_due = compute_due_date(db, s.definition, project)
+            new_due = compute_due_date(db, s.definition, project, lookup)
             if new_due != s.due_date:
                 s.due_date = new_due
                 changed = True
             refresh_status(s)
         if not changed:
             break
+
+    project.due_dates_computed_on = today
 
 
 def check_l1_completion(db: Session, project: "models.Project") -> None:

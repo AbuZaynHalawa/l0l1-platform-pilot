@@ -67,6 +67,22 @@ def ensure_enum_value(table_name: str, column_name: str, value: str) -> None:
         conn.commit()
 
 
+def ensure_index(table_name: str, index_name: str, column_name: str) -> None:
+    """Adds an index on a column if missing. Foreign-key columns aren't
+    auto-indexed by Postgres (unlike MySQL), and create_all() only builds
+    indexes for brand-new tables — so every join/filter on these columns
+    does a full scan until this runs. CREATE INDEX IF NOT EXISTS is
+    supported natively by both SQLite and Postgres, so one statement covers
+    both; safe to re-run.
+    """
+    inspector = inspect(engine)
+    if not inspector.has_table(table_name):
+        return
+    with engine.connect() as conn:
+        conn.execute(text(f"CREATE INDEX IF NOT EXISTS {index_name} ON {table_name} ({column_name})"))
+        conn.commit()
+
+
 def get_db():
     db = SessionLocal()
     try:

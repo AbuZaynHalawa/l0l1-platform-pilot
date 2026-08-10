@@ -7,7 +7,7 @@ Focal point / owner / SME emails below are PLACEHOLDERS — swap for the real
 per-department contacts and the real per-deliverable owner/SME mapping when
 provided, then re-run: `python -m backend.seed` (safe to re-run, upserts).
 """
-from .database import SessionLocal, engine, ensure_column, ensure_enum_value
+from .database import SessionLocal, engine, ensure_column, ensure_enum_value, ensure_index
 from . import models, rules
 
 ensure_column("deliverable_definitions", "short_name", "VARCHAR")
@@ -15,8 +15,29 @@ ensure_column("departments", "number", "INTEGER")
 ensure_column("projects", "business_units", "JSON")
 ensure_column("announcements", "submission_id", "INTEGER")
 ensure_column("deliverable_submissions", "applicability", "VARCHAR")
+ensure_column("projects", "due_dates_computed_on", "DATE")
 ensure_enum_value("deliverable_submissions", "status", "PENDING_TRIAGE")
 ensure_enum_value("deliverable_submissions", "status", "NOT_REQUIRED")
+
+# Load-bearing indexes: every one of these columns is filtered or joined on
+# in the hot paths (dashboard, matrix, gantt, assigned deliverables), and
+# Postgres doesn't auto-index foreign keys the way MySQL does — without
+# these, those queries do full table scans as project/submission counts grow.
+ensure_index("deliverable_submissions", "ix_subs_project_id", "project_id")
+ensure_index("deliverable_submissions", "ix_subs_definition_id", "deliverable_definition_id")
+ensure_index("deliverable_submissions", "ix_subs_status", "status")
+ensure_index("deliverable_definitions", "ix_defs_department_id", "department_id")
+ensure_index("deliverable_definitions", "ix_defs_stage", "stage")
+ensure_index("deliverable_definitions", "ix_defs_item_no", "item_no")
+ensure_index("projects", "ix_projects_status", "status")
+ensure_index("projects", "ix_projects_stage", "stage")
+ensure_index("announcements", "ix_announcements_created_at", "created_at")
+ensure_index("announcements", "ix_announcements_project_id", "project_id")
+ensure_index("workflow_history", "ix_history_submission_id", "submission_id")
+ensure_index("documents", "ix_documents_submission_id", "submission_id")
+ensure_index("followers", "ix_followers_submission_id", "submission_id")
+ensure_index("reassignment_requests", "ix_reassign_submission_id", "submission_id")
+
 models.Base.metadata.create_all(bind=engine)
 
 TEST_EMAIL = "test-focal@example.com"  # single placeholder until real contacts are provided

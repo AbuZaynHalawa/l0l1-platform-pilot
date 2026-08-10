@@ -321,7 +321,7 @@ def review_deliverable(submission_id: int, decision: schemas.ReviewDecision, db:
             s.id: s.due_date
             for s in db.query(models.DeliverableSubmission).filter(models.DeliverableSubmission.project_id == sub.project_id).all()
         }
-        rules.recompute_project_due_dates(db, sub.project)
+        rules.recompute_project_due_dates(db, sub.project, force=True)
         db.commit()
         after_subs = db.query(models.DeliverableSubmission).filter(models.DeliverableSubmission.project_id == sub.project_id).all()
         trigger_label = f"{sub.definition.item_no} {sub.definition.name}"

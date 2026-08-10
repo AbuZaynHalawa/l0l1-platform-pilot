@@ -119,6 +119,7 @@ class Project(Base):
     onedrive_folder_id = Column(String, nullable=True)
     onedrive_folder_path = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    due_dates_computed_on = Column(Date, nullable=True)  # calendar date recompute_project_due_dates last actually ran
 
     submissions = relationship("DeliverableSubmission", back_populates="project", cascade="all, delete-orphan",
                                 foreign_keys="DeliverableSubmission.project_id")
