@@ -239,6 +239,7 @@
 
   /* ---------- deliverable detail modal ---------- */
   .modal-overlay { position: fixed; inset: 0; background: rgba(15,18,26,.55); z-index: 80; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .modal-overlay[hidden] { display: none; }
   .modal-card { background: var(--surface); border-radius: 14px; box-shadow: var(--shadow-2); width: 100%; max-width: 620px; max-height: 88vh; display: flex; flex-direction: column; overflow: hidden; }
   .modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 20px 22px 14px; border-bottom: 1px solid var(--line); }
   .modal-head h2 { font-size: 17px; margin: 4px 0 0; }
