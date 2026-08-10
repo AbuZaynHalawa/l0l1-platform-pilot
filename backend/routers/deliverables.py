@@ -170,6 +170,15 @@ async def add_document(submission_id: int, file: UploadFile = File(...),
                                    note=f"Added {file.filename}"))
     db.commit()
     db.refresh(doc)
+
+    # Item 101: this now announces the same way the primary upload does —
+    # it used to add the document silently with no notification at all.
+    sme_email = sub.sme_email or sub.definition.default_sme_email
+    if sme_email:
+        announcements.document_added(db, sub.project, sme_email, sub.definition.item_no, sub.definition.name,
+                                      file.filename, submission_id=sub.id)
+    announcements.followers_notified(db, sub.project, _follower_emails(db, submission_id),
+                                      sub.definition.item_no, sub.definition.name, "uploaded", submission_id=submission_id)
     return _document_out(doc)
 
 

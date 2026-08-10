@@ -57,6 +57,20 @@ def sme_review_requested(db: Session, project: models.Project, sme_email: str, i
                     recipients=[sme_email], project=project, submission_id=submission_id)
 
 
+def document_added(db: Session, project: models.Project, sme_email: str, item_no: str, item_name: str,
+                    file_name: str, submission_id: int | None = None) -> models.Announcement:
+    """Item 101 — a supplementary document (added on top of the primary
+    upload) now notifies the SME too, the same way the primary upload does,
+    instead of silently landing with no announcement at all. Lighter-weight
+    wording than sme_review_requested since it doesn't carry the same
+    1-day review-clock obligation — the deliverable's own status is untouched.
+    """
+    title = "Document Added &#8211; New Supporting File"
+    body = f"{file_name} was added to {item_no} {item_name} on {project.est_no}."
+    return _create(db, type=models.AnnouncementType.SME_REQUEST, title=title, body=body,
+                    recipients=[sme_email], project=project, submission_id=submission_id)
+
+
 def sme_decision(db: Session, project: models.Project, owner_email: str, item_no: str, item_name: str,
                   approved: bool, comment: str | None = None, submission_id: int | None = None) -> models.Announcement:
     if approved:

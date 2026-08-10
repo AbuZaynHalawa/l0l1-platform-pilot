@@ -38,15 +38,45 @@
     var d = new Date(iso + "T00:00:00");
     return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
   }
-  async function api(path, opts) {
-    var r = await fetch(path, opts);
-    if (!r.ok) {
-      var bodyText = await r.text();
-      var err = new Error(path + " -> " + r.status + ": " + bodyText);
-      try { err.detail = JSON.parse(bodyText).detail; } catch (e) { err.detail = bodyText; }
-      throw err;
+  // Item 91: a centered loading popup for every in-flight API call, so a
+  // slow reminder/creation/etc. reads as "working" instead of "stuck".
+  // Delayed briefly so a normal fast request never even flickers it.
+  var _loadingCount = 0, _loadingShowTimer = null;
+  function _loadingStart() {
+    _loadingCount++;
+    if (_loadingCount === 1) {
+      _loadingShowTimer = setTimeout(function () {
+        document.getElementById("globalLoadingOverlay").hidden = false;
+      }, 200);
     }
-    return r.status === 204 ? null : r.json();
+  }
+  function _loadingEnd() {
+    _loadingCount = Math.max(0, _loadingCount - 1);
+    if (_loadingCount === 0) {
+      clearTimeout(_loadingShowTimer);
+      document.getElementById("globalLoadingOverlay").hidden = true;
+    }
+  }
+  async function api(path, opts) {
+    // Item 100: force a real network round-trip on every call — GET requests
+    // otherwise had no explicit Cache-Control, letting the browser occasionally
+    // serve a stale response (e.g. the deliverable popup opened right after
+    // an upload from a different entry point, showing the pre-upload state
+    // until something forced a genuinely fresh request).
+    opts = Object.assign({ cache: "no-store" }, opts || {});
+    _loadingStart();
+    try {
+      var r = await fetch(path, opts);
+      if (!r.ok) {
+        var bodyText = await r.text();
+        var err = new Error(path + " -> " + r.status + ": " + bodyText);
+        try { err.detail = JSON.parse(bodyText).detail; } catch (e) { err.detail = bodyText; }
+        throw err;
+      }
+      return r.status === 204 ? null : r.json();
+    } finally {
+      _loadingEnd();
+    }
   }
   function apiErrorDetail(err) { return err.detail || err.message; }
   function showToast(msg, isError) {
@@ -97,6 +127,10 @@
     document.querySelectorAll(".view").forEach(function (v) { v.hidden = true; });
     document.getElementById("view-" + name).hidden = false;
     document.querySelectorAll(".nav-item").forEach(function (n) { n.classList.toggle("active", n.dataset.view === name); });
+    // Item 99: a plain nav view is remembered in the URL so a refresh comes
+    // back here instead of bouncing to the Dashboard. "detail" and "triage"
+    // aren't nav views — they get their own hash from openDetail/openTriage.
+    if (name !== "detail" && name !== "triage") location.hash = "view=" + name;
     if (LOADERS[name]) LOADERS[name]();
   }
   document.querySelectorAll(".nav-item").forEach(function (btn) {
@@ -168,9 +202,14 @@
       body.appendChild(el("div", "sub", a.body.replace(/<[^>]+>/g, "")));
       digest.appendChild(row);
       row.appendChild(body);
-      if (a.project_id) {
+      if (a.submission_id || a.project_id) {
         row.style.cursor = "pointer";
-        row.addEventListener("click", function () { openDetail(a.project_id, a.submission_id); });
+        // Item 92: opens straight to the deliverable popup, like Assigned
+        // Deliverables does — no more redirecting to project detail first.
+        row.addEventListener("click", function () {
+          if (a.submission_id) openDelivModal(a.submission_id);
+          else openDetail(a.project_id);
+        });
       }
     });
 
@@ -476,12 +515,24 @@
     if (!pending.length) {
       card.appendChild(el("div", "deliv-row", '<span style="color:var(--ink-500);font-size:12.5px;">Nothing left to triage.</span>'));
     } else {
-      var lastDept = null;
+      // Item 97: every Operation Units BU sub-department (TBU/PBU/DBU/BBU)
+      // shares one header instead of one each — they'd otherwise interleave
+      // by item_no (all sharing department number 2) and reprint a new
+      // header on nearly every row. Grouped explicitly by label instead of
+      // relying on adjacent-row department equality.
+      var groupLabel = function (dept) { return dept.indexOf("Operation Units") === 0 ? "Operation Units" : dept; };
+      var groups = {}, groupOrder = [];
       pending.forEach(function (d) {
-        if (d.department !== lastDept) {
-          card.appendChild(el("div", "deliv-subheader", d.department));
-          lastDept = d.department;
-        }
+        var label = groupLabel(d.department);
+        if (!groups[label]) { groups[label] = []; groupOrder.push(label); }
+        groups[label].push(d);
+      });
+      groupOrder.forEach(function (label) {
+        card.appendChild(el("div", "deliv-subheader", label));
+        groups[label].forEach(function (d) { renderTriageRow(d); });
+      });
+    }
+    function renderTriageRow(d) {
         // A remembered pick (item 79) from this BM's past triages pre-selects
         // the toggle — still just a default, they can override it below.
         var remembered = defaults.hasOwnProperty(d.item_no) ? defaults[d.item_no] : true;
@@ -489,7 +540,13 @@
         var row = el("div", "deliv-row");
         row.appendChild(el("div", "deliv-num", d.item_no));
         var body = el("div", "deliv-body");
-        body.appendChild(el("div", "deliv-name", d.name));
+        // The shared "Operation Units" header (item 97) collapses which BU
+        // an item belongs to, so tag it back on here — otherwise a BM
+        // triaging a multi-BU project can't tell one 2.1 from another.
+        var nameLabel = d.department.indexOf("Operation Units") === 0 && d.department !== "Operation Units"
+          ? d.name + " &#8212; " + d.department.replace("Operation Units ", "")
+          : d.name;
+        body.appendChild(el("div", "deliv-name", nameLabel));
         row.appendChild(body);
         var toggle = el("div", "triage-toggle");
         var appBtn = el("button", "chip" + (remembered ? " active" : ""), "Applicable");
@@ -506,7 +563,6 @@
         row.appendChild(toggle);
         card.appendChild(row);
         toggleButtons.push({ id: d.id, appBtn: appBtn, notBtn: notBtn });
-      });
     }
     var markAllBtn = document.getElementById("triageMarkAllNotRequired");
     markAllBtn.hidden = !(can("create") && pending.length);
@@ -672,7 +728,7 @@
         body.appendChild(row);
       });
       if (can("upload")) {
-        var addBtn = el("button", "btn", "Add Document");
+        var addBtn = el("button", "btn", "Upload"); // item 101 — same naming as the primary Upload button
         var addInput = el("input"); addInput.type = "file"; addInput.style.display = "none";
         addInput.addEventListener("change", async function () {
           if (!addInput.files.length) return;
@@ -721,6 +777,11 @@
   var currentProjectId = null, currentProjectStage = "L0", currentProjectTerminal = false, currentDeptOpen = null;
   async function openDetail(id, highlightSubmissionId) {
     currentProjectId = id;
+    // Always land back on Deliverables, not wherever the previously-viewed
+    // project's Activity Trail tab happened to leave things (item 96).
+    document.querySelectorAll("#dSubTabs .chip").forEach(function (b) { b.classList.toggle("active", b.dataset.tab === "deliverables"); });
+    document.getElementById("dDeliverablesPane").style.display = "";
+    document.getElementById("dTrailPane").style.display = "none";
     var p = await api("/api/projects/" + id);
     currentProjectStage = p.stage;
     currentProjectTerminal = (p.stage === "L0" && (p.status === "Submitted" || p.status === "Cancelled")) ||
@@ -926,6 +987,7 @@
     renderDeliverables(initialDeptItems);
 
     switchView("detail");
+    location.hash = "project=" + id; // item 99 — survives a refresh
     if (highlightItem) {
       setTimeout(function () {
         var target = document.querySelector('.deliv-row[data-sid="' + highlightSubmissionId + '"]');
@@ -1289,10 +1351,9 @@
       row.appendChild(track);
       if (r.submission_id) {
         row.style.cursor = "pointer";
-        row.addEventListener("click", function () {
-          var pid = isPooled ? r.project_id : ganttCurrentProjectId;
-          if (pid) openDetail(pid, r.submission_id);
-        });
+        // Item 92: opens straight to the deliverable popup instead of
+        // redirecting to project detail first.
+        row.addEventListener("click", function () { openDelivModal(r.submission_id); });
       }
       wrap.appendChild(row);
     });
@@ -1417,35 +1478,6 @@
     document_added: "&#128206;", document_approved: "&#9989;", document_rejected: "&#10060;",
     reopened: "&#128257;",
   };
-  var trailLoaded = { L0: false, L1: false };
-  function setupActivityTrail(stage, selId, timelineId, listCardId, trailCardId, subTabsId) {
-    var sel = document.getElementById(selId);
-    document.querySelectorAll("#" + subTabsId + " .chip").forEach(function (btn) {
-      btn.addEventListener("click", function () {
-        document.querySelectorAll("#" + subTabsId + " .chip").forEach(function (b) { b.classList.remove("active"); });
-        btn.classList.add("active");
-        var isTrail = btn.dataset.tab === "trail";
-        document.getElementById(listCardId).style.display = isTrail ? "none" : "";
-        document.getElementById(trailCardId).style.display = isTrail ? "" : "none";
-        if (isTrail) loadActivityTrail(stage, selId, timelineId);
-      });
-    });
-  }
-  async function loadActivityTrail(stage, selId, timelineId) {
-    var sel = document.getElementById(selId);
-    if (!trailLoaded[stage]) {
-      var list = await api("/api/projects?stage=" + stage);
-      sel.innerHTML = '<option value="">Select a ' + (stage === "L0" ? "tender" : "project") + "&#8230;</option>";
-      list.forEach(function (p) {
-        var o = el("option", "", p.est_no + " &#8211; " + p.name);
-        o.value = p.id;
-        sel.appendChild(o);
-      });
-      sel.addEventListener("change", function () { renderActivityTimeline(sel.value, timelineId); });
-      trailLoaded[stage] = true;
-    }
-    if (sel.value) renderActivityTimeline(sel.value, timelineId);
-  }
   async function renderActivityTimeline(projectId, timelineId) {
     var wrap = document.getElementById(timelineId);
     if (!projectId) { wrap.innerHTML = ""; return; }
@@ -1465,8 +1497,21 @@
       wrap.appendChild(row);
     });
   }
-  setupActivityTrail("L0", "l0TrailProjectSel", "l0TrailTimeline", "l0ListCard", "l0TrailCard", "l0SubTabs");
-  setupActivityTrail("L1", "l1TrailProjectSel", "l1TrailTimeline", "l1ListCard", "l1TrailCard", "l1SubTabs");
+  // Item 96: Activity Trail lives inside the project detail page itself now,
+  // as a sub-tab next to Deliverables, instead of a picker on the L0/L1 list.
+  document.querySelectorAll("#dSubTabs .chip").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.querySelectorAll("#dSubTabs .chip").forEach(function (b) { b.classList.remove("active"); });
+      btn.classList.add("active");
+      var isTrail = btn.dataset.tab === "trail";
+      // The stepper only ever applies to L1 projects (see openDetail) — don't
+      // let switching back from the trail tab resurrect it for an L0 tender.
+      document.getElementById("dStepperCard").style.display = (isTrail || currentProjectStage !== "L1") ? "none" : "";
+      document.getElementById("dDeliverablesPane").style.display = isTrail ? "none" : "";
+      document.getElementById("dTrailPane").style.display = isTrail ? "" : "none";
+      if (isTrail) renderActivityTimeline(currentProjectId, "dTrailTimeline");
+    });
+  });
 
   /* ================= SCORES (admin full leaderboard) ================= */
   var scoresData = { owners: [], smes: [] };
@@ -2039,9 +2084,12 @@
       main.appendChild(el("div", "ann-body", a.body));
       main.appendChild(el("div", "ann-meta", "To: <b>" + (a.recipients || "&#8213;") + "</b> &middot; " + a.email_status));
       row.appendChild(main);
-      if (a.project_id) {
+      if (a.submission_id || a.project_id) {
         row.style.cursor = "pointer";
-        row.addEventListener("click", function () { openDetail(a.project_id, a.submission_id); });
+        row.addEventListener("click", function () {
+          if (a.submission_id) openDelivModal(a.submission_id);
+          else openDetail(a.project_id);
+        });
       }
       wrap.appendChild(row);
     });
@@ -2224,5 +2272,15 @@
 
   // A shared deliverable link (item 76) opens straight to that item's popup.
   var sharedMatch = location.hash.match(/deliverable=(\d+)/);
-  if (sharedMatch) openDelivModal(parseInt(sharedMatch[1], 10));
+  var projectMatch = location.hash.match(/project=(\d+)/);
+  var viewMatch = location.hash.match(/view=(\w+)/);
+  if (sharedMatch) {
+    openDelivModal(parseInt(sharedMatch[1], 10));
+  } else if (projectMatch) {
+    // Item 99: refreshing while on a project detail page returns to it.
+    openDetail(parseInt(projectMatch[1], 10));
+  } else if (viewMatch && document.getElementById("view-" + viewMatch[1])) {
+    // Item 99: refreshing on any other nav view stays on that view.
+    switchView(viewMatch[1]);
+  }
 })();

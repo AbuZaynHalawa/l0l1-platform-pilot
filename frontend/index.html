@@ -137,11 +137,11 @@
           <h1>Assigned Deliverables</h1>
           <p class="sub">Every deliverable across every project, in one queue.</p>
         </div>
-        <div class="matrix-toggle" id="assignedStageToggle">
-          <button class="chip active" data-stage="">All</button>
-          <button class="chip" data-stage="L0">L0 Tenders</button>
-          <button class="chip" data-stage="L1">L1 Projects</button>
-        </div>
+      </div>
+      <div class="subtab-row" id="assignedStageToggle">
+        <button class="chip active" data-stage="">All</button>
+        <button class="chip" data-stage="L0">L0 Tenders</button>
+        <button class="chip" data-stage="L1">L1 Projects</button>
       </div>
       <div class="filter-chips" id="assignedChips"></div>
       <div class="card table-card"><div id="assignedList"></div></div>
@@ -189,10 +189,6 @@
           <p class="sub">Every tender currently in bid preparation, in one list.</p>
         </div>
       </div>
-      <div class="matrix-toggle" id="l0SubTabs">
-        <button class="chip active" data-tab="list">Tenders List</button>
-        <button class="chip" data-tab="trail">Activity Trail</button>
-      </div>
       <div class="card table-card" id="l0ListCard">
         <div class="table-scroll">
           <table class="data" id="l0Table">
@@ -200,15 +196,6 @@
             <tbody></tbody>
           </table>
         </div>
-      </div>
-      <div class="card table-card" id="l0TrailCard" style="display:none;">
-        <div class="section-title">
-          <span>Activity Trail</span>
-          <div class="field" style="max-width:320px;margin:0;">
-            <select id="l0TrailProjectSel"><option value="">Select a tender&#8230;</option></select>
-          </div>
-        </div>
-        <div id="l0TrailTimeline"></div>
       </div>
     </section>
 
@@ -221,10 +208,6 @@
           <p class="sub">From announcement through to contract signature &#8211; M1 to M6.</p>
         </div>
       </div>
-      <div class="matrix-toggle" id="l1SubTabs">
-        <button class="chip active" data-tab="list">Projects List</button>
-        <button class="chip" data-tab="trail">Activity Trail</button>
-      </div>
       <div class="card table-card" id="l1ListCard">
         <div class="table-scroll">
           <table class="data" id="l1Table">
@@ -232,15 +215,6 @@
             <tbody></tbody>
           </table>
         </div>
-      </div>
-      <div class="card table-card" id="l1TrailCard" style="display:none;">
-        <div class="section-title">
-          <span>Activity Trail</span>
-          <div class="field" style="max-width:320px;margin:0;">
-            <select id="l1TrailProjectSel"><option value="">Select a project&#8230;</option></select>
-          </div>
-        </div>
-        <div id="l1TrailTimeline"></div>
       </div>
     </section>
 
@@ -253,11 +227,11 @@
           <p class="sub">Every active deliverable, pooled across projects and sorted by due date.</p>
         </div>
       </div>
+      <div class="subtab-row" id="ganttStageToggle">
+        <button class="chip active" data-stage="L0">L0 Tenders</button>
+        <button class="chip" data-stage="L1">L1 Projects</button>
+      </div>
       <div class="gantt-filter-row" id="ganttFilterRow">
-        <div class="matrix-toggle" id="ganttStageToggle">
-          <button class="chip active" data-stage="L0">L0 Tenders</button>
-          <button class="chip" data-stage="L1">L1 Projects</button>
-        </div>
         <select id="ganttScope"><option value="">Pooled Timeline (all active projects)</option></select>
         <select id="ganttDeptFilter"><option value="">All Departments</option></select>
         <select id="ganttStatusFilter">
@@ -460,12 +434,12 @@
           <h1>Focal Points</h1>
           <p class="sub">Who each deliverable's notifications go to, the Bid Manager roster, and the system-wide viewer list.</p>
         </div>
-        <div class="focus-toggle" id="fpSubTabs">
-          <button class="chip active" data-fp="L0">L0 Deliverables</button>
-          <button class="chip" data-fp="L1">L1 Deliverables</button>
-          <button class="chip" data-fp="bm">Bid Managers</button>
-          <button class="chip" data-fp="group">L0-L1 Group</button>
-        </div>
+      </div>
+      <div class="subtab-row" id="fpSubTabs">
+        <button class="chip active" data-fp="L0">L0 Deliverables</button>
+        <button class="chip" data-fp="L1">L1 Deliverables</button>
+        <button class="chip" data-fp="bm">Bid Managers</button>
+        <button class="chip" data-fp="group">L0-L1 Group</button>
       </div>
 
       <div class="card table-card" id="fpDeliverablePanel">
@@ -586,11 +560,16 @@
         <button class="btn primary" id="dTriageBannerBtn">Complete Triage</button>
       </div>
 
+      <div class="subtab-row" id="dSubTabs">
+        <button class="chip active" data-tab="deliverables">Deliverables</button>
+        <button class="chip" data-tab="trail">Activity Trail</button>
+      </div>
+
       <div class="card full-stepper" id="dStepperCard">
         <div class="fs-row" id="dStepper"></div>
       </div>
 
-      <div class="split detail-split">
+      <div class="split detail-split" id="dDeliverablesPane">
         <div class="card">
           <div class="section-title">Departments <span class="cnt" id="dFolderCount"></span></div>
           <div class="folder-list" id="dFolders"></div>
@@ -599,6 +578,11 @@
           <div class="section-title"><span id="dDeliverTitle">Deliverables</span> <span class="cnt" id="dDeliverCount"></span></div>
           <div class="deliv-list" id="dDeliverables"></div>
         </div>
+      </div>
+
+      <div class="card table-card" id="dTrailPane" style="display:none;">
+        <div class="section-title"><span>Activity Trail</span></div>
+        <div id="dTrailTimeline"></div>
       </div>
     </section>
 
@@ -758,6 +742,13 @@
       </div>
     </section>
 
+  </div>
+</div>
+
+<div class="global-loading-overlay" id="globalLoadingOverlay" hidden>
+  <div class="global-loading-box">
+    <div class="global-loading-spinner"></div>
+    <span>Loading&#8230;</span>
   </div>
 </div>
 
