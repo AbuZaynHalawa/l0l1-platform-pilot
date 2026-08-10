@@ -58,6 +58,12 @@ DEPARTMENTS = [
     "Tendering Department", "Operation Units", "Supply Chain", "Engineering Department",
     "Control Department", "Contract", "Human Resources", "Financial Department",
     "SHEQ Department", "IT Department", "Risk Department", "Fleet and Facility Management Department",
+    # Operation Units BU sub-folders (item 69) — "Operation Units" above stays
+    # in place (existing projects still point at its old flat 2.1-2.12 items,
+    # deactivated below so it's never handed to new ones); new L0 projects
+    # instead get one of these four, matching whichever business unit(s) the
+    # project's scope actually selected.
+    "Operation Units (TBU)", "Operation Units (PBU)", "Operation Units (DBU)", "Operation Units (BBU)",
     # L1-only (additional real breakdown, no "L1 " prefix)
     "TBU / PBU", "BBU", "BBU / PBU", "Planning", "Cost Control",
     "Treasury", "Finance", "Insurance", "Quality", "HSSE", "HSSE / Quality",
@@ -92,6 +98,7 @@ DEPARTMENT_RENAMES = {
 DEPARTMENT_NUMBERS = {
     "Tendering Department": 1,
     "Operation Units": 2, "TBU / PBU": 2, "BBU": 2, "BBU / PBU": 2,
+    "Operation Units (TBU)": 2, "Operation Units (PBU)": 2, "Operation Units (DBU)": 2, "Operation Units (BBU)": 2,
     "Supply Chain": 3,
     "Engineering Department": 4,
     "Control Department": 5, "Planning": 5, "Cost Control": 5,
@@ -114,6 +121,8 @@ L0_DEPT = {
     "eng": "Engineering Department", "control": "Control Department", "contract": "Contract",
     "hr": "Human Resources", "finance": "Financial Department", "sheq": "SHEQ Department",
     "it": "IT Department", "risk": "Risk Department", "fleet": "Fleet and Facility Management Department",
+    "op_tbu": "Operation Units (TBU)", "op_pbu": "Operation Units (PBU)",
+    "op_dbu": "Operation Units (DBU)", "op_bbu": "Operation Units (BBU)",
 }
 
 # (item_no, name, dept_key, anchor_type, pred, offset, direction, dtype, milestone_code)
@@ -139,18 +148,57 @@ L0_ITEMS = [
     ("1.19", "Adjust Proposals based on Tender Committee and/or VC Comments", "tendering", "predecessor", "1.18", 1, "after", "date_driven", None),
     ("1.20", "Submit Proposal to client", "tendering", "bsd", None, 0, "before", "date_driven", "M5"),
 
+    # NOTE: the flat "operation" rows below are the OLD, pre-split Operation
+    # Units structure — kept (and kept in sync by upsert) only because
+    # existing in-progress projects already have submissions pointing at
+    # them. They're deactivated for new projects in the backfill near the
+    # bottom of this file; every new L0 project instead gets one or more of
+    # the per-BU blocks that follow (item 69).
     ("2.1", "Attend Site Visit (in coordination with BBU)", "operation", "site_visit", None, 0, "after", "date_driven", None),
     ("2.2", "Prepare and circulate Site Visit Report (in coordination with BBU)", "operation", "predecessor", "2.1", 1, "after", "date_driven", "M2"),
     ("2.3", "Highlight points require Pre-bid clarifications", "operation", "pre_bid", None, 3, "before", "date_driven", None),
     ("2.4", "Prepare Risk Register", "operation", "predecessor", "2.2", 1, "after", "date_driven", None),
     ("2.5", "Prepare Project Execution Plan (Methodology) - (in coordination with BBU)", "operation", "predecessor", "1.1", 7, "after", "date_driven", None),
     ("2.6", "Review and comments on Project schedule (Execution and Productivities)", "operation", "predecessor", "5.3", 2, "after", "date_driven", None),
-    ("2.7", "Attend Site Visit (in coordination with relevant Business Unit) [PBU]", "operation", "site_visit", None, 0, "after", "date_driven", None),
-    ("2.8", "Prepare and circulate Site Visit Report (in coordination with relevant Business Unit) [PBU]", "operation", "predecessor", "2.7", 1, "after", "date_driven", None),
-    ("2.9", "Highlight points require Pre-bid clarifications [PBU]", "operation", "pre_bid", None, 3, "before", "date_driven", None),
-    ("2.10", "Prepare Risk Register [PBU]", "operation", "predecessor", "2.8", 1, "after", "date_driven", None),
-    ("2.11", "Prepare Project Execution Plan (Methodology) [PBU]", "operation", "predecessor", "1.1", 7, "after", "date_driven", None),
-    ("2.12", "Review and comments on Project schedule [PBU]", "operation", "predecessor", "5.3", 2, "after", "date_driven", None),
+
+    # Operation Units (TBU) — own copy of 2.1-2.6 (item 69). BBU stays named
+    # in the text since a TBU-scoped project can still involve BBU in a
+    # coordinating role; rules.display_name strips that phrase per-project
+    # when BBU isn't one of the project's own business units.
+    ("2.1", "Attend Site Visit (in coordination with BBU)", "op_tbu", "site_visit", None, 0, "after", "date_driven", None),
+    ("2.2", "Prepare and circulate Site Visit Report (in coordination with BBU)", "op_tbu", "predecessor", "2.1", 1, "after", "date_driven", "M2"),
+    ("2.3", "Highlight points require Pre-bid clarifications", "op_tbu", "pre_bid", None, 3, "before", "date_driven", None),
+    ("2.4", "Prepare Risk Register", "op_tbu", "predecessor", "2.2", 1, "after", "date_driven", None),
+    ("2.5", "Prepare Project Execution Plan (Methodology) - (in coordination with BBU)", "op_tbu", "predecessor", "1.1", 7, "after", "date_driven", None),
+    ("2.6", "Review and comments on Project schedule (Execution and Productivities)", "op_tbu", "predecessor", "5.3", 2, "after", "date_driven", None),
+
+    # Operation Units (PBU)
+    ("2.1", "Attend Site Visit (in coordination with BBU)", "op_pbu", "site_visit", None, 0, "after", "date_driven", None),
+    ("2.2", "Prepare and circulate Site Visit Report (in coordination with BBU)", "op_pbu", "predecessor", "2.1", 1, "after", "date_driven", "M2"),
+    ("2.3", "Highlight points require Pre-bid clarifications", "op_pbu", "pre_bid", None, 3, "before", "date_driven", None),
+    ("2.4", "Prepare Risk Register", "op_pbu", "predecessor", "2.2", 1, "after", "date_driven", None),
+    ("2.5", "Prepare Project Execution Plan (Methodology) - (in coordination with BBU)", "op_pbu", "predecessor", "1.1", 7, "after", "date_driven", None),
+    ("2.6", "Review and comments on Project schedule (Execution and Productivities)", "op_pbu", "predecessor", "5.3", 2, "after", "date_driven", None),
+
+    # Operation Units (DBU)
+    ("2.1", "Attend Site Visit (in coordination with BBU)", "op_dbu", "site_visit", None, 0, "after", "date_driven", None),
+    ("2.2", "Prepare and circulate Site Visit Report (in coordination with BBU)", "op_dbu", "predecessor", "2.1", 1, "after", "date_driven", "M2"),
+    ("2.3", "Highlight points require Pre-bid clarifications", "op_dbu", "pre_bid", None, 3, "before", "date_driven", None),
+    ("2.4", "Prepare Risk Register", "op_dbu", "predecessor", "2.2", 1, "after", "date_driven", None),
+    ("2.5", "Prepare Project Execution Plan (Methodology) - (in coordination with BBU)", "op_dbu", "predecessor", "1.1", 7, "after", "date_driven", None),
+    ("2.6", "Review and comments on Project schedule (Execution and Productivities)", "op_dbu", "predecessor", "5.3", 2, "after", "date_driven", None),
+
+    # Operation Units (BBU) — BBU coordinating with itself doesn't make
+    # sense, so the "(in coordination with BBU)" phrasing is dropped here
+    # rather than left for the per-project stripper to catch (it only
+    # strips when BBU is ABSENT from the project's business units, which
+    # is never true for the BBU folder itself).
+    ("2.1", "Attend Site Visit", "op_bbu", "site_visit", None, 0, "after", "date_driven", None),
+    ("2.2", "Prepare and circulate Site Visit Report", "op_bbu", "predecessor", "2.1", 1, "after", "date_driven", "M2"),
+    ("2.3", "Highlight points require Pre-bid clarifications", "op_bbu", "pre_bid", None, 3, "before", "date_driven", None),
+    ("2.4", "Prepare Risk Register", "op_bbu", "predecessor", "2.2", 1, "after", "date_driven", None),
+    ("2.5", "Prepare Project Execution Plan (Methodology)", "op_bbu", "predecessor", "1.1", 7, "after", "date_driven", None),
+    ("2.6", "Review and comments on Project schedule (Execution and Productivities)", "op_bbu", "predecessor", "5.3", 2, "after", "date_driven", None),
 
     ("3.1", "Prepare Risk Register", "supply", "predecessor", "2.2", 1, "after", "date_driven", None),
     ("3.2", "Highlight points require Pre-bid clarifications", "supply", "pre_bid", None, 3, "before", "date_driven", None),
@@ -325,8 +373,6 @@ L0_SHORT_NAMES = {
 
     "2.1": "Attend Site Visit", "2.2": "Site Visit Report", "2.3": "Highlight Pre-bid Points",
     "2.4": "Prepare Risk Register", "2.5": "Prepare Execution Plan", "2.6": "Review Project Schedule",
-    "2.7": "Attend Site Visit (PBU)", "2.8": "Site Visit Report (PBU)", "2.9": "Pre-bid Points (PBU)",
-    "2.10": "Risk Register (PBU)", "2.11": "Execution Plan (PBU)", "2.12": "Review Schedule (PBU)",
 
     "3.1": "Prepare Risk Register", "3.2": "Highlight Pre-bid Points", "3.3": "Approved Suppliers List",
     "3.4": "PO & Procurement History", "3.5": "Review Materials Strategy", "3.6": "Long Lead Items List",
@@ -467,6 +513,27 @@ def run():
             upsert("L1", item_no, name, L1_SHORT_NAMES.get(item_no, name), dept.id, anchor, pred, offset, direction, "date_driven", bool(ms), ms)
 
         db.commit()
+
+        # Backfill (item 69): the old flat "Operation Units" department's
+        # items 2.1-2.12 are superseded by the new TBU/PBU/DBU/BBU
+        # sub-folders above — deactivate them so _provision_and_instantiate's
+        # active==True filter stops handing them to new projects. Existing
+        # projects keep their already-created submissions untouched (this
+        # only flips `active` on the definitions, never touches submissions).
+        old_operation_dept = dept_map.get("Operation Units")
+        if old_operation_dept:
+            deactivated = (
+                db.query(models.DeliverableDefinition)
+                .filter(
+                    models.DeliverableDefinition.department_id == old_operation_dept.id,
+                    models.DeliverableDefinition.stage == models.Stage.L0,
+                    models.DeliverableDefinition.active == True,  # noqa: E712
+                )
+                .update({"active": False})
+            )
+            if deactivated:
+                db.commit()
+                print(f"Deactivated {deactivated} old flat Operation Units item(s) — superseded by TBU/PBU/DBU/BBU split.")
 
         # Backfill: M6 (Contract Signing) already approved on some L1 project
         # before the auto-sign-on-approval logic existed, so contract_status

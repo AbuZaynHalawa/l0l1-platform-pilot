@@ -54,10 +54,15 @@ def compute_business_units(scope: list[str] | None) -> tuple[list[str], bool]:
     return sorted(bus), False
 
 
-# L0: items 2.7-2.12 duplicate 2.1-2.6 for the case where BBU is also involved
-# on top of the main BU — only relevant when the main BU is TBU (SS HV/EHV).
-# Never applies to DBU or PBU projects, even ones that also trigger BBU.
-L0_TBU_ONLY_ITEMS = {"2.7", "2.8", "2.9", "2.10", "2.11", "2.12"}
+# L0: Operation Units is split into one sub-folder per business unit (TBU/
+# PBU/DBU/BBU), each carrying its own independent copy of items 2.1-2.6 —
+# a project only gets the folder(s) matching its actual business_units.
+L0_OPERATION_BU_DEPARTMENTS = {
+    "Operation Units (TBU)": "TBU",
+    "Operation Units (PBU)": "PBU",
+    "Operation Units (DBU)": "DBU",
+    "Operation Units (BBU)": "BBU",
+}
 
 # L1: these departments only apply to BBU (buildings) projects — no folder or
 # deliverables for a project that doesn't involve BBU at all.
@@ -84,8 +89,9 @@ def is_bu_applicable(definition: models.DeliverableDefinition, project: models.P
     if not bus or "TBA" in bus:
         return True
     if definition.stage == models.Stage.L0:
-        if definition.item_no in L0_TBU_ONLY_ITEMS:
-            return "TBU" in bus
+        required = L0_OPERATION_BU_DEPARTMENTS.get(definition.department.name)
+        if required:
+            return required in bus
         return True
     if definition.department.name in L1_BBU_ONLY_DEPARTMENTS:
         return "BBU" in bus
@@ -99,7 +105,7 @@ L0_THRESHOLD_DURATION_ITEMS = {"1.8", "1.9", "1.10"}
 # L0: "Prepare Risk Register" items that normally chain off the site visit
 # report(s), but fall back to announcement + 3 working days if this project
 # has no site visit scheduled at all (site_visit_date left blank).
-L0_SITE_VISIT_FALLBACK_ITEMS = {"2.4", "2.10", "3.1", "4.1", "5.1", "8.1", "9.1"}
+L0_SITE_VISIT_FALLBACK_ITEMS = {"2.4", "3.1", "4.1", "5.1", "8.1", "9.1"}
 
 
 def _tender_window_days(project: "models.Project") -> int | None:
@@ -238,46 +244,69 @@ def _predecessor_anchor_date(pred_sub: "models.DeliverableSubmission") -> date |
     return max(pred_sub.due_date, date.today())
 
 
-def _get_submission(db: Session, project_id: int, item_no: str, stage,
-                     lookup: dict[str, "models.DeliverableSubmission"] | None = None) -> "models.DeliverableSubmission | None":
+def _get_submissions(db: Session, project_id: int, item_no: str, stage,
+                      referring_department_id: int | None = None,
+                      lookup: dict[str, list] | None = None) -> list:
+    """Every submission in the project matching this item_no — normally
+    exactly one, except Operation Units' TBU/PBU/DBU/BBU split, where the
+    same item_no ("2.1".."2.6") exists once per business unit a project
+    actually spans. When referring_department_id is given and at least one
+    match shares it, only those are returned — a within-department
+    reference (TBU's own 2.4 depending on TBU's own 2.2) must never pull in
+    a sibling BU's copy of the same item_no. A cross-department reference
+    (e.g. Supply Chain's 3.1 depending on Operation Units' 2.2) has no
+    same-department match, so it falls through to every active BU variant.
+    """
     if lookup is not None:
-        return lookup.get(item_no)
-    return (
-        db.query(models.DeliverableSubmission)
-        .join(models.DeliverableDefinition)
-        .filter(
-            models.DeliverableSubmission.project_id == project_id,
-            models.DeliverableDefinition.item_no == item_no,
-            models.DeliverableDefinition.stage == stage,
+        candidates = lookup.get(item_no, [])
+    else:
+        candidates = (
+            db.query(models.DeliverableSubmission)
+            .join(models.DeliverableDefinition)
+            .filter(
+                models.DeliverableSubmission.project_id == project_id,
+                models.DeliverableDefinition.item_no == item_no,
+                models.DeliverableDefinition.stage == stage,
+            )
+            .all()
         )
-        .first()
-    )
+    if referring_department_id is not None:
+        same_dept = [s for s in candidates if s.definition.department_id == referring_department_id]
+        if same_dept:
+            return same_dept
+    return candidates
 
 
 def _resolve_predecessor_anchor(db: Session, project: "models.Project", pred_item_no: str,
-                                 lookup: dict[str, "models.DeliverableSubmission"] | None = None) -> date | None:
+                                 referring_department_id: int | None = None,
+                                 lookup: dict[str, list] | None = None) -> date | None:
     """Resolves `predecessor_item_no`, which may list several items
     comma-separated (an AND-dependency — e.g. "2.2,2.8" for an item that
     needs both the main and PBU site visit reports). Unresolved (None)
     unless every listed predecessor has resolved; the item can't start
     until the SLOWEST of them is actually done, so the effective anchor is
-    the latest (max) of their individual anchor dates.
+    the latest (max) of their individual anchor dates — including across
+    multiple simultaneously-active BU variants sharing one item_no, where
+    genuinely all of them have to be done first.
     """
     item_nos = [p.strip() for p in pred_item_no.split(",") if p.strip()]
     anchors = []
     for item_no in item_nos:
-        pred_sub = _get_submission(db, project.id, item_no, project.stage, lookup)
-        if pred_sub is None:
+        pred_subs = _get_submissions(db, project.id, item_no, project.stage, referring_department_id, lookup)
+        if not pred_subs:
             return None
-        anchor = _predecessor_anchor_date(pred_sub)
-        if anchor is None:
-            return None
-        anchors.append(anchor)
+        item_anchors = []
+        for pred_sub in pred_subs:
+            anchor = _predecessor_anchor_date(pred_sub)
+            if anchor is None:
+                return None
+            item_anchors.append(anchor)
+        anchors.append(max(item_anchors))
     return max(anchors) if anchors else None
 
 
 def compute_due_date(db: Session, definition: models.DeliverableDefinition, project: models.Project,
-                      lookup: dict[str, "models.DeliverableSubmission"] | None = None) -> date | None:
+                      lookup: dict[str, list] | None = None) -> date | None:
     """Resolves a deliverable definition's due date for a specific project."""
     anchor_type = definition.anchor_type
 
@@ -319,7 +348,7 @@ def compute_due_date(db: Session, definition: models.DeliverableDefinition, proj
         # a fixed 1-day duration regardless of the item's own stored offset
         # (which only applies in the normal, non-PBU branch below).
         if is_l0 and item_no in PBU_CONDITIONAL_ITEMS and getattr(project, "scope_contains_pbu", False):
-            anchor = _resolve_predecessor_anchor(db, project, "4.4", lookup)
+            anchor = _resolve_predecessor_anchor(db, project, "4.4", definition.department_id, lookup)
             if anchor is None:
                 return None
             return next_workday_after(anchor)
@@ -337,7 +366,7 @@ def compute_due_date(db: Session, definition: models.DeliverableDefinition, proj
             start = next_workday_after(project.announcement_date)
             return duration_end(start, 3)  # the 3rd working day after announcement
 
-        anchor = _resolve_predecessor_anchor(db, project, pred_item_no, lookup)
+        anchor = _resolve_predecessor_anchor(db, project, pred_item_no, definition.department_id, lookup)
         if anchor is None:
             return None
 
@@ -412,12 +441,16 @@ def recompute_project_due_dates(db: Session, project: models.Project, force: boo
         .filter(models.DeliverableSubmission.project_id == project.id)
         .all()
     )
-    # Predecessor lookups (_get_submission) used to run a fresh query per
+    # Predecessor lookups (_get_submissions) used to run a fresh query per
     # item per pass — with ~75 items x up to 6 passes that's a few hundred
     # extra round trips per project, per read. Same objects, looked up by
     # item_no instead; mutations within the loop below (s.due_date = ...)
     # are visible through this immediately since it holds the same instances.
-    lookup = {s.definition.item_no: s for s in subs}
+    # A list per item_no (not a single submission) because Operation Units'
+    # TBU/PBU/DBU/BBU split means several submissions can share one item_no.
+    lookup: dict[str, list] = {}
+    for s in subs:
+        lookup.setdefault(s.definition.item_no, []).append(s)
 
     for _pass in range(6):
         changed = False
