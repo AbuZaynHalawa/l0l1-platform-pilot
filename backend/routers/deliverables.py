@@ -357,6 +357,12 @@ def request_reassignment(submission_id: int, payload: schemas.ReassignRequestCre
     to_email = payload.to_email.strip()
     if not to_email:
         raise HTTPException(400, "The new owner's email is required")
+    # Item 88: the target must be a real, admin-managed roster member with
+    # Owner (or Admin) permissions — not just any typed-in address, since
+    # they're about to become responsible for actually delivering this item.
+    target_user = db.query(models.User).filter(models.User.email.ilike(to_email)).first()
+    if not target_user or target_user.role not in ("Owner", "Admin"):
+        raise HTTPException(400, f"{to_email} must be a user with Owner permissions in the system roster (Focal Points &#8594; L0-L1 Group)")
     req = models.ReassignmentRequest(
         submission_id=submission_id,
         from_email=(payload.from_email or sub.owner_email or sub.definition.default_owner_email or "").strip() or None,
@@ -427,6 +433,7 @@ def get_follow_up(department: str | None = None, project_id: int | None = None, 
             "department": s.definition.department.name, "item_no": s.definition.item_no,
             "name": rules.display_name(s.definition, s.project), "due_date": s.due_date, "status": s.status.value,
             "owner": s.owner_email or s.definition.default_owner_email or "Unassigned",
+            "focal": rules.deliverable_focal(s.definition, s.project) or "Unassigned",
         }
         for s in subs
     ]
@@ -437,12 +444,18 @@ def bulk_remind(payload: schemas.BulkRemindRequest, db: Session = Depends(get_db
     if payload.actor_role != "Admin":
         raise HTTPException(403, "Only an Admin can send reminders")
     subs = db.query(models.DeliverableSubmission).filter(models.DeliverableSubmission.id.in_(payload.submission_ids)).all()
+    users_by_email = {u.email.strip().lower(): u for u in db.query(models.User).all()} if payload.cc_manager else {}
     sent = 0
     for s in subs:
         owner = s.owner_email or s.definition.default_owner_email
         if owner:
+            cc = []
+            if payload.cc_manager:
+                u = users_by_email.get(owner.strip().lower())
+                if u and u.manager_email:
+                    cc.append(u.manager_email)
             announcements.reminder_sent(db, s.project, owner, s.definition.item_no, s.definition.name, s.due_date,
-                                         submission_id=s.id)
+                                         submission_id=s.id, custom_message=payload.message, cc=cc)
             sent += 1
     return {"sent": sent}
 

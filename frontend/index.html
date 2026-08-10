@@ -492,7 +492,7 @@
       <div class="card table-card" id="fpGroupPanel" hidden>
         <p class="sub fp-hint">Everyone with a stake in the portal — Admins, Owners, SMEs, and plain Viewers who just want visibility with nothing actioned to them. Copied on portal-wide announcements (new project, milestone reached).</p>
         <table class="fp-table">
-          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th></th></tr></thead>
+          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Manager Email</th><th></th></tr></thead>
           <tbody id="groupBody"></tbody>
         </table>
         <div class="fp-add-row">
@@ -504,6 +504,7 @@
             <option value="SME">SME</option>
             <option value="Admin">Admin</option>
           </select>
+          <input type="text" id="groupNewManager" placeholder="Manager email (optional)" />
           <button class="btn primary" id="groupAddBtn">Add to Group</button>
         </div>
       </div>
@@ -529,11 +530,18 @@
       <div class="card table-card">
         <div class="section-title">
           <span>Due &amp; Overdue Deliverables</span>
-          <div style="display:flex;gap:10px;">
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
             <select id="fuDeptFilter"><option value="">All Departments</option></select>
             <select id="fuEstFilter"><option value="">All Est Numbers</option></select>
-            <button class="btn primary" id="fuRemindAll">Send Reminders to All Shown</button>
+            <select id="fuFocalFilter"><option value="">All Focal Points</option></select>
           </div>
+        </div>
+        <div class="fp-add-row">
+          <input type="text" id="fuMessage" placeholder="Custom reminder message (optional &#8211; leave blank for the standard one)" />
+          <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;white-space:nowrap;">
+            <input type="checkbox" id="fuCcManager" /> CC owner's manager
+          </label>
+          <button class="btn primary" id="fuRemindAll">Send Reminders to All Shown</button>
         </div>
         <div id="followUpList"></div>
       </div>
@@ -745,6 +753,7 @@
       </div>
       <div class="card table-card" id="triageCard"></div>
       <div class="form-actions">
+        <button class="btn ghost-crit" id="triageMarkAllNotRequired" hidden>Mark All Not Required</button>
         <button class="btn primary" id="triageConfirm">Confirm &amp; Continue</button>
       </div>
     </section>

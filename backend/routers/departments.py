@@ -122,6 +122,21 @@ def add_bid_manager(payload: BidManagerCreate, db: Session = Depends(get_db)):
     return {"id": bm.id, "email": bm.email, "name": bm.name, "active": bm.active}
 
 
+class BidManagerNameUpdate(BaseModel):
+    name: str | None = None
+
+
+@router.patch("/bid-managers/{bid_manager_id}")
+def update_bid_manager_name(bid_manager_id: int, payload: BidManagerNameUpdate, db: Session = Depends(get_db)):
+    """Item 102 — the Name column in the Bid Managers sub-tab is editable."""
+    bm = db.get(models.BidManager, bid_manager_id)
+    if not bm:
+        raise HTTPException(404, "Bid Manager not found")
+    bm.name = (payload.name or "").strip() or None
+    db.commit()
+    return {"id": bm.id, "email": bm.email, "name": bm.name, "active": bm.active}
+
+
 @router.delete("/bid-managers/{bid_manager_id}")
 def remove_bid_manager(bid_manager_id: int, db: Session = Depends(get_db)):
     """Deactivates rather than deletes — a project already assigned to this
@@ -142,16 +157,21 @@ def remove_bid_manager(bid_manager_id: int, db: Session = Depends(get_db)):
 # assigned elsewhere in the app; "Viewer" (the default) is everyone who just
 # wants visibility into the portal's information with nothing actioned to them.
 # ---------------------------------------------------------------------------
+def _serialize_user(u: models.User) -> dict:
+    return {"id": u.id, "name": u.name, "email": u.email, "role": u.role, "manager_email": u.manager_email}
+
+
 @router.get("/users")
 def list_users(db: Session = Depends(get_db)):
     users = db.query(models.User).order_by(models.User.role, models.User.name).all()
-    return [{"id": u.id, "name": u.name, "email": u.email, "role": u.role} for u in users]
+    return [_serialize_user(u) for u in users]
 
 
 class UserCreate(BaseModel):
     name: str
     email: str
     role: str = "Viewer"
+    manager_email: str | None = None
 
 
 _USER_ROLES = {"Admin", "Owner", "SME", "Viewer"}
@@ -162,6 +182,7 @@ def add_user(payload: UserCreate, db: Session = Depends(get_db)):
     name = payload.name.strip()
     email = payload.email.strip()
     role = payload.role.strip() if payload.role else "Viewer"
+    manager_email = (payload.manager_email or "").strip() or None
     if not name or not email:
         raise HTTPException(400, "Name and email are required")
     if role not in _USER_ROLES:
@@ -170,12 +191,13 @@ def add_user(payload: UserCreate, db: Session = Depends(get_db)):
     if existing:
         existing.name = name
         existing.role = role
+        existing.manager_email = manager_email
         db.commit()
-        return {"id": existing.id, "name": existing.name, "email": existing.email, "role": existing.role}
-    user = models.User(name=name, email=email, role=role)
+        return _serialize_user(existing)
+    user = models.User(name=name, email=email, role=role, manager_email=manager_email)
     db.add(user)
     db.commit()
-    return {"id": user.id, "name": user.name, "email": user.email, "role": user.role}
+    return _serialize_user(user)
 
 
 @router.delete("/users/{user_id}")

@@ -45,7 +45,10 @@ def _provision_and_instantiate(db: Session, project: models.Project):
         # each one as applicable or not-required before it gets a due date.
         # Milestones anchor the whole project's due-date chain, so they're
         # never subject to triage; L1 deliverables aren't gated at all.
-        needs_triage = stage == models.Stage.L0 and not d.is_milestone
+        # Tendering Department items are the BM's own department's work —
+        # there's no "is this applicable to my project" call to make on
+        # your own department's items, so they're excluded too (item 85).
+        needs_triage = stage == models.Stage.L0 and not d.is_milestone and d.department.name != "Tendering Department"
         sub = models.DeliverableSubmission(
             project_id=project.id, deliverable_definition_id=d.id,
             owner_email=d.default_owner_email, sme_email=d.default_sme_email,

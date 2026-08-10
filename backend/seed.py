@@ -19,6 +19,7 @@ ensure_column("projects", "due_dates_computed_on", "DATE")
 ensure_column("deliverable_definitions", "focal_point_name", "VARCHAR")
 ensure_column("deliverable_definitions", "focal_point_email", "VARCHAR")
 ensure_column("projects", "last_triage_reminder_at", "TIMESTAMP")
+ensure_column("users", "manager_email", "VARCHAR")
 ensure_enum_value("deliverable_submissions", "status", "PENDING_TRIAGE")
 ensure_enum_value("deliverable_submissions", "status", "NOT_REQUIRED")
 

@@ -79,6 +79,7 @@ class User(Base):
     email = Column(String, nullable=False, unique=True)
     role = Column(String, default="Viewer")  # Admin | Owner | SME | Viewer
     department_id = Column(Integer, ForeignKey("departments.id"), nullable=True)
+    manager_email = Column(String, nullable=True)  # item 90's Send Reminder "CC manager" option
 
     department = relationship("Department")
 

@@ -130,6 +130,8 @@ class ReassignmentDecision(BaseModel):
 class BulkRemindRequest(BaseModel):
     submission_ids: list[int]
     actor_role: str = "Admin"
+    message: str | None = None  # item 90 — custom reminder text, defaults to the standard one
+    cc_manager: bool = False  # item 90 — also CC the owner's manager_email from the user roster
 
 
 class ReviewDecision(BaseModel):

@@ -397,13 +397,11 @@
   function followButton(d) {
     var btn = el("button", "btn" + (d.following ? " primary" : ""), d.following ? "&#9733; Following" : "&#9734; Follow");
     btn.addEventListener("click", async function () {
-      var email = actingEmail();
-      if (!email) {
-        email = prompt("Your email (to follow this item and get updates):", "");
-        if (!email) return;
-        email = email.trim();
-        if (!email) return;
-      }
+      // No separate prompt (item 87) — uses the same signed-in identity
+      // Ask the Team relies on: acting-email field, else the cached/
+      // one-time-prompted email, never asked twice for the same person.
+      var email = myIdentity();
+      if (!email) return;
       try {
         var res = await api("/api/deliverables/" + d.id + "/follow", {
           method: "POST", headers: { "Content-Type": "application/json" },
@@ -474,6 +472,7 @@
     var card = document.getElementById("triageCard");
     card.innerHTML = "";
     var state = {};
+    var toggleButtons = []; // {id, appBtn, notBtn} — item 86's bulk action flips all of these
     if (!pending.length) {
       card.appendChild(el("div", "deliv-row", '<span style="color:var(--ink-500);font-size:12.5px;">Nothing left to triage.</span>'));
     } else {
@@ -506,8 +505,18 @@
         toggle.appendChild(appBtn); toggle.appendChild(notBtn);
         row.appendChild(toggle);
         card.appendChild(row);
+        toggleButtons.push({ id: d.id, appBtn: appBtn, notBtn: notBtn });
       });
     }
+    var markAllBtn = document.getElementById("triageMarkAllNotRequired");
+    markAllBtn.hidden = !(can("create") && pending.length);
+    markAllBtn.onclick = function () {
+      if (!confirm("Mark all " + pending.length + " item(s) as Not Required?")) return;
+      toggleButtons.forEach(function (t) {
+        state[t.id] = false;
+        t.notBtn.classList.add("active"); t.appBtn.classList.remove("active");
+      });
+    };
     document.getElementById("triageConfirm").onclick = async function () {
       var payloadItems = Object.keys(state).map(function (sid) {
         return { submission_id: Number(sid), applicable: state[sid] };
@@ -1580,7 +1589,22 @@
     tbody.innerHTML = "";
     bms.filter(function (b) { return b.active; }).forEach(function (b) {
       var tr = el("tr");
-      tr.appendChild(el("td", "", b.name || "&#8213;"));
+      var nameInput = el("input"); nameInput.setAttribute("type", "text"); nameInput.value = b.name || ""; nameInput.placeholder = "Name";
+      var saveBtn = el("button", "btn", "Save");
+      saveBtn.addEventListener("click", async function () {
+        try {
+          await api("/api/departments/bid-managers/" + b.id, {
+            method: "PATCH", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: nameInput.value.trim() }),
+          });
+        } catch (err) {
+          showToast("Could not save &#8211; " + apiErrorDetail(err), true);
+          return;
+        }
+        showToast("Updated " + b.email);
+      });
+      var tdName = el("td"); tdName.appendChild(nameInput);
+      tr.appendChild(tdName);
       tr.appendChild(el("td", "", b.email));
       var removeBtn = el("button", "btn ghost-crit", "Remove");
       removeBtn.addEventListener("click", async function () {
@@ -1588,8 +1612,8 @@
         showToast("Removed " + b.email + " from the Bid Manager roster");
         loadBidManagers();
       });
-      var tdRemove = el("td"); tdRemove.appendChild(removeBtn);
-      tr.appendChild(tdRemove);
+      var tdActions = el("td"); tdActions.appendChild(saveBtn); tdActions.appendChild(removeBtn);
+      tr.appendChild(tdActions);
       tbody.appendChild(tr);
     });
     document.getElementById("bmAddBtn").onclick = async function () {
@@ -1621,6 +1645,7 @@
       tr.appendChild(el("td", "", u.name));
       tr.appendChild(el("td", "", u.email));
       tr.appendChild(el("td", "", u.role));
+      tr.appendChild(el("td", "", u.manager_email || "&#8213;"));
       var removeBtn = el("button", "btn ghost-crit", "Remove");
       removeBtn.addEventListener("click", async function () {
         await api("/api/departments/users/" + u.id, { method: "DELETE" });
@@ -1635,11 +1660,12 @@
       var name = document.getElementById("groupNewName").value.trim();
       var email = document.getElementById("groupNewEmail").value.trim();
       var role = document.getElementById("groupNewRole").value;
+      var managerEmail = document.getElementById("groupNewManager").value.trim();
       if (!name || !email) { showToast("Name and email are required", true); return; }
       try {
         await api("/api/departments/users", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: name, email: email, role: role }),
+          body: JSON.stringify({ name: name, email: email, role: role, manager_email: managerEmail || null }),
         });
       } catch (err) {
         showToast("Could not add &#8211; " + apiErrorDetail(err), true);
@@ -1647,6 +1673,7 @@
       }
       document.getElementById("groupNewName").value = "";
       document.getElementById("groupNewEmail").value = "";
+      document.getElementById("groupNewManager").value = "";
       showToast("Added to the L0-L1 Group");
       loadSystemGroup();
     };
@@ -1698,17 +1725,20 @@
     var items = await api("/api/deliverables/follow-up");
     var deptSel = document.getElementById("fuDeptFilter");
     var estSel = document.getElementById("fuEstFilter");
-    var seenDepts = {}, seenEsts = {};
-    items.forEach(function (d) { seenDepts[d.department] = true; seenEsts[d.est_no] = true; });
+    var focalSel = document.getElementById("fuFocalFilter");
+    var seenDepts = {}, seenEsts = {}, seenFocals = {};
+    items.forEach(function (d) { seenDepts[d.department] = true; seenEsts[d.est_no] = true; if (d.focal) seenFocals[d.focal] = true; });
     deptSel.innerHTML = '<option value="">All Departments</option>';
     Object.keys(seenDepts).sort().forEach(function (n) { var o = el("option", "", n); o.value = n; deptSel.appendChild(o); });
     estSel.innerHTML = '<option value="">All Est Numbers</option>';
     Object.keys(seenEsts).sort().forEach(function (n) { var o = el("option", "", n); o.value = n; estSel.appendChild(o); });
+    focalSel.innerHTML = '<option value="">All Focal Points</option>';
+    Object.keys(seenFocals).sort().forEach(function (n) { var o = el("option", "", n); o.value = n; focalSel.appendChild(o); });
 
     function renderFollowUpList() {
-      var dept = deptSel.value, estNo = estSel.value;
+      var dept = deptSel.value, estNo = estSel.value, focal = focalSel.value;
       var filtered = items.filter(function (d) {
-        return (!dept || d.department === dept) && (!estNo || d.est_no === estNo);
+        return (!dept || d.department === dept) && (!estNo || d.est_no === estNo) && (!focal || d.focal === focal);
       });
       var wrap = document.getElementById("followUpList");
       wrap.innerHTML = "";
@@ -1722,6 +1752,7 @@
           '<span>' + d.est_no + ' &#8211; ' + d.project_name + '</span><span class="sep">&middot;</span>' +
           '<span>' + deptLabel(d.department, null) + '</span><span class="sep">&middot;</span>' +
           '<span>Owner: ' + d.owner + '</span><span class="sep">&middot;</span>' +
+          '<span>Focal: ' + d.focal + '</span><span class="sep">&middot;</span>' +
           '<span>Due ' + fmtDate(d.due_date) + '</span>'));
         row.appendChild(main);
         row.appendChild(el("span", "pill " + sm[0], '<span class="dot"></span>' + sm[1]));
@@ -1732,13 +1763,18 @@
         if (!ids.length) return;
         var res = await api("/api/deliverables/bulk-remind", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ submission_ids: ids, actor_role: CURRENT_ROLE }),
+          body: JSON.stringify({
+            submission_ids: ids, actor_role: CURRENT_ROLE,
+            message: document.getElementById("fuMessage").value.trim() || null,
+            cc_manager: document.getElementById("fuCcManager").checked,
+          }),
         });
         showToast("Sent " + res.sent + " reminder(s)");
       };
     }
     deptSel.onchange = renderFollowUpList;
     estSel.onchange = renderFollowUpList;
+    focalSel.onchange = renderFollowUpList;
     renderFollowUpList();
   }
 

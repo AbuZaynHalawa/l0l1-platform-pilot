@@ -108,12 +108,17 @@ def triage_reminder(db: Session, project: models.Project, bm_email: str, pending
 
 
 def reminder_sent(db: Session, project: models.Project, owner_email: str, item_no: str, item_name: str,
-                   due_date, submission_id: int | None = None) -> models.Announcement:
+                   due_date, submission_id: int | None = None, custom_message: str | None = None,
+                   cc: list[str] | None = None) -> models.Announcement:
     title = f"Reminder &#8211; {item_no} is due"
-    due_str = due_date.isoformat() if due_date else "unspecified"
-    body = f"{item_no} {item_name} on {project.est_no} is due ({due_str}). Please submit as soon as possible."
+    if custom_message:
+        body = custom_message
+    else:
+        due_str = due_date.isoformat() if due_date else "unspecified"
+        body = f"{item_no} {item_name} on {project.est_no} is due ({due_str}). Please submit as soon as possible."
+    recipients = [owner_email] + [c for c in (cc or []) if c and c.lower() != owner_email.lower()]
     return _create(db, type=models.AnnouncementType.DEADLINE, title=title, body=body,
-                    recipients=[owner_email], project=project, submission_id=submission_id)
+                    recipients=recipients, project=project, submission_id=submission_id)
 
 
 def followers_notified(db: Session, project: models.Project, recipients: list[str],
