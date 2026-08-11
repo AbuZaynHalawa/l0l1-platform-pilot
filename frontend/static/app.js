@@ -436,30 +436,6 @@
           });
           actions.appendChild(remindBtn);
         }
-        if ((d.status === "not_due" || d.status === "due" || d.status === "overdue" || d.status === "rejected") && can("upload")) {
-          actions.appendChild(uploadButton(d.id, loadAssigned));
-          actions.appendChild(markCompleteButton(d.id, loadAssigned));
-          if (CURRENT_ROLE === "Admin") actions.appendChild(markNotRequiredButton(d.id, loadAssigned));
-          var reassignBtn = el("button", "btn", "Reassign");
-          reassignBtn.addEventListener("click", async function () {
-            var toEmail = prompt("Reassign " + d.item_no + " to (email):", "");
-            if (!toEmail) return;
-            toEmail = toEmail.trim();
-            if (!toEmail) return;
-            var reason = prompt("Reason (optional):", "") || null;
-            try {
-              await api("/api/deliverables/" + d.id + "/reassign-request", {
-                method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ to_email: toEmail, reason: reason, from_email: d.owner }),
-              });
-            } catch (err) {
-              showToast("Could not request reassignment &#8211; " + apiErrorDetail(err), true);
-              return;
-            }
-            showToast("Reassignment requested — pending admin approval");
-          });
-          actions.appendChild(reassignBtn);
-        }
       }
       row.appendChild(actions);
       wrap.appendChild(row);
