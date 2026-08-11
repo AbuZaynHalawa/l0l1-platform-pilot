@@ -619,6 +619,220 @@
     if (e.target.id === "delivModalOverlay") closeDelivModal();
   });
   function closeDelivModal() { document.getElementById("delivModalOverlay").hidden = true; }
+
+  /* ================= ITEM 131: INTERACTIVE SYSTEM INTRODUCTION WALKTHROUGH =================
+     Portal "screens" below are illustrative recreations built from the app's
+     own CSS (pill/fs-step/folder-row/gantt-row look-alikes), not literal
+     screenshots -- there's no reliable way to capture and keep real pixel
+     screenshots current across redesigns, and these read as authentic since
+     they reuse the same visual language as the live UI. */
+  var TOUR_STEPS = [
+    {
+      eyebrow: "Welcome",
+      title: "What L0/L1 Actually Is",
+      body:
+        '<p class="tour-step-text">L0/L1 is Algihaz\'s control system for tracking every department\'s ' +
+        "deliverables through a tender (<b>L0</b>) and, once won, through project execution " +
+        "(<b>L1</b>) &#8212; who owns what, when it's due, and whether it's been reviewed and approved. " +
+        'This walkthrough covers where the system came from, how the two stages work, and ' +
+        "how to actually use this portal day to day. Nine short steps &#8212; use Next/Back or the dots below.</p>",
+    },
+    {
+      eyebrow: "The Story So Far",
+      title: "Standard L0/L1 Development",
+      body:
+        '<p class="tour-step-text">Rolled out in stages over roughly a year and a half:</p>' +
+        '<ul class="tour-list">' +
+        "<li>Developed a new procedure along with a defined scheme</li>" +
+        "<li>Engaged key departments for input and collaboration</li>" +
+        "<li>Obtained management approvals</li>" +
+        "<li>Conducted introduction meetings explaining the process and objectives</li>" +
+        "<li>Received and evaluated the quality of early deliverables</li>" +
+        "<li>Tracked departments' response against the proposed timeline</li>" +
+        "<li><b>Ran a pilot</b> &#8211; NAJRAN BSP, L1 Stage</li>" +
+        "<li><b>Launched official operation</b> (Dec 2024)</li>" +
+        "</ul>",
+    },
+    {
+      eyebrow: "The Story So Far",
+      title: "Where It's Headed",
+      body:
+        '<p class="tour-step-text"><b>International L0/L1 Development</b> is running in parallel &#8212; ' +
+        "analyzing departments' willingness to adapt the new system, market analysis, service " +
+        "development, and business intelligence work, so the same control system extends beyond " +
+        "the standard rollout. Meanwhile a <b>New L1 Model</b> has been in active development " +
+        'since Sep 2025, feeding directly into what this portal runs today.</p>' +
+        '<div class="tour-callout">&#128161; This portal is a direct product of that rollout &#8212; ' +
+        "the department catalog, milestone structure and due-date rules all trace back to the " +
+        "procedure developed during Standard L0/L1 Development.</div>",
+    },
+    {
+      eyebrow: "How It Works · L0",
+      title: "Tendering Stage",
+      body:
+        '<p class="tour-step-text">A tender opens at <b>Announcement (M1)</b>. Site visit, pre-bid meeting, ' +
+        "and pre-bid clarification deadlines get announced, and every department (Operations, " +
+        "Supply Chain, Engineering, Planning/Cost Control, Contract, HR, Finance, SHEQ, IT, Risk, " +
+        "Fleet/FM) prepares its own risk register, execution plan and schedule in parallel. The " +
+        "<b>Project Schedule (M3)</b> anchors most department due dates. Technical offers circulate " +
+        "once RFQs return (<b>M4</b>), and the tender closes with the <b>Proposal Submitted to " +
+        "client (M5)</b>, timed to the Bid Submission Date.</p>" +
+        '<div class="mock-fs">' +
+        milestoneMock([
+          ["M1", "Announced", true], ["M2", "Site Visit", true], ["M3", "Schedule", true],
+          ["M4", "Tech Offers", false, true], ["M5", "Proposal", false],
+        ]) +
+        "</div>",
+    },
+    {
+      eyebrow: "How It Works · L1",
+      title: "Execution Stage",
+      body:
+        '<p class="tour-step-text">Once a tender is awarded, an L1 project starts from the same scope: ' +
+        "<b>L1 Announcement (M1)</b>, an <b>Early Mobilization Plan (M2)</b>, then full " +
+        "<b>Commercial &amp; Technical Handover (M3)</b> from the tendering team to the project " +
+        "team. <b>Post-Bid Clarification (M4)</b> runs until the <b>LOA is received (M5)</b>, and " +
+        "the project formally begins execution at <b>Contract Signing (M6)</b> &#8212; the moment " +
+        "the platform marks Contract Status as Signed. From there, Planning, Cost Control, Supply " +
+        "Chain, Engineering, HSSE and the rest carry the project through execution.</p>" +
+        '<div class="mock-fs">' +
+        milestoneMock([
+          ["M1", "Announced", true], ["M2", "Mobilize", true], ["M3", "Handover", false, true],
+          ["M4", "Post-Bid", false], ["M5", "LOA", false], ["M6", "Signed", false],
+        ]) +
+        "</div>",
+    },
+    {
+      eyebrow: "Around the Portal",
+      title: "Dashboard",
+      body:
+        '<p class="tour-step-text">Your landing page &#8212; the org-wide snapshot of what needs attention ' +
+        'right now. Toggle <b>All / My Items</b> at the top to scope everything to just what you ' +
+        "own or review.</p>" +
+        '<div class="mock-window"><div class="mock-titlebar"><div class="mock-dot-3"></div>' +
+        '<div class="mock-dot-3"></div><div class="mock-dot-3"></div><span>Dashboard</span></div>' +
+        '<div class="mock-body">' +
+        '<div class="mock-stat-row">' +
+        statMock("Not Due", "142") + statMock("Pending Review", "18") +
+        statMock("Overdue", "7") + statMock("Active Projects", "24") +
+        "</div>" +
+        '<div class="tour-callout">&#128072; Click any of these tiles on the real Dashboard to jump ' +
+        "straight to that filtered slice of Assigned Deliverables.</div>" +
+        "</div></div>",
+    },
+    {
+      eyebrow: "Around the Portal",
+      title: "Project Detail — Folders & Deliverables",
+      body:
+        '<p class="tour-step-text">Open any tender or project and you get its department folders on the ' +
+        "left (numbered, same order as the catalog) and that folder's deliverables on the right. " +
+        "Click a deliverable row to open its full detail popup &#8212; owner, SME, due date, " +
+        "documents, and a complete activity log.</p>" +
+        '<div class="mock-window"><div class="mock-titlebar"><div class="mock-dot-3"></div>' +
+        '<div class="mock-dot-3"></div><div class="mock-dot-3"></div><span>Est-1800 &middot; Project Detail</span></div>' +
+        '<div class="mock-body" style="display:grid;grid-template-columns:1fr 1.4fr;gap:12px;">' +
+        '<div class="mock-folder-list">' +
+        '<div class="mock-folder-row active"><span>&#128193; 1. Tendering</span><span>60%</span></div>' +
+        '<div class="mock-folder-row"><span>&#128193; 2. Operation Units</span><span>20%</span></div>' +
+        '<div class="mock-folder-row"><span>&#128193; 5. Planning</span><span>0%</span></div>' +
+        '<div class="mock-folder-row"><span>&#128193; 6. Cost Control</span><span>0%</span></div>' +
+        "</div>" +
+        '<div class="mock-deliv-list">' +
+        deliverableMock("1.3", "Announce Pre-bid Meeting", "good", "Approved") +
+        deliverableMock("1.7", "Develop Estimate Program", "crit", "Overdue") +
+        deliverableMock("1.9", "Float Materials RFQ", "neutral", "Not Due") +
+        deliverableMock("1.5", "Assign Bid Manager", "warn", "Pending Review") +
+        "</div></div></div>",
+    },
+    {
+      eyebrow: "Around the Portal",
+      title: "Timeline / Gantt",
+      body:
+        '<p class="tour-step-text">A Gantt view across every active deliverable &#8212; pooled across all ' +
+        "projects, or scoped to just one. Filter by department and status; click a bar to open " +
+        "that deliverable directly. Milestones get a highlighted outline so they stand out from " +
+        "regular deliverables.</p>" +
+        '<div class="mock-window"><div class="mock-titlebar"><div class="mock-dot-3"></div>' +
+        '<div class="mock-dot-3"></div><div class="mock-dot-3"></div><span>Timeline</span></div>' +
+        '<div class="mock-body" style="padding:10px 14px;">' +
+        ganttRowMock("1.1 Announcement", 4, 10, "neutral", true) +
+        ganttRowMock("1.7 Estimate Program", 8, 34, "crit", false) +
+        ganttRowMock("2.4 Risk Register", 22, 26, "warn", false) +
+        ganttRowMock("5.3 Project Schedule", 30, 40, "good", true) +
+        "</div></div>",
+    },
+    {
+      eyebrow: "You're Ready",
+      title: "Finding Your Way Around",
+      body:
+        '<p class="tour-step-text">Quick reference for the rest of the nav:</p>' +
+        '<ul class="tour-list">' +
+        "<li><b>Assigned Deliverables</b> &#8212; every deliverable assigned to you, filterable by L0/L1 and status</li>" +
+        "<li><b>Announcements</b> &#8212; the full notification log, filterable by type and date</li>" +
+        "<li><b>L0 Tenders / L1 Projects</b> &#8212; the full list, each with its own Activity Trail tab</li>" +
+        "<li><b>Ask the Team</b> &#8212; a question about a tender, project or deliverable, straight to the admins</li>" +
+        "<li><b>Performance / Top Achievers</b> &#8212; on-time-rate tracking by department and by person</li>" +
+        "</ul>" +
+        '<div class="tour-callout">&#127881; That\'s the full picture &#8212; close this and start ' +
+        "exploring, or scroll down for the same content laid out as a reference page.</div>",
+    },
+  ];
+
+  function statMock(label, value) {
+    return '<div class="mock-stat"><div class="label">' + label + '</div><div class="value">' + value + "</div></div>";
+  }
+  function deliverableMock(itemNo, name, tone, statusLabel) {
+    return '<div class="mock-deliv-row"><span><b>' + itemNo + "</b> &middot; " + name + '</span>' +
+      '<span class="pill ' + tone + '"><span class="dot"></span>' + statusLabel + "</span></div>";
+  }
+  function ganttRowMock(label, start, len, tone, milestone) {
+    return '<div class="mock-gantt-row"><div class="mock-gantt-label">' + label + '</div>' +
+      '<div class="mock-gantt-track"><div class="mock-gantt-bar ' +
+      (milestone ? "milestone " : "") + tone + '" style="left:' + start + '%;width:' + len + '%;"></div></div></div>';
+  }
+  function milestoneMock(steps) {
+    return steps.map(function (s) {
+      var code = s[0], label = s[1], done = s[2], current = s[3];
+      var cls = "fs-step" + (done ? " done" : current ? " current" : "");
+      return '<div class="' + cls + '" style="flex:1;"><div class="fs-dot" style="width:26px;height:26px;font-size:9px;">' +
+        (done ? "&#10003;" : code) + '</div><div class="fs-label">' + label + "</div></div>";
+    }).join("");
+  }
+
+  var tourStep = 0;
+  function renderTourStep() {
+    var s = TOUR_STEPS[tourStep];
+    document.getElementById("tourEyebrow").textContent = s.eyebrow;
+    document.getElementById("tourTitle").textContent = s.title;
+    document.getElementById("tourBody").innerHTML = s.body;
+    var dots = document.getElementById("tourDots");
+    dots.innerHTML = "";
+    TOUR_STEPS.forEach(function (_, i) {
+      var d = el("span", "tour-dot" + (i === tourStep ? " active" : i < tourStep ? " done" : ""));
+      d.addEventListener("click", function () { tourStep = i; renderTourStep(); });
+      dots.appendChild(d);
+    });
+    document.getElementById("tourPrev").disabled = tourStep === 0;
+    document.getElementById("tourNext").textContent = tourStep === TOUR_STEPS.length - 1 ? "Done" : "Next →";
+    document.getElementById("tourBody").scrollTop = 0;
+  }
+  function openTour() {
+    tourStep = 0;
+    renderTourStep();
+    document.getElementById("tourOverlay").hidden = false;
+  }
+  function closeTour() { document.getElementById("tourOverlay").hidden = true; }
+  document.getElementById("tourStartBtn").addEventListener("click", openTour);
+  document.getElementById("tourClose").addEventListener("click", closeTour);
+  document.getElementById("tourOverlay").addEventListener("click", function (e) {
+    if (e.target.id === "tourOverlay") closeTour();
+  });
+  document.getElementById("tourPrev").addEventListener("click", function () {
+    if (tourStep > 0) { tourStep--; renderTourStep(); }
+  });
+  document.getElementById("tourNext").addEventListener("click", function () {
+    if (tourStep < TOUR_STEPS.length - 1) { tourStep++; renderTourStep(); } else { closeTour(); }
+  });
   async function openDelivModal(submissionId) {
     var qs = actingEmail() ? "?actor_email=" + encodeURIComponent(actingEmail()) : "";
     var d = await api("/api/deliverables/" + submissionId + qs);

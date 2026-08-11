@@ -260,6 +260,7 @@
           <h1>L0/L1 System Introduction</h1>
           <p class="sub">What L0/L1 is, and how to actually use this portal.</p>
         </div>
+        <button class="btn primary" id="tourStartBtn" type="button">&#9654; Start Interactive Walkthrough</button>
       </div>
 
       <div class="section-title" style="padding:0 0 10px;border:none;">Program Timeline &amp; Rollout</div>
@@ -833,6 +834,27 @@
       <button class="modal-close" id="delivModalClose">&#10005;</button>
     </div>
     <div class="modal-body" id="delivModalBody"></div>
+  </div>
+</div>
+
+<!-- Item 131: interactive System Introduction walkthrough -->
+<div class="modal-overlay" id="tourOverlay" hidden>
+  <div class="modal-card tour-card">
+    <div class="modal-head">
+      <div>
+        <div class="eyebrow" id="tourEyebrow"></div>
+        <h2 id="tourTitle"></h2>
+      </div>
+      <button class="modal-close" id="tourClose">&#10005;</button>
+    </div>
+    <div class="modal-body tour-body" id="tourBody"></div>
+    <div class="tour-foot">
+      <div class="tour-dots" id="tourDots"></div>
+      <div class="tour-nav">
+        <button class="btn" id="tourPrev">&#8592; Back</button>
+        <button class="btn primary" id="tourNext">Next &#8594;</button>
+      </div>
+    </div>
   </div>
 </div>
 
