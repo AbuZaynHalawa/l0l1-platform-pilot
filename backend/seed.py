@@ -285,19 +285,19 @@ L0_ITEMS = [
     ("5.5", "Verify Quantities for remeasured Contracts (if applicable)", "planning", "predecessor", "1.1", 3, "after", "date_driven", None),
     ("5.6", "Provide Updated Productivity Norms and Calculations (PCO-01-SPR-001)", "planning", None, None, 0, "after", "library", None),
 
-    ("5.1", "Prepare Risk Register", "costctrl", "predecessor", "2.2", 1, "after", "date_driven", None),
-    ("5.2", "Highlight points require Pre-bid clarifications", "costctrl", "pre_bid", None, 3, "before", "date_driven", None),
-    ("5.4", "Fleet Productivities (equipment productivity rates)", "costctrl", None, None, 0, "after", "library", None),
+    ("6.1", "Prepare Risk Register", "costctrl", "predecessor", "2.2", 1, "after", "date_driven", None),
+    ("6.2", "Highlight points require Pre-bid clarifications", "costctrl", "pre_bid", None, 3, "before", "date_driven", None),
+    ("6.3", "Fleet Productivities (equipment productivity rates)", "costctrl", None, None, 0, "after", "library", None),
 
-    ("6.1", "Prepare Risk Register", "contract", "predecessor", "1.20", 5, "before", "date_driven", None),
-    ("6.2", "Highlight points require Pre-bid clarifications (Review Contracts and Terms)", "contract", "pre_bid", None, 3, "before", "date_driven", None),
-    ("6.3", "Prepare Non Disclosure Agreements (NDA's) (if applicable)", "contract", None, None, 0, "after", "on_request", None),
-    ("6.4", "Review Pre-bid agreements and provide Contractual comments as needed", "contract", None, None, 0, "after", "on_request", None),
+    ("7.1", "Prepare Risk Register", "contract", "predecessor", "1.20", 5, "before", "date_driven", None),
+    ("7.2", "Highlight points require Pre-bid clarifications (Review Contracts and Terms)", "contract", "pre_bid", None, 3, "before", "date_driven", None),
+    ("7.3", "Prepare Non Disclosure Agreements (NDA's) (if applicable)", "contract", None, None, 0, "after", "on_request", None),
+    ("7.4", "Review Pre-bid agreements and provide Contractual comments as needed", "contract", None, None, 0, "after", "on_request", None),
 
-    ("7.1", "Verify local content requirements in coordination with the Manning Schedule", "hr", "predecessor", "5.3", 5, "after", "date_driven", None),
-    ("7.2", "Updated HR Cost Estimates (Salaries / Wages / Benefits)", "hr", None, None, 0, "after", "library", None),
-    ("7.3", "Provide updated information on Workforce availability, nationality, release dates", "hr", None, None, 0, "after", "library", None),
-    ("7.4", "Provide Supporting documents, such as team CV's, certificates and Qualifications", "hr", "predecessor", "1.1", 3, "after", "date_driven", None),
+    ("8.1", "Verify local content requirements in coordination with the Manning Schedule", "hr", "predecessor", "5.3", 5, "after", "date_driven", None),
+    ("8.2", "Updated HR Cost Estimates (Salaries / Wages / Benefits)", "hr", None, None, 0, "after", "library", None),
+    ("8.3", "Provide updated information on Workforce availability, nationality, release dates", "hr", None, None, 0, "after", "library", None),
+    ("8.4", "Provide Supporting documents, such as team CV's, certificates and Qualifications", "hr", "predecessor", "1.1", 3, "after", "date_driven", None),
 
     # Item 141: L0's old combined "Financial Department" splits into
     # Treasury (Risk Register duplicated + Issue Bid Bonds) and Finance
@@ -456,15 +456,15 @@ L1_ITEMS = [
 
     ("5.1", "Provide Project Baseline Schedule as per Contractual Milestones", "planning", "predecessor", "1.3", 20, "after", None),
     ("5.2", "Provide Project Working Schedule (Actual Resource Loaded) with 25% reduction in overall project duration", "planning", "predecessor", "2.12", 10, "after", None),
-    ("5.3", "Prepare Temporary Project Budget on Oracle", "costctrl", "predecessor", "2.1", 3, "after", None),
-    ("5.4", "Prepare Project Baseline Budget on Oracle", "costctrl", "predecessor", "1.3", 14, "after", None),
-    ("5.5", "Prepare Project Locked Budget on Oracle (As per signed Contract)", "costctrl", "predecessor", "1.6", 14, "after", None),
+    ("6.1", "Prepare Temporary Project Budget on Oracle", "costctrl", "predecessor", "2.1", 3, "after", None),
+    ("6.2", "Prepare Project Baseline Budget on Oracle", "costctrl", "predecessor", "1.3", 14, "after", None),
+    ("6.3", "Prepare Project Locked Budget on Oracle (As per signed Contract)", "costctrl", "predecessor", "1.6", 14, "after", None),
     ("5.6", "Provide Proposal recommendation for working schedule for time schedule driven items", "planning", "predecessor", "5.1", 3, "after", None),
     ("5.7", "Update Planning Risk Register including lesson learned", "planning", "predecessor", "5.2", 3, "after", None),
 
-    ("6.1", "Update Contracts Risk Register and Contract Liabilities", "contract", "client_dependent", None, 1, "after", None),
+    ("7.1", "Update Contracts Risk Register and Contract Liabilities", "contract", "client_dependent", None, 1, "after", None),
 
-    ("7.1", "Provide Workforce Availability Plan with Hiring dates", "hr", "predecessor", "1.2", 15, "after", None),
+    ("8.1", "Provide Workforce Availability Plan with Hiring dates", "hr", "predecessor", "1.2", 15, "after", None),
 
     # Item 127 rework: Treasury and Finance no longer share department
     # number 9 -- Treasury keeps 9, Finance moves to 10 (its items become
@@ -528,13 +528,15 @@ L0_SHORT_NAMES = {
     "4.7": "Support Tech Proposals",
 
     "5.1": "Prepare Risk Register", "5.2": "Highlight Pre-bid Points", "5.3": "Prepare Project Schedule",
-    "5.4": "Fleet Productivities", "5.5": "Verify Quantities", "5.6": "Productivity Norms",
+    "5.5": "Verify Quantities", "5.6": "Productivity Norms",
 
-    "6.1": "Prepare Risk Register", "6.2": "Review Contract Terms", "6.3": "Prepare NDA",
-    "6.4": "Review Pre-bid Agreements",
+    "6.1": "Prepare Risk Register", "6.2": "Highlight Pre-bid Points", "6.3": "Fleet Productivities",
 
-    "7.1": "Verify Local Content", "7.2": "HR Cost Estimates", "7.3": "Workforce Availability",
-    "7.4": "Team CVs & Certificates",
+    "7.1": "Prepare Risk Register", "7.2": "Review Contract Terms", "7.3": "Prepare NDA",
+    "7.4": "Review Pre-bid Agreements",
+
+    "8.1": "Verify Local Content", "8.2": "HR Cost Estimates", "8.3": "Workforce Availability",
+    "8.4": "Team CVs & Certificates",
 
     "9.1": "Prepare Risk Register", "9.2": "Issue Bid Bonds",
 
@@ -571,12 +573,13 @@ L1_SHORT_NAMES = {
     "4.4": "Review Design Firm Offers", "4.5": "Review Vendor Offers", "4.6": "Review Vendor Offers (SC)",
     "4.7": "Verify Site Layout", "4.8": "Update Risk Register",
 
-    "5.1": "Baseline Schedule", "5.2": "Working Schedule", "5.3": "Temp Project Budget",
-    "5.4": "Baseline Budget", "5.5": "Locked Budget", "5.6": "Schedule Recommendation",
+    "5.1": "Baseline Schedule", "5.2": "Working Schedule", "5.6": "Schedule Recommendation",
     "5.7": "Update Risk Register",
 
-    "6.1": "Update Risk Register",
-    "7.1": "Workforce Availability Plan",
+    "6.1": "Temp Project Budget", "6.2": "Baseline Budget", "6.3": "Locked Budget",
+
+    "7.1": "Update Risk Register",
+    "8.1": "Workforce Availability Plan",
 
     "9.1": "Secure Bank Facilities", "9.2": "Performance Bond", "9.3": "Advance Payment Guarantee",
 
@@ -931,6 +934,23 @@ def run():
         # (stage, item_no, department_id) lookup finds the existing row
         # instead of creating a stray duplicate.
         _ITEM_NO_RENUMBER = [
+            # Item 127 follow-up: the first renumbering pass only touched
+            # departments actually moved by the Financial/SHEQ split
+            # (Treasury onward) -- Cost Control/Contract/HR kept their
+            # original template item_no prefixes (5.x/6.x/7.x) even though
+            # their folder numbers had already moved to 6/7/8, so the
+            # deliverable numbers shown never matched the folder header.
+            # Same plain rename pattern, just extended to these three.
+            (models.Stage.L0, "Cost Control", "5.1", "6.1"), (models.Stage.L0, "Cost Control", "5.2", "6.2"),
+            (models.Stage.L0, "Cost Control", "5.4", "6.3"),
+            (models.Stage.L0, "Contract", "6.1", "7.1"), (models.Stage.L0, "Contract", "6.2", "7.2"),
+            (models.Stage.L0, "Contract", "6.3", "7.3"), (models.Stage.L0, "Contract", "6.4", "7.4"),
+            (models.Stage.L0, "Human Resources", "7.1", "8.1"), (models.Stage.L0, "Human Resources", "7.2", "8.2"),
+            (models.Stage.L0, "Human Resources", "7.3", "8.3"), (models.Stage.L0, "Human Resources", "7.4", "8.4"),
+            (models.Stage.L1, "Cost Control", "5.3", "6.1"), (models.Stage.L1, "Cost Control", "5.4", "6.2"),
+            (models.Stage.L1, "Cost Control", "5.5", "6.3"),
+            (models.Stage.L1, "Contract", "6.1", "7.1"),
+            (models.Stage.L1, "Human Resources", "7.1", "8.1"),
             (models.Stage.L0, "Treasury", "8.1", "9.1"), (models.Stage.L0, "Treasury", "8.2", "9.2"),
             (models.Stage.L0, "Finance", "8.1", "10.1"), (models.Stage.L0, "Finance", "8.3", "10.2"),
             (models.Stage.L0, "Finance", "8.4", "10.3"), (models.Stage.L0, "Finance", "8.5", "10.4"),
