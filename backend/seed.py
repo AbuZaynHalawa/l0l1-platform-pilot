@@ -926,6 +926,7 @@ def run():
                 ).first()
                 if d:
                     d.item_no = new_no
+                    db.flush()  # keep each rename visible to the next iteration's lookup -- session is autoflush=False
             db.commit()
 
             # HSSE's two remaining items (Safety/PPE, HSE Plan) renumber
@@ -936,6 +937,7 @@ def run():
                 ).first()
                 if d:
                     d.item_no = new_no
+                    db.flush()
             db.commit()
 
         # Item 127 rework: full sequential renumbering -- Treasury/Finance
@@ -1022,10 +1024,67 @@ def run():
             ).first()
             if d:
                 d.item_no = new_no
+                # Session is autoflush=False, so without this the "already
+                # occupied" check above stays blind to renames earlier in
+                # THIS SAME loop -- chained entries (Planning: 5.5->5.4
+                # then 5.6->5.5) need the first rename actually visible in
+                # the DB before the second one's guard query runs, or the
+                # guard sees the row still sitting at its pre-rename value
+                # and wrongly thinks the target is taken, skipping a
+                # rename that should have gone through (this is exactly
+                # how Planning ended up with a genuine duplicate on
+                # production: id=54 stuck at "5.6" while upsert() quietly
+                # created a fresh id=213 at "5.5" right next to it).
+                db.flush()
                 renumbered += 1
         if renumbered:
             db.commit()
             print(f"Renumbered {renumbered} deliverable definition(s) — Treasury/Finance/Quality/HSSE/IT/Risk/Fleet/FM sequential renumber.")
+
+        # One-time cleanup: the missing-flush bug above (now fixed) let a
+        # prior deploy's Planning "5.6"->"5.5" rename get silently skipped
+        # while upsert() went ahead and created a brand-new "5.5" row for
+        # the same content anyway -- leaving a genuine duplicate ("Provide
+        # Updated Productivity Norms...", one row correctly targeted for
+        # rename and stuck at the old "5.6", one freshly created at
+        # "5.5"). Detected by content (same name, same department) rather
+        # than by id, so this also cleans up if the same failure mode
+        # ever recurs elsewhere -- keeps the older (lower id) row, which
+        # is the one real projects' submissions point at, moves over any
+        # submissions the newer duplicate already picked up (only for
+        # projects the surviving row doesn't already have one for), then
+        # retires the duplicate.
+        dup_groups: dict[tuple, list] = {}
+        for d in db.query(models.DeliverableDefinition).filter_by(active=True).all():
+            key = (d.stage, d.department_id, d.name)
+            dup_groups.setdefault(key, []).append(d)
+        cleaned = 0
+        for (stage_key, dept_id, name_key), rows in dup_groups.items():
+            if len(rows) < 2:
+                continue
+            rows.sort(key=lambda r: r.id)
+            keeper, extras = rows[0], rows[1:]
+            for extra in extras:
+                keeper_project_ids = {
+                    s.project_id for s in db.query(models.DeliverableSubmission)
+                    .filter_by(deliverable_definition_id=keeper.id).all()
+                }
+                for sub in db.query(models.DeliverableSubmission).filter_by(deliverable_definition_id=extra.id).all():
+                    if sub.project_id in keeper_project_ids:
+                        db.delete(sub)
+                    else:
+                        sub.deliverable_definition_id = keeper.id
+                # The extra (spurious) row was created by upsert() reading
+                # the CURRENT catalog tuple, so its item_no is the correct
+                # final value -- the keeper is the one still stuck at the
+                # stale pre-rename number.
+                keeper.item_no = extra.item_no
+                db.flush()
+                db.delete(extra)
+                cleaned += 1
+        if cleaned:
+            db.commit()
+            print(f"Cleaned up {cleaned} duplicate deliverable definition(s) from the missing-flush bug.")
 
         dept_map = {}
         for i, name in enumerate(DEPARTMENTS):
