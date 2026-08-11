@@ -38,6 +38,17 @@
     var d = new Date(iso + "T00:00:00");
     return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
   }
+  // Item 136: compact document-count summary next to a deliverable's status
+  // pill -- e.g. "2 uploaded, 1 approved". Counts the primary file plus any
+  // supplementary documents (doc_total/doc_approved from the API); empty
+  // string when nothing's been uploaded yet so blank rows don't show a
+  // pointless "0 uploaded".
+  function docSummaryHtml(d) {
+    if (!d.doc_total) return "";
+    var text = d.doc_total + (d.doc_total === 1 ? " doc" : " docs");
+    if (d.doc_approved) text += ", " + d.doc_approved + " approved";
+    return ' <span class="doc-summary">' + text + "</span>";
+  }
   // Item 91: a centered loading popup for every in-flight API call, so a
   // slow reminder/creation/etc. reads as "working" instead of "stuck".
   // Delayed briefly so a normal fast request never even flickers it.
@@ -396,7 +407,7 @@
       main.style.cursor = "pointer";
       main.addEventListener("click", function () { openDelivModal(d.id); });
       row.appendChild(main);
-      row.appendChild(el("span", "pill " + sm[0], '<span class="dot"></span>' + sm[1]));
+      row.appendChild(el("span", "", '<span class="pill ' + sm[0] + '"><span class="dot"></span>' + sm[1] + "</span>" + docSummaryHtml(d)));
       var actions = el("div", "deliv-actions");
       if (authorized && d.file_url) actions.appendChild(fileLink(d));
       actions.appendChild(followButton(d));
@@ -1310,7 +1321,7 @@
       row.dataset.sid = String(d.id);
       var body = el("div", "deliv-body");
       body.appendChild(el("div", "deliv-name", d.name));
-      body.appendChild(el("div", "deliv-due", '<span class="deliv-due-date">Due ' + fmtDate(d.due_date) + '</span> <span class="pill ' + sm[0] + '"><span class="dot"></span>' + sm[1] + "</span>"));
+      body.appendChild(el("div", "deliv-due", '<span class="deliv-due-date">Due ' + fmtDate(d.due_date) + '</span> <span class="pill ' + sm[0] + '"><span class="dot"></span>' + sm[1] + "</span>" + docSummaryHtml(d)));
       var authorized = isAssigned(d);
       if (authorized && d.completion_note) {
         body.appendChild(el("div", "deliv-comment", "&#128172; " + d.completion_note));

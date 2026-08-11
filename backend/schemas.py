@@ -103,6 +103,10 @@ class SubmissionOut(BaseModel):
     completion_note: str | None = None
     is_milestone: bool
     milestone_code: str | None
+    # Item 136: total documents attached (primary file + supplementary) and
+    # how many of those are approved -- e.g. "2 uploaded, 1 approved".
+    doc_total: int = 0
+    doc_approved: int = 0
 
     class Config:
         from_attributes = True

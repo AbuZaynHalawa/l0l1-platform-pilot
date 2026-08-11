@@ -44,10 +44,12 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
             f.submission_id for f in
             db.query(models.Follower).filter(models.Follower.email == actor_email.strip().lower()).all()
         }
+    doc_counts = rules.document_counts(db, [s.id for s in subs])
     out = []
     for s in subs:
         if status and s.status.value != status:
             continue
+        doc_total, doc_approved = doc_counts.get(s.id, (0, 0))
         out.append({
             "id": s.id, "est_no": s.project.est_no, "project_name": s.project.name, "stage": s.project.stage.value,
             "department": s.definition.department.name, "department_number": s.definition.department.number,
@@ -60,6 +62,7 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
             "file_name": s.file_name, "file_url": _storage.file_url(s.file_ref) if s.file_ref else None,
             "review_comment": s.review_comment, "completion_note": rules.mark_complete_note(s),
             "following": s.id in my_follows,
+            "doc_total": doc_total, "doc_approved": doc_approved,
         })
     return out
 

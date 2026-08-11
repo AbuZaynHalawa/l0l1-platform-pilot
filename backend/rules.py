@@ -191,6 +191,37 @@ def deliverable_focal(definition: "models.DeliverableDefinition", project: "mode
     return definition.department.focal_point_email
 
 
+def document_counts(db: Session, submission_ids: list[int]) -> dict[int, tuple[int, int]]:
+    """Item 136: {submission_id: (total_docs, approved_docs)} across every
+    Document row for a batch of submissions in one query, so a whole list
+    view doesn't pay N+1 queries for a summary badge on every row.
+
+    This already covers the primary file too, not just supplementary
+    ones -- /upload mirrors the primary into a Document row the same way
+    "Add Document" does (so it shows up in the popup's document list one
+    consistent way), and an SME can't approve the overall submission while
+    any Document is still pending, so by the time a submission reaches
+    APPROVED every one of its Document rows -- including that mirrored
+    primary -- is already itself approved or rejected. Adding a separate
+    +1 for submission.file_name/status here would double-count it. The
+    only submissions with zero Document rows are ones completed via a
+    comment instead of a file (Mark Completed with no upload) -- correctly
+    0 documents, since there genuinely isn't one.
+    """
+    if not submission_ids:
+        return {}
+    counts: dict[int, tuple[int, int]] = {}
+    rows = (
+        db.query(models.Document.submission_id, models.Document.status)
+        .filter(models.Document.submission_id.in_(submission_ids))
+        .all()
+    )
+    for sub_id, status in rows:
+        total, approved = counts.get(sub_id, (0, 0))
+        counts[sub_id] = (total + 1, approved + (1 if status == "approved" else 0))
+    return counts
+
+
 def mark_complete_note(submission: "models.DeliverableSubmission") -> str | None:
     """The owner's completion comment when a deliverable was submitted via
     Mark Completed instead of a file upload — the most recent 'submitted'

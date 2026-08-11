@@ -367,6 +367,8 @@
   .deliv-due { font-size: 12px; color: var(--ink-500); margin-top: 4px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .deliv-due-date { font-size: 13px; font-weight: 700; color: var(--ink-900); }
   .deliv-due .pill { font-size: 11.5px; padding: 4px 12px; }
+  /* Item 136: compact "N docs, N approved" summary next to a status pill. */
+  .doc-summary { font-size: 11px; color: var(--ink-500); font-weight: 600; }
   .deliv-due .pill .dot { width: 7px; height: 7px; }
   .deliv-comment { font-size: 11.5px; color: var(--ink-700); margin-top: 4px; font-style: italic; }
   .deliv-subheader { padding: 10px 18px 6px; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--purple-1); background: var(--accent-soft); }
