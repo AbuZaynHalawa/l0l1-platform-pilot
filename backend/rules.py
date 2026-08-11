@@ -68,6 +68,16 @@ L0_OPERATION_BU_DEPARTMENTS = {
 # deliverables for a project that doesn't involve BBU at all.
 L1_BBU_ONLY_DEPARTMENTS = {"BBU", "BBU / PBU"}
 
+# L1 (item 122): mirrors L0_OPERATION_BU_DEPARTMENTS above — "TBU / PBU" is
+# split into real per-BU folders, each only applying to a project that
+# actually has that business unit.
+L1_OPERATION_BU_DEPARTMENTS = {
+    "TBU": "TBU",
+    "PBU": "PBU",
+    "DBU": "DBU",
+    "BBU": "BBU",
+}
+
 
 def can_act(actor_role: str, actor_email: str, assigned_email: str | None) -> bool:
     """Admins can always act. Otherwise the actor must be the specific person
@@ -93,6 +103,9 @@ def is_bu_applicable(definition: models.DeliverableDefinition, project: models.P
         if required:
             return required in bus
         return True
+    required = L1_OPERATION_BU_DEPARTMENTS.get(definition.department.name)
+    if required:
+        return required in bus
     if definition.department.name in L1_BBU_ONLY_DEPARTMENTS:
         return "BBU" in bus
     return True

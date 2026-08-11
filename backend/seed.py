@@ -80,6 +80,12 @@ DEPARTMENTS = [
     "TBU / PBU", "BBU", "BBU / PBU", "Planning", "Cost Control",
     "Treasury", "Finance", "Quality", "HSSE",
     "Risk", "Fleet", "FM",
+    # Item 122: full TBU/PBU/DBU/BBU split, mirroring item 69's L0 pattern.
+    # "TBU / PBU" and "BBU / PBU" above are the old combined buckets --
+    # existing projects keep whatever submissions they already created there
+    # (deactivated for new projects below), while every new L1 project gets
+    # one or more of these four instead, matching its actual business units.
+    "TBU", "PBU", "DBU",
 ]
 
 # Renames existing production department rows in place (preserving id and
@@ -111,6 +117,7 @@ DEPARTMENT_NUMBERS = {
     "Tendering Department": 1,
     "Operation Units": 2, "TBU / PBU": 2, "BBU": 2, "BBU / PBU": 2,
     "Operation Units (TBU)": 2, "Operation Units (PBU)": 2, "Operation Units (DBU)": 2, "Operation Units (BBU)": 2,
+    "TBU": 2, "PBU": 2, "DBU": 2,
     "Supply Chain": 3,
     "Engineering Department": 4,
     "Control Department": 5, "Planning": 5, "Cost Control": 5,
@@ -281,6 +288,8 @@ L1_DEPT = {
     "costctrl": "Cost Control", "contract": "Contract", "hr": "Human Resources",
     "treasury": "Treasury", "finance": "Finance", "quality": "Quality",
     "hsse": "HSSE", "risk": "Risk", "fleet": "Fleet", "fm": "FM",
+    # Item 122
+    "tbu": "TBU", "pbu": "PBU", "dbu": "DBU",
 }
 
 # (item_no, name, dept_key, anchor_type, pred, offset, direction, milestone_code)
@@ -311,6 +320,51 @@ L1_ITEMS = [
     ("2.16", "Provide general layout of Temporary facilities, laydown and storage", "bbupbu", "predecessor", "1.2", 7, "after", None),
     ("2.17", "Prepare/Update Subcontracting Strategy / Model", "bbu", "predecessor", "1.2", 5, "after", None),
     ("2.18", "Finalize Subcontract Agreement for SS projects", "bbu", "predecessor", "1.6", 10, "after", None),
+
+    # Item 122: full TBU/PBU/DBU/BBU split (mirrors item 69's L0 pattern) --
+    # own copy of 2.1-2.12 per business unit instead of one combined
+    # "TBU / PBU" folder applying to every project regardless of BU.
+    ("2.1", "Submission of Cost Center request to Cost Control Department", "tbu", "predecessor", "1.2", 1, "after", None),
+    ("2.2", "Creating PRs for long-lead items through the system", "tbu", "predecessor", "5.3", 2, "after", None),
+    ("2.3", "Assignment of Temporary Project Manager & Project Engineer", "tbu", "predecessor", "1.1", 5, "after", None),
+    ("2.4", "Internal Kick off Meeting (to be called by Project Manager)", "tbu", "predecessor", "2.3", 5, "after", None),
+    ("2.5", "Draft Master Project Execution Plan ready to be submitted", "tbu", "predecessor", "1.2", 25, "after", None),
+    ("2.6", "Create PRs for Early Activities (Soil Investigation, Topography)", "tbu", "predecessor", "5.3", 2, "after", None),
+    ("2.7", "Create PR for Design Firm/Consultant", "tbu", "predecessor", "4.4", 2, "after", None),
+    ("2.8", "Start Activities for Geotechnical Investigation (in house or vendor)", "tbu", "predecessor", "3.11", 7, "after", None),
+    ("2.9", "Start Activities for Topography and Site Investigation", "tbu", "predecessor", "1.2", 25, "after", None),
+    ("2.10", "Provide list of project permits (Governmental, Local Authority)", "tbu", "predecessor", "1.2", 15, "after", None),
+    ("2.11", "Preparation of Subcontracting Strategy for (OHTL/UGC) projects", "tbu", "predecessor", "1.2", 5, "after", None),
+    ("2.12", "Provide Confirmation on the Proposal recommendation for working schedule", "tbu", "predecessor", "5.6", 3, "after", None),
+
+    ("2.1", "Submission of Cost Center request to Cost Control Department", "pbu", "predecessor", "1.2", 1, "after", None),
+    ("2.2", "Creating PRs for long-lead items through the system", "pbu", "predecessor", "5.3", 2, "after", None),
+    ("2.3", "Assignment of Temporary Project Manager & Project Engineer", "pbu", "predecessor", "1.1", 5, "after", None),
+    ("2.4", "Internal Kick off Meeting (to be called by Project Manager)", "pbu", "predecessor", "2.3", 5, "after", None),
+    ("2.5", "Draft Master Project Execution Plan ready to be submitted", "pbu", "predecessor", "1.2", 25, "after", None),
+    ("2.6", "Create PRs for Early Activities (Soil Investigation, Topography)", "pbu", "predecessor", "5.3", 2, "after", None),
+    ("2.7", "Create PR for Design Firm/Consultant", "pbu", "predecessor", "4.4", 2, "after", None),
+    ("2.8", "Start Activities for Geotechnical Investigation (in house or vendor)", "pbu", "predecessor", "3.11", 7, "after", None),
+    ("2.9", "Start Activities for Topography and Site Investigation", "pbu", "predecessor", "1.2", 25, "after", None),
+    ("2.10", "Provide list of project permits (Governmental, Local Authority)", "pbu", "predecessor", "1.2", 15, "after", None),
+    ("2.11", "Preparation of Subcontracting Strategy for (OHTL/UGC) projects", "pbu", "predecessor", "1.2", 5, "after", None),
+    ("2.12", "Provide Confirmation on the Proposal recommendation for working schedule", "pbu", "predecessor", "5.6", 3, "after", None),
+    ("2.16", "Provide general layout of Temporary facilities, laydown and storage", "pbu", "predecessor", "1.2", 7, "after", None),
+
+    ("2.1", "Submission of Cost Center request to Cost Control Department", "dbu", "predecessor", "1.2", 1, "after", None),
+    ("2.2", "Creating PRs for long-lead items through the system", "dbu", "predecessor", "5.3", 2, "after", None),
+    ("2.3", "Assignment of Temporary Project Manager & Project Engineer", "dbu", "predecessor", "1.1", 5, "after", None),
+    ("2.4", "Internal Kick off Meeting (to be called by Project Manager)", "dbu", "predecessor", "2.3", 5, "after", None),
+    ("2.5", "Draft Master Project Execution Plan ready to be submitted", "dbu", "predecessor", "1.2", 25, "after", None),
+    ("2.6", "Create PRs for Early Activities (Soil Investigation, Topography)", "dbu", "predecessor", "5.3", 2, "after", None),
+    ("2.7", "Create PR for Design Firm/Consultant", "dbu", "predecessor", "4.4", 2, "after", None),
+    ("2.8", "Start Activities for Geotechnical Investigation (in house or vendor)", "dbu", "predecessor", "3.11", 7, "after", None),
+    ("2.9", "Start Activities for Topography and Site Investigation", "dbu", "predecessor", "1.2", 25, "after", None),
+    ("2.10", "Provide list of project permits (Governmental, Local Authority)", "dbu", "predecessor", "1.2", 15, "after", None),
+    ("2.11", "Preparation of Subcontracting Strategy for (OHTL/UGC) projects", "dbu", "predecessor", "1.2", 5, "after", None),
+    ("2.12", "Provide Confirmation on the Proposal recommendation for working schedule", "dbu", "predecessor", "5.6", 3, "after", None),
+
+    ("2.16", "Provide general layout of Temporary facilities, laydown and storage", "bbu", "predecessor", "1.2", 7, "after", None),
 
     ("3.1", "Issue RFQ to vendors including technical SOW, contractual and commercial baselines", "supply", "predecessor", "4.5", 7, "after", None),
     ("3.2", "Allowable time for negotiating commercial and technical terms", "supply", "predecessor", "2.2", 10, "after", None),
@@ -622,6 +676,27 @@ def run():
             if deactivated:
                 db.commit()
                 print(f"Deactivated {deactivated} old flat Operation Units item(s) — superseded by TBU/PBU/DBU/BBU split.")
+
+        # Backfill (item 122): same as above but for L1's old combined
+        # "TBU / PBU" / "BBU / PBU" buckets, now superseded by real
+        # TBU/PBU/DBU/BBU folders. Existing projects keep their
+        # already-created submissions on the old departments untouched.
+        for old_name in ("TBU / PBU", "BBU / PBU"):
+            old_dept = dept_map.get(old_name)
+            if not old_dept:
+                continue
+            deactivated = (
+                db.query(models.DeliverableDefinition)
+                .filter(
+                    models.DeliverableDefinition.department_id == old_dept.id,
+                    models.DeliverableDefinition.stage == models.Stage.L1,
+                    models.DeliverableDefinition.active == True,  # noqa: E712
+                )
+                .update({"active": False})
+            )
+            if deactivated:
+                db.commit()
+                print(f"Deactivated {deactivated} old L1 '{old_name}' item(s) — superseded by TBU/PBU/DBU/BBU split.")
 
         # Backfill: M6 (Contract Signing) already approved on some L1 project
         # before the auto-sign-on-approval logic existed, so contract_status
