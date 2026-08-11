@@ -125,11 +125,6 @@ class ReassignRequestCreate(BaseModel):
     from_email: str | None = None
 
 
-class SmeUpdate(BaseModel):
-    sme_email: str
-    actor_role: str = "Viewer"
-
-
 class ReassignmentDecision(BaseModel):
     approved: bool
     actor_role: str = "Admin"

@@ -84,15 +84,17 @@ DEPARTMENTS = [
     # Items 128/129: Planning, Cost Control, Risk, Fleet, FM are no longer
     # L1-only -- L0 now shares these same rows (see L0_DEPT below), same
     # pattern as Tendering/Supply Chain/Engineering/HR/Contract already use.
-    "TBU / PBU", "BBU", "BBU / PBU", "Planning", "Cost Control",
+    "TBU / PBU", "BBU / PBU", "Planning", "Cost Control",
     "Treasury", "Finance", "Quality", "HSSE",
     "Risk", "Fleet", "FM",
-    # Item 122: full TBU/PBU/DBU/BBU split, mirroring item 69's L0 pattern.
-    # "TBU / PBU" and "BBU / PBU" above are the old combined buckets --
-    # existing projects keep whatever submissions they already created there
-    # (deactivated for new projects below), while every new L1 project gets
-    # one or more of these four instead, matching its actual business units.
-    "TBU", "PBU", "DBU",
+    # Item 122 rework: L1's own TBU/PBU/DBU/BBU split now reuses the exact
+    # same "Operation Units (TBU)" etc. rows L0's item 69 split already
+    # created (see L0_DEPT/L1_DEPT below) -- so it nests under the same
+    # "2. Operation Units" group header in the folder list, instead of
+    # showing as its own separate ungrouped set of rows. "TBU / PBU" and
+    # "BBU / PBU" above are the old combined buckets -- existing projects
+    # keep whatever submissions they already created there (deactivated for
+    # new projects below).
 ]
 
 # Renames existing production department rows in place (preserving id and
@@ -314,13 +316,17 @@ L0_ITEMS = [
 # (duration). Items 1.1-1.6 ARE the milestones M1-M6 (column D).
 # ---------------------------------------------------------------------------
 L1_DEPT = {
-    "tendering": "Tendering Department", "tbupbu": "TBU / PBU", "bbu": "BBU", "bbupbu": "BBU / PBU",
+    "tendering": "Tendering Department", "tbupbu": "TBU / PBU", "bbupbu": "BBU / PBU",
     "supply": "Supply Chain", "eng": "Engineering Department", "planning": "Planning",
     "costctrl": "Cost Control", "contract": "Contract", "hr": "Human Resources",
     "treasury": "Treasury", "finance": "Finance", "quality": "Quality",
     "hsse": "HSSE", "risk": "Risk", "fleet": "Fleet", "fm": "FM",
-    # Item 122
-    "tbu": "TBU", "pbu": "PBU", "dbu": "DBU",
+    # Item 122 rework: reuse L0's own "Operation Units (X)" department rows
+    # instead of separate plain-named ones, so the folder list nests L1's
+    # TBU/PBU/DBU/BBU under a shared "2. Operation Units" group header,
+    # matching L0's presentation exactly.
+    "tbu": "Operation Units (TBU)", "pbu": "Operation Units (PBU)",
+    "dbu": "Operation Units (DBU)", "bbu": "Operation Units (BBU)",
 }
 
 # (item_no, name, dept_key, anchor_type, pred, offset, direction, milestone_code)
@@ -755,6 +761,25 @@ def run():
             db.commit()
             if not db.query(models.DeliverableDefinition).filter_by(department_id=old_fleet_fm.id).first():
                 db.delete(old_fleet_fm)
+                db.commit()
+
+        # Item 122 rework: L1's own plain-named "TBU"/"PBU"/"DBU"/"BBU"
+        # departments (created earlier this session) merge into the same
+        # "Operation Units (TBU)" etc. rows L0's item 69 split already
+        # uses -- so the folder list nests them under a shared "2.
+        # Operation Units" group header instead of showing as separate
+        # ungrouped rows, matching L0's presentation exactly.
+        for plain_name, shared_name in (
+            ("TBU", "Operation Units (TBU)"), ("PBU", "Operation Units (PBU)"),
+            ("DBU", "Operation Units (DBU)"), ("BBU", "Operation Units (BBU)"),
+        ):
+            plain_dept = db.query(models.Department).filter_by(name=plain_name).first()
+            shared_dept = db.query(models.Department).filter_by(name=shared_name).first()
+            if plain_dept and shared_dept and plain_dept.id != shared_dept.id:
+                db.query(models.DeliverableDefinition).filter_by(department_id=plain_dept.id).update(
+                    {"department_id": shared_dept.id}
+                )
+                db.delete(plain_dept)
                 db.commit()
 
         dept_map = {}

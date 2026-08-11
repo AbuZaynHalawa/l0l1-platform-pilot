@@ -253,142 +253,14 @@
     </section>
 
     <!-- JOURNEY / HISTORY -->
+    <!-- Item 131 rework: no reference page underneath -- switching to this
+         view opens the walkthrough modal directly (see switchView in
+         app.js). This is only a fallback shown for the instant before that
+         modal opens, and if someone closes the modal without navigating
+         away. -->
     <section class="view" id="view-journey" hidden>
-      <div class="view-head">
-        <div>
-          <div class="eyebrow">Getting Started</div>
-          <h1>L0/L1 System Introduction</h1>
-          <p class="sub">What L0/L1 is, and how to actually use this portal.</p>
-        </div>
-        <button class="btn primary" id="tourStartBtn" type="button">&#9654; Start Interactive Walkthrough</button>
-      </div>
-
-      <div class="section-title" style="padding:0 0 10px;border:none;">Program Timeline &amp; Rollout</div>
-      <div class="card" style="padding:20px 22px;margin-bottom:20px;">
-        <p class="sub" style="margin-bottom:16px;">From the L0/L1 System Presentation &#8212; how the control system was rolled out, and where it's headed.</p>
-        <div class="prog-timeline">
-          <div class="prog-axis">
-            <span>Aug 24</span><span>Dec 24</span><span>May 25</span><span>Sep 25</span><span>Feb 26</span><span>April 26</span><span class="prog-axis-today">Today</span>
-          </div>
-          <div class="prog-lane">
-            <div class="prog-lane-head">Standard L0/L1 Development</div>
-            <ul class="prog-lane-events">
-              <li>Developed new procedure along with a defined scheme</li>
-              <li>Engaged key departments for input and collaboration</li>
-              <li>Obtained management approvals</li>
-              <li>Conducted introduction meetings and explained the process and objectives</li>
-              <li>Received and evaluated quality of deliverables</li>
-              <li>Tracked departments' response against the proposed timeline</li>
-              <li><b>Ran a pilot for testing</b> &#8211; NAJRAN BSP, L1 Stage</li>
-              <li><b>Launched official operation</b> (Dec 24)</li>
-            </ul>
-          </div>
-          <div class="prog-lane">
-            <div class="prog-lane-head">International L0/L1 Development</div>
-            <ul class="prog-lane-events">
-              <li>Analyzed departments' willingness to adapt to the new system</li>
-              <li>Market analysis</li>
-              <li>Service development</li>
-              <li>Business intelligence</li>
-            </ul>
-          </div>
-          <div class="prog-lane">
-            <div class="prog-lane-head">New L1 Model Development</div>
-            <ul class="prog-lane-events">
-              <li>In progress &#8211; Sep 25 through Feb 26</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-
-      <div class="section-title" style="padding:0 0 10px;border:none;">How It Works</div>
-      <div class="card journey-explainer">
-        <div class="journey-stage">
-          <div class="journey-stage-head"><span class="journey-badge l0">L0</span> Tendering</div>
-          <p>A tender opens at <b>Announcement (M1)</b>. Site visit, pre-bid meeting, and pre-bid clarification
-             deadlines are announced, and every department (Operations, Supply Chain, Engineering, Control,
-             Contract, HR, Finance, SHEQ, IT, Risk, Fleet) prepares its risk register, execution plan, and
-             schedule in parallel. The <b>Project Schedule (M3)</b> anchors most department deliverables.
-             Technical offers are circulated once RFQs return (<b>M4</b>), and the tender closes with the
-             <b>Proposal Submitted to client (M5)</b>, timed to the Bid Submission Date.</p>
-        </div>
-        <div class="journey-arrow">&#8595;</div>
-        <div class="journey-stage">
-          <div class="journey-stage-head"><span class="journey-badge l1">L1</span> Execution</div>
-          <p>Once a tender is awarded, an L1 project starts from the same scope: <b>L1 Announcement (M1)</b>,
-             an <b>Early Mobilization Plan (M2)</b>, then full <b>Commercial &amp; Technical Handover (M3)</b>
-             from the tendering team to the project team. <b>Post-Bid Clarification (M4)</b> runs until the
-             <b>LOA is received (M5)</b>, and the project formally begins execution at <b>Contract Signing
-             (M6)</b> &#8212; the point the platform marks the project's Contract Status as Signed. From there,
-             Planning, Cost Control, Supply Chain, Engineering, HSSE and the rest of the departments carry the
-             project through its execution deliverables.</p>
-        </div>
-      </div>
-
-      <div class="section-title" style="padding:24px 0 10px;border:none;">Finding Your Way Around</div>
-      <div class="how-grid">
-        <div class="card how-card">
-          <div class="how-ic">&#9673;</div>
-          <div class="how-title">Dashboard</div>
-          <p>The org-wide snapshot: active tenders/projects, Not Due/Pending/Overdue counts, the live
-             deliverables matrix, Top Achievers, and the latest announcements. Switch
-             "All" / "My Items" at the top to scope the counts to just what you own or review.</p>
-        </div>
-        <div class="card how-card">
-          <div class="how-ic">&#128203;</div>
-          <div class="how-title">Assigned Deliverables</div>
-          <p>Every deliverable assigned to you (or everyone, as Admin), in one queue &#8212; filter by L0/L1
-             and by status. Click any row to open its full detail popup.</p>
-        </div>
-        <div class="card how-card">
-          <div class="how-ic">&#128276;</div>
-          <div class="how-title">Announcements</div>
-          <p>The full notification log &#8212; new tenders, milestones reached, review requests/decisions,
-             reminders. Filter by type and date range; click one tied to a deliverable to open it directly.</p>
-        </div>
-        <div class="card how-card">
-          <div class="how-ic">&#128196;</div>
-          <div class="how-title">L0 Tenders / L1 Projects</div>
-          <p>The full list of tenders or projects. Click into one for its own department folders, deliverables,
-             and (for L1) milestone stepper &#8212; plus an Activity Trail tab showing everything that's
-             happened on it.</p>
-        </div>
-        <div class="card how-card">
-          <div class="how-ic">&#128198;</div>
-          <div class="how-title">Timeline</div>
-          <p>A Gantt view across every active deliverable, pooled across all projects or scoped to one.
-             Filter by department and status; click a bar to open that deliverable.</p>
-        </div>
-        <div class="card how-card">
-          <div class="how-ic">&#128172;</div>
-          <div class="how-title">Ask the Team</div>
-          <p>A question about a tender, project, or deliverable, sent straight to the admins &#8212; no
-             need to type your name or email, it's taken from who you're signed in as. Replies show up
-             as a thread under "My Requests" until an admin marks it resolved.</p>
-        </div>
-      </div>
-
-      <div class="section-title" style="padding:24px 0 10px;border:none;">Working With a Deliverable</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-        <div class="card" style="padding:18px 20px;">
-          <div style="font-weight:700;font-size:13.5px;margin-bottom:10px;">Uploading &amp; Approving</div>
-          <ul style="margin:0;padding-left:18px;font-size:12.5px;color:var(--ink-700);line-height:1.9;">
-            <li><b>Upload</b> submits the primary file, moves the deliverable to Pending SME Review, and notifies the SME</li>
-            <li>Extra supporting files can be added on top without changing the deliverable's own status</li>
-            <li>The SME reviews each document individually, then Approves or Rejects the deliverable as a whole</li>
-            <li>Approval is blocked while any document is still awaiting its own review</li>
-          </ul>
-        </div>
-        <div class="card" style="padding:18px 20px;">
-          <div style="font-weight:700;font-size:13.5px;margin-bottom:10px;">Every Deliverable's Popup Has</div>
-          <ul style="margin:0;padding-left:18px;font-size:12.5px;color:var(--ink-700);line-height:1.9;">
-            <li>Owner, SME, due date and current status at a glance</li>
-            <li>Follow (get notified on any update), Upload, Mark Completed, and Reassign actions</li>
-            <li>Every document attached to it, each with its own review status</li>
-            <li>A Share button for a direct link back to that exact item</li>
-            <li>A full activity log of everything that's happened to it</li>
-          </ul>
-        </div>
+      <div class="tour-fallback">
+        <button class="btn primary" id="tourStartBtn" type="button">&#9654; Open Interactive Walkthrough</button>
       </div>
     </section>
 
@@ -485,9 +357,9 @@
       </div>
 
       <div class="card table-card" id="fpDeliverablePanel">
-        <p class="sub fp-hint">Set a focal name/email for a specific item to override its department's default. Tendering Department items are always routed to that project's own Bid Manager, so they aren't editable here.</p>
+        <p class="sub fp-hint">Set a focal name/email for a specific item to override its department's default, and the SME assigned to new submissions of it. Tendering Department items are always routed to that project's own Bid Manager for the focal point (not editable here), but their SME still is.</p>
         <table class="fp-table">
-          <thead><tr><th>Item</th><th>Deliverable</th><th>Department</th><th>Focal Point Name</th><th>Focal Point Email</th><th></th></tr></thead>
+          <thead><tr><th>Item</th><th>Deliverable</th><th>Department</th><th>Focal Point Name</th><th>Focal Point Email</th><th>SME Email</th><th></th></tr></thead>
           <tbody id="focalPointsBody"></tbody>
         </table>
       </div>
@@ -603,7 +475,7 @@
       </div>
       <div class="detail-meta-row" id="dMeta"></div>
       <div class="terminal-banner" id="dTerminalBanner" hidden>&#128274; This project is closed &#8212; deliverables are read-only. An admin can reopen it via the status dropdown above.</div>
-      <div class="terminal-banner" id="dTriageBanner" hidden style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+      <div class="terminal-banner triage-banner" id="dTriageBanner" hidden>
         <span id="dTriageBannerText"></span>
         <button class="btn primary" id="dTriageBannerBtn">Complete Triage</button>
       </div>

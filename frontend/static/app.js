@@ -844,39 +844,16 @@
 
     var sm = STATUS_META[d.status] || ["neutral", d.status];
     var meta = el("div", "modal-meta-grid");
-    [["Owner", d.owner_email || "&#8213;"], ["SME", d.sme_email || "&#8213;", "sme"],
+    // Item 134 rework: SME is no longer editable from here -- it's set as
+    // a catalog default in Focal Points instead, so every new project
+    // picks it up automatically rather than being patched one project at
+    // a time from this popup.
+    [["Owner", d.owner_email || "&#8213;"], ["SME", d.sme_email || "&#8213;"],
      ["Due Date", fmtDate(d.due_date)], ["Status", '<span class="pill ' + sm[0] + '"><span class="dot"></span>' + sm[1] + "</span>"]]
       .forEach(function (m) {
         var mi = el("div");
         mi.appendChild(el("div", "mk", m[0]));
-        var mv = el("div", "mv", m[1]);
-        // Item 134: admins can set/change who's SME on this specific
-        // deliverable directly -- no request/approval step needed the way
-        // owner reassignment has, since there's no "whose work is this"
-        // conflict to mediate.
-        if (m[2] === "sme" && can("create")) {
-          var editBtn = el("button", "mv-edit-btn", "&#9998;");
-          editBtn.title = "Change SME";
-          editBtn.addEventListener("click", async function () {
-            var next = prompt("SME email for " + d.item_no + ":", d.sme_email || "");
-            if (next === null) return;
-            next = next.trim();
-            if (!next) return;
-            try {
-              await api("/api/deliverables/" + d.id + "/sme", {
-                method: "PATCH", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ sme_email: next, actor_role: CURRENT_ROLE }),
-              });
-            } catch (err) {
-              showToast("Could not update SME &#8211; " + apiErrorDetail(err), true);
-              return;
-            }
-            showToast("SME updated");
-            refreshModal();
-          });
-          mv.appendChild(editBtn);
-        }
-        mi.appendChild(mv);
+        mi.appendChild(el("div", "mv", m[1]));
         meta.appendChild(mi);
       });
     body.appendChild(meta);
@@ -1778,7 +1755,12 @@
   }
 
   /* ================= JOURNEY / HISTORY ================= */
-  async function loadJourney() {}
+  async function loadJourney() {
+    // Item 131 rework: the tab has no reference page of its own anymore --
+    // opens straight into the walkthrough. Fallback content (just the
+    // reopen button) stays underneath for when the modal is closed.
+    openTour();
+  }
 
   /* ================= ACTIVITY TRAIL (L0 Tenders / L1 Projects tab) ================= */
   var HISTORY_ACTION_ICON = {
@@ -1907,34 +1889,47 @@
       nameCell.title = d.name; // item 135: column is narrowed with ellipsis, full text on hover
       tr.appendChild(nameCell);
       tr.appendChild(el("td", "", d.department));
+      // Item 134 rework: SME is editable here for every row including
+      // Tendering (unlike focal point name/email, which Tendering always
+      // routes to that project's own Bid Manager instead) -- no per-project
+      // popup edit anymore, this catalog default is the one place for it.
+      var smeInput = el("input"); smeInput.type = "text";
+      smeInput.value = d.default_sme_email || ""; smeInput.placeholder = "sme@algihaz.com";
       if (d.is_tendering_bm) {
         var noteCell = el("td", "muted", "Defaults to the project's Bid Manager");
         noteCell.setAttribute("colspan", "2");
         tr.appendChild(noteCell);
-        tr.appendChild(el("td"));
       } else {
         var nameInput = el("input"); nameInput.type = "text";
         nameInput.value = d.focal_point_name || ""; nameInput.placeholder = d.department_focal_name || "Name";
         var emailInput = el("input"); emailInput.type = "text";
         emailInput.value = d.focal_point_email || ""; emailInput.placeholder = d.department_focal_email || "email@algihaz.com";
-        var saveBtn = el("button", "btn", "Save");
-        saveBtn.addEventListener("click", async function () {
-          try {
-            await api("/api/departments/deliverable-focal/" + d.id, {
-              method: "PATCH", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ focal_point_name: nameInput.value.trim(), focal_point_email: emailInput.value.trim() }),
-            });
-          } catch (err) {
-            showToast("Could not save &#8211; " + apiErrorDetail(err), true);
-            return;
-          }
-          showToast("Focal point updated for " + d.item_no);
-        });
         var tdName = el("td"); tdName.appendChild(nameInput);
         var tdEmail = el("td"); tdEmail.appendChild(emailInput);
-        var tdSave = el("td"); tdSave.appendChild(saveBtn);
-        tr.appendChild(tdName); tr.appendChild(tdEmail); tr.appendChild(tdSave);
+        tr.appendChild(tdName); tr.appendChild(tdEmail);
       }
+      var tdSme = el("td"); tdSme.appendChild(smeInput);
+      tr.appendChild(tdSme);
+      var saveBtn = el("button", "btn", "Save");
+      saveBtn.addEventListener("click", async function () {
+        var body = { default_sme_email: smeInput.value.trim() };
+        if (!d.is_tendering_bm) {
+          body.focal_point_name = nameInput.value.trim();
+          body.focal_point_email = emailInput.value.trim();
+        }
+        try {
+          await api("/api/departments/deliverable-focal/" + d.id, {
+            method: "PATCH", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+        } catch (err) {
+          showToast("Could not save &#8211; " + apiErrorDetail(err), true);
+          return;
+        }
+        showToast("Updated for " + d.item_no);
+      });
+      var tdSave = el("td"); tdSave.appendChild(saveBtn);
+      tr.appendChild(tdSave);
       tbody.appendChild(tr);
     });
   }

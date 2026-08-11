@@ -430,30 +430,6 @@ def request_reassignment(submission_id: int, payload: schemas.ReassignRequestCre
     return {"status": "ok", "id": req.id}
 
 
-@router.patch("/{submission_id}/sme")
-def update_sme(submission_id: int, payload: schemas.SmeUpdate, db: Session = Depends(get_db)):
-    """Item 134: direct admin edit of who reviews a deliverable. Unlike
-    owner reassignment (item 88), this doesn't need a request/approval
-    step -- there's no "whose work is this" conflict to mediate, just an
-    admin correcting or setting who's meant to review it.
-    """
-    if payload.actor_role != "Admin":
-        raise HTTPException(403, "Only an Admin can change a deliverable's SME")
-    sub = db.get(models.DeliverableSubmission, submission_id)
-    if not sub:
-        raise HTTPException(404, "Deliverable not found")
-    sme_email = payload.sme_email.strip()
-    if not sme_email:
-        raise HTTPException(400, "The SME's email is required")
-    target_user = db.query(models.User).filter(models.User.email.ilike(sme_email)).first()
-    if not target_user or target_user.role not in ("SME", "Admin"):
-        raise HTTPException(400, f"{sme_email} must be a user with SME permissions in the system roster (Focal Points → L0-L1 Group)")
-    sub.sme_email = sme_email
-    db.add(models.WorkflowHistory(submission_id=sub.id, action="sme_changed", actor_name="Admin",
-                                   note=f"SME set to {sme_email}"))
-    db.commit()
-    return {"id": sub.id, "sme_email": sub.sme_email}
-
 
 @router.get("/reassignment-requests")
 def list_reassignment_requests(status: str = "pending", db: Session = Depends(get_db)):
