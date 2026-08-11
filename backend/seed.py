@@ -64,8 +64,12 @@ DEPARTMENTS = [
     # same focal point across both stages) — only listed once here; L1_DEPT
     # below just points its own dept_key at these same names.
     "Tendering Department", "Operation Units", "Supply Chain", "Engineering Department",
-    "Control Department", "Contract", "Human Resources", "Financial Department",
-    "SHEQ Department", "IT Department", "Risk Department", "Fleet and Facility Management Department",
+    "Contract", "Human Resources", "Financial Department", "SHEQ Department", "IT Department",
+    # Items 128/129: "Control Department", "Risk Department" and "Fleet and
+    # Facility Management Department" no longer get created here -- each has
+    # been folded into (or split across) the shared Planning/Cost Control,
+    # Risk, and Fleet/FM departments below by the migration in run(), so
+    # they'd otherwise just come back empty on every seed run.
     # Operation Units BU sub-folders (item 69) — "Operation Units" above stays
     # in place (existing projects still point at its old flat 2.1-2.12 items,
     # deactivated below so it's never handed to new ones); new L0 projects
@@ -77,6 +81,9 @@ DEPARTMENTS = [
     # here -- their one deliverable each has been re-pointed onto Finance
     # and HSSE/Quality respectively by the migration in run() below, so
     # they'd otherwise just come back empty on every seed run.
+    # Items 128/129: Planning, Cost Control, Risk, Fleet, FM are no longer
+    # L1-only -- L0 now shares these same rows (see L0_DEPT below), same
+    # pattern as Tendering/Supply Chain/Engineering/HR/Contract already use.
     "TBU / PBU", "BBU", "BBU / PBU", "Planning", "Cost Control",
     "Treasury", "Finance", "Quality", "HSSE",
     "Risk", "Fleet", "FM",
@@ -113,6 +120,14 @@ DEPARTMENT_RENAMES = {
 # instead of folded into `name`, since several L1 departments share one
 # number (Operation's TBU/PBU/BBU split, SHEQ's Quality/HSSE split, etc.)
 # and embedding it in the name caused real collision/rename bugs before.
+# Item 127: full renumbering. 1-4 unchanged; 5 onward reassigned.
+# Cost Control gets its own number, separate from Planning (item 129);
+# IT/Risk/Fleet/FM each get their own number instead of accidentally sharing
+# one (item 128 splits Fleet/FM for L0 too, and Risk is consolidated into
+# one department -- see the merge in run() below). "Financial Department"
+# and "SHEQ Department" are untouched by 128/129 -- L0 still has ONE
+# combined department for each, so those keep sharing a number with their
+# L1 Treasury/Finance and Quality/HSSE counterparts, same pattern as before.
 DEPARTMENT_NUMBERS = {
     "Tendering Department": 1,
     "Operation Units": 2, "TBU / PBU": 2, "BBU": 2, "BBU / PBU": 2,
@@ -120,14 +135,16 @@ DEPARTMENT_NUMBERS = {
     "TBU": 2, "PBU": 2, "DBU": 2,
     "Supply Chain": 3,
     "Engineering Department": 4,
-    "Control Department": 5, "Planning": 5, "Cost Control": 5,
-    "Contract": 6,
-    "Human Resources": 7,
-    "Financial Department": 8, "Treasury": 8, "Finance": 8,
-    "SHEQ Department": 9, "Quality": 9, "HSSE": 9,
-    "IT Department": 10, "Risk": 10,
-    "Risk Department": 11, "Fleet": 11,
-    "Fleet and Facility Management Department": 12, "FM": 12,
+    "Control Department": 5, "Planning": 5,
+    "Cost Control": 6,
+    "Contract": 7,
+    "Human Resources": 8,
+    "Financial Department": 9, "Treasury": 9, "Finance": 9,
+    "SHEQ Department": 10, "Quality": 10, "HSSE": 10,
+    "IT Department": 11,
+    "Risk": 12, "Risk Department": 12,
+    "Fleet": 13, "Fleet and Facility Management Department": 13,
+    "FM": 14,
 }
 
 # ---------------------------------------------------------------------------
@@ -137,9 +154,13 @@ DEPARTMENT_NUMBERS = {
 # ---------------------------------------------------------------------------
 L0_DEPT = {
     "tendering": "Tendering Department", "operation": "Operation Units", "supply": "Supply Chain",
-    "eng": "Engineering Department", "control": "Control Department", "contract": "Contract",
+    "eng": "Engineering Department", "contract": "Contract",
     "hr": "Human Resources", "finance": "Financial Department", "sheq": "SHEQ Department",
-    "it": "IT Department", "risk": "Risk Department", "fleet": "Fleet and Facility Management Department",
+    "it": "IT Department", "risk": "Risk",
+    # Items 128/129: L0 now shares the same Planning/Cost Control and
+    # Fleet/FM departments L1 already uses, instead of its own combined
+    # "Control Department" / "Fleet and Facility Management Department".
+    "planning": "Planning", "costctrl": "Cost Control", "fleet": "Fleet", "fm": "FM",
     "op_tbu": "Operation Units (TBU)", "op_pbu": "Operation Units (PBU)",
     "op_dbu": "Operation Units (DBU)", "op_bbu": "Operation Units (BBU)",
 }
@@ -237,12 +258,19 @@ L0_ITEMS = [
     ("4.6", "Review and evaluate technical offers received from Vendors", "eng", "predecessor", "1.17", 2, "after", "date_driven", None),
     ("4.7", "Support Technical Proposals with required design deliverables (if needed)", "eng", None, None, 0, "after", "on_request", None),
 
-    ("5.1", "Prepare Risk Register", "control", "predecessor", "2.2", 1, "after", "date_driven", None),
-    ("5.2", "Highlight points require Pre-bid clarifications", "control", "pre_bid", None, 3, "before", "date_driven", None),
-    ("5.3", "Prepare Project schedule (level according to client requirement, up to Level 3)", "control", "predecessor", "1.1", 15, "after", "date_driven", "M3"),
-    ("5.4", "Fleet Productivities (equipment productivity rates)", "control", None, None, 0, "after", "library", None),
-    ("5.5", "Verify Quantities for remeasured Contracts (if applicable)", "control", "predecessor", "1.1", 3, "after", "date_driven", None),
-    ("5.6", "Provide Updated Productivity Norms and Calculations (PCO-01-SPR-001)", "control", None, None, 0, "after", "library", None),
+    # Item 129: L0's old single "Control Department" splits into Planning
+    # (5.1, 5.2, 5.3, 5.5, 5.6) and Cost Control (5.4, plus its own copy of
+    # 5.1/5.2 since both departments need those two) -- same
+    # shared-item_no-across-departments pattern as item 124's 9.3 split.
+    ("5.1", "Prepare Risk Register", "planning", "predecessor", "2.2", 1, "after", "date_driven", None),
+    ("5.2", "Highlight points require Pre-bid clarifications", "planning", "pre_bid", None, 3, "before", "date_driven", None),
+    ("5.3", "Prepare Project schedule (level according to client requirement, up to Level 3)", "planning", "predecessor", "1.1", 15, "after", "date_driven", "M3"),
+    ("5.5", "Verify Quantities for remeasured Contracts (if applicable)", "planning", "predecessor", "1.1", 3, "after", "date_driven", None),
+    ("5.6", "Provide Updated Productivity Norms and Calculations (PCO-01-SPR-001)", "planning", None, None, 0, "after", "library", None),
+
+    ("5.1", "Prepare Risk Register", "costctrl", "predecessor", "2.2", 1, "after", "date_driven", None),
+    ("5.2", "Highlight points require Pre-bid clarifications", "costctrl", "pre_bid", None, 3, "before", "date_driven", None),
+    ("5.4", "Fleet Productivities (equipment productivity rates)", "costctrl", None, None, 0, "after", "library", None),
 
     ("6.1", "Prepare Risk Register", "contract", "predecessor", "1.20", 5, "before", "date_driven", None),
     ("6.2", "Highlight points require Pre-bid clarifications (Review Contracts and Terms)", "contract", "pre_bid", None, 3, "before", "date_driven", None),
@@ -272,9 +300,12 @@ L0_ITEMS = [
 
     ("11.1", "Compile risk registers received from all departments, Evaluate and present", "risk", None, None, 0, "after", "on_request", None),
 
+    # Item 128: L0's old combined "Fleet and Facility Management Department"
+    # splits into Fleet (equipment, 12.1/12.2) and FM (camp, 12.3), matching
+    # how L1 already separates them.
     ("12.1", "Recent Equipment Cost Estimates, Consumptions and Maintenance", "fleet", None, None, 0, "after", "library", None),
     ("12.2", "Provide recent information on Equipment availability, location and release dates", "fleet", None, None, 0, "after", "library", None),
-    ("12.3", "Provide Camp Cost Estimates, Consumptions and Maintenance based on manning", "fleet", "predecessor", "5.3", 5, "after", "date_driven", None),
+    ("12.3", "Provide Camp Cost Estimates, Consumptions and Maintenance based on manning", "fm", "predecessor", "5.3", 5, "after", "date_driven", None),
 ]
 
 # ---------------------------------------------------------------------------
@@ -607,6 +638,123 @@ def run():
             # been moved off it above -- re-check rather than assuming.
             if not db.query(models.DeliverableDefinition).filter_by(department_id=hsse_quality_dept.id).first():
                 db.delete(hsse_quality_dept)
+                db.commit()
+
+        # Item 127/129: L0's separate "Risk Department" folds into the
+        # shared "Risk" department L1 already uses -- both are the same
+        # real department, previously just split across two rows (and two
+        # inconsistent numbers, 11 on L0 vs 10 on L1) by accident.
+        old_risk = db.query(models.Department).filter_by(name="Risk Department").first()
+        risk_dept = db.query(models.Department).filter_by(name="Risk").first()
+        if old_risk and risk_dept and old_risk.id != risk_dept.id:
+            db.query(models.DeliverableDefinition).filter_by(department_id=old_risk.id).update(
+                {"department_id": risk_dept.id}
+            )
+            db.delete(old_risk)
+            db.commit()
+        elif old_risk and not risk_dept:
+            old_risk.name = "Risk"
+            db.commit()
+
+        # Item 129: L0's "Control Department" (5.1-5.6) merges into the
+        # shared "Planning" department (same department L1 already uses) --
+        # then item 5.4 moves on to "Cost Control" (a clean single-item
+        # move, its content is Cost-Control-specific), and 5.1/5.2 (Risk
+        # Register, Pre-bid clarifications) get a real Cost Control-side
+        # duplicate too since both departments need their own copy,
+        # mirroring item 124's 9.3 split -- including copying
+        # already-approved state across for existing projects.
+        control_dept = db.query(models.Department).filter_by(name="Control Department").first()
+        planning_dept = db.query(models.Department).filter_by(name="Planning").first()
+        if control_dept and planning_dept and control_dept.id != planning_dept.id:
+            db.query(models.DeliverableDefinition).filter_by(department_id=control_dept.id).update(
+                {"department_id": planning_dept.id}
+            )
+            db.delete(control_dept)
+            db.commit()
+        elif control_dept and not planning_dept:
+            control_dept.name = "Planning"
+            planning_dept = control_dept
+            db.commit()
+
+        cost_control_dept = db.query(models.Department).filter_by(name="Cost Control").first()
+        if planning_dept and cost_control_dept:
+            fleet_prod_def = db.query(models.DeliverableDefinition).filter_by(
+                stage=models.Stage.L0, item_no="5.4", department_id=planning_dept.id
+            ).first()
+            if fleet_prod_def:
+                fleet_prod_def.department_id = cost_control_dept.id
+                db.commit()
+
+            for item_no, name, short in (
+                ("5.1", "Prepare Risk Register", "Prepare Risk Register"),
+                ("5.2", "Highlight points require Pre-bid clarifications", "Highlight Pre-bid Points"),
+            ):
+                old_def = db.query(models.DeliverableDefinition).filter_by(
+                    stage=models.Stage.L0, item_no=item_no, department_id=planning_dept.id
+                ).first()
+                already = db.query(models.DeliverableDefinition).filter_by(
+                    stage=models.Stage.L0, item_no=item_no, department_id=cost_control_dept.id
+                ).first()
+                if old_def and not already:
+                    new_def = models.DeliverableDefinition(
+                        stage=models.Stage.L0, item_no=item_no, name=name, short_name=short,
+                        department_id=cost_control_dept.id,
+                        anchor_type=old_def.anchor_type, predecessor_item_no=old_def.predecessor_item_no,
+                        offset_days=old_def.offset_days, offset_direction=old_def.offset_direction,
+                        deliverable_type=old_def.deliverable_type,
+                        default_owner_email=TEST_EMAIL, default_sme_email=TEST_EMAIL,
+                    )
+                    db.add(new_def)
+                    db.commit()
+                    db.refresh(new_def)
+
+                    affected_projects = []
+                    for sub in db.query(models.DeliverableSubmission).filter_by(deliverable_definition_id=old_def.id).all():
+                        dup = models.DeliverableSubmission(
+                            project_id=sub.project_id, deliverable_definition_id=new_def.id,
+                            owner_email=sub.owner_email, sme_email=sub.sme_email, applicability=sub.applicability,
+                        )
+                        if sub.status == models.SubmissionStatus.APPROVED:
+                            dup.status = models.SubmissionStatus.APPROVED
+                            dup.due_date = sub.due_date
+                            dup.submitted_at = sub.submitted_at
+                            dup.reviewed_at = sub.reviewed_at
+                            dup.review_comment = sub.review_comment
+                            dup.file_name = sub.file_name
+                            dup.file_ref = sub.file_ref
+                        else:
+                            affected_projects.append(sub.project)
+                        db.add(dup)
+                    db.commit()
+                    # A duplicate created here bypasses _provision_and_instantiate,
+                    # so unless it was approved above, it starts out with the
+                    # model's bare default (status=NOT_DUE, due_date=None) --
+                    # force a recompute so pending items correctly land on
+                    # PENDING_TRIAGE (item 129's Cost Control copies are L0,
+                    # where that status is real) and everything else gets a
+                    # real due date instead of sitting stuck at None.
+                    for proj in affected_projects:
+                        rules.recompute_project_due_dates(db, proj, force=True)
+                    db.commit()
+
+        # Item 128: L0's old combined "Fleet and Facility Management
+        # Department" splits across the shared "Fleet" (equipment,
+        # 12.1/12.2) and "FM" (camp, 12.3) departments L1 already uses -- a
+        # clean single-item-each move, no duplication needed.
+        old_fleet_fm = db.query(models.Department).filter_by(name="Fleet and Facility Management Department").first()
+        fleet_dept = db.query(models.Department).filter_by(name="Fleet").first()
+        fm_dept = db.query(models.Department).filter_by(name="FM").first()
+        if old_fleet_fm and fleet_dept and fm_dept:
+            db.query(models.DeliverableDefinition).filter_by(
+                department_id=old_fleet_fm.id, stage=models.Stage.L0, item_no="12.3"
+            ).update({"department_id": fm_dept.id})
+            db.query(models.DeliverableDefinition).filter_by(department_id=old_fleet_fm.id).update(
+                {"department_id": fleet_dept.id}
+            )
+            db.commit()
+            if not db.query(models.DeliverableDefinition).filter_by(department_id=old_fleet_fm.id).first():
+                db.delete(old_fleet_fm)
                 db.commit()
 
         dept_map = {}
