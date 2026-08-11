@@ -73,8 +73,12 @@ DEPARTMENTS = [
     # project's scope actually selected.
     "Operation Units (TBU)", "Operation Units (PBU)", "Operation Units (DBU)", "Operation Units (BBU)",
     # L1-only (additional real breakdown, no "L1 " prefix)
+    # Items 123/124/126: Insurance and HSSE / Quality no longer get created
+    # here -- their one deliverable each has been re-pointed onto Finance
+    # and HSSE/Quality respectively by the migration in run() below, so
+    # they'd otherwise just come back empty on every seed run.
     "TBU / PBU", "BBU", "BBU / PBU", "Planning", "Cost Control",
-    "Treasury", "Finance", "Insurance", "Quality", "HSSE", "HSSE / Quality",
+    "Treasury", "Finance", "Quality", "HSSE",
     "Risk", "Fleet", "FM",
 ]
 
@@ -112,8 +116,8 @@ DEPARTMENT_NUMBERS = {
     "Control Department": 5, "Planning": 5, "Cost Control": 5,
     "Contract": 6,
     "Human Resources": 7,
-    "Financial Department": 8, "Treasury": 8, "Finance": 8, "Insurance": 8,
-    "SHEQ Department": 9, "Quality": 9, "HSSE": 9, "HSSE / Quality": 9,
+    "Financial Department": 8, "Treasury": 8, "Finance": 8,
+    "SHEQ Department": 9, "Quality": 9, "HSSE": 9,
     "IT Department": 10, "Risk": 10,
     "Risk Department": 11, "Fleet": 11,
     "Fleet and Facility Management Department": 12, "FM": 12,
@@ -275,8 +279,8 @@ L1_DEPT = {
     "tendering": "Tendering Department", "tbupbu": "TBU / PBU", "bbu": "BBU", "bbupbu": "BBU / PBU",
     "supply": "Supply Chain", "eng": "Engineering Department", "planning": "Planning",
     "costctrl": "Cost Control", "contract": "Contract", "hr": "Human Resources",
-    "treasury": "Treasury", "finance": "Finance", "insurance": "Insurance", "quality": "Quality",
-    "hsse": "HSSE", "hssequal": "HSSE / Quality", "risk": "Risk", "fleet": "Fleet", "fm": "FM",
+    "treasury": "Treasury", "finance": "Finance", "quality": "Quality",
+    "hsse": "HSSE", "risk": "Risk", "fleet": "Fleet", "fm": "FM",
 }
 
 # (item_no, name, dept_key, anchor_type, pred, offset, direction, milestone_code)
@@ -346,11 +350,17 @@ L1_ITEMS = [
     ("8.2", "Issuance of Performance Bond", "treasury", "predecessor", "1.5", 6, "after", None),
     ("8.3", "Issuance of Advance Payment Guarantee", "treasury", "predecessor", "1.6", 14, "after", None),
     ("8.4", "Provide Updated Cashflow and Finance Cost", "finance", "predecessor", "1.2", 5, "after", None),
-    ("8.5", "Provide Insurance Requirements (Cost & Provider selection)", "insurance", "predecessor", "1.6", 10, "after", None),
+    # Item 126: Insurance folded into Finance -- was its own "Insurance" department.
+    ("8.5", "Provide Insurance Requirements (Cost & Provider selection)", "finance", "predecessor", "1.6", 10, "after", None),
 
     ("9.1", "Provide QA/QC Detailed Plan including ITPs for major activities", "quality", "predecessor", "1.2", 17, "after", None),
     ("9.2", "Provide HSE Detailed Plan (Site Safety, HSE, Safety training)", "hsse", "predecessor", "1.2", 17, "after", None),
-    ("9.3", "Provide HSSE and Quality Staffing plans", "hssequal", "predecessor", "1.2", 12, "after", None),
+    # Item 123/124: "HSSE and Quality Staffing plans" split into one item
+    # per department instead of one combined item under a third "HSSE /
+    # Quality" department -- both keep item_no 9.3, same as how Operation
+    # Units' BU split shares one item_no across several departments.
+    ("9.3", "Provide HSSE Staffing plan", "hsse", "predecessor", "1.2", 12, "after", None),
+    ("9.3", "Provide Quality Staffing plan", "quality", "predecessor", "1.2", 12, "after", None),
     ("9.4", "Provide Risk Assessment (including identification of main hazards)", "hsse", "predecessor", "1.2", 10, "after", None),
     ("9.5", "Provide Environmental management plan", "hsse", "predecessor", "1.2", 20, "after", None),
     ("9.6", "Provide Waste management plan", "hsse", "predecessor", "1.2", 20, "after", None),
@@ -440,7 +450,7 @@ L1_SHORT_NAMES = {
     "8.1": "Secure Bank Facilities", "8.2": "Performance Bond", "8.3": "Advance Payment Guarantee",
     "8.4": "Updated Cashflow", "8.5": "Insurance Requirements",
 
-    "9.1": "QA/QC Detailed Plan", "9.2": "HSE Detailed Plan", "9.3": "HSSE Staffing Plan",
+    "9.1": "QA/QC Detailed Plan", "9.2": "HSE Detailed Plan", "9.3": "Staffing Plan",
     "9.4": "Risk Assessment", "9.5": "Environmental Plan", "9.6": "Waste Management Plan",
 
     "10.1": "Update Risk Register",
@@ -474,6 +484,76 @@ def run():
         elif l0_contract and not shared_contract:
             l0_contract.name = "Contract"
         db.commit()
+
+        # Item 126: fold L1's "Insurance" department into "Finance" -- its
+        # one deliverable (8.5) moves department, same item_no, same row
+        # (so every project's existing 8.5 submission just quietly points
+        # at a different department now, no data loss). Then the now-empty
+        # Insurance department is retired.
+        insurance_dept = db.query(models.Department).filter_by(name="Insurance").first()
+        finance_dept = db.query(models.Department).filter_by(name="Finance").first()
+        if insurance_dept and finance_dept:
+            db.query(models.DeliverableDefinition).filter_by(department_id=insurance_dept.id).update(
+                {"department_id": finance_dept.id}
+            )
+            db.delete(insurance_dept)
+            db.commit()
+
+        # Items 123/124: split L1's "HSSE and Quality Staffing plans" (9.3,
+        # under a third "HSSE / Quality" department) into one item per
+        # department -- the existing 9.3 row is repointed onto HSSE
+        # in place (keeps its id, its history, every project's existing
+        # submission), and a fresh Quality-side 9.3 gets created alongside
+        # it, including a retroactive submission for every project that
+        # already has one on the HSSE side -- copying the full completed
+        # state across if that one's already approved (the underlying
+        # work was genuinely done together), otherwise just matching its
+        # applicability (not_required/pending/applicable) and leaving the
+        # rest to the normal due-date computation.
+        hsse_quality_dept = db.query(models.Department).filter_by(name="HSSE / Quality").first()
+        hsse_dept = db.query(models.Department).filter_by(name="HSSE").first()
+        quality_dept = db.query(models.Department).filter_by(name="Quality").first()
+        if hsse_quality_dept and hsse_dept and quality_dept:
+            old_def = db.query(models.DeliverableDefinition).filter_by(
+                stage=models.Stage.L1, item_no="9.3", department_id=hsse_quality_dept.id
+            ).first()
+            if old_def:
+                old_def.name = "Provide HSSE Staffing plan"
+                old_def.short_name = "Staffing Plan"
+                old_def.department_id = hsse_dept.id
+                db.commit()
+
+                new_def = models.DeliverableDefinition(
+                    stage=models.Stage.L1, item_no="9.3", name="Provide Quality Staffing plan",
+                    short_name="Staffing Plan", department_id=quality_dept.id,
+                    anchor_type="predecessor", predecessor_item_no="1.2", offset_days=12, offset_direction="after",
+                    deliverable_type="date_driven", default_owner_email=TEST_EMAIL, default_sme_email=TEST_EMAIL,
+                )
+                db.add(new_def)
+                db.commit()
+                db.refresh(new_def)
+
+                for sub in db.query(models.DeliverableSubmission).filter_by(deliverable_definition_id=old_def.id).all():
+                    dup = models.DeliverableSubmission(
+                        project_id=sub.project_id, deliverable_definition_id=new_def.id,
+                        owner_email=sub.owner_email, sme_email=sub.sme_email, applicability=sub.applicability,
+                    )
+                    if sub.status == models.SubmissionStatus.APPROVED:
+                        dup.status = models.SubmissionStatus.APPROVED
+                        dup.due_date = sub.due_date
+                        dup.submitted_at = sub.submitted_at
+                        dup.reviewed_at = sub.reviewed_at
+                        dup.review_comment = sub.review_comment
+                        dup.file_name = sub.file_name
+                        dup.file_ref = sub.file_ref
+                    db.add(dup)
+                db.commit()
+
+            # The department is only actually empty once its one item has
+            # been moved off it above -- re-check rather than assuming.
+            if not db.query(models.DeliverableDefinition).filter_by(department_id=hsse_quality_dept.id).first():
+                db.delete(hsse_quality_dept)
+                db.commit()
 
         dept_map = {}
         for i, name in enumerate(DEPARTMENTS):
