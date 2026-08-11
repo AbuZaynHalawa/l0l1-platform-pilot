@@ -107,6 +107,9 @@ class SubmissionOut(BaseModel):
     # how many of those are approved -- e.g. "2 uploaded, 1 approved".
     doc_total: int = 0
     doc_approved: int = 0
+    # Item 143: how many of those are still individually awaiting SME
+    # review -- Mark Completed is blocked while this is above 0.
+    doc_pending: int = 0
 
     class Config:
         from_attributes = True

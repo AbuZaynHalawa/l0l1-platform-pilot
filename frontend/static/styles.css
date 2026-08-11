@@ -360,6 +360,11 @@
   .modal-actions-row .btn { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
   .modal-actions-row .btn:hover { filter: brightness(0.97); }
   .modal-actions-row .btn.primary { background: linear-gradient(135deg, var(--purple-1), var(--purple-2)); color: #fff; }
+  /* Item 143: nudge shown once every uploaded doc is approved ("Mark
+     Completed if no more documents are needed") or while awaiting the
+     SME's completion confirmation -- same visual weight as the tour's own
+     callout, just reused here for a workflow hint instead of a walkthrough. */
+  .modal-hint { background: var(--accent-soft); border-radius: 9px; padding: 10px 12px; font-size: 12px; color: var(--ink-700); margin: -6px 0 16px; }
   .doc-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); }
   .doc-row:last-child { border-bottom: none; }
   .doc-main { flex: 1; min-width: 0; font-size: 12.5px; }

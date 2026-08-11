@@ -38,7 +38,11 @@ class SubmissionStatus(str, enum.Enum):
     DUE = "due"
     OVERDUE = "overdue"
     PENDING_REVIEW = "pending_review"
-    APPROVED = "approved"
+    # Item 143: Owner clicked Mark Completed, awaiting the SME's confirm/
+    # reject — reached only from PENDING_REVIEW (not set directly). SME's
+    # own Mark Completed skips this and goes straight to APPROVED.
+    PENDING_COMPLETION = "pending_completion"
+    APPROVED = "approved"  # displayed as "Completed" in the UI (item 143)
     REJECTED = "rejected"
     PENDING_TRIAGE = "pending_triage"  # L0 only: awaiting BM applicable/not-required call
     NOT_REQUIRED = "not_required"      # BM marked this item as not applicable to this tender

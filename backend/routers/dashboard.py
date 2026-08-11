@@ -34,8 +34,13 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
             if (s.owner_email or "").strip().lower() == focus or (s.sme_email or "").strip().lower() == focus
         ]
 
+    # Item 143: PENDING_COMPLETION (owner said done, awaiting SME confirm) is
+    # folded into the same "pending_review" bucket everywhere in this file —
+    # both mean "not yet Completed, needs SME attention."
+    _pending_statuses = (models.SubmissionStatus.PENDING_REVIEW, models.SubmissionStatus.PENDING_COMPLETION)
+
     overdue = sum(1 for s in stat_subs if s.status == models.SubmissionStatus.OVERDUE)
-    pending_review = sum(1 for s in stat_subs if s.status == models.SubmissionStatus.PENDING_REVIEW)
+    pending_review = sum(1 for s in stat_subs if s.status in _pending_statuses)
     not_due = sum(1 for s in stat_subs if s.status == models.SubmissionStatus.NOT_DUE)
 
     dept_rows = []
@@ -50,13 +55,13 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
             if s.definition.department_id == dept.id and not s.auto_completed and s.definition.kpi_relevant is not False
         ]
         due_and_done = [s for s in dept_subs if s.status in (
-            models.SubmissionStatus.APPROVED, models.SubmissionStatus.OVERDUE, models.SubmissionStatus.PENDING_REVIEW)]
+            models.SubmissionStatus.APPROVED, models.SubmissionStatus.OVERDUE, *_pending_statuses)]
         approved = sum(1 for s in dept_subs if s.status == models.SubmissionStatus.APPROVED)
         pct = round((approved / len(due_and_done)) * 100, 1) if due_and_done else None
         dept_rows.append({
             "department": dept.name, "department_number": dept.number, "total": len(dept_subs), "approved": approved,
             "overdue": sum(1 for s in dept_subs if s.status == models.SubmissionStatus.OVERDUE),
-            "pending_review": sum(1 for s in dept_subs if s.status == models.SubmissionStatus.PENDING_REVIEW),
+            "pending_review": sum(1 for s in dept_subs if s.status in _pending_statuses),
             "pct": pct,
         })
 
@@ -100,7 +105,10 @@ def _rank_owners(subs, users: dict[str, "models.User"] | None = None):
         if not email:
             continue
         st = stats.setdefault(email, {"approved": 0, "cohort": 0})
-        if s.status in (models.SubmissionStatus.APPROVED, models.SubmissionStatus.OVERDUE, models.SubmissionStatus.PENDING_REVIEW):
+        # Item 143: PENDING_COMPLETION counts alongside PENDING_REVIEW here
+        # too, same "not yet Completed" cohort as the department Live Score.
+        if s.status in (models.SubmissionStatus.APPROVED, models.SubmissionStatus.OVERDUE,
+                        models.SubmissionStatus.PENDING_REVIEW, models.SubmissionStatus.PENDING_COMPLETION):
             st["cohort"] += 1
             if s.status == models.SubmissionStatus.APPROVED:
                 st["approved"] += 1

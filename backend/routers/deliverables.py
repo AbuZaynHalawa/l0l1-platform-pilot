@@ -49,7 +49,7 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
     for s in subs:
         if status and s.status.value != status:
             continue
-        doc_total, doc_approved = doc_counts.get(s.id, (0, 0))
+        doc_total, doc_approved, doc_pending = doc_counts.get(s.id, (0, 0, 0))
         out.append({
             "id": s.id, "est_no": s.project.est_no, "project_name": s.project.name, "stage": s.project.stage.value,
             "department": s.definition.department.name, "department_number": s.definition.department.number,
@@ -62,7 +62,7 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
             "file_name": s.file_name, "file_url": _storage.file_url(s.file_ref) if s.file_ref else None,
             "review_comment": s.review_comment, "completion_note": rules.mark_complete_note(s),
             "following": s.id in my_follows,
-            "doc_total": doc_total, "doc_approved": doc_approved,
+            "doc_total": doc_total, "doc_approved": doc_approved, "doc_pending": doc_pending,
         })
     return out
 
@@ -96,6 +96,8 @@ async def upload_deliverable(submission_id: int, file: UploadFile = File(...),
     assigned = sub.owner_email or sub.definition.default_owner_email
     if not rules.can_act(actor_role, actor_email, assigned):
         raise HTTPException(403, f"Only {assigned or 'the assigned owner'} or an Admin can upload this deliverable")
+    if sub.status == models.SubmissionStatus.APPROVED:
+        raise HTTPException(400, "This deliverable is already Completed")
 
     content = await file.read()
     folder = f"{sub.project.onedrive_folder_path}/{sanitize_segment(sub.definition.department.name)}"
@@ -104,6 +106,10 @@ async def upload_deliverable(submission_id: int, file: UploadFile = File(...),
     sub.file_name = file.filename
     sub.file_ref = file_ref
     sub.submitted_at = datetime.utcnow()
+    # Item 143: unconditionally setting PENDING_REVIEW here also correctly
+    # resets a stale PENDING_COMPLETION (owner said done, but here's a new
+    # document -- that claim needs re-confirming) or REJECTED (a fresh
+    # upload restarts the review cycle) row, for free.
     sub.status = models.SubmissionStatus.PENDING_REVIEW
     db.add(models.WorkflowHistory(submission_id=sub.id, action="submitted", actor_name=actor_name,
                                    note=f"Uploaded {file.filename}"))
@@ -153,9 +159,11 @@ async def add_document(submission_id: int, file: UploadFile = File(...),
                         actor_name: str = Form("Owner"), actor_role: str = Form("Owner"),
                         actor_email: str = Form(""), db: Session = Depends(get_db)):
     """Adds a supplementary document to an already-submitted deliverable —
-    e.g. extra supporting evidence while the SME is still reviewing. Doesn't
-    touch the submission's own status; that's still driven by the primary
-    upload/mark-complete/review flow.
+    e.g. extra supporting evidence while the SME is still reviewing, or a
+    second/third document on a multi-doc deliverable arriving hours or days
+    apart (item 143). Resets a stale PENDING_COMPLETION/REJECTED status back
+    to PENDING_REVIEW, same reasoning as the primary upload -- new evidence
+    means any earlier "done" or "rejected" call needs re-confirming.
     """
     sub = db.get(models.DeliverableSubmission, submission_id)
     if not sub:
@@ -163,6 +171,8 @@ async def add_document(submission_id: int, file: UploadFile = File(...),
     assigned = sub.owner_email or sub.definition.default_owner_email
     if not rules.can_act(actor_role, actor_email, assigned):
         raise HTTPException(403, f"Only {assigned or 'the assigned owner'} or an Admin can add documents to this deliverable")
+    if sub.status == models.SubmissionStatus.APPROVED:
+        raise HTTPException(400, "This deliverable is already Completed")
 
     content = await file.read()
     folder = f"{sub.project.onedrive_folder_path}/{sanitize_segment(sub.definition.department.name)}"
@@ -170,6 +180,12 @@ async def add_document(submission_id: int, file: UploadFile = File(...),
 
     doc = models.Document(submission_id=submission_id, file_name=file.filename, file_ref=file_ref, uploaded_by=actor_name)
     db.add(doc)
+    if sub.status in (
+        models.SubmissionStatus.NOT_DUE, models.SubmissionStatus.DUE, models.SubmissionStatus.OVERDUE,
+        models.SubmissionStatus.PENDING_COMPLETION, models.SubmissionStatus.REJECTED,
+    ):
+        sub.status = models.SubmissionStatus.PENDING_REVIEW
+        sub.submitted_at = sub.submitted_at or datetime.utcnow()
     db.add(models.WorkflowHistory(submission_id=submission_id, action="document_added", actor_name=actor_name,
                                    note=f"Added {file.filename}"))
     db.commit()
@@ -207,94 +223,37 @@ def review_document(document_id: int, decision: schemas.ReviewDecision, db: Sess
     return _document_out(doc)
 
 
-@router.post("/{submission_id}/mark-complete")
-def mark_complete(submission_id: int, payload: schemas.MarkCompleteRequest, db: Session = Depends(get_db)):
-    """Owner alternative to uploading a file: attests the deliverable is done
-    with a required comment instead of a document. Still goes to the SME for
-    approval, exactly like an upload — this only replaces the file, not the
-    review workflow.
+def _finalize_approval(db: Session, sub: "models.DeliverableSubmission", comment: str | None, actor_name: str) -> None:
+    """Item 143: the one place a submission actually becomes Completed
+    (status stays the APPROVED enum value — only its display label changed
+    to "Completed" — so every existing predecessor/due-date/KPI/Gantt check
+    keyed off APPROVED keeps working unchanged). Reached two ways: an SME's
+    own Mark Completed (immediate), or an SME confirming an Owner's
+    PENDING_COMPLETION claim via /review. Both call this so the cascade
+    (due-date freeze, milestones, cross-department unlock, L1 completion)
+    only lives in one place.
     """
-    sub = db.get(models.DeliverableSubmission, submission_id)
-    if not sub:
-        raise HTTPException(404, "Deliverable not found")
-    if sub.status in (models.SubmissionStatus.PENDING_REVIEW, models.SubmissionStatus.APPROVED):
-        raise HTTPException(400, "Deliverable has already been submitted")
-
-    assigned = sub.owner_email or sub.definition.default_owner_email
-    if not rules.can_act(payload.actor_role, payload.actor_email, assigned):
-        raise HTTPException(403, f"Only {assigned or 'the assigned owner'} or an Admin can complete this deliverable")
-
-    comment = payload.comment.strip()
-    if not comment:
-        raise HTTPException(400, "A comment is required to mark this complete without a file")
-
-    sub.submitted_at = datetime.utcnow()
-    sub.status = models.SubmissionStatus.PENDING_REVIEW
-    db.add(models.WorkflowHistory(submission_id=sub.id, action="submitted", actor_name=payload.actor_name, note=comment))
-    db.commit()
-
-    sme_email = sub.sme_email or sub.definition.default_sme_email
-    if sme_email:
-        announcements.sme_review_requested(db, sub.project, sme_email, sub.definition.item_no, sub.definition.name,
-                                            submission_id=sub.id)
-        db.add(models.WorkflowHistory(submission_id=sub.id, action="review_requested",
-                                       actor_name="system", note=f"Sent to {sme_email}"))
-        db.commit()
-    announcements.followers_notified(db, sub.project, _follower_emails(db, sub.id),
-                                      sub.definition.item_no, sub.definition.name, "marked completed")
-
-    return {"status": "ok"}
-
-
-@router.post("/{submission_id}/review")
-def review_deliverable(submission_id: int, decision: schemas.ReviewDecision, db: Session = Depends(get_db)):
-    sub = db.get(models.DeliverableSubmission, submission_id)
-    if not sub:
-        raise HTTPException(404, "Deliverable not found")
-    if sub.status != models.SubmissionStatus.PENDING_REVIEW:
-        raise HTTPException(400, "Deliverable is not awaiting review")
-
-    assigned_sme = sub.sme_email or sub.definition.default_sme_email
-    if not rules.can_act(decision.actor_role, decision.actor_email, assigned_sme):
-        raise HTTPException(403, f"Only {assigned_sme or 'the assigned SME'} or an Admin can review this deliverable")
-
-    if decision.approved:
-        pending_docs = (
-            db.query(models.Document)
-            .filter(models.Document.submission_id == submission_id, models.Document.status == "pending")
-            .count()
-        )
-        if pending_docs:
-            raise HTTPException(
-                400,
-                f"{pending_docs} document(s) on this deliverable are still awaiting individual review — "
-                "review those first before approving the whole deliverable",
-            )
-
-    sub.status = models.SubmissionStatus.APPROVED if decision.approved else models.SubmissionStatus.REJECTED
-    sub.review_comment = decision.comment
+    sub.status = models.SubmissionStatus.APPROVED
+    sub.review_comment = comment
     sub.reviewed_at = datetime.utcnow()
 
     # Client-dependent items (Contract Signing, LOA, etc.) have no computable
-    # due_date until they actually happen — approval IS that event, so freeze
-    # a real date now so downstream predecessor-chained items can anchor off it.
-    if decision.approved and sub.due_date is None:
+    # due_date until they actually happen — completion IS that event, so
+    # freeze a real date now so downstream predecessor-chained items can
+    # anchor off it.
+    if sub.due_date is None:
         sub.due_date = sub.reviewed_at.date()
 
-    db.add(models.WorkflowHistory(
-        submission_id=sub.id, action="approved" if decision.approved else "rejected",
-        actor_name=decision.reviewer_name, note=decision.comment,
-    ))
+    db.add(models.WorkflowHistory(submission_id=sub.id, action="approved", actor_name=actor_name, note=comment))
     db.commit()
 
     owner_email = sub.owner_email or sub.definition.default_owner_email or ""
     announcements.sme_decision(db, sub.project, owner_email, sub.definition.item_no, sub.definition.name,
-                                decision.approved, decision.comment, submission_id=sub.id)
+                                True, comment, submission_id=sub.id)
     announcements.followers_notified(db, sub.project, _follower_emails(db, sub.id), sub.definition.item_no,
-                                      sub.definition.name, "approved" if decision.approved else "rejected",
-                                      submission_id=sub.id)
+                                      sub.definition.name, "approved", submission_id=sub.id)
 
-    if decision.approved and sub.definition.is_milestone:
+    if sub.definition.is_milestone:
         recipients = sorted({d.focal_point_email for d in db.query(models.Department).all() if d.focal_point_email} | rules.system_group_emails(db))
         announcements.milestone_reached(db, sub.project, recipients, sub.definition.milestone_code, sub.definition.name)
         if sub.definition.milestone_code == "M6" and sub.project.stage == models.Stage.L1:
@@ -304,31 +263,139 @@ def review_deliverable(submission_id: int, decision: schemas.ReviewDecision, db:
             sub.project.status = models.ProjectStatus.SUBMITTED
             db.commit()
 
-    if decision.approved:
-        # Snapshot due dates, recompute the whole project (correctly cascades
-        # through however many chained levels), then notify whoever just
-        # became actionable as a result — the real cross-department unlock.
-        before = {
-            s.id: s.due_date
-            for s in db.query(models.DeliverableSubmission).filter(models.DeliverableSubmission.project_id == sub.project_id).all()
-        }
-        rules.recompute_project_due_dates(db, sub.project, force=True)
-        db.commit()
-        after_subs = db.query(models.DeliverableSubmission).filter(models.DeliverableSubmission.project_id == sub.project_id).all()
-        trigger_label = f"{sub.definition.item_no} {sub.definition.name}"
-        for s2 in after_subs:
-            if s2.id == sub.id:
-                continue
-            if before.get(s2.id) is None and s2.due_date is not None:
-                target_email = s2.owner_email or s2.definition.default_owner_email or ""
-                announcements.cross_department_unlock(db, sub.project, target_email, trigger_label, s2.definition.item_no, s2.definition.name,
-                                                        submission_id=s2.id)
-                db.add(models.WorkflowHistory(submission_id=s2.id, action="unlocked",
-                                               actor_name="system", note=f"Unlocked by approval of {trigger_label}"))
-        db.commit()
+    # Snapshot due dates, recompute the whole project (correctly cascades
+    # through however many chained levels), then notify whoever just
+    # became actionable as a result — the real cross-department unlock.
+    before = {
+        s.id: s.due_date
+        for s in db.query(models.DeliverableSubmission).filter(models.DeliverableSubmission.project_id == sub.project_id).all()
+    }
+    rules.recompute_project_due_dates(db, sub.project, force=True)
+    db.commit()
+    after_subs = db.query(models.DeliverableSubmission).filter(models.DeliverableSubmission.project_id == sub.project_id).all()
+    trigger_label = f"{sub.definition.item_no} {sub.definition.name}"
+    for s2 in after_subs:
+        if s2.id == sub.id:
+            continue
+        if before.get(s2.id) is None and s2.due_date is not None:
+            target_email = s2.owner_email or s2.definition.default_owner_email or ""
+            announcements.cross_department_unlock(db, sub.project, target_email, trigger_label, s2.definition.item_no, s2.definition.name,
+                                                    submission_id=s2.id)
+            db.add(models.WorkflowHistory(submission_id=s2.id, action="unlocked",
+                                           actor_name="system", note=f"Unlocked by approval of {trigger_label}"))
+    db.commit()
 
-        rules.check_l1_completion(db, sub.project)
+    rules.check_l1_completion(db, sub.project)
+    db.commit()
+
+
+@router.post("/{submission_id}/mark-complete")
+def mark_complete(submission_id: int, payload: schemas.MarkCompleteRequest, db: Session = Depends(get_db)):
+    """Item 143: the deliverable's closing action, callable by the Owner OR
+    the SME, for a comment-only completion or once every currently-uploaded
+    document has been individually approved. The SME's own call finalizes
+    immediately (via _finalize_approval); the Owner's call only flags it as
+    PENDING_COMPLETION, awaiting the SME's confirm/reject through /review.
+    """
+    sub = db.get(models.DeliverableSubmission, submission_id)
+    if not sub:
+        raise HTTPException(404, "Deliverable not found")
+    if sub.status in (models.SubmissionStatus.PENDING_COMPLETION, models.SubmissionStatus.APPROVED):
+        raise HTTPException(400, "Deliverable has already been marked complete")
+
+    owner_email = sub.owner_email or sub.definition.default_owner_email
+    sme_email = sub.sme_email or sub.definition.default_sme_email
+    is_owner = rules.can_act(payload.actor_role, payload.actor_email, owner_email)
+    is_sme = rules.can_act(payload.actor_role, payload.actor_email, sme_email)
+    if not (is_owner or is_sme):
+        raise HTTPException(403, f"Only {owner_email or 'the assigned owner'} or {sme_email or 'the assigned SME'} can complete this deliverable")
+
+    pending_docs = (
+        db.query(models.Document)
+        .filter(models.Document.submission_id == submission_id, models.Document.status == "pending")
+        .count()
+    )
+    if pending_docs:
+        raise HTTPException(
+            400,
+            f"{pending_docs} document(s) on this deliverable are still awaiting individual review — "
+            "review those first before marking it complete",
+        )
+
+    comment = payload.comment.strip()
+    if not comment:
+        raise HTTPException(400, "A comment is required to mark this complete")
+
+    # SME wins ties (someone assigned as both owner and SME on the same
+    # item) — their own Mark Completed is always the stronger, final action.
+    if is_sme:
+        _finalize_approval(db, sub, comment, payload.actor_name)
+        return {"status": "ok", "completed": True}
+
+    sub.submitted_at = sub.submitted_at or datetime.utcnow()
+    sub.status = models.SubmissionStatus.PENDING_COMPLETION
+    db.add(models.WorkflowHistory(submission_id=sub.id, action="mark_complete_requested",
+                                   actor_name=payload.actor_name, note=comment))
+    db.commit()
+
+    if sme_email:
+        announcements.sme_review_requested(db, sub.project, sme_email, sub.definition.item_no, sub.definition.name,
+                                            submission_id=sub.id)
+        db.add(models.WorkflowHistory(submission_id=sub.id, action="review_requested",
+                                       actor_name="system", note=f"Sent to {sme_email}"))
         db.commit()
+    announcements.followers_notified(db, sub.project, _follower_emails(db, sub.id),
+                                      sub.definition.item_no, sub.definition.name, "marked completed")
+
+    return {"status": "ok", "completed": False}
+
+
+@router.post("/{submission_id}/review")
+def review_deliverable(submission_id: int, decision: schemas.ReviewDecision, db: Session = Depends(get_db)):
+    """Item 143: the SME's confirm/reject on an Owner's completion claim —
+    only reachable from PENDING_COMPLETION now (was PENDING_REVIEW). There's
+    no longer a whole-deliverable review while documents are still coming in
+    — that's per-document review (/documents/{id}/review, unchanged) until
+    someone calls Mark Completed.
+    """
+    sub = db.get(models.DeliverableSubmission, submission_id)
+    if not sub:
+        raise HTTPException(404, "Deliverable not found")
+    if sub.status != models.SubmissionStatus.PENDING_COMPLETION:
+        raise HTTPException(400, "Deliverable is not awaiting completion confirmation")
+
+    assigned_sme = sub.sme_email or sub.definition.default_sme_email
+    if not rules.can_act(decision.actor_role, decision.actor_email, assigned_sme):
+        raise HTTPException(403, f"Only {assigned_sme or 'the assigned SME'} or an Admin can review this deliverable")
+
+    if decision.approved:
+        # Structurally shouldn't be reachable (Mark Completed itself blocks
+        # on pending docs), but cheap to keep as a defensive check.
+        pending_docs = (
+            db.query(models.Document)
+            .filter(models.Document.submission_id == submission_id, models.Document.status == "pending")
+            .count()
+        )
+        if pending_docs:
+            raise HTTPException(
+                400,
+                f"{pending_docs} document(s) on this deliverable are still awaiting individual review — "
+                "review those first",
+            )
+        _finalize_approval(db, sub, decision.comment, decision.reviewer_name)
+        return {"status": "ok"}
+
+    sub.status = models.SubmissionStatus.REJECTED
+    sub.review_comment = decision.comment
+    sub.reviewed_at = datetime.utcnow()
+    db.add(models.WorkflowHistory(submission_id=sub.id, action="rejected", actor_name=decision.reviewer_name, note=decision.comment))
+    db.commit()
+
+    owner_email = sub.owner_email or sub.definition.default_owner_email or ""
+    announcements.sme_decision(db, sub.project, owner_email, sub.definition.item_no, sub.definition.name,
+                                False, decision.comment, submission_id=sub.id)
+    announcements.followers_notified(db, sub.project, _follower_emails(db, sub.id), sub.definition.item_no,
+                                      sub.definition.name, "rejected", submission_id=sub.id)
 
     return {"status": "ok"}
 

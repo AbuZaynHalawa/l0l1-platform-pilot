@@ -195,34 +195,38 @@ def deliverable_focal(definition: "models.DeliverableDefinition", project: "mode
     return definition.department.focal_point_email
 
 
-def document_counts(db: Session, submission_ids: list[int]) -> dict[int, tuple[int, int]]:
-    """Item 136: {submission_id: (total_docs, approved_docs)} across every
-    Document row for a batch of submissions in one query, so a whole list
-    view doesn't pay N+1 queries for a summary badge on every row.
+def document_counts(db: Session, submission_ids: list[int]) -> dict[int, tuple[int, int, int]]:
+    """Item 136/143: {submission_id: (total_docs, approved_docs, pending_docs)}
+    across every Document row for a batch of submissions in one query, so a
+    whole list view doesn't pay N+1 queries for a summary badge on every row.
 
-    This already covers the primary file too, not just supplementary
-    ones -- /upload mirrors the primary into a Document row the same way
-    "Add Document" does (so it shows up in the popup's document list one
-    consistent way), and an SME can't approve the overall submission while
-    any Document is still pending, so by the time a submission reaches
-    APPROVED every one of its Document rows -- including that mirrored
-    primary -- is already itself approved or rejected. Adding a separate
-    +1 for submission.file_name/status here would double-count it. The
-    only submissions with zero Document rows are ones completed via a
-    comment instead of a file (Mark Completed with no upload) -- correctly
-    0 documents, since there genuinely isn't one.
+    This already covers the primary file too, not just supplementary ones --
+    /upload mirrors the primary into a Document row the same way "Add
+    Document" does (so it shows up in the popup's document list one
+    consistent way). Adding a separate +1 for submission.file_name/status
+    here would double-count it. The only submissions with zero Document rows
+    are ones completed via a comment instead of a file (Mark Completed with
+    no upload) -- correctly 0 documents, since there genuinely isn't one.
+
+    pending_docs (item 143) is what Mark Completed's own gate checks: a
+    deliverable can't be closed while any document is still individually
+    awaiting SME review, regardless of how many others are already approved.
     """
     if not submission_ids:
         return {}
-    counts: dict[int, tuple[int, int]] = {}
+    counts: dict[int, tuple[int, int, int]] = {}
     rows = (
         db.query(models.Document.submission_id, models.Document.status)
         .filter(models.Document.submission_id.in_(submission_ids))
         .all()
     )
     for sub_id, status in rows:
-        total, approved = counts.get(sub_id, (0, 0))
-        counts[sub_id] = (total + 1, approved + (1 if status == "approved" else 0))
+        total, approved, pending = counts.get(sub_id, (0, 0, 0))
+        counts[sub_id] = (
+            total + 1,
+            approved + (1 if status == "approved" else 0),
+            pending + (1 if status == "pending" else 0),
+        )
     return counts
 
 

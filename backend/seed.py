@@ -24,6 +24,7 @@ ensure_column("projects", "pre_bid_meeting_date", "DATE")
 ensure_column("deliverable_definitions", "kpi_relevant", "BOOLEAN")
 ensure_enum_value("deliverable_submissions", "status", "PENDING_TRIAGE")
 ensure_enum_value("deliverable_submissions", "status", "NOT_REQUIRED")
+ensure_enum_value("deliverable_submissions", "status", "PENDING_COMPLETION")
 ensure_column("deliverable_submissions", "auto_completed", "BOOLEAN")
 ensure_not_unique("projects", "est_no")
 
