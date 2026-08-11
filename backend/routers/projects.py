@@ -30,6 +30,13 @@ _L1_AUTO_DONE_FIELDS = {
     "1.1": "announcement_date",
 }
 
+# Item 140: item 85 excluded every Tendering Department item from BM triage
+# (no "is this applicable to my project" call to make on your own
+# department's work) -- these five are the exception, since whether they're
+# even needed genuinely varies per tender the same way another
+# department's items do.
+_L0_TENDERING_TRIAGE_ITEMS = {"1.6", "1.7", "1.13", "1.14", "1.15"}
+
 
 def _provision_and_instantiate(db: Session, project: models.Project):
     """Shared by both L0 and L1 creation: provision folders, instantiate every
@@ -60,7 +67,9 @@ def _provision_and_instantiate(db: Session, project: models.Project):
         # Tendering Department items are the BM's own department's work —
         # there's no "is this applicable to my project" call to make on
         # your own department's items, so they're excluded too (item 85).
-        needs_triage = stage == models.Stage.L0 and not d.is_milestone and d.department.name != "Tendering Department"
+        needs_triage = stage == models.Stage.L0 and not d.is_milestone and (
+            d.department.name != "Tendering Department" or d.item_no in _L0_TENDERING_TRIAGE_ITEMS
+        )
 
         # Items 115/116: auto-complete Tendering items that just restate a
         # field already captured on this project's own creation form. 1.1

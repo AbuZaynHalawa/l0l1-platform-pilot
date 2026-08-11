@@ -277,6 +277,12 @@
   .deliv-row { display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-bottom: 1px solid var(--line); }
   .deliv-row.flash { animation: annFlash 1.8s ease; }
   .triage-toggle { display: flex; gap: 6px; flex-shrink: 0; }
+  /* Item 139: BM Triage can list 50+ items across every department --
+     tighter row/header spacing here (only here, not the shared .deliv-row
+     used by the project detail list) fits noticeably more on screen before
+     the page needs to scroll. */
+  #triageCard .deliv-row { padding: 7px 18px; }
+  #triageCard .deliv-subheader { padding: 6px 18px 4px; }
 
   /* ---------- deliverable detail modal ---------- */
   .modal-overlay { position: fixed; inset: 0; background: rgba(15,18,26,.55); z-index: 80; display: flex; align-items: center; justify-content: center; padding: 24px; }

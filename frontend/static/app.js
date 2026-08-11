@@ -429,7 +429,7 @@
           actions.appendChild(uploadButton(d.id, loadAssigned));
           actions.appendChild(markCompleteButton(d.id, loadAssigned));
           if (CURRENT_ROLE === "Admin") actions.appendChild(markNotRequiredButton(d.id, loadAssigned));
-          var reassignBtn = el("button", "btn", "Reassign…");
+          var reassignBtn = el("button", "btn", "Reassign");
           reassignBtn.addEventListener("click", async function () {
             var toEmail = prompt("Reassign " + d.item_no + " to (email):", "");
             if (!toEmail) return;
@@ -858,7 +858,10 @@
       });
     body.appendChild(meta);
 
-    var refreshModal = function () { openDelivModal(submissionId); };
+    // Item 138: refreshing the modal alone left the deliverables list
+    // behind it stale (still showing the pre-action status/buttons) until
+    // a manual page reload -- also refresh that list every time.
+    var refreshModal = function () { openDelivModal(submissionId); refreshCurrentFolder(); };
     var actionsRow = el("div", "modal-actions-row");
     var shareBtn = el("button", "btn", "Share");
     shareBtn.addEventListener("click", async function () {
@@ -881,7 +884,7 @@
       actionsRow.appendChild(uploadButton(d.id, refreshModal));
       actionsRow.appendChild(markCompleteButton(d.id, refreshModal));
       if (CURRENT_ROLE === "Admin") actionsRow.appendChild(markNotRequiredButton(d.id, refreshModal));
-      var reassignBtn = el("button", "btn", "Reassign…");
+      var reassignBtn = el("button", "btn", "Reassign");
       reassignBtn.addEventListener("click", async function () {
         var toEmail = prompt("Reassign " + d.item_no + " to (email):", "");
         if (!toEmail) return;
@@ -972,7 +975,11 @@
         }
         body.appendChild(row);
       });
-      if (can("upload")) {
+      // Item 138: this was gated on role alone, so a Not Required (or
+      // approved/client-dependent) deliverable still let you attach a
+      // supplementary document -- match the primary Upload button's own
+      // eligibleStatus gate above.
+      if (eligibleStatus && can("upload")) {
         var addBtn = el("button", "btn", "Upload"); // item 101 — same naming as the primary Upload button
         var addInput = el("input"); addInput.type = "file"; addInput.style.display = "none";
         addInput.addEventListener("change", async function () {
@@ -1344,6 +1351,19 @@
       wrap.appendChild(row);
     });
   }
+  // Item 138: a lighter refresh than openDetail() for the project detail
+  // deliverables list -- re-fetches and re-renders just the currently-open
+  // folder's items, without rebuilding the whole page (which resets
+  // currentDeptOpen back to the first folder every time, jarring if the
+  // user was looking at a different one). Used as the default post-action
+  // refresh for the list's own inline buttons, and also fired alongside
+  // the popup's own refresh so status/action changes made there show up
+  // here immediately too, instead of needing a manual page reload.
+  async function refreshCurrentFolder() {
+    if (!currentProjectId || !currentDeptOpen) return;
+    var allDelivs = await api("/api/projects/" + currentProjectId + "/deliverables");
+    renderDeliverables(allDelivs.filter(function (d) { return d.department === currentDeptOpen; }));
+  }
   function fileLink(d) {
     // Item 107: opens the deliverable popup to pick which document to
     // view/download, instead of jumping straight to just the primary file.
@@ -1352,7 +1372,7 @@
     return btn;
   }
   function uploadButton(submissionId, after) {
-    after = after || function () { openDetail(currentProjectId); };
+    after = after || refreshCurrentFolder;
     var wrapper = document.createDocumentFragment();
     var fileInput = el("input"); fileInput.type = "file"; fileInput.style.display = "none";
     var btn = el("button", "btn", "Upload");
@@ -1377,7 +1397,7 @@
     return span;
   }
   function markCompleteButton(submissionId, after) {
-    after = after || function () { openDetail(currentProjectId); };
+    after = after || refreshCurrentFolder;
     var btn = el("button", "btn", "Mark Completed");
     btn.addEventListener("click", async function () {
       var comment = prompt("Describe how this was completed (required — no file to attach):", "");
@@ -1399,7 +1419,7 @@
     return btn;
   }
   function markNotRequiredButton(submissionId, after) {
-    after = after || function () { openDetail(currentProjectId); };
+    after = after || refreshCurrentFolder;
     var btn = el("button", "btn ghost-crit", "Mark Not Required");
     btn.addEventListener("click", async function () {
       if (!confirm("Mark this deliverable as Not Required? It won't need a due date or a submission.")) return;
@@ -1897,16 +1917,12 @@
       smeInput.value = d.default_sme_email || ""; smeInput.placeholder = "sme@algihaz.com";
       if (d.is_tendering_bm) {
         var noteCell = el("td", "muted", "Defaults to the project's Bid Manager");
-        noteCell.setAttribute("colspan", "2");
         tr.appendChild(noteCell);
       } else {
-        var nameInput = el("input"); nameInput.type = "text";
-        nameInput.value = d.focal_point_name || ""; nameInput.placeholder = d.department_focal_name || "Name";
         var emailInput = el("input"); emailInput.type = "text";
         emailInput.value = d.focal_point_email || ""; emailInput.placeholder = d.department_focal_email || "email@algihaz.com";
-        var tdName = el("td"); tdName.appendChild(nameInput);
         var tdEmail = el("td"); tdEmail.appendChild(emailInput);
-        tr.appendChild(tdName); tr.appendChild(tdEmail);
+        tr.appendChild(tdEmail);
       }
       var tdSme = el("td"); tdSme.appendChild(smeInput);
       tr.appendChild(tdSme);
@@ -1914,7 +1930,6 @@
       saveBtn.addEventListener("click", async function () {
         var body = { default_sme_email: smeInput.value.trim() };
         if (!d.is_tendering_bm) {
-          body.focal_point_name = nameInput.value.trim();
           body.focal_point_email = emailInput.value.trim();
         }
         try {
