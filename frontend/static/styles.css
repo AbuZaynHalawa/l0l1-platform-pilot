@@ -125,6 +125,10 @@
 
   .view { padding: 26px 30px 60px; max-width: 1280px; }
   #view-detail { max-width: 1560px; }
+  /* Items 139/142 rework: both tables were still hard-capped at 1280px
+     regardless of how wide the window actually was, forcing a horizontal
+     scrollbar or clipped row content even on a roomy monitor. */
+  #view-bmtriage, #view-assigned { max-width: 1560px; }
   .view[hidden] { display: none; }
   .view-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
 
@@ -462,7 +466,12 @@
   .aq-title { font-size: 13.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .aq-sub { font-size: 12px; color: var(--ink-500); margin-top: 3px; display: flex; gap: 8px; flex-wrap: nowrap; align-items: center; overflow: hidden; }
   .aq-sub .sep { color: var(--ink-300); flex: none; }
-  .aq-sub span:not(.sep) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* Item 142 rework: these spans had ellipsis rules but no min-width, so
+     flexbox couldn't actually shrink them below their content's natural
+     size -- the row just silently overflowed and cut off whatever came
+     last (Due date) instead of each field truncating gracefully. */
+  .aq-sub span:not(.sep) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 30px; flex: 1 1 auto; }
+  .aq-sub span.aq-due { flex: none; min-width: 0; }
   .empty-state { padding: 40px 18px; text-align: center; color: var(--ink-500); font-size: 13px; }
 
   /* ---------- Create L0/L1 form ---------- */

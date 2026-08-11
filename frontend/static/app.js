@@ -401,7 +401,7 @@
         '<span>' + d.est_no + ' &#8211; ' + d.project_name + '</span><span class="sep">&middot;</span>' +
         '<span>' + deptLabel(d.department, d.department_number) + '</span><span class="sep">&middot;</span>' +
         '<span>Owner: ' + d.owner + '</span><span class="sep">&middot;</span>' +
-        '<span>Due ' + fmtDate(d.due_date) + '</span>'));
+        '<span class="aq-due">Due ' + fmtDate(d.due_date) + '</span>'));
       var authorized = isAssigned(d);
       if (authorized && d.completion_note) main.appendChild(el("div", "deliv-comment", "&#128172; " + d.completion_note));
       main.style.cursor = "pointer";
@@ -2156,7 +2156,7 @@
     rows.forEach(function (r) {
       var tr = el("tr");
       tr.appendChild(el("td", "", r.est_no));
-      tr.appendChild(el("td", "", r.name));
+      tr.appendChild(el("td", "", '<span class="proj-name">' + r.name + '</span>'));
       tr.appendChild(el("td", "", r.bid_manager || "&#8213;"));
       tr.appendChild(el("td", "", r.total_count ? (r.total_count - r.pending_count) + " / " + r.total_count : "&#8213;"));
       var sm = BM_TRIAGE_STATUS_META[r.status] || ["neutral", r.status];
