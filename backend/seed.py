@@ -276,14 +276,18 @@ L0_ITEMS = [
     ("4.7", "Support Technical Proposals with required design deliverables (if needed)", "eng", None, None, 0, "after", "on_request", None),
 
     # Item 129: L0's old single "Control Department" splits into Planning
-    # (5.1, 5.2, 5.3, 5.5, 5.6) and Cost Control (5.4, plus its own copy of
-    # 5.1/5.2 since both departments need those two) -- same
-    # shared-item_no-across-departments pattern as item 124's 9.3 split.
+    # (5.1, 5.2, 5.3, 5.4, 5.5) and Cost Control (own copy of 5.1/5.2 plus
+    # Fleet Productivities) -- same shared-item_no-across-departments
+    # pattern as item 124's 9.3 split. Item 127 follow-up: Planning's own
+    # numbers closed up to a gapless 5.1-5.5 (were 5.1,5.2,5.3,5.5,5.6,
+    # skipping 5.4 since that slot always belonged to Cost Control's own
+    # item, not Planning) -- no predecessor elsewhere references the old
+    # 5.5/5.6 values, so this rename needed no other item touched.
     ("5.1", "Prepare Risk Register", "planning", "predecessor", "2.2", 1, "after", "date_driven", None),
     ("5.2", "Highlight points require Pre-bid clarifications", "planning", "pre_bid", None, 3, "before", "date_driven", None),
     ("5.3", "Prepare Project schedule (level according to client requirement, up to Level 3)", "planning", "predecessor", "1.1", 15, "after", "date_driven", "M3"),
-    ("5.5", "Verify Quantities for remeasured Contracts (if applicable)", "planning", "predecessor", "1.1", 3, "after", "date_driven", None),
-    ("5.6", "Provide Updated Productivity Norms and Calculations (PCO-01-SPR-001)", "planning", None, None, 0, "after", "library", None),
+    ("5.4", "Verify Quantities for remeasured Contracts (if applicable)", "planning", "predecessor", "1.1", 3, "after", "date_driven", None),
+    ("5.5", "Provide Updated Productivity Norms and Calculations (PCO-01-SPR-001)", "planning", None, None, 0, "after", "library", None),
 
     ("6.1", "Prepare Risk Register", "costctrl", "predecessor", "2.2", 1, "after", "date_driven", None),
     ("6.2", "Highlight points require Pre-bid clarifications", "costctrl", "pre_bid", None, 3, "before", "date_driven", None),
@@ -312,20 +316,20 @@ L0_ITEMS = [
     ("10.3", "Provide Proposed Business Units, Corporate, Finance and Insurance Overheads", "finance", None, None, 0, "after", "library", None),
     ("10.4", "Provide Proposed Cash Flow & Finance Cost and Parameters", "finance", None, None, 0, "after", "library", None),
 
-    # Item 141: L0's old combined "SHEQ Department" splits into Quality
-    # (QA/QC Plan + Evaluate Subcontractors) and HSSE (Risk Register +
-    # Pre-bid clarifications + Safety/PPE + HSE Plan + Personnel
-    # Requirements), mirroring L1's existing Quality/HSSE split -- clean
-    # single-item moves, no duplication needed (every item lands on
-    # exactly one side).
-    ("11.1", "Prepare QA/QC Plan - Tender Level", "quality", "predecessor", "1.1", 7, "after", "date_driven", None),
-    ("11.2", "Evaluate Selected subcontractors (for not Qualified / Approved Subcontractors)", "quality", "predecessor", "1.17", 2, "after", "date_driven", None),
+    # Item 141 rework: revised split -- Quality now gets Risk Register,
+    # Pre-bid clarifications, QA/QC Plan, Evaluate Subcontractors, and
+    # Personnel Requirements; HSSE keeps only Safety/PPE and the HSE
+    # Plan. Clean single-item moves, no duplication needed. Personnel
+    # Requirements drops the "HSSE / Quality" suffix from its name now
+    # that it's landed cleanly on Quality alone.
+    ("11.1", "Prepare Risk Register", "quality", "predecessor", "2.2", 1, "after", "date_driven", None),
+    ("11.2", "Highlight points require Pre-bid clarifications", "quality", "pre_bid", None, 3, "before", "date_driven", None),
+    ("11.3", "Prepare QA/QC Plan - Tender Level", "quality", "predecessor", "1.1", 7, "after", "date_driven", None),
+    ("11.4", "Evaluate Selected subcontractors (for not Qualified / Approved Subcontractors)", "quality", "predecessor", "1.17", 2, "after", "date_driven", None),
+    ("11.5", "Standard Personnel Requirements (Client's Standards)", "quality", "predecessor", "1.1", 7, "after", "date_driven", None),
 
-    ("12.1", "Prepare Risk Register", "hsse", "predecessor", "2.2", 1, "after", "date_driven", None),
-    ("12.2", "Highlight points require Pre-bid clarifications", "hsse", "pre_bid", None, 3, "before", "date_driven", None),
-    ("12.3", "List of Safety Requirements & PPE", "hsse", "predecessor", "1.1", 7, "after", "date_driven", None),
-    ("12.4", "Prepare HSE Plan - Tender Level", "hsse", "predecessor", "1.1", 7, "after", "date_driven", None),
-    ("12.5", "Standard Personnel Requirements (Client's Standards) HSSE / Quality", "hsse", "predecessor", "1.1", 7, "after", "date_driven", None),
+    ("12.1", "List of Safety Requirements & PPE", "hsse", "predecessor", "1.1", 7, "after", "date_driven", None),
+    ("12.2", "Prepare HSE Plan - Tender Level", "hsse", "predecessor", "1.1", 7, "after", "date_driven", None),
 
     ("13.1", "Cost for Staff and Office Requirements (Hardware, Software, Infrastructure)", "it", "predecessor", "5.3", 3, "after", "date_driven", None),
 
@@ -378,7 +382,7 @@ L1_ITEMS = [
     ("2.9", "Start Activities for Topography and Site Investigation", "tbupbu", "predecessor", "1.2", 25, "after", None),
     ("2.10", "Provide list of project permits (Governmental, Local Authority)", "tbupbu", "predecessor", "1.2", 15, "after", None),
     ("2.11", "Preparation of Subcontracting Strategy for (OHTL/UGC) projects", "tbupbu", "predecessor", "1.2", 5, "after", None),
-    ("2.12", "Provide Confirmation on the Proposal recommendation for working schedule", "tbupbu", "predecessor", "5.6", 3, "after", None),
+    ("2.12", "Provide Confirmation on the Proposal recommendation for working schedule", "tbupbu", "predecessor", "5.3", 3, "after", None),
 
     ("2.13", "Submission of Cost Center request to Cost Control Department", "bbu", "predecessor", "1.2", 1, "after", None),
     ("2.14", "Creating PRs for MEP consultancy items through system", "bbu", "predecessor", "5.3", 2, "after", None),
@@ -401,7 +405,7 @@ L1_ITEMS = [
     ("2.9", "Start Activities for Topography and Site Investigation", "tbu", "predecessor", "1.2", 25, "after", None),
     ("2.10", "Provide list of project permits (Governmental, Local Authority)", "tbu", "predecessor", "1.2", 15, "after", None),
     ("2.11", "Preparation of Subcontracting Strategy for (OHTL/UGC) projects", "tbu", "predecessor", "1.2", 5, "after", None),
-    ("2.12", "Provide Confirmation on the Proposal recommendation for working schedule", "tbu", "predecessor", "5.6", 3, "after", None),
+    ("2.12", "Provide Confirmation on the Proposal recommendation for working schedule", "tbu", "predecessor", "5.3", 3, "after", None),
 
     ("2.1", "Submission of Cost Center request to Cost Control Department", "pbu", "predecessor", "1.2", 1, "after", None),
     ("2.2", "Creating PRs for long-lead items through the system", "pbu", "predecessor", "5.3", 2, "after", None),
@@ -414,7 +418,7 @@ L1_ITEMS = [
     ("2.9", "Start Activities for Topography and Site Investigation", "pbu", "predecessor", "1.2", 25, "after", None),
     ("2.10", "Provide list of project permits (Governmental, Local Authority)", "pbu", "predecessor", "1.2", 15, "after", None),
     ("2.11", "Preparation of Subcontracting Strategy for (OHTL/UGC) projects", "pbu", "predecessor", "1.2", 5, "after", None),
-    ("2.12", "Provide Confirmation on the Proposal recommendation for working schedule", "pbu", "predecessor", "5.6", 3, "after", None),
+    ("2.12", "Provide Confirmation on the Proposal recommendation for working schedule", "pbu", "predecessor", "5.3", 3, "after", None),
     ("2.16", "Provide general layout of Temporary facilities, laydown and storage", "pbu", "predecessor", "1.2", 7, "after", None),
 
     ("2.1", "Submission of Cost Center request to Cost Control Department", "dbu", "predecessor", "1.2", 1, "after", None),
@@ -428,7 +432,7 @@ L1_ITEMS = [
     ("2.9", "Start Activities for Topography and Site Investigation", "dbu", "predecessor", "1.2", 25, "after", None),
     ("2.10", "Provide list of project permits (Governmental, Local Authority)", "dbu", "predecessor", "1.2", 15, "after", None),
     ("2.11", "Preparation of Subcontracting Strategy for (OHTL/UGC) projects", "dbu", "predecessor", "1.2", 5, "after", None),
-    ("2.12", "Provide Confirmation on the Proposal recommendation for working schedule", "dbu", "predecessor", "5.6", 3, "after", None),
+    ("2.12", "Provide Confirmation on the Proposal recommendation for working schedule", "dbu", "predecessor", "5.3", 3, "after", None),
 
     ("2.16", "Provide general layout of Temporary facilities, laydown and storage", "bbu", "predecessor", "1.2", 7, "after", None),
 
@@ -459,8 +463,13 @@ L1_ITEMS = [
     ("6.1", "Prepare Temporary Project Budget on Oracle", "costctrl", "predecessor", "2.1", 3, "after", None),
     ("6.2", "Prepare Project Baseline Budget on Oracle", "costctrl", "predecessor", "1.3", 14, "after", None),
     ("6.3", "Prepare Project Locked Budget on Oracle (As per signed Contract)", "costctrl", "predecessor", "1.6", 14, "after", None),
-    ("5.6", "Provide Proposal recommendation for working schedule for time schedule driven items", "planning", "predecessor", "5.1", 3, "after", None),
-    ("5.7", "Update Planning Risk Register including lesson learned", "planning", "predecessor", "5.2", 3, "after", None),
+    # Item 127 follow-up: closed the gap in Planning's own numbering
+    # (was 5.1,5.2,[Cost Control's 5.3/5.4/5.5],5.6,5.7) to a gapless
+    # 5.1-5.4 -- cross-references to the old 5.6/5.7 values (Operation
+    # Units' 2.12 in every BU variant, and Risk's own item) updated in
+    # lockstep to the new 5.3/5.4.
+    ("5.3", "Provide Proposal recommendation for working schedule for time schedule driven items", "planning", "predecessor", "5.1", 3, "after", None),
+    ("5.4", "Update Planning Risk Register including lesson learned", "planning", "predecessor", "5.2", 3, "after", None),
 
     ("7.1", "Update Contracts Risk Register and Contract Liabilities", "contract", "client_dependent", None, 1, "after", None),
 
@@ -492,7 +501,7 @@ L1_ITEMS = [
     ("12.4", "Provide Environmental management plan", "hsse", "predecessor", "1.2", 20, "after", None),
     ("12.5", "Provide Waste management plan", "hsse", "predecessor", "1.2", 20, "after", None),
 
-    ("14.1", "Verify and update Project Risk register", "risk", "predecessor", "5.7", 15, "after", None),
+    ("14.1", "Verify and update Project Risk register", "risk", "predecessor", "5.4", 15, "after", None),
 
     ("15.1", "Provide Updated information on Equipment availability, location", "fleet", "predecessor", "1.6", 7, "after", None),
 
@@ -528,7 +537,7 @@ L0_SHORT_NAMES = {
     "4.7": "Support Tech Proposals",
 
     "5.1": "Prepare Risk Register", "5.2": "Highlight Pre-bid Points", "5.3": "Prepare Project Schedule",
-    "5.5": "Verify Quantities", "5.6": "Productivity Norms",
+    "5.4": "Verify Quantities", "5.5": "Productivity Norms",
 
     "6.1": "Prepare Risk Register", "6.2": "Highlight Pre-bid Points", "6.3": "Fleet Productivities",
 
@@ -543,10 +552,10 @@ L0_SHORT_NAMES = {
     "10.1": "Prepare Risk Register", "10.2": "Insurance Cost",
     "10.3": "Proposed Overheads", "10.4": "Cash Flow & Finance Cost",
 
-    "11.1": "QA/QC Plan", "11.2": "Evaluate Subcontractors",
+    "11.1": "Prepare Risk Register", "11.2": "Highlight Pre-bid Points", "11.3": "QA/QC Plan",
+    "11.4": "Evaluate Subcontractors", "11.5": "Personnel Requirements",
 
-    "12.1": "Prepare Risk Register", "12.2": "Highlight Pre-bid Points", "12.3": "Safety Requirements & PPE",
-    "12.4": "HSE Plan", "12.5": "Personnel Requirements",
+    "12.1": "Safety Requirements & PPE", "12.2": "HSE Plan",
 
     "13.1": "Staff & Office Cost",
     "14.1": "Compile Risk Registers",
@@ -573,8 +582,8 @@ L1_SHORT_NAMES = {
     "4.4": "Review Design Firm Offers", "4.5": "Review Vendor Offers", "4.6": "Review Vendor Offers (SC)",
     "4.7": "Verify Site Layout", "4.8": "Update Risk Register",
 
-    "5.1": "Baseline Schedule", "5.2": "Working Schedule", "5.6": "Schedule Recommendation",
-    "5.7": "Update Risk Register",
+    "5.1": "Baseline Schedule", "5.2": "Working Schedule", "5.3": "Schedule Recommendation",
+    "5.4": "Update Risk Register",
 
     "6.1": "Temp Project Budget", "6.2": "Baseline Budget", "6.3": "Locked Budget",
 
@@ -729,66 +738,19 @@ def run():
             planning_dept = control_dept
             db.commit()
 
-        cost_control_dept = db.query(models.Department).filter_by(name="Cost Control").first()
-        if planning_dept and cost_control_dept:
-            fleet_prod_def = db.query(models.DeliverableDefinition).filter_by(
-                stage=models.Stage.L0, item_no="5.4", department_id=planning_dept.id
-            ).first()
-            if fleet_prod_def:
-                fleet_prod_def.department_id = cost_control_dept.id
-                db.commit()
-
-            for item_no, name, short in (
-                ("5.1", "Prepare Risk Register", "Prepare Risk Register"),
-                ("5.2", "Highlight points require Pre-bid clarifications", "Highlight Pre-bid Points"),
-            ):
-                old_def = db.query(models.DeliverableDefinition).filter_by(
-                    stage=models.Stage.L0, item_no=item_no, department_id=planning_dept.id
-                ).first()
-                already = db.query(models.DeliverableDefinition).filter_by(
-                    stage=models.Stage.L0, item_no=item_no, department_id=cost_control_dept.id
-                ).first()
-                if old_def and not already:
-                    new_def = models.DeliverableDefinition(
-                        stage=models.Stage.L0, item_no=item_no, name=name, short_name=short,
-                        department_id=cost_control_dept.id,
-                        anchor_type=old_def.anchor_type, predecessor_item_no=old_def.predecessor_item_no,
-                        offset_days=old_def.offset_days, offset_direction=old_def.offset_direction,
-                        deliverable_type=old_def.deliverable_type,
-                        default_owner_email=TEST_EMAIL, default_sme_email=TEST_EMAIL,
-                    )
-                    db.add(new_def)
-                    db.commit()
-                    db.refresh(new_def)
-
-                    affected_projects = []
-                    for sub in db.query(models.DeliverableSubmission).filter_by(deliverable_definition_id=old_def.id).all():
-                        dup = models.DeliverableSubmission(
-                            project_id=sub.project_id, deliverable_definition_id=new_def.id,
-                            owner_email=sub.owner_email, sme_email=sub.sme_email, applicability=sub.applicability,
-                        )
-                        if sub.status == models.SubmissionStatus.APPROVED:
-                            dup.status = models.SubmissionStatus.APPROVED
-                            dup.due_date = sub.due_date
-                            dup.submitted_at = sub.submitted_at
-                            dup.reviewed_at = sub.reviewed_at
-                            dup.review_comment = sub.review_comment
-                            dup.file_name = sub.file_name
-                            dup.file_ref = sub.file_ref
-                        else:
-                            affected_projects.append(sub.project)
-                        db.add(dup)
-                    db.commit()
-                    # A duplicate created here bypasses _provision_and_instantiate,
-                    # so unless it was approved above, it starts out with the
-                    # model's bare default (status=NOT_DUE, due_date=None) --
-                    # force a recompute so pending items correctly land on
-                    # PENDING_TRIAGE (item 129's Cost Control copies are L0,
-                    # where that status is real) and everything else gets a
-                    # real due date instead of sitting stuck at None.
-                    for proj in affected_projects:
-                        rules.recompute_project_due_dates(db, proj, force=True)
-                    db.commit()
+        # The rest of item 129 (moving Fleet Productivities off Planning
+        # onto Cost Control, and duplicating Risk Register/Pre-bid
+        # clarifications for Cost Control) already fully completed in an
+        # earlier deploy -- Cost Control has permanently had its own
+        # 6.1/6.2/6.3 since then. That code is retired rather than left in
+        # place: its guards matched on Planning/Cost Control's OLD 5.x
+        # item_no values, which the item 127 follow-up renumbering (Cost
+        # Control -> 6.x) made stale -- left running, it would misfire on
+        # every future seed (mistaking Planning's now-permanent "5.4" for
+        # the long-gone Fleet Productivities item, and endlessly
+        # recreating "already exists" duplicates for Cost Control's Risk
+        # Register/Pre-bid since the guard's "already" check still looked
+        # for them at the old 5.1/5.2, not their real home at 6.1/6.2).
 
         # Item 128: L0's old combined "Fleet and Facility Management
         # Department" splits across the shared "Fleet" (equipment,
@@ -924,6 +886,58 @@ def run():
                 db.delete(old_sheq_dept)
                 db.commit()
 
+        # Item 141 rework: corrected the Quality/HSSE split -- Quality now
+        # gets Risk Register, Pre-bid clarifications, and Personnel
+        # Requirements too (moved off HSSE), keeping QA/QC Plan and
+        # Evaluate Subcontractors it already had; HSSE keeps only
+        # Safety/PPE and the HSE Plan. Guarded by NAME, not item_no --
+        # after this runs once, HSSE's own remaining items get renumbered
+        # down to 12.1/12.2, which would coincidentally match the OLD
+        # item_no this block searches for and misfire on the next deploy
+        # if the guard weren't renumber-proof (item_no values get reused
+        # across unrelated migrations; a real deliverable's name doesn't).
+        quality_dept3 = db.query(models.Department).filter_by(name="Quality").first()
+        hsse_dept3 = db.query(models.Department).filter_by(name="HSSE").first()
+        already_reworked = quality_dept3 and db.query(models.DeliverableDefinition).filter_by(
+            stage=models.Stage.L0, department_id=quality_dept3.id, name="Prepare Risk Register"
+        ).first()
+        if quality_dept3 and hsse_dept3 and not already_reworked:
+            db.query(models.DeliverableDefinition).filter(
+                models.DeliverableDefinition.department_id == hsse_dept3.id,
+                models.DeliverableDefinition.stage == models.Stage.L0,
+                models.DeliverableDefinition.item_no.in_(["12.1", "12.2", "12.5"]),
+            ).update({"department_id": quality_dept3.id}, synchronize_session=False)
+            db.commit()
+
+            personnel_def = db.query(models.DeliverableDefinition).filter_by(
+                stage=models.Stage.L0, item_no="12.5", department_id=quality_dept3.id
+            ).first()
+            if personnel_def and "HSSE" in (personnel_def.name or ""):
+                personnel_def.name = "Standard Personnel Requirements (Client's Standards)"
+                db.commit()
+
+            # Renumber Quality's now-5 items to 11.1-11.5 -- existing
+            # 11.1/11.2 (QA/QC Plan, Evaluate Subcontractors) must move out
+            # of the way (to 11.3/11.4) BEFORE the moved-in items (12.1,
+            # 12.2) claim 11.1/11.2, or the lookup below would collide.
+            for old_no, new_no in [("11.2", "11.4"), ("11.1", "11.3"), ("12.1", "11.1"), ("12.2", "11.2"), ("12.5", "11.5")]:
+                d = db.query(models.DeliverableDefinition).filter_by(
+                    stage=models.Stage.L0, item_no=old_no, department_id=quality_dept3.id
+                ).first()
+                if d:
+                    d.item_no = new_no
+            db.commit()
+
+            # HSSE's two remaining items (Safety/PPE, HSE Plan) renumber
+            # down to 12.1/12.2.
+            for old_no, new_no in [("12.3", "12.1"), ("12.4", "12.2")]:
+                d = db.query(models.DeliverableDefinition).filter_by(
+                    stage=models.Stage.L0, item_no=old_no, department_id=hsse_dept3.id
+                ).first()
+                if d:
+                    d.item_no = new_no
+            db.commit()
+
         # Item 127 rework: full sequential renumbering -- Treasury/Finance
         # and Quality/HSSE no longer share one department number each, so
         # every item_no under a renumbered department gets rewritten to
@@ -943,6 +957,17 @@ def run():
             # Same plain rename pattern, just extended to these three.
             (models.Stage.L0, "Cost Control", "5.1", "6.1"), (models.Stage.L0, "Cost Control", "5.2", "6.2"),
             (models.Stage.L0, "Cost Control", "5.4", "6.3"),
+            # Item 127 follow-up: closed Planning's own numbering gap (was
+            # 5.1,5.2,5.3,5.5,5.6, skipping 5.4 since that slot always
+            # belonged to Cost Control's own item) to a gapless 5.1-5.5.
+            # Order matters: 5.5 must vacate to 5.4 before 5.6 claims 5.5.
+            (models.Stage.L0, "Planning", "5.5", "5.4"), (models.Stage.L0, "Planning", "5.6", "5.5"),
+            # Same for L1 Planning: was 5.1,5.2,[Cost Control's 5.3-5.5],
+            # 5.6,5.7 -- closed to a gapless 5.1-5.4. Cross-references to
+            # the old 5.6/5.7 (Operation Units' 2.12 in every BU variant,
+            # and Risk's own item) already point at the new 5.3/5.4 in the
+            # L1_ITEMS tuples above, so no further updates needed here.
+            (models.Stage.L1, "Planning", "5.6", "5.3"), (models.Stage.L1, "Planning", "5.7", "5.4"),
             (models.Stage.L0, "Contract", "6.1", "7.1"), (models.Stage.L0, "Contract", "6.2", "7.2"),
             (models.Stage.L0, "Contract", "6.3", "7.3"), (models.Stage.L0, "Contract", "6.4", "7.4"),
             (models.Stage.L0, "Human Resources", "7.1", "8.1"), (models.Stage.L0, "Human Resources", "7.2", "8.2"),
@@ -977,6 +1002,20 @@ def run():
         for stage_val, dept_name, old_no, new_no in _ITEM_NO_RENUMBER:
             dept = db.query(models.Department).filter_by(name=dept_name).first()
             if not dept:
+                continue
+            # Skip if the target value is already occupied -- on a repeat
+            # seed run, an earlier rename may have already landed a row on
+            # new_no, and old_no can by then coincidentally belong to an
+            # unrelated, already-correct row (bit us once already: on a
+            # second run, Planning's real "5.5" Productivity Norms item
+            # got wrongly renamed to "5.4" because "5.4"->"5.5" from a
+            # DIFFERENT department's now-completed rename left "5.5" as a
+            # stale old_no this entry still matched on). This makes every
+            # entry safely re-appliable regardless of run count.
+            already_at_target = db.query(models.DeliverableDefinition).filter_by(
+                stage=stage_val, item_no=new_no, department_id=dept.id
+            ).first()
+            if already_at_target:
                 continue
             d = db.query(models.DeliverableDefinition).filter_by(
                 stage=stage_val, item_no=old_no, department_id=dept.id
