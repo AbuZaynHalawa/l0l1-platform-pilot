@@ -64,7 +64,12 @@ DEPARTMENTS = [
     # same focal point across both stages) — only listed once here; L1_DEPT
     # below just points its own dept_key at these same names.
     "Tendering Department", "Operation Units", "Supply Chain", "Engineering Department",
-    "Contract", "Human Resources", "Financial Department", "SHEQ Department", "IT Department",
+    "Contract", "Human Resources", "IT Department",
+    # Items 127/141: "Financial Department" and "SHEQ Department" no longer
+    # get created here -- each has been split across the shared
+    # Treasury/Finance and Quality/HSSE departments below by the migration
+    # in run(), same pattern as "Control Department" and "Fleet and
+    # Facility Management Department" before them.
     # Items 128/129: "Control Department", "Risk Department" and "Fleet and
     # Facility Management Department" no longer get created here -- each has
     # been folded into (or split across) the shared Planning/Cost Control,
@@ -126,10 +131,14 @@ DEPARTMENT_RENAMES = {
 # Cost Control gets its own number, separate from Planning (item 129);
 # IT/Risk/Fleet/FM each get their own number instead of accidentally sharing
 # one (item 128 splits Fleet/FM for L0 too, and Risk is consolidated into
-# one department -- see the merge in run() below). "Financial Department"
-# and "SHEQ Department" are untouched by 128/129 -- L0 still has ONE
-# combined department for each, so those keep sharing a number with their
-# L1 Treasury/Finance and Quality/HSSE counterparts, same pattern as before.
+# one department -- see the merge in run() below).
+# Item 127 rework: Treasury/Finance and Quality/HSSE no longer share one
+# number each (previously 9 and 10) -- every real department gets its own
+# unique number, continuing the sequence. "Financial Department" and "SHEQ
+# Department" no longer exist as their own numbered slots -- L0's combined
+# versions split across Treasury/Finance and Quality/HSSE by the migration
+# in run() below (item 141), same pattern as the Planning/Cost Control and
+# Fleet/FM splits already used.
 DEPARTMENT_NUMBERS = {
     "Tendering Department": 1,
     "Operation Units": 2, "TBU / PBU": 2, "BBU": 2, "BBU / PBU": 2,
@@ -141,12 +150,14 @@ DEPARTMENT_NUMBERS = {
     "Cost Control": 6,
     "Contract": 7,
     "Human Resources": 8,
-    "Financial Department": 9, "Treasury": 9, "Finance": 9,
-    "SHEQ Department": 10, "Quality": 10, "HSSE": 10,
-    "IT Department": 11,
-    "Risk": 12, "Risk Department": 12,
-    "Fleet": 13, "Fleet and Facility Management Department": 13,
-    "FM": 14,
+    "Treasury": 9,
+    "Finance": 10,
+    "Quality": 11,
+    "HSSE": 12,
+    "IT Department": 13,
+    "Risk": 14, "Risk Department": 14,
+    "Fleet": 15, "Fleet and Facility Management Department": 15,
+    "FM": 16,
 }
 
 # ---------------------------------------------------------------------------
@@ -157,7 +168,7 @@ DEPARTMENT_NUMBERS = {
 L0_DEPT = {
     "tendering": "Tendering Department", "operation": "Operation Units", "supply": "Supply Chain",
     "eng": "Engineering Department", "contract": "Contract",
-    "hr": "Human Resources", "finance": "Financial Department", "sheq": "SHEQ Department",
+    "hr": "Human Resources",
     "it": "IT Department", "risk": "Risk",
     # Items 128/129: L0 now shares the same Planning/Cost Control and
     # Fleet/FM departments L1 already uses, instead of its own combined
@@ -165,6 +176,10 @@ L0_DEPT = {
     "planning": "Planning", "costctrl": "Cost Control", "fleet": "Fleet", "fm": "FM",
     "op_tbu": "Operation Units (TBU)", "op_pbu": "Operation Units (PBU)",
     "op_dbu": "Operation Units (DBU)", "op_bbu": "Operation Units (BBU)",
+    # Item 141: L0's own combined "Financial Department" / "SHEQ Department"
+    # split across the same shared Treasury/Finance and Quality/HSSE
+    # departments L1 already uses, same pattern as planning/costctrl above.
+    "treasury": "Treasury", "finance": "Finance", "quality": "Quality", "hsse": "HSSE",
 }
 
 # (item_no, name, dept_key, anchor_type, pred, offset, direction, dtype, milestone_code)
@@ -284,30 +299,44 @@ L0_ITEMS = [
     ("7.3", "Provide updated information on Workforce availability, nationality, release dates", "hr", None, None, 0, "after", "library", None),
     ("7.4", "Provide Supporting documents, such as team CV's, certificates and Qualifications", "hr", "predecessor", "1.1", 3, "after", "date_driven", None),
 
-    ("8.1", "Prepare Risk Register", "finance", "predecessor", "2.2", 1, "after", "date_driven", None),
-    ("8.2", "Issue Bid Bonds", "finance", "predecessor", "1.20", 3, "before", "date_driven", None),
-    ("8.3", "Provide Insurance Cost, and additional client requirements", "finance", "predecessor", "1.20", 6, "before", "date_driven", None),
-    ("8.4", "Provide Proposed Business Units, Corporate, Finance and Insurance Overheads", "finance", None, None, 0, "after", "library", None),
-    ("8.5", "Provide Proposed Cash Flow & Finance Cost and Parameters", "finance", None, None, 0, "after", "library", None),
+    # Item 141: L0's old combined "Financial Department" splits into
+    # Treasury (Risk Register duplicated + Issue Bid Bonds) and Finance
+    # (Risk Register original + Insurance Cost + Overheads + Cash Flow),
+    # mirroring L1's existing Treasury/Finance split -- same
+    # shared-item_no-across-departments pattern as item 129's 5.1/5.2 split.
+    ("9.1", "Prepare Risk Register", "treasury", "predecessor", "2.2", 1, "after", "date_driven", None),
+    ("9.2", "Issue Bid Bonds", "treasury", "predecessor", "1.20", 3, "before", "date_driven", None),
 
-    ("9.1", "Prepare Risk Register", "sheq", "predecessor", "2.2", 1, "after", "date_driven", None),
-    ("9.2", "Highlight points require Pre-bid clarifications", "sheq", "pre_bid", None, 3, "before", "date_driven", None),
-    ("9.3", "List of Safety Requirements & PPE", "sheq", "predecessor", "1.1", 7, "after", "date_driven", None),
-    ("9.4", "Prepare QA/QC Plan - Tender Level", "sheq", "predecessor", "1.1", 7, "after", "date_driven", None),
-    ("9.5", "Prepare HSE Plan - Tender Level", "sheq", "predecessor", "1.1", 7, "after", "date_driven", None),
-    ("9.6", "Evaluate Selected subcontractors (for not Qualified / Approved Subcontractors)", "sheq", "predecessor", "1.17", 2, "after", "date_driven", None),
-    ("9.7", "Standard Personnel Requirements (Client's Standards) HSSE / Quality", "sheq", "predecessor", "1.1", 7, "after", "date_driven", None),
+    ("10.1", "Prepare Risk Register", "finance", "predecessor", "2.2", 1, "after", "date_driven", None),
+    ("10.2", "Provide Insurance Cost, and additional client requirements", "finance", "predecessor", "1.20", 6, "before", "date_driven", None),
+    ("10.3", "Provide Proposed Business Units, Corporate, Finance and Insurance Overheads", "finance", None, None, 0, "after", "library", None),
+    ("10.4", "Provide Proposed Cash Flow & Finance Cost and Parameters", "finance", None, None, 0, "after", "library", None),
 
-    ("10.1", "Cost for Staff and Office Requirements (Hardware, Software, Infrastructure)", "it", "predecessor", "5.3", 3, "after", "date_driven", None),
+    # Item 141: L0's old combined "SHEQ Department" splits into Quality
+    # (QA/QC Plan + Evaluate Subcontractors) and HSSE (Risk Register +
+    # Pre-bid clarifications + Safety/PPE + HSE Plan + Personnel
+    # Requirements), mirroring L1's existing Quality/HSSE split -- clean
+    # single-item moves, no duplication needed (every item lands on
+    # exactly one side).
+    ("11.1", "Prepare QA/QC Plan - Tender Level", "quality", "predecessor", "1.1", 7, "after", "date_driven", None),
+    ("11.2", "Evaluate Selected subcontractors (for not Qualified / Approved Subcontractors)", "quality", "predecessor", "1.17", 2, "after", "date_driven", None),
 
-    ("11.1", "Compile risk registers received from all departments, Evaluate and present", "risk", None, None, 0, "after", "on_request", None),
+    ("12.1", "Prepare Risk Register", "hsse", "predecessor", "2.2", 1, "after", "date_driven", None),
+    ("12.2", "Highlight points require Pre-bid clarifications", "hsse", "pre_bid", None, 3, "before", "date_driven", None),
+    ("12.3", "List of Safety Requirements & PPE", "hsse", "predecessor", "1.1", 7, "after", "date_driven", None),
+    ("12.4", "Prepare HSE Plan - Tender Level", "hsse", "predecessor", "1.1", 7, "after", "date_driven", None),
+    ("12.5", "Standard Personnel Requirements (Client's Standards) HSSE / Quality", "hsse", "predecessor", "1.1", 7, "after", "date_driven", None),
+
+    ("13.1", "Cost for Staff and Office Requirements (Hardware, Software, Infrastructure)", "it", "predecessor", "5.3", 3, "after", "date_driven", None),
+
+    ("14.1", "Compile risk registers received from all departments, Evaluate and present", "risk", None, None, 0, "after", "on_request", None),
 
     # Item 128: L0's old combined "Fleet and Facility Management Department"
-    # splits into Fleet (equipment, 12.1/12.2) and FM (camp, 12.3), matching
+    # splits into Fleet (equipment, 15.1/15.2) and FM (camp, 16.1), matching
     # how L1 already separates them.
-    ("12.1", "Recent Equipment Cost Estimates, Consumptions and Maintenance", "fleet", None, None, 0, "after", "library", None),
-    ("12.2", "Provide recent information on Equipment availability, location and release dates", "fleet", None, None, 0, "after", "library", None),
-    ("12.3", "Provide Camp Cost Estimates, Consumptions and Maintenance based on manning", "fm", "predecessor", "5.3", 5, "after", "date_driven", None),
+    ("15.1", "Recent Equipment Cost Estimates, Consumptions and Maintenance", "fleet", None, None, 0, "after", "library", None),
+    ("15.2", "Provide recent information on Equipment availability, location and release dates", "fleet", None, None, 0, "after", "library", None),
+    ("16.1", "Provide Camp Cost Estimates, Consumptions and Maintenance based on manning", "fm", "predecessor", "5.3", 5, "after", "date_driven", None),
 ]
 
 # ---------------------------------------------------------------------------
@@ -437,30 +466,37 @@ L1_ITEMS = [
 
     ("7.1", "Provide Workforce Availability Plan with Hiring dates", "hr", "predecessor", "1.2", 15, "after", None),
 
-    ("8.1", "Secure Bank Facilities for the project / Project Finance Model", "treasury", "predecessor", "8.4", 10, "after", None),
-    ("8.2", "Issuance of Performance Bond", "treasury", "predecessor", "1.5", 6, "after", None),
-    ("8.3", "Issuance of Advance Payment Guarantee", "treasury", "predecessor", "1.6", 14, "after", None),
-    ("8.4", "Provide Updated Cashflow and Finance Cost", "finance", "predecessor", "1.2", 5, "after", None),
+    # Item 127 rework: Treasury and Finance no longer share department
+    # number 9 -- Treasury keeps 9, Finance moves to 10 (its items become
+    # 10.1/10.2 instead of 8.4/8.5). Treasury's 9.1 predecessor updates
+    # from "8.4" to "10.1" to follow Finance's own renumber.
+    ("9.1", "Secure Bank Facilities for the project / Project Finance Model", "treasury", "predecessor", "10.1", 10, "after", None),
+    ("9.2", "Issuance of Performance Bond", "treasury", "predecessor", "1.5", 6, "after", None),
+    ("9.3", "Issuance of Advance Payment Guarantee", "treasury", "predecessor", "1.6", 14, "after", None),
+    ("10.1", "Provide Updated Cashflow and Finance Cost", "finance", "predecessor", "1.2", 5, "after", None),
     # Item 126: Insurance folded into Finance -- was its own "Insurance" department.
-    ("8.5", "Provide Insurance Requirements (Cost & Provider selection)", "finance", "predecessor", "1.6", 10, "after", None),
+    ("10.2", "Provide Insurance Requirements (Cost & Provider selection)", "finance", "predecessor", "1.6", 10, "after", None),
 
-    ("9.1", "Provide QA/QC Detailed Plan including ITPs for major activities", "quality", "predecessor", "1.2", 17, "after", None),
-    ("9.2", "Provide HSE Detailed Plan (Site Safety, HSE, Safety training)", "hsse", "predecessor", "1.2", 17, "after", None),
+    # Item 127 rework: Quality and HSSE no longer share department number
+    # 10 -- Quality moves to 11, HSSE moves to 12.
+    ("11.1", "Provide QA/QC Detailed Plan including ITPs for major activities", "quality", "predecessor", "1.2", 17, "after", None),
+    ("12.1", "Provide HSE Detailed Plan (Site Safety, HSE, Safety training)", "hsse", "predecessor", "1.2", 17, "after", None),
     # Item 123/124: "HSSE and Quality Staffing plans" split into one item
     # per department instead of one combined item under a third "HSSE /
-    # Quality" department -- both keep item_no 9.3, same as how Operation
-    # Units' BU split shares one item_no across several departments.
-    ("9.3", "Provide HSSE Staffing plan", "hsse", "predecessor", "1.2", 12, "after", None),
-    ("9.3", "Provide Quality Staffing plan", "quality", "predecessor", "1.2", 12, "after", None),
-    ("9.4", "Provide Risk Assessment (including identification of main hazards)", "hsse", "predecessor", "1.2", 10, "after", None),
-    ("9.5", "Provide Environmental management plan", "hsse", "predecessor", "1.2", 20, "after", None),
-    ("9.6", "Provide Waste management plan", "hsse", "predecessor", "1.2", 20, "after", None),
+    # Quality" department -- both keep the same item_no as each other
+    # (11.2/12.2), same as how Operation Units' BU split shares one
+    # item_no across several departments.
+    ("12.2", "Provide HSSE Staffing plan", "hsse", "predecessor", "1.2", 12, "after", None),
+    ("11.2", "Provide Quality Staffing plan", "quality", "predecessor", "1.2", 12, "after", None),
+    ("12.3", "Provide Risk Assessment (including identification of main hazards)", "hsse", "predecessor", "1.2", 10, "after", None),
+    ("12.4", "Provide Environmental management plan", "hsse", "predecessor", "1.2", 20, "after", None),
+    ("12.5", "Provide Waste management plan", "hsse", "predecessor", "1.2", 20, "after", None),
 
-    ("10.1", "Verify and update Project Risk register", "risk", "predecessor", "5.7", 15, "after", None),
+    ("14.1", "Verify and update Project Risk register", "risk", "predecessor", "5.7", 15, "after", None),
 
-    ("11.1", "Provide Updated information on Equipment availability, location", "fleet", "predecessor", "1.6", 7, "after", None),
+    ("15.1", "Provide Updated information on Equipment availability, location", "fleet", "predecessor", "1.6", 7, "after", None),
 
-    ("12.1", "Verify Updated Camp Cost Estimates, Consumptions and Maintenance", "fm", "predecessor", "1.2", 7, "after", None),
+    ("16.1", "Verify Updated Camp Cost Estimates, Consumptions and Maintenance", "fm", "predecessor", "1.2", 7, "after", None),
 ]
 
 
@@ -500,15 +536,19 @@ L0_SHORT_NAMES = {
     "7.1": "Verify Local Content", "7.2": "HR Cost Estimates", "7.3": "Workforce Availability",
     "7.4": "Team CVs & Certificates",
 
-    "8.1": "Prepare Risk Register", "8.2": "Issue Bid Bonds", "8.3": "Insurance Cost",
-    "8.4": "Proposed Overheads", "8.5": "Cash Flow & Finance Cost",
+    "9.1": "Prepare Risk Register", "9.2": "Issue Bid Bonds",
 
-    "9.1": "Prepare Risk Register", "9.2": "Highlight Pre-bid Points", "9.3": "Safety Requirements & PPE",
-    "9.4": "QA/QC Plan", "9.5": "HSE Plan", "9.6": "Evaluate Subcontractors", "9.7": "Personnel Requirements",
+    "10.1": "Prepare Risk Register", "10.2": "Insurance Cost",
+    "10.3": "Proposed Overheads", "10.4": "Cash Flow & Finance Cost",
 
-    "10.1": "Staff & Office Cost",
-    "11.1": "Compile Risk Registers",
-    "12.1": "Equipment Cost Estimates", "12.2": "Equipment Availability", "12.3": "Camp Cost Estimates",
+    "11.1": "QA/QC Plan", "11.2": "Evaluate Subcontractors",
+
+    "12.1": "Prepare Risk Register", "12.2": "Highlight Pre-bid Points", "12.3": "Safety Requirements & PPE",
+    "12.4": "HSE Plan", "12.5": "Personnel Requirements",
+
+    "13.1": "Staff & Office Cost",
+    "14.1": "Compile Risk Registers",
+    "15.1": "Equipment Cost Estimates", "15.2": "Equipment Availability", "16.1": "Camp Cost Estimates",
 }
 
 L1_SHORT_NAMES = {
@@ -538,15 +578,18 @@ L1_SHORT_NAMES = {
     "6.1": "Update Risk Register",
     "7.1": "Workforce Availability Plan",
 
-    "8.1": "Secure Bank Facilities", "8.2": "Performance Bond", "8.3": "Advance Payment Guarantee",
-    "8.4": "Updated Cashflow", "8.5": "Insurance Requirements",
+    "9.1": "Secure Bank Facilities", "9.2": "Performance Bond", "9.3": "Advance Payment Guarantee",
 
-    "9.1": "QA/QC Detailed Plan", "9.2": "HSE Detailed Plan", "9.3": "Staffing Plan",
-    "9.4": "Risk Assessment", "9.5": "Environmental Plan", "9.6": "Waste Management Plan",
+    "10.1": "Updated Cashflow", "10.2": "Insurance Requirements",
 
-    "10.1": "Update Risk Register",
-    "11.1": "Equipment Availability",
-    "12.1": "Camp Cost Estimates",
+    "11.1": "QA/QC Detailed Plan", "11.2": "Staffing Plan",
+
+    "12.1": "HSE Detailed Plan", "12.2": "Staffing Plan", "12.3": "Risk Assessment",
+    "12.4": "Environmental Plan", "12.5": "Waste Management Plan",
+
+    "14.1": "Update Risk Register",
+    "15.1": "Equipment Availability",
+    "16.1": "Camp Cost Estimates",
 }
 
 
@@ -781,6 +824,149 @@ def run():
                 )
                 db.delete(plain_dept)
                 db.commit()
+
+        # Item 141: L0's combined "Financial Department" splits across
+        # Treasury (Risk Register duplicated + Issue Bid Bonds) and Finance
+        # (Risk Register original + Insurance Cost + Overheads + Cash
+        # Flow), mirroring L1's existing Treasury/Finance split -- same
+        # duplicate-shared-item pattern as item 129's Planning/Cost Control
+        # Risk Register duplication. Runs on the OLD (pre-renumber) item_no
+        # values -- the renumber pass right after this fixes item_no itself.
+        old_financial_dept = db.query(models.Department).filter_by(name="Financial Department").first()
+        treasury_dept = db.query(models.Department).filter_by(name="Treasury").first()
+        finance_dept = db.query(models.Department).filter_by(name="Finance").first()
+        if old_financial_dept and treasury_dept and finance_dept:
+            db.query(models.DeliverableDefinition).filter_by(
+                department_id=old_financial_dept.id, stage=models.Stage.L0, item_no="8.2"
+            ).update({"department_id": treasury_dept.id})
+            db.query(models.DeliverableDefinition).filter(
+                models.DeliverableDefinition.department_id == old_financial_dept.id,
+                models.DeliverableDefinition.stage == models.Stage.L0,
+                models.DeliverableDefinition.item_no.in_(["8.3", "8.4", "8.5"]),
+            ).update({"department_id": finance_dept.id}, synchronize_session=False)
+            db.commit()
+
+            old_def = db.query(models.DeliverableDefinition).filter_by(
+                stage=models.Stage.L0, item_no="8.1", department_id=old_financial_dept.id
+            ).first()
+            if old_def:
+                old_def.department_id = finance_dept.id
+                db.commit()
+
+                already = db.query(models.DeliverableDefinition).filter_by(
+                    stage=models.Stage.L0, item_no="8.1", department_id=treasury_dept.id
+                ).first()
+                if not already:
+                    new_def = models.DeliverableDefinition(
+                        stage=models.Stage.L0, item_no="8.1", name=old_def.name, short_name=old_def.short_name,
+                        department_id=treasury_dept.id,
+                        anchor_type=old_def.anchor_type, predecessor_item_no=old_def.predecessor_item_no,
+                        offset_days=old_def.offset_days, offset_direction=old_def.offset_direction,
+                        deliverable_type=old_def.deliverable_type,
+                        default_owner_email=TEST_EMAIL, default_sme_email=TEST_EMAIL,
+                    )
+                    db.add(new_def)
+                    db.commit()
+                    db.refresh(new_def)
+
+                    affected_projects = []
+                    for sub in db.query(models.DeliverableSubmission).filter_by(deliverable_definition_id=old_def.id).all():
+                        dup = models.DeliverableSubmission(
+                            project_id=sub.project_id, deliverable_definition_id=new_def.id,
+                            owner_email=sub.owner_email, sme_email=sub.sme_email, applicability=sub.applicability,
+                        )
+                        if sub.status == models.SubmissionStatus.APPROVED:
+                            dup.status = models.SubmissionStatus.APPROVED
+                            dup.due_date = sub.due_date
+                            dup.submitted_at = sub.submitted_at
+                            dup.reviewed_at = sub.reviewed_at
+                            dup.review_comment = sub.review_comment
+                            dup.file_name = sub.file_name
+                            dup.file_ref = sub.file_ref
+                        else:
+                            affected_projects.append(sub.project)
+                        db.add(dup)
+                    db.commit()
+                    for proj in affected_projects:
+                        rules.recompute_project_due_dates(db, proj, force=True)
+                    db.commit()
+
+            if not db.query(models.DeliverableDefinition).filter_by(department_id=old_financial_dept.id).first():
+                db.delete(old_financial_dept)
+                db.commit()
+
+        # Item 141: L0's combined "SHEQ Department" splits across Quality
+        # (QA/QC Plan + Evaluate Subcontractors) and HSSE (Risk Register +
+        # Pre-bid clarifications + Safety/PPE + HSE Plan + Personnel
+        # Requirements), mirroring L1's existing Quality/HSSE split --
+        # clean single-item moves, no duplication needed since every item
+        # lands on exactly one side.
+        old_sheq_dept = db.query(models.Department).filter_by(name="SHEQ Department").first()
+        quality_dept = db.query(models.Department).filter_by(name="Quality").first()
+        hsse_dept = db.query(models.Department).filter_by(name="HSSE").first()
+        if old_sheq_dept and quality_dept and hsse_dept:
+            db.query(models.DeliverableDefinition).filter(
+                models.DeliverableDefinition.department_id == old_sheq_dept.id,
+                models.DeliverableDefinition.stage == models.Stage.L0,
+                models.DeliverableDefinition.item_no.in_(["9.4", "9.6"]),
+            ).update({"department_id": quality_dept.id}, synchronize_session=False)
+            db.query(models.DeliverableDefinition).filter(
+                models.DeliverableDefinition.department_id == old_sheq_dept.id,
+                models.DeliverableDefinition.stage == models.Stage.L0,
+                models.DeliverableDefinition.item_no.in_(["9.1", "9.2", "9.3", "9.5", "9.7"]),
+            ).update({"department_id": hsse_dept.id}, synchronize_session=False)
+            db.commit()
+
+            if not db.query(models.DeliverableDefinition).filter_by(department_id=old_sheq_dept.id).first():
+                db.delete(old_sheq_dept)
+                db.commit()
+
+        # Item 127 rework: full sequential renumbering -- Treasury/Finance
+        # and Quality/HSSE no longer share one department number each, so
+        # every item_no under a renumbered department gets rewritten to
+        # match (e.g. L1 Finance's items become 10.1/10.2 instead of
+        # 8.4/8.5). Plain old_item_no -> new_item_no swaps on whichever row
+        # the department move above already relocated -- department itself
+        # is untouched here. Runs before the upsert loop below so its
+        # (stage, item_no, department_id) lookup finds the existing row
+        # instead of creating a stray duplicate.
+        _ITEM_NO_RENUMBER = [
+            (models.Stage.L0, "Treasury", "8.1", "9.1"), (models.Stage.L0, "Treasury", "8.2", "9.2"),
+            (models.Stage.L0, "Finance", "8.1", "10.1"), (models.Stage.L0, "Finance", "8.3", "10.2"),
+            (models.Stage.L0, "Finance", "8.4", "10.3"), (models.Stage.L0, "Finance", "8.5", "10.4"),
+            (models.Stage.L0, "Quality", "9.4", "11.1"), (models.Stage.L0, "Quality", "9.6", "11.2"),
+            (models.Stage.L0, "HSSE", "9.1", "12.1"), (models.Stage.L0, "HSSE", "9.2", "12.2"),
+            (models.Stage.L0, "HSSE", "9.3", "12.3"), (models.Stage.L0, "HSSE", "9.5", "12.4"),
+            (models.Stage.L0, "HSSE", "9.7", "12.5"),
+            (models.Stage.L0, "IT Department", "10.1", "13.1"),
+            (models.Stage.L0, "Risk", "11.1", "14.1"),
+            (models.Stage.L0, "Fleet", "12.1", "15.1"), (models.Stage.L0, "Fleet", "12.2", "15.2"),
+            (models.Stage.L0, "FM", "12.3", "16.1"),
+            (models.Stage.L1, "Treasury", "8.1", "9.1"), (models.Stage.L1, "Treasury", "8.2", "9.2"),
+            (models.Stage.L1, "Treasury", "8.3", "9.3"),
+            (models.Stage.L1, "Finance", "8.4", "10.1"), (models.Stage.L1, "Finance", "8.5", "10.2"),
+            (models.Stage.L1, "Quality", "9.1", "11.1"), (models.Stage.L1, "Quality", "9.3", "11.2"),
+            (models.Stage.L1, "HSSE", "9.2", "12.1"), (models.Stage.L1, "HSSE", "9.3", "12.2"),
+            (models.Stage.L1, "HSSE", "9.4", "12.3"), (models.Stage.L1, "HSSE", "9.5", "12.4"),
+            (models.Stage.L1, "HSSE", "9.6", "12.5"),
+            (models.Stage.L1, "Risk", "10.1", "14.1"),
+            (models.Stage.L1, "Fleet", "11.1", "15.1"),
+            (models.Stage.L1, "FM", "12.1", "16.1"),
+        ]
+        renumbered = 0
+        for stage_val, dept_name, old_no, new_no in _ITEM_NO_RENUMBER:
+            dept = db.query(models.Department).filter_by(name=dept_name).first()
+            if not dept:
+                continue
+            d = db.query(models.DeliverableDefinition).filter_by(
+                stage=stage_val, item_no=old_no, department_id=dept.id
+            ).first()
+            if d:
+                d.item_no = new_no
+                renumbered += 1
+        if renumbered:
+            db.commit()
+            print(f"Renumbered {renumbered} deliverable definition(s) — Treasury/Finance/Quality/HSSE/IT/Risk/Fleet/FM sequential renumber.")
 
         dept_map = {}
         for i, name in enumerate(DEPARTMENTS):

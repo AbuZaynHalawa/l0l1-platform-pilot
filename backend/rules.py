@@ -118,7 +118,10 @@ L0_THRESHOLD_DURATION_ITEMS = {"1.8", "1.9", "1.10"}
 # L0: "Prepare Risk Register" items that normally chain off the site visit
 # report(s), but fall back to announcement + 3 working days if this project
 # has no site visit scheduled at all (site_visit_date left blank).
-L0_SITE_VISIT_FALLBACK_ITEMS = {"2.4", "3.1", "4.1", "5.1", "8.1", "9.1"}
+# Item 141 renumber: Financial Department's old "8.1" split into Treasury's
+# "9.1" and Finance's "10.1" (both keep a Risk Register copy); SHEQ
+# Department's old "9.1" moved to HSSE's "12.1" (Quality doesn't get one).
+L0_SITE_VISIT_FALLBACK_ITEMS = {"2.4", "3.1", "4.1", "5.1", "9.1", "10.1", "12.1"}
 
 
 def _tender_window_days(project: "models.Project") -> int | None:
