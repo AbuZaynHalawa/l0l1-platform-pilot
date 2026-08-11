@@ -316,20 +316,27 @@ L0_ITEMS = [
     ("10.3", "Provide Proposed Business Units, Corporate, Finance and Insurance Overheads", "finance", None, None, 0, "after", "library", None),
     ("10.4", "Provide Proposed Cash Flow & Finance Cost and Parameters", "finance", None, None, 0, "after", "library", None),
 
-    # Item 141 rework: revised split -- Quality now gets Risk Register,
-    # Pre-bid clarifications, QA/QC Plan, Evaluate Subcontractors, and
-    # Personnel Requirements; HSSE keeps only Safety/PPE and the HSE
-    # Plan. Clean single-item moves, no duplication needed. Personnel
-    # Requirements drops the "HSSE / Quality" suffix from its name now
-    # that it's landed cleanly on Quality alone.
+    # Item 141 rework: Quality gets Risk Register, Pre-bid clarifications,
+    # QA/QC Plan, Evaluate Subcontractors, and Personnel Requirements.
+    # Personnel Requirements drops the "HSSE / Quality" suffix from its
+    # name now that it's landed cleanly on Quality alone.
     ("11.1", "Prepare Risk Register", "quality", "predecessor", "2.2", 1, "after", "date_driven", None),
     ("11.2", "Highlight points require Pre-bid clarifications", "quality", "pre_bid", None, 3, "before", "date_driven", None),
     ("11.3", "Prepare QA/QC Plan - Tender Level", "quality", "predecessor", "1.1", 7, "after", "date_driven", None),
     ("11.4", "Evaluate Selected subcontractors (for not Qualified / Approved Subcontractors)", "quality", "predecessor", "1.17", 2, "after", "date_driven", None),
     ("11.5", "Standard Personnel Requirements (Client's Standards)", "quality", "predecessor", "1.1", 7, "after", "date_driven", None),
 
-    ("12.1", "List of Safety Requirements & PPE", "hsse", "predecessor", "1.1", 7, "after", "date_driven", None),
-    ("12.2", "Prepare HSE Plan - Tender Level", "hsse", "predecessor", "1.1", 7, "after", "date_driven", None),
+    # Item 141 second rework: reverted -- HSSE keeps its own full
+    # original 5 items (Risk Register, Pre-bid clarifications,
+    # Safety/PPE, HSE Plan, Personnel Requirements), duplicated
+    # alongside Quality's own copies rather than moved off entirely.
+    # Only 12.5's name changes (drops "HSSE / Quality", same as
+    # Quality's 11.5).
+    ("12.1", "Prepare Risk Register", "hsse", "predecessor", "2.2", 1, "after", "date_driven", None),
+    ("12.2", "Highlight points require Pre-bid clarifications", "hsse", "pre_bid", None, 3, "before", "date_driven", None),
+    ("12.3", "List of Safety Requirements & PPE", "hsse", "predecessor", "1.1", 7, "after", "date_driven", None),
+    ("12.4", "Prepare HSE Plan - Tender Level", "hsse", "predecessor", "1.1", 7, "after", "date_driven", None),
+    ("12.5", "Standard Personnel Requirements (Client's Standards)", "hsse", "predecessor", "1.1", 7, "after", "date_driven", None),
 
     ("13.1", "Cost for Staff and Office Requirements (Hardware, Software, Infrastructure)", "it", "predecessor", "5.3", 3, "after", "date_driven", None),
 
@@ -555,7 +562,8 @@ L0_SHORT_NAMES = {
     "11.1": "Prepare Risk Register", "11.2": "Highlight Pre-bid Points", "11.3": "QA/QC Plan",
     "11.4": "Evaluate Subcontractors", "11.5": "Personnel Requirements",
 
-    "12.1": "Safety Requirements & PPE", "12.2": "HSE Plan",
+    "12.1": "Prepare Risk Register", "12.2": "Highlight Pre-bid Points", "12.3": "Safety Requirements & PPE",
+    "12.4": "HSE Plan", "12.5": "Personnel Requirements",
 
     "13.1": "Staff & Office Cost",
     "14.1": "Compile Risk Registers",
@@ -939,6 +947,72 @@ def run():
                     d.item_no = new_no
                     db.flush()
             db.commit()
+
+        # Item 141 third rework: reverted -- HSSE keeps its own full
+        # original 5 items instead of losing Risk Register/Pre-bid
+        # clarifications/Personnel Requirements to Quality. Since the
+        # prior rework already moved those off HSSE, this duplicates them
+        # back from Quality's now-permanent copies (mirroring Treasury/
+        # Finance's own Risk Register duplication) rather than trying to
+        # "undo" a move -- copying already-approved state across for
+        # existing projects. Guarded by name, not item_no, same reasoning
+        # as the rework above.
+        quality_dept4 = db.query(models.Department).filter_by(name="Quality").first()
+        hsse_dept4 = db.query(models.Department).filter_by(name="HSSE").first()
+        already_restored = hsse_dept4 and db.query(models.DeliverableDefinition).filter_by(
+            stage=models.Stage.L0, department_id=hsse_dept4.id, name="Prepare Risk Register"
+        ).first()
+        if quality_dept4 and hsse_dept4 and not already_restored:
+            # HSSE's two remaining items (Safety/PPE, HSE Plan) make room
+            # by moving from 12.1/12.2 to their final 12.3/12.4 first.
+            for old_no, new_no in [("12.2", "12.4"), ("12.1", "12.3")]:
+                d = db.query(models.DeliverableDefinition).filter_by(
+                    stage=models.Stage.L0, item_no=old_no, department_id=hsse_dept4.id
+                ).first()
+                if d:
+                    d.item_no = new_no
+                    db.flush()
+            db.commit()
+
+            for src_item_no, new_item_no in [("11.1", "12.1"), ("11.2", "12.2"), ("11.5", "12.5")]:
+                src_def = db.query(models.DeliverableDefinition).filter_by(
+                    stage=models.Stage.L0, item_no=src_item_no, department_id=quality_dept4.id
+                ).first()
+                if not src_def:
+                    continue
+                new_def = models.DeliverableDefinition(
+                    stage=models.Stage.L0, item_no=new_item_no, name=src_def.name, short_name=src_def.short_name,
+                    department_id=hsse_dept4.id,
+                    anchor_type=src_def.anchor_type, predecessor_item_no=src_def.predecessor_item_no,
+                    offset_days=src_def.offset_days, offset_direction=src_def.offset_direction,
+                    deliverable_type=src_def.deliverable_type,
+                    default_owner_email=TEST_EMAIL, default_sme_email=TEST_EMAIL,
+                )
+                db.add(new_def)
+                db.commit()
+                db.refresh(new_def)
+
+                affected_projects = []
+                for sub in db.query(models.DeliverableSubmission).filter_by(deliverable_definition_id=src_def.id).all():
+                    dup = models.DeliverableSubmission(
+                        project_id=sub.project_id, deliverable_definition_id=new_def.id,
+                        owner_email=sub.owner_email, sme_email=sub.sme_email, applicability=sub.applicability,
+                    )
+                    if sub.status == models.SubmissionStatus.APPROVED:
+                        dup.status = models.SubmissionStatus.APPROVED
+                        dup.due_date = sub.due_date
+                        dup.submitted_at = sub.submitted_at
+                        dup.reviewed_at = sub.reviewed_at
+                        dup.review_comment = sub.review_comment
+                        dup.file_name = sub.file_name
+                        dup.file_ref = sub.file_ref
+                    else:
+                        affected_projects.append(sub.project)
+                    db.add(dup)
+                db.commit()
+                for proj in affected_projects:
+                    rules.recompute_project_due_dates(db, proj, force=True)
+                db.commit()
 
         # Item 127 rework: full sequential renumbering -- Treasury/Finance
         # and Quality/HSSE no longer share one department number each, so

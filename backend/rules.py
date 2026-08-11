@@ -120,9 +120,9 @@ L0_THRESHOLD_DURATION_ITEMS = {"1.8", "1.9", "1.10"}
 # has no site visit scheduled at all (site_visit_date left blank).
 # Item 141 renumber: Financial Department's old "8.1" split into Treasury's
 # "9.1" and Finance's "10.1" (both keep a Risk Register copy); SHEQ
-# Department's Risk Register now lives on Quality's "11.1" (HSSE doesn't
-# get one, per the revised split).
-L0_SITE_VISIT_FALLBACK_ITEMS = {"2.4", "3.1", "4.1", "5.1", "9.1", "10.1", "11.1"}
+# Department's Risk Register is now duplicated onto both Quality's "11.1"
+# and HSSE's "12.1".
+L0_SITE_VISIT_FALLBACK_ITEMS = {"2.4", "3.1", "4.1", "5.1", "9.1", "10.1", "11.1", "12.1"}
 
 
 def _tender_window_days(project: "models.Project") -> int | None:
