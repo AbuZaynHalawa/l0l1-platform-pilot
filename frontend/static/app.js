@@ -1268,7 +1268,11 @@
          ["Site Visit", fmtDate(p.site_visit_date), "date:site_visit_date:Site Visit Date"],
          ["Pre-Bid Meeting", fmtDate(p.pre_bid_meeting_date), "date:pre_bid_meeting_date:Pre-Bid Meeting Date"],
          ["Pre-Bid Deadline", fmtDate(p.pre_bid_deadline), "date:pre_bid_deadline:Pre-Bid Deadline"],
-         ["Bid Submission Date", fmtDate(p.bsd)]]
+         // Item 149: BSD is editable like every other anchor date -- extending
+         // it recomputes every dependent deliverable's due date the same way
+         // any other date-field edit already does (see the shared "date:"
+         // handler above and update_project_details's date_changed loop).
+         ["Bid Submission Date", fmtDate(p.bsd), "date:bsd:Bid Submission Date"]]
       : [["Bid Manager", p.bid_manager || "&#8213;", "bm"], ["Project Manager", p.project_manager || "&#8213;", "pm"],
          ["Region", joinList(p.region), "region"], ["Scope", joinList(p.scope)], ["Business Unit", buLabel],
          ["Announced", fmtDate(p.announcement_date), "date:announcement_date:Announcement Date"],

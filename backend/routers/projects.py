@@ -434,7 +434,7 @@ def update_project_details(project_id: int, payload: schemas.ProjectDetailsUpdat
     if "region_other" in data:
         project.region_other = data["region_other"]
     date_changed = False
-    for field in ("announcement_date", "site_visit_date", "pre_bid_meeting_date", "pre_bid_deadline"):
+    for field in ("announcement_date", "site_visit_date", "pre_bid_meeting_date", "pre_bid_deadline", "bsd"):
         if field in data:
             setattr(project, field, data[field])
             date_changed = True

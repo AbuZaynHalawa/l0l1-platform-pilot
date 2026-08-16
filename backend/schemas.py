@@ -35,9 +35,11 @@ class ProjectStatusUpdate(BaseModel):
 
 class ProjectDetailsUpdate(BaseModel):
     """Admin-only low-risk field edits. Only fields actually sent are applied
-    (exclude_unset) — scope and BSD are deliberately not here, since they drive
-    deliverable generation and business-unit classification and need a bigger
-    conversation than a quick inline edit.
+    (exclude_unset) — scope is deliberately not here, since it drives
+    deliverable generation and business-unit classification and needs a
+    bigger conversation than a quick inline edit. BSD (item 149) is the one
+    exception: it's just another anchor date like announcement_date, so it
+    gets the same full-cascade recompute treatment on edit.
     """
     bid_manager: str | None = None
     region: list[str] | None = None
@@ -46,6 +48,7 @@ class ProjectDetailsUpdate(BaseModel):
     site_visit_date: date | None = None
     pre_bid_meeting_date: date | None = None
     pre_bid_deadline: date | None = None
+    bsd: date | None = None
     actor_role: str = "Admin"
 
 
