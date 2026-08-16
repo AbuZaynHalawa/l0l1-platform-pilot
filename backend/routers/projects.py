@@ -294,6 +294,7 @@ def get_bm_triage_status(actor_role: str = "Viewer", actor_email: str = "", db: 
             "id": p.id, "est_no": p.est_no, "name": p.name, "bid_manager": p.bid_manager,
             "pending_count": pending, "total_count": len(triageable), "status": status,
             "last_reminder_at": p.last_triage_reminder_at,
+            "created_at": p.created_at,  # item 145: lets the client compute the 24h hard-block deadline
         })
     return out
 

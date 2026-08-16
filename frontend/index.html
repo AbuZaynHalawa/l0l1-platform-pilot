@@ -734,6 +734,23 @@
   </div>
 </div>
 
+<!-- Item 145: hard-blocking nag once an L0's BM triage has sat unstarted
+     for 24h+ -- no close button, no backdrop-click-to-dismiss on purpose. -->
+<div class="modal-overlay" id="bmTriageBlockOverlay" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <div class="eyebrow">Action Needed</div>
+        <h2>Bid Manager Triage Overdue</h2>
+      </div>
+    </div>
+    <div class="modal-body">
+      <p class="bmtb-lede">These L0 tenders were announced over 24 hours ago and still need your applicable / not-required call on every item before work on them can continue.</p>
+      <div id="bmTriageBlockBody"></div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"><span class="tic" id="toastIc">&#9989;</span><span id="toastMsg"></span></div>
 
 <script src="/static/app.js"></script>

@@ -392,6 +392,13 @@
   .btn.ghost-crit:hover { background: var(--crit-bg); }
   .locked-note { font-size: 11px; color: var(--ink-300); font-style: italic; }
 
+  /* Item 145: hard-blocking BM triage nag. */
+  .bmtb-lede { font-size: 13px; color: var(--ink-700); margin: 0 0 16px; line-height: 1.5; }
+  .bmtb-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 0; border-top: 1px solid var(--line); }
+  .bmtb-row:first-of-type { border-top: none; }
+  .bmtb-name { font-size: 13.5px; font-weight: 700; }
+  .bmtb-sub { font-size: 12px; color: var(--crit); margin-top: 2px; }
+
   .section-title { font-size: 13px; font-weight: 700; padding: 14px 18px; border-bottom: 1px solid var(--line); display:flex; justify-content:space-between; align-items:center; gap: 10px; }
   .section-title .cnt { color: var(--ink-500); font-weight: 600; font-size: 12px; }
 

@@ -199,6 +199,9 @@
     // aren't nav views — they get their own hash from openDetail/openTriage.
     if (name !== "detail" && name !== "triage") location.hash = "view=" + name;
     if (LOADERS[name]) LOADERS[name]();
+    // Item 145: re-check on every navigation except into the triage flow
+    // itself, so completing it doesn't get instantly re-blocked mid-flow.
+    if (name !== "triage") checkBmTriageDeadline();
   }
   document.querySelectorAll(".nav-item").forEach(function (btn) {
     btn.addEventListener("click", function () { switchView(btn.dataset.view); });
@@ -696,6 +699,44 @@
     };
     switchView("triage");
   }
+
+  // Item 145: if triage on one of MY L0 tenders has sat unstarted for 24h+,
+  // block the rest of the app with a non-dismissible modal until it's done.
+  // Scoped to a real personal identity only -- never prompts for one just to
+  // run this background check (a stale acting-email field or empty identity
+  // simply means nothing to check yet, not "block everyone").
+  async function checkBmTriageDeadline() {
+    var email = (actingEmail() || localStorage.getItem("myEmail") || "").trim();
+    var overlay = document.getElementById("bmTriageBlockOverlay");
+    if (!email) { overlay.hidden = true; return; }
+    var rows;
+    try {
+      // actor_role is deliberately never "Admin" here -- this check is about
+      // a specific person's own tenders, regardless of which role they
+      // currently have selected in the viewer.
+      rows = await api("/api/projects/bm-triage-status?actor_role=Owner&actor_email=" + encodeURIComponent(email));
+    } catch (e) { return; }
+    var now = Date.now();
+    var overdue = rows.filter(function (r) {
+      return r.status !== "done" && r.created_at && (now - new Date(r.created_at).getTime()) >= 24 * 60 * 60 * 1000;
+    });
+    if (!overdue.length) { overlay.hidden = true; return; }
+    var body = document.getElementById("bmTriageBlockBody");
+    body.innerHTML = "";
+    overdue.forEach(function (r) {
+      var row = el("div", "bmtb-row");
+      var main = el("div");
+      main.appendChild(el("div", "bmtb-name", r.est_no + " &#8211; " + r.name));
+      main.appendChild(el("div", "bmtb-sub", r.pending_count + " deliverable(s) still awaiting your call"));
+      row.appendChild(main);
+      var btn = el("button", "btn primary", "Complete Triage");
+      btn.addEventListener("click", function () { overlay.hidden = true; openTriage(r.id); });
+      row.appendChild(btn);
+      body.appendChild(row);
+    });
+    overlay.hidden = false;
+  }
+  setInterval(checkBmTriageDeadline, 5 * 60 * 1000);
 
   /* ================= DELIVERABLE DETAIL MODAL ================= */
   document.getElementById("delivModalClose").addEventListener("click", closeDelivModal);
@@ -2725,7 +2766,9 @@
     if (!showAdmin && ADMIN_ONLY_VIEWS.some(function (v) { return !document.getElementById("view-" + v).hidden; })) switchView("dashboard");
     if (!canSeeBmTriage() && !document.getElementById("view-bmtriage").hidden) switchView("dashboard");
     if (currentProjectId && !document.getElementById("view-detail").hidden) openDetail(currentProjectId);
+    checkBmTriageDeadline();
   });
+  document.getElementById("actingEmail").addEventListener("change", checkBmTriageDeadline);
   document.getElementById("themeToggle").addEventListener("click", function () {
     var root = document.documentElement;
     var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
@@ -2765,4 +2808,5 @@
     // popup, on top of the dashboard it's actually landing on.
     if (sharedMatch) openDelivModal(parseInt(sharedMatch[1], 10));
   }
+  checkBmTriageDeadline();
 })();
