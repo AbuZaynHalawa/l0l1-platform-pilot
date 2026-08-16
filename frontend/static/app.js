@@ -442,7 +442,7 @@
     });
   });
   async function loadAssigned() {
-    var followQS = actingEmail() ? "?actor_email=" + encodeURIComponent(actingEmail()) : "";
+    var followQS = passiveIdentity() ? "?actor_email=" + encodeURIComponent(passiveIdentity()) : "";
     var everything = await api("/api/deliverables" + followQS);
     var all = assignedStage ? everything.filter(function (d) { return d.stage === assignedStage; }) : everything;
     document.getElementById("assignedBadge").textContent = everything.filter(function (d) { return d.deadline_status === "due"; }).length || "";
@@ -706,7 +706,7 @@
   // run this background check (a stale acting-email field or empty identity
   // simply means nothing to check yet, not "block everyone").
   async function checkBmTriageDeadline() {
-    var email = (actingEmail() || localStorage.getItem("myEmail") || "").trim();
+    var email = passiveIdentity();
     var overlay = document.getElementById("bmTriageBlockOverlay");
     if (!email) { overlay.hidden = true; return; }
     var rows;
@@ -959,7 +959,7 @@
     if (tourStep < TOUR_STEPS.length - 1) { tourStep++; renderTourStep(); } else { closeTour(); }
   });
   async function openDelivModal(submissionId) {
-    var qs = actingEmail() ? "?actor_email=" + encodeURIComponent(actingEmail()) : "";
+    var qs = passiveIdentity() ? "?actor_email=" + encodeURIComponent(passiveIdentity()) : "";
     var d = await api("/api/deliverables/" + submissionId + qs);
     document.getElementById("delivModalEyebrow").textContent = d.est_no + " – " + deptLabel(d.department, d.department_number);
     document.getElementById("delivModalTitle").textContent = d.item_no + " · " + d.name;
@@ -2360,16 +2360,26 @@
   }
 
   /* ================= ASK THE TEAM ================= */
+  // Item 146: read-only identity lookup -- acting-email field, else the
+  // cached prompted email, never a fresh prompt. Anything that just needs
+  // to know "who (if anyone) is already known" -- e.g. deciding whether a
+  // deliverable should show as Followed -- must use this, not actingEmail()
+  // alone, or it silently disagrees with myIdentity() (used by the actual
+  // Follow toggle) any time someone follows via a cached identity with the
+  // acting-email field left blank: the toggle records it under the cached
+  // email, but a bare actingEmail() check for "am I following this" comes
+  // back empty and always renders "Follow" again on the next open.
+  function passiveIdentity() {
+    return (actingEmail() || localStorage.getItem("myEmail") || "").trim();
+  }
   /* Identity for "Ask the Team" (item 77): reuses the acting-email field
      that's already how this pilot tracks "who's doing this" everywhere else
      (no real login exists) — falls back to a one-time prompt cached in
      localStorage, so the asker is never made to type it twice.
   */
   function myIdentity() {
-    var acting = actingEmail();
-    if (acting) return acting;
-    var cached = localStorage.getItem("myEmail");
-    if (cached) return cached;
+    var known = passiveIdentity();
+    if (known) return known;
     var entered = (prompt("Your email, so the team knows who's asking:") || "").trim();
     if (entered) localStorage.setItem("myEmail", entered);
     return entered;
