@@ -35,16 +35,22 @@ class ProjectStatusUpdate(BaseModel):
 
 class ProjectDetailsUpdate(BaseModel):
     """Admin-only low-risk field edits. Only fields actually sent are applied
-    (exclude_unset) — scope is deliberately not here, since it drives
-    deliverable generation and business-unit classification and needs a
-    bigger conversation than a quick inline edit. BSD (item 149) is the one
-    exception: it's just another anchor date like announcement_date, so it
-    gets the same full-cascade recompute treatment on edit.
+    (exclude_unset). BSD (item 149) is just another anchor date like
+    announcement_date, so it gets the same full-cascade recompute treatment
+    on edit. Scope/Business Unit (item 46) are the one pair with a real
+    safety gate: they drive deliverable generation, so update_project_details
+    only allows changing them while every non-auto-completed deliverable on
+    the project is still untouched (No Progress) — a safe edit then fully
+    regenerates that deliverable set to match the new scope, the same way
+    project creation does, since nothing of value exists yet to preserve.
     """
     bid_manager: str | None = None
     rfx_number: str | None = None
     region: list[str] | None = None
     region_other: str | None = None
+    scope: list[str] | None = None
+    scope_other: str | None = None
+    business_units: list[str] | None = None
     announcement_date: date | None = None
     site_visit_date: date | None = None
     pre_bid_meeting_date: date | None = None

@@ -1286,8 +1286,8 @@
     meta.innerHTML = "";
     var buLabel = (p.business_units && p.business_units.length) ? p.business_units.join(" / ") : "&#8213;";
     var metaItems = p.stage === "L0"
-      ? [["Bid Manager", p.bid_manager || "&#8213;", "bm"], ["RFX", p.rfx_number || "&#8213;", "rfx"], ["Region", joinList(p.region), "region"], ["Scope", joinList(p.scope)],
-         ["Business Unit", buLabel],
+      ? [["Bid Manager", p.bid_manager || "&#8213;", "bm"], ["RFX", p.rfx_number || "&#8213;", "rfx"], ["Region", joinList(p.region), "region"], ["Scope", joinList(p.scope), "scope"],
+         ["Business Unit", buLabel, "bu"],
          ["Announced", fmtDate(p.announcement_date), "date:announcement_date:Announcement Date"],
          ["Site Visit", fmtDate(p.site_visit_date), "date:site_visit_date:Site Visit Date"],
          ["Pre-Bid Meeting", fmtDate(p.pre_bid_meeting_date), "date:pre_bid_meeting_date:Pre-Bid Meeting Date"],
@@ -1340,6 +1340,38 @@
               method: "PATCH", headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ rfx_number: nextRfx.trim() || null, actor_role: CURRENT_ROLE }),
             }).then(function () { showToast("RFX updated"); openDetail(id); })
+              .catch(function (err) { showToast("Could not update &#8211; " + apiErrorDetail(err), true); });
+          } else if (tag === "scope") {
+            var sopts = await getCreateOptions();
+            var slist = sopts.scopes.map(function (o) { return "&#8226; " + o; }).join("\n");
+            var nextScope = prompt("Scope &#8211; comma-separated, choose from:\n\n" + slist +
+              "\n\nOnly allowed before this tender has any real progress (upload/completion) &#8212; " +
+              "changing it regenerates the deliverable list to match.", (p.scope || []).join(", "));
+            if (nextScope === null) return;
+            var scopeArr = nextScope.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+            if (!scopeArr.length) { showToast("Select at least one Scope", true); return; }
+            var scopeOther = p.scope_other || "";
+            if (scopeArr.indexOf("Other") !== -1) {
+              var nextScopeOther = prompt("Specify the Other scope:", scopeOther);
+              if (nextScopeOther === null) return;
+              scopeOther = nextScopeOther.trim();
+            }
+            api("/api/projects/" + id + "/details", {
+              method: "PATCH", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ scope: scopeArr, scope_other: scopeOther || null, actor_role: CURRENT_ROLE }),
+            }).then(function () { showToast("Scope updated &#8211; deliverables regenerated"); openDetail(id); })
+              .catch(function (err) { showToast("Could not update &#8211; " + apiErrorDetail(err), true); });
+          } else if (tag === "bu") {
+            var nextBu = prompt("Business Unit(s) &#8211; comma-separated, choose from TBU, PBU, DBU, BBU, TBA:\n\n" +
+              "Only allowed before this tender has any real progress (upload/completion) &#8212; " +
+              "changing it regenerates the deliverable list to match.", (p.business_units || []).join(", "));
+            if (nextBu === null) return;
+            var buArr = nextBu.split(",").map(function (s) { return s.trim().toUpperCase(); }).filter(Boolean);
+            if (!buArr.length) { showToast("Select at least one Business Unit", true); return; }
+            api("/api/projects/" + id + "/details", {
+              method: "PATCH", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ business_units: buArr, actor_role: CURRENT_ROLE }),
+            }).then(function () { showToast("Business Unit updated &#8211; deliverables regenerated"); openDetail(id); })
               .catch(function (err) { showToast("Could not update &#8211; " + apiErrorDetail(err), true); });
           } else if (tag === "region") {
             var ropts = await getCreateOptions();

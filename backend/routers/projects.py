@@ -38,21 +38,28 @@ _L1_AUTO_DONE_FIELDS = {
 _L0_TENDERING_TRIAGE_ITEMS = {"1.6", "1.7", "1.13", "1.14", "1.15"}
 
 
-def _provision_and_instantiate(db: Session, project: models.Project):
-    """Shared by both L0 and L1 creation: provision folders, instantiate every
-    active deliverable for this stage, compute due dates, auto-assign owners/SMEs.
+def _instantiate_deliverables(db: Session, project: models.Project):
+    """The deliverable-generation core of _provision_and_instantiate, split
+    out so a safe post-creation Scope/Business Unit change (see
+    update_project_details) can re-run it against the new scope without
+    redoing folder provisioning. Skips any DeliverableDefinition that
+    already has a submission on this project -- a no-op on first creation
+    (nothing exists yet), and on a scope resync it protects the
+    auto-completed Tendering items (1.1-1.5, derived from the project's
+    own date fields, unrelated to scope) from being duplicated.
     """
     stage = project.stage
-    folder_root = f"{stage.value}/{sanitize_segment(project.est_no)} {sanitize_segment(project.name)}"
-    _storage.create_folder(folder_root)
-    project.onedrive_folder_path = folder_root
-
+    folder_root = project.onedrive_folder_path
+    existing_def_ids = {
+        s.deliverable_definition_id for s in
+        db.query(models.DeliverableSubmission).filter(models.DeliverableSubmission.project_id == project.id).all()
+    }
     defs = (
         db.query(models.DeliverableDefinition)
         .filter(models.DeliverableDefinition.stage == stage, models.DeliverableDefinition.active == True)  # noqa: E712
         .all()
     )
-    defs = [d for d in defs if rules.is_bu_applicable(d, project)]
+    defs = [d for d in defs if rules.is_bu_applicable(d, project) and d.id not in existing_def_ids]
     auto_done_fields = _L0_AUTO_DONE_FIELDS if stage == models.Stage.L0 else _L1_AUTO_DONE_FIELDS
     dept_seen = set()
     auto_done_subs = []  # (sub, definition) pairs — WorkflowHistory needs real ids, added after the commit below
@@ -124,6 +131,17 @@ def _provision_and_instantiate(db: Session, project: models.Project):
             count = sum(1 for s in subs if s.definition.department_id == dept.id)
             if count:
                 announcements.owner_assigned(db, project, dept.focal_point_email, dept.name, count)
+
+
+def _provision_and_instantiate(db: Session, project: models.Project):
+    """Called once at L0/L1 creation: provision folders, then instantiate
+    every active deliverable for this stage via _instantiate_deliverables.
+    """
+    stage = project.stage
+    folder_root = f"{stage.value}/{sanitize_segment(project.est_no)} {sanitize_segment(project.name)}"
+    _storage.create_folder(folder_root)
+    project.onedrive_folder_path = folder_root
+    _instantiate_deliverables(db, project)
 
 
 @router.get("", response_model=list[schemas.ProjectOut])
@@ -435,6 +453,68 @@ def update_project_details(project_id: int, payload: schemas.ProjectDetailsUpdat
         project.region = data["region"]
     if "region_other" in data:
         project.region_other = data["region_other"]
+    if "scope" in data or "business_units" in data or "scope_other" in data:
+        real_subs = (
+            db.query(models.DeliverableSubmission)
+            .filter(models.DeliverableSubmission.project_id == project.id,
+                    models.DeliverableSubmission.auto_completed.isnot(True))
+            .all()
+        )
+        # PENDING_TRIAGE/NOT_REQUIRED are the normal starting state for a
+        # freshly-created L0 project (before the BM's applicable/not-
+        # required call) -- not real progress, so they don't block this.
+        _SAFE_STATUSES = {models.SubmissionStatus.NO_PROGRESS, models.SubmissionStatus.PENDING_TRIAGE,
+                           models.SubmissionStatus.NOT_REQUIRED}
+        if any(s.status not in _SAFE_STATUSES for s in real_subs):
+            raise HTTPException(400, "Scope/Business Unit can only be changed before this project has any real "
+                                      "progress (an upload or a completion) — this project already has work started.")
+        new_scope = data.get("scope", project.scope)
+        if not new_scope:
+            raise HTTPException(400, "Scope is required")
+        new_scope_other = data.get("scope_other", project.scope_other)
+        if "Other" in new_scope and not (new_scope_other or "").strip():
+            raise HTTPException(400, "Specify the Other scope")
+
+        computed_bus, needs_manual = rules.compute_business_units(new_scope)
+        if needs_manual:
+            chosen = [b for b in (data.get("business_units") or []) if b in ("TBU", "PBU", "DBU", "BBU", "TBA")]
+            if not chosen:
+                raise HTTPException(400, "Business Unit is required for this scope (choose TBU/PBU/DBU/BBU, or TBA)")
+            new_bus = chosen
+        elif "business_units" in data:
+            # A manual override even though scope alone would auto-classify --
+            # the same correction escape hatch the create form offers.
+            chosen = [b for b in (data.get("business_units") or []) if b in ("TBU", "PBU", "DBU", "BBU", "TBA")]
+            new_bus = chosen or computed_bus
+        else:
+            new_bus = computed_bus
+
+        # Nothing real exists on these rows (guaranteed by the No Progress
+        # check above), so they're safe to drop and regenerate from the new
+        # scope -- but a few tables reference them without an ORM cascade:
+        # WorkflowHistory cascades via the relationship on delete, Documents
+        # can't exist yet (only an upload creates one, which would have
+        # already failed the check above), but Followers/ReassignmentRequests
+        # don't cascade, and a reminder could have been sent on a still-No-
+        # Progress item, leaving an Announcement pointing at it.
+        real_sub_ids = [s.id for s in real_subs]
+        if real_sub_ids:
+            db.query(models.Follower).filter(models.Follower.submission_id.in_(real_sub_ids)) \
+                .delete(synchronize_session=False)
+            db.query(models.ReassignmentRequest).filter(models.ReassignmentRequest.submission_id.in_(real_sub_ids)) \
+                .delete(synchronize_session=False)
+            db.query(models.Announcement).filter(models.Announcement.submission_id.in_(real_sub_ids)) \
+                .update({models.Announcement.submission_id: None}, synchronize_session=False)
+            for s in real_subs:
+                db.delete(s)
+            db.commit()
+
+        project.scope = new_scope
+        project.scope_other = new_scope_other
+        project.business_units = new_bus
+        project.scope_contains_pbu = "PBU" in new_bus
+        db.commit()
+        _instantiate_deliverables(db, project)
     date_changed = False
     for field in ("announcement_date", "site_visit_date", "pre_bid_meeting_date", "pre_bid_deadline", "bsd"):
         if field in data:
