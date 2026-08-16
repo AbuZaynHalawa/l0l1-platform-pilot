@@ -33,15 +33,16 @@
     if (html !== undefined) e.innerHTML = html;
     return e;
   }
-  // Item 170: DD-MonthName-YYYY everywhere a date renders (e.g.
-  // "15-November-2026") -- toLocaleDateString has no hyphen-separator,
-  // full-month-name preset, so this is built by hand instead.
+  // Item 170: DD-Mon-YYYY everywhere a date renders (e.g. "16-Sep-2026")
+  // -- toLocaleDateString has no hyphen-separator preset, and en-GB's own
+  // "short" month for September is the 4-letter "Sept", so this is a
+  // fixed 3-letter table instead of relying on locale formatting.
+  var MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   function fmtDate(iso) {
     if (!iso) return "&#8213;";
     var d = new Date(iso + "T00:00:00");
     var day = String(d.getDate()).padStart(2, "0");
-    var month = d.toLocaleDateString("en-GB", { month: "long" });
-    return day + "-" + month + "-" + d.getFullYear();
+    return day + "-" + MONTH_ABBR[d.getMonth()] + "-" + d.getFullYear();
   }
   // Item 143 (2nd revision): a deliverable now carries two independent
   // status pills -- Deadline (Not Due / Due / On Time / Early / Late, with
@@ -1313,7 +1314,7 @@
          // handler above and update_project_details's date_changed loop).
          ["Bid Submission Date", fmtDate(p.bsd), "date:bsd:Bid Submission Date"]]
       : [["Bid Manager", p.bid_manager || "&#8213;", "bm"], ["Project Manager", p.project_manager || "&#8213;", "pm"],
-         ["Region", joinList(p.region), "region"], ["Scope", joinList(p.scope)], ["Business Unit", buLabel],
+         ["Region", joinList(p.region), "region"], ["Scope", joinList(p.scope), "scope"], ["Business Unit", buLabel, "bu"],
          ["Announced", fmtDate(p.announcement_date), "date:announcement_date:Announcement Date"],
          ["Contract Status", p.contract_status === "Signed"
            ? '<span class="pill good"><span class="dot"></span>Signed</span>'
@@ -1353,13 +1354,19 @@
               },
             });
           } else if (tag === "rfx") {
-            var nextRfx = prompt("RFX Number:", p.rfx_number || "");
-            if (nextRfx === null) return;
-            api("/api/projects/" + id + "/details", {
-              method: "PATCH", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ rfx_number: nextRfx.trim() || null, actor_role: CURRENT_ROLE }),
-            }).then(function () { showToast("RFX updated"); openDetail(id); })
-              .catch(function (err) { showToast("Could not update &#8211; " + apiErrorDetail(err), true); });
+            openChecklistEditModal({
+              type: "text",
+              title: "Edit RFX Number",
+              placeholder: "RFX Number",
+              selected: p.rfx_number || "",
+              onSave: function (nextRfx) {
+                api("/api/projects/" + id + "/details", {
+                  method: "PATCH", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ rfx_number: nextRfx || null, actor_role: CURRENT_ROLE }),
+                }).then(function () { closeChecklistEditModal(); showToast("RFX updated"); openDetail(id); })
+                  .catch(function (err) { showToast("Could not update &#8211; " + apiErrorDetail(err), true); });
+              },
+            });
           } else if (tag === "scope") {
             var sopts = await getCreateOptions();
             openChecklistEditModal({
@@ -1396,22 +1403,21 @@
             });
           } else if (tag === "region") {
             var ropts = await getCreateOptions();
-            var rlist = ropts.regions.map(function (o) { return "&#8226; " + o; }).join("\n");
-            var nextRegion = prompt("Region(s) &#8211; comma-separated, choose from:\n\n" + rlist, (p.region || []).join(", "));
-            if (nextRegion === null) return;
-            var regionArr = nextRegion.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
-            if (!regionArr.length) { showToast("Select at least one Region", true); return; }
-            var regionOther = p.region_other || "";
-            if (regionArr.indexOf("Other") !== -1) {
-              var nextOther = prompt("Specify the Other region:", regionOther);
-              if (nextOther === null) return;
-              regionOther = nextOther.trim();
-            }
-            api("/api/projects/" + id + "/details", {
-              method: "PATCH", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ region: regionArr, region_other: regionOther || null, actor_role: CURRENT_ROLE }),
-            }).then(function () { showToast("Region updated"); openDetail(id); })
-              .catch(function (err) { showToast("Could not update &#8211; " + apiErrorDetail(err), true); });
+            openChecklistEditModal({
+              title: "Edit Region",
+              options: ropts.regions,
+              selected: p.region || [],
+              hasOther: true,
+              otherValue: p.region_other || "",
+              onSave: function (regionArr, regionOther) {
+                if (!regionArr.length) { showToast("Select at least one Region", true); return; }
+                api("/api/projects/" + id + "/details", {
+                  method: "PATCH", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ region: regionArr, region_other: regionOther || null, actor_role: CURRENT_ROLE }),
+                }).then(function () { closeChecklistEditModal(); showToast("Region updated"); openDetail(id); })
+                  .catch(function (err) { showToast("Could not update &#8211; " + apiErrorDetail(err), true); });
+              },
+            });
           } else if (tag.indexOf("date:") === 0) {
             var parts = tag.split(":");
             var fieldName = parts[1], fieldLabel = parts[2];
@@ -1547,9 +1553,10 @@
 
   // Item 46 (picker rework): a small reusable edit modal covering every
   // real-picker case this project detail page needs -- checkboxes
-  // (Scope/Business Unit), a single dropdown (Bid Manager), or a native
-  // date input (every anchor date) -- instead of a free-text prompt()
-  // for any of them. cfg.type: "checklist" (default) | "select" | "date".
+  // (Scope/Business Unit/Region), a single dropdown (Bid Manager), a
+  // native date input (every anchor date), or a plain text field (RFX) --
+  // instead of a free-text prompt() for any of them.
+  // cfg.type: "checklist" (default) | "select" | "date" | "text".
   var _checklistEditSave = null;
   function openChecklistEditModal(cfg) {
     document.getElementById("checklistEditEyebrow").textContent = cfg.eyebrow || "";
@@ -1558,12 +1565,19 @@
     var otherInput = document.getElementById("checklistEditOtherInput");
     var selectEl = document.getElementById("checklistEditSelect");
     var dateEl = document.getElementById("checklistEditDateInput");
+    var textEl = document.getElementById("checklistEditTextInput");
     grid.style.display = "none";
     otherInput.style.display = "none";
     selectEl.style.display = "none";
     dateEl.style.display = "none";
+    textEl.style.display = "none";
 
-    if (cfg.type === "select") {
+    if (cfg.type === "text") {
+      textEl.value = cfg.selected || "";
+      textEl.placeholder = cfg.placeholder || "";
+      textEl.style.display = "";
+      _checklistEditSave = function () { cfg.onSave(textEl.value.trim()); };
+    } else if (cfg.type === "select") {
       selectEl.innerHTML = "";
       cfg.options.forEach(function (opt) {
         var o = el("option", "", opt); o.value = opt; selectEl.appendChild(o);
@@ -3122,6 +3136,19 @@
     var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
     root.setAttribute("data-theme", next);
     this.textContent = next === "dark" ? "Light mode" : "Dark mode";
+  });
+
+  // Item 170: a native date input can't be restyled to show month names
+  // while picking (the calendar/typed-value display is entirely
+  // browser-controlled) -- so every date input on the page gets a small
+  // read-only "16-Sep-2026" reading right after it instead, updating live
+  // as soon as a value is picked, without giving up the native picker.
+  document.querySelectorAll('input[type="date"]').forEach(function (input) {
+    var preview = el("span", "date-preview");
+    input.insertAdjacentElement("afterend", preview);
+    var update = function () { preview.textContent = input.value ? fmtDate(input.value) : ""; };
+    input.addEventListener("change", update);
+    update();
   });
 
   /* ================= INIT ================= */

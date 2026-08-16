@@ -535,7 +535,7 @@
   .field label { font-size: 12px; font-weight: 700; color: var(--ink-700); }
   .field label .req { color: var(--crit); }
   .field input[type="text"], .field input[type="date"], .field select,
-  #checklistEditOtherInput, #checklistEditSelect, #checklistEditDateInput {
+  #checklistEditOtherInput, #checklistEditSelect, #checklistEditDateInput, #checklistEditTextInput {
     border: 1px solid var(--line); border-radius: 9px; padding: 9px 12px; font-size: 13px; background: var(--surface-sunken); color: var(--ink-900); font-family: inherit;
   }
   .field input:focus, .field select:focus { background: var(--surface); border-color: var(--accent-line); }
@@ -546,6 +546,11 @@
   .scope-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 16px; }
   .scope-opt { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-700); }
   .hint { font-size: 11px; color: var(--ink-500); }
+  /* Item 170: native date inputs can't be restyled to show month names
+     while picking (a hard browser limitation) -- this live preview next
+     to each one shows the DD-Mon-YYYY reading once a value is set,
+     without giving up the native calendar picker itself. */
+  .date-preview { font-size: 11.5px; font-weight: 600; color: var(--ink-500); margin-top: 4px; display: block; }
   .check-inline { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; color: var(--ink-700); }
 
   /* ---------- Timeline / Gantt ---------- */

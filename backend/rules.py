@@ -71,11 +71,17 @@ L1_BBU_ONLY_DEPARTMENTS = {"BBU", "BBU / PBU"}
 # L1 (item 122): mirrors L0_OPERATION_BU_DEPARTMENTS above — "TBU / PBU" is
 # split into real per-BU folders, each only applying to a project that
 # actually has that business unit.
+# Item 168: these keys were left as the bare "TBU"/"PBU"/etc. names from
+# before the item-122 rework renamed the actual departments to
+# "Operation Units (TBU)" etc. (matching L0's naming) -- .get() against the
+# real department name always missed, so every L1 Operation Units folder
+# fell through to the ungated "return True" below and showed for every
+# project regardless of its actual business unit.
 L1_OPERATION_BU_DEPARTMENTS = {
-    "TBU": "TBU",
-    "PBU": "PBU",
-    "DBU": "DBU",
-    "BBU": "BBU",
+    "Operation Units (TBU)": "TBU",
+    "Operation Units (PBU)": "PBU",
+    "Operation Units (DBU)": "DBU",
+    "Operation Units (BBU)": "BBU",
 }
 
 
