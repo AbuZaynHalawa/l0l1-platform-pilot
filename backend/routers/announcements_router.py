@@ -6,14 +6,24 @@ from ..database import get_db
 
 router = APIRouter(prefix="/api/announcements", tags=["announcements"])
 
-# Item 158/159/160: Broadcast/Closed are org-wide news (new tender, project
-# closed) -- everyone sees those regardless of role. Everything else is
-# addressed to specific people via `recipients`, so a non-admin only sees
-# it if their own acting email is actually in that list -- an SME shouldn't
-# see "Deliverables Assigned to You" for an Owner, an Owner shouldn't see
-# "Review Requested" meant for the SME, and a Viewer (no acting email at
-# all) sees only the broadcast items.
-_ALWAYS_VISIBLE_TYPES = {models.AnnouncementType.BROADCAST, models.AnnouncementType.CLOSED}
+# Item 158/159/160, reworked by item 165: org-wide news is visible to
+# everyone regardless of role -- new tender/L1 stage (BROADCAST), a tender
+# closing (CLOSED), a milestone being reached (MILESTONE), a BSD extension
+# (BSD_EXTENDED), a document landing on a deliverable (DOC_ADDED), a
+# deliverable being approved (DELIVERABLE_APPROVED), and a cross-department
+# unlock (UNLOCK) are all facts about the program as a whole, not private to
+# whoever's directly involved. Everything else is addressed to specific
+# people via `recipients`, so a non-admin only sees it if their own acting
+# email is actually in that list -- an SME shouldn't see "Deliverables
+# Assigned to You" for an Owner, a Viewer (no acting email at all) sees
+# only the general items, and a rejection (SME_DECISION) stays private
+# feedback to the Owner rather than general news.
+_ALWAYS_VISIBLE_TYPES = {
+    models.AnnouncementType.BROADCAST, models.AnnouncementType.CLOSED,
+    models.AnnouncementType.MILESTONE, models.AnnouncementType.BSD_EXTENDED,
+    models.AnnouncementType.DOC_ADDED, models.AnnouncementType.DELIVERABLE_APPROVED,
+    models.AnnouncementType.UNLOCK,
+}
 
 
 @router.get("", response_model=list[schemas.AnnouncementOut])

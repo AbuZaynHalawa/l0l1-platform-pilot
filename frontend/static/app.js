@@ -171,7 +171,45 @@
   var ANN_ICON = {
     broadcast: ["&#128276;", "broadcast"], owner: ["&#128100;", "owner"], sme_request: ["&#128269;", "sme-request"],
     sme_decision: ["&#9989;", "sme-decision"], unlock: ["&#128275;", "unlock"], deadline: ["&#8987;", "deadline"], closed: ["&#127937;", "closed"],
+    milestone: ["&#127919;", "milestone"], bsd_extended: ["&#128197;", "bsd-extended"],
+    doc_added: ["&#128206;", "doc-added"], deliverable_approved: ["&#9989;", "deliverable-approved"],
   };
+  // Item 165: single source of truth for the Announcements type filter and
+  // its legend -- audience: "all" means every role sees it as a filter
+  // choice (matches the types every role can actually receive, per the
+  // backend's _ALWAYS_VISIBLE_TYPES); a role array restricts it to roles
+  // that could ever actually see that type. Admin always gets every option
+  // regardless, since Admin sees every announcement.
+  var ANN_TYPE_META = [
+    { value: "broadcast", label: "Broadcast", sw: "var(--purple-1)", audience: "all" },
+    { value: "milestone", label: "Milestone Reached", sw: "var(--purple-2)", audience: "all" },
+    { value: "bsd_extended", label: "BSD Extended", sw: "var(--warn)", audience: "all" },
+    { value: "doc_added", label: "Document Added", sw: "var(--purple-1)", audience: "all" },
+    { value: "deliverable_approved", label: "Deliverable Approved", sw: "var(--good)", audience: "all" },
+    { value: "unlock", label: "Cross-department Unlock", sw: "var(--purple-2)", audience: "all" },
+    { value: "closed", label: "Closed", sw: "var(--neutral-bg);border:1px solid var(--line)", audience: "all" },
+    { value: "owner", label: "To Owner", sw: "var(--good)", audience: ["Owner"] },
+    { value: "sme_request", label: "SME Review Request", sw: "var(--warn)", audience: ["Owner", "SME"] },
+    { value: "sme_decision", label: "SME Decision &#8211; Rejected", sw: "var(--good)", audience: ["Owner"] },
+    { value: "deadline", label: "Deadline / Reminder", sw: "var(--warn)", audience: ["Owner", "SME"] },
+  ];
+  function buildAnnouncementFilterUI() {
+    var visible = ANN_TYPE_META.filter(function (t) {
+      return CURRENT_ROLE === "Admin" || t.audience === "all" || t.audience.indexOf(CURRENT_ROLE) !== -1;
+    });
+    var key = document.getElementById("annTypeKey");
+    key.innerHTML = "";
+    visible.forEach(function (t) {
+      key.appendChild(el("span", "lg", '<span class="sw" style="background:' + t.sw + '"></span> ' + t.label));
+    });
+    var select = document.getElementById("annTypeFilter");
+    var current = select.value;
+    select.innerHTML = '<option value="">All Types</option>';
+    visible.forEach(function (t) {
+      var o = el("option", "", t.label); o.value = t.value; select.appendChild(o);
+    });
+    if (visible.some(function (t) { return t.value === current; })) select.value = current;
+  }
   function annIcon(a) {
     var meta = ANN_ICON[a.type] || ["&#128276;", "broadcast"];
     if (a.type === "sme_decision" && a.title.indexOf("Rejected") !== -1) {
@@ -2866,6 +2904,7 @@
     renderAnnouncements();
   });
   async function loadAnnouncements() {
+    buildAnnouncementFilterUI();
     var qs = "?limit=500";
     if (CURRENT_ROLE !== "Admin") {
       qs += "&actor_role=" + encodeURIComponent(CURRENT_ROLE) + "&actor_email=" + encodeURIComponent(passiveIdentity());

@@ -446,6 +446,10 @@
   .ann-ic.unlock { background: var(--accent-soft); color: var(--purple-2); }
   .ann-ic.deadline { background: var(--warn-bg); color: var(--warn); }
   .ann-ic.closed { background: var(--neutral-bg); color: var(--ink-700); }
+  .ann-ic.milestone { background: var(--accent-soft); color: var(--purple-2); }
+  .ann-ic.bsd-extended { background: var(--warn-bg); color: var(--warn); }
+  .ann-ic.doc-added { background: var(--accent-soft); color: var(--purple-1); }
+  .ann-ic.deliverable-approved { background: var(--good-bg); color: var(--good); }
   .ann-main { flex: 1; min-width: 0; }
   .ann-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 3px; }
   .ann-title { font-size: 13.5px; font-weight: 700; }

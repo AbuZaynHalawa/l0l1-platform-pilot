@@ -49,38 +49,45 @@ def owner_assigned(db: Session, project: models.Project, owner_email: str, dept_
 
 
 def sme_review_requested(db: Session, project: models.Project, sme_email: str, item_no: str, item_name: str,
-                          submission_id: int | None = None) -> models.Announcement:
+                          submission_id: int | None = None, owner_email: str | None = None) -> models.Announcement:
+    """Item 165: the Owner who asked for review needs to see this too, not
+    just the SME who has to act on it -- both are recipients now.
+    """
     title = "Review Requested &#8211; SME Action Needed"
     body = (f"{item_no} {item_name} was submitted on {project.est_no} and is now awaiting your review. "
             f"<b>You have 1 day to review and submit feedback.</b>")
+    recipients = [e for e in {sme_email, (owner_email or "")} if e]
     return _create(db, type=models.AnnouncementType.SME_REQUEST, title=title, body=body,
-                    recipients=[sme_email], project=project, submission_id=submission_id)
+                    recipients=recipients, project=project, submission_id=submission_id)
 
 
 def document_added(db: Session, project: models.Project, sme_email: str, item_no: str, item_name: str,
                     file_name: str, submission_id: int | None = None) -> models.Announcement:
-    """Item 101 — a supplementary document (added on top of the primary
-    upload) now notifies the SME too, the same way the primary upload does,
-    instead of silently landing with no announcement at all. Lighter-weight
-    wording than sme_review_requested since it doesn't carry the same
-    1-day review-clock obligation — the deliverable's own status is untouched.
+    """Item 165: general news (everyone sees it, per the DOC_ADDED type),
+    while still emailing the SME directly since they're the one who needs
+    to act on it.
     """
     title = "Document Added &#8211; New Supporting File"
     body = f"{file_name} was added to {item_no} {item_name} on {project.est_no}."
-    return _create(db, type=models.AnnouncementType.SME_REQUEST, title=title, body=body,
-                    recipients=[sme_email], project=project, submission_id=submission_id)
+    return _create(db, type=models.AnnouncementType.DOC_ADDED, title=title, body=body,
+                    recipients=[sme_email] if sme_email else [], project=project, submission_id=submission_id)
 
 
 def sme_decision(db: Session, project: models.Project, owner_email: str, item_no: str, item_name: str,
                   approved: bool, comment: str | None = None, submission_id: int | None = None) -> models.Announcement:
+    """Item 165: an approval is general news (DELIVERABLE_APPROVED, everyone
+    sees it) same as a milestone or unlock; a rejection stays private
+    feedback to the Owner (SME_DECISION), not something to broadcast.
+    """
     if approved:
         title = "Deliverable Approved"
         body = f"{item_no} {item_name} on {project.est_no} was reviewed and approved."
+        ann_type = models.AnnouncementType.DELIVERABLE_APPROVED
     else:
         title = "Deliverable Rejected &#8211; Resubmission Needed"
         note = comment or "Please review and resubmit with updated supporting documents."
         body = f"{item_no} {item_name} on {project.est_no} was rejected: &quot;{note}&quot;"
-    ann_type = models.AnnouncementType.SME_DECISION
+        ann_type = models.AnnouncementType.SME_DECISION
     return _create(db, type=ann_type, title=title, body=body, recipients=[owner_email], project=project,
                     submission_id=submission_id)
 
@@ -98,7 +105,7 @@ def cross_department_unlock(db: Session, project: models.Project, newly_active_o
 def deadline_extended(db: Session, project: models.Project, recipients: list[str], old_date: str, new_date: str) -> models.Announcement:
     title = "Bid Submission Date Extended"
     body = f"{project.est_no} &#8211; {project.name}: BSD moved from {old_date} to {new_date}. All dependent due dates recalculated automatically."
-    return _create(db, type=models.AnnouncementType.DEADLINE, title=title, body=body,
+    return _create(db, type=models.AnnouncementType.BSD_EXTENDED, title=title, body=body,
                     recipients=recipients, project=project)
 
 
@@ -106,7 +113,7 @@ def milestone_reached(db: Session, project: models.Project, recipients: list[str
     title = f"{code} Reached &#8211; {name}"
     body = (f"{project.est_no} &#8211; {project.name}: milestone {code} ({name}) has been reached. "
             f"Please find the updated deliverables and due dates reflecting this on the project page.")
-    return _create(db, type=models.AnnouncementType.DEADLINE, title=title, body=body,
+    return _create(db, type=models.AnnouncementType.MILESTONE, title=title, body=body,
                     recipients=recipients, project=project)
 
 

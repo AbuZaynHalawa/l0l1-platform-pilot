@@ -74,6 +74,13 @@ class AnnouncementType(str, enum.Enum):
     UNLOCK = "unlock"
     DEADLINE = "deadline"
     CLOSED = "closed"
+    # Item 165: split out of the general-purpose DEADLINE bucket / the
+    # approve-or-reject SME_DECISION bucket so each can get its own
+    # everyone-sees-it visibility rule instead of inheriting a mixed one.
+    MILESTONE = "milestone"
+    BSD_EXTENDED = "bsd_extended"
+    DOC_ADDED = "doc_added"
+    DELIVERABLE_APPROVED = "deliverable_approved"
 
 
 class Department(Base):

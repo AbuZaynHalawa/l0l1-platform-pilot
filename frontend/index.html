@@ -166,29 +166,15 @@
           <p class="sub">Every announcement and targeted notification the platform has sent, automatically, from a single event stream.</p>
         </div>
       </div>
-      <!-- Item 153: kept in the same order as the Type filter below, and
-           using the exact colors .ann-ic's own type classes render with
-           (styles.css), so this always matches both the filter options and
-           what's actually shown next to each announcement. -->
-      <div class="ann-type-key">
-        <span class="lg"><span class="sw" style="background:var(--purple-1)"></span> Broadcast</span>
-        <span class="lg"><span class="sw" style="background:var(--good)"></span> To Owner</span>
-        <span class="lg"><span class="sw" style="background:var(--warn)"></span> SME Review Request</span>
-        <span class="lg"><span class="sw" style="background:var(--good)"></span> SME Decision</span>
-        <span class="lg"><span class="sw" style="background:var(--purple-2)"></span> Cross-department Unlock</span>
-        <span class="lg"><span class="sw" style="background:var(--warn)"></span> Deadline / Reminder</span>
-        <span class="lg"><span class="sw" style="background:var(--neutral-bg);border:1px solid var(--line)"></span> Closed</span>
-      </div>
+      <!-- Item 153/165: built dynamically by app.js (buildAnnouncementFilterUI)
+           from ANN_TYPE_META, scoped to the current acting role -- keeps this
+           legend and the Type filter below always in the same order and the
+           same set of options, and means a Viewer never sees Owner/SME-only
+           filter choices for announcement types they can never actually see. -->
+      <div class="ann-type-key" id="annTypeKey"></div>
       <div class="gantt-filter-row">
         <select id="annTypeFilter">
           <option value="">All Types</option>
-          <option value="broadcast">Broadcast</option>
-          <option value="owner">To Owner</option>
-          <option value="sme_request">SME Review Request</option>
-          <option value="sme_decision">SME Decision</option>
-          <option value="unlock">Cross-department Unlock</option>
-          <option value="deadline">Deadline / Reminder</option>
-          <option value="closed">Closed</option>
         </select>
         <input type="date" id="annFromDate" title="From date" />
         <input type="date" id="annToDate" title="To date" />

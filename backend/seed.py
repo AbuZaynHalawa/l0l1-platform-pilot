@@ -30,6 +30,10 @@ ensure_enum_value("deliverable_submissions", "status", "IN_PROGRESS")
 ensure_column("deliverable_submissions", "auto_completed", "BOOLEAN")
 ensure_column("support_requests", "target_email", "VARCHAR")
 ensure_column("support_messages", "kb_reference_id", "INTEGER")
+ensure_enum_value("announcements", "type", "MILESTONE")
+ensure_enum_value("announcements", "type", "BSD_EXTENDED")
+ensure_enum_value("announcements", "type", "DOC_ADDED")
+ensure_enum_value("announcements", "type", "DELIVERABLE_APPROVED")
 ensure_not_unique("projects", "est_no")
 
 # Load-bearing indexes: every one of these columns is filtered or joined on

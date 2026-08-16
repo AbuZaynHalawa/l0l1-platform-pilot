@@ -137,6 +137,9 @@ async def upload_deliverable(submission_id: int, file: UploadFile = File(...),
 
     announcements.followers_notified(db, sub.project, _follower_emails(db, sub.id),
                                       sub.definition.item_no, sub.definition.name, "uploaded", submission_id=sub.id)
+    sme_email = sub.sme_email or sub.definition.default_sme_email
+    announcements.document_added(db, sub.project, sme_email, sub.definition.item_no, sub.definition.name,
+                                  file.filename, submission_id=sub.id)
 
     return {"status": "ok", "file_ref": file_ref}
 
@@ -271,7 +274,7 @@ def mark_complete(submission_id: int, payload: schemas.MarkCompleteRequest, db: 
 
     if sme_email:
         announcements.sme_review_requested(db, sub.project, sme_email, sub.definition.item_no, sub.definition.name,
-                                            submission_id=sub.id)
+                                            submission_id=sub.id, owner_email=owner_email)
         db.add(models.WorkflowHistory(submission_id=sub.id, action="review_requested",
                                        actor_name="system", note=f"Sent to {sme_email}"))
         db.commit()
