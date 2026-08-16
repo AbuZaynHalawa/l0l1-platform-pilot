@@ -2813,6 +2813,14 @@
     document.getElementById("view-dashboard").hidden = true;
     switchView(viewMatch[1]);
   } else {
+    // Item 147: view-dashboard now starts `hidden` in the markup like every
+    // other view (it used to be the one exception, so on a refresh landing
+    // anywhere else the browser painted the raw dashboard HTML -- filter
+    // chips, empty stat cards and all -- for the entire time it takes app.js
+    // to download and run, before swapping to the real destination view).
+    // That means the dashboard-landing case now has to unhide itself
+    // explicitly instead of relying on already being visible by default.
+    document.getElementById("view-dashboard").hidden = false;
     loadDashboard();
     // A shared deliverable link (item 76) opens straight to that item's
     // popup, on top of the dashboard it's actually landing on.
