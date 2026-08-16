@@ -33,10 +33,15 @@
     if (html !== undefined) e.innerHTML = html;
     return e;
   }
+  // Item 170: DD-MonthName-YYYY everywhere a date renders (e.g.
+  // "15-November-2026") -- toLocaleDateString has no hyphen-separator,
+  // full-month-name preset, so this is built by hand instead.
   function fmtDate(iso) {
     if (!iso) return "&#8213;";
     var d = new Date(iso + "T00:00:00");
-    return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+    var day = String(d.getDate()).padStart(2, "0");
+    var month = d.toLocaleDateString("en-GB", { month: "long" });
+    return day + "-" + month + "-" + d.getFullYear();
   }
   // Item 143 (2nd revision): a deliverable now carries two independent
   // status pills -- Deadline (Not Due / Due / On Time / Early / Late, with
@@ -641,6 +646,11 @@
     card.innerHTML = "";
     var state = {};
     var toggleButtons = []; // {id, appBtn, notBtn} — item 86's bulk action flips all of these
+    // Item 171: these two default to Not Required unless the BM explicitly
+    // flips them -- everything else still defaults to Applicable. A
+    // remembered pick (item 79) from this BM's own past triages always
+    // wins over either default.
+    var NOT_REQUIRED_BY_DEFAULT = { "5.4": true, "8.4": true };
     if (!pending.length) {
       card.appendChild(el("div", "deliv-row", '<span style="color:var(--ink-500);font-size:12.5px;">Nothing left to triage.</span>'));
     } else {
@@ -667,7 +677,8 @@
     function renderTriageRow(d) {
         // A remembered pick (item 79) from this BM's past triages pre-selects
         // the toggle — still just a default, they can override it below.
-        var remembered = defaults.hasOwnProperty(d.item_no) ? defaults[d.item_no] : true;
+        var remembered = defaults.hasOwnProperty(d.item_no) ? defaults[d.item_no]
+          : !NOT_REQUIRED_BY_DEFAULT.hasOwnProperty(d.item_no);
         state[d.id] = remembered;
         var row = el("div", "deliv-row");
         row.appendChild(el("div", "deliv-num", d.item_no));

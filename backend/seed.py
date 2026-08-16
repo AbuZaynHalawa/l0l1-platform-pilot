@@ -294,7 +294,11 @@ L0_ITEMS = [
     ("5.5", "Provide Updated Productivity Norms and Calculations (PCO-01-SPR-001)", "planning", None, None, 0, "after", "library", None),
 
     ("6.1", "Prepare Risk Register", "costctrl", "predecessor", "2.2", 1, "after", "date_driven", None),
-    ("6.2", "Highlight points require Pre-bid clarifications", "costctrl", "pre_bid", None, 3, "before", "date_driven", None),
+    # Item 172: unlike every other department's identically-worded "Highlight
+    # points require Pre-bid clarifications" item (e.g. Planning's 5.2 above,
+    # which stays at 3 days), Cost Control's own 6.2 is 1 day before the
+    # clarification deadline -- a deliberate, unique exception per Yasser.
+    ("6.2", "Highlight points require Pre-bid clarifications", "costctrl", "pre_bid", None, 1, "before", "date_driven", None),
     ("6.3", "Fleet Productivities (equipment productivity rates)", "costctrl", None, None, 0, "after", "library", None),
 
     ("7.1", "Prepare Risk Register", "contract", "predecessor", "1.20", 5, "before", "date_driven", None),
