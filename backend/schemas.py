@@ -147,14 +147,6 @@ class BulkRemindRequest(BaseModel):
     cc_manager: bool = False  # item 90 — also CC the owner's manager_email from the user roster
 
 
-class ReviewDecision(BaseModel):
-    approved: bool
-    comment: str | None = None
-    reviewer_name: str = "SME"
-    actor_role: str = "Admin"
-    actor_email: str = ""
-
-
 class AnnouncementOut(BaseModel):
     id: int
     type: str

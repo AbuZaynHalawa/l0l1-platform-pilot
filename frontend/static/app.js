@@ -1608,14 +1608,28 @@
       comment = prompt("Reason for rejection (shown to the owner):", "Please review and resubmit with updated supporting documents.");
       if (comment === null) return;
     }
-    try {
-      await api("/api/deliverables/" + submissionId + "/review", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          approved: approved, comment: comment, reviewer_name: CURRENT_ROLE,
-          actor_role: CURRENT_ROLE, actor_email: actingEmail(),
-        }),
+    // Item 152: optional attachment as part of the decision (e.g. a
+    // marked-up file or reference doc) -- native confirm+file-picker,
+    // matching this app's existing lightweight prompt()-based quick-action
+    // pattern rather than a new custom modal just for this one step.
+    var file = null;
+    if (confirm("Attach a document to this decision? (optional)")) {
+      file = await new Promise(function (resolve) {
+        var input = document.createElement("input");
+        input.type = "file";
+        input.addEventListener("change", function () { resolve(input.files[0] || null); });
+        input.click();
       });
+    }
+    var fd = new FormData();
+    fd.append("approved", approved ? "true" : "false");
+    fd.append("comment", comment || "");
+    fd.append("reviewer_name", CURRENT_ROLE);
+    fd.append("actor_role", CURRENT_ROLE);
+    fd.append("actor_email", actingEmail());
+    if (file) fd.append("file", file);
+    try {
+      await api("/api/deliverables/" + submissionId + "/review", { method: "POST", body: fd });
     } catch (err) {
       showToast("Review blocked &#8211; " + apiErrorDetail(err), true);
       return;

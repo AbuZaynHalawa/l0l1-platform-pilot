@@ -313,11 +313,17 @@ def mark_complete(submission_id: int, payload: schemas.MarkCompleteRequest, db: 
 
 
 @router.post("/{submission_id}/review")
-def review_deliverable(submission_id: int, decision: schemas.ReviewDecision, db: Session = Depends(get_db)):
+async def review_deliverable(submission_id: int, approved: bool = Form(...), comment: str = Form(""),
+                              reviewer_name: str = Form("SME"), actor_role: str = Form("Admin"),
+                              actor_email: str = Form(""), file: UploadFile | None = File(None),
+                              db: Session = Depends(get_db)):
     """Item 143 (2nd revision): the SME's confirm/reject on an Owner's
     completion claim — the only whole-deliverable review action left, since
     per-document review no longer exists. Only reachable from PENDING_REVIEW,
-    which is now reached solely via Mark Completed.
+    which is now reached solely via Mark Completed. Multipart, not JSON
+    (item 152), so the SME can optionally attach a document — e.g. a
+    marked-up file or reference doc — as part of either decision, same
+    storage path add_document already uses.
     """
     sub = db.get(models.DeliverableSubmission, submission_id)
     if not sub:
@@ -326,22 +332,29 @@ def review_deliverable(submission_id: int, decision: schemas.ReviewDecision, db:
         raise HTTPException(400, "Deliverable is not awaiting completion confirmation")
 
     assigned_sme = sub.sme_email or sub.definition.default_sme_email
-    if not rules.can_act(decision.actor_role, decision.actor_email, assigned_sme):
+    if not rules.can_act(actor_role, actor_email, assigned_sme):
         raise HTTPException(403, f"Only {assigned_sme or 'the assigned SME'} or an Admin can review this deliverable")
 
-    if decision.approved:
-        _finalize_approval(db, sub, decision.comment, decision.reviewer_name)
+    if file is not None and file.filename:
+        content = await file.read()
+        folder = f"{sub.project.onedrive_folder_path}/{sanitize_segment(sub.definition.department.name)}"
+        file_ref = _storage.upload_file(folder, file.filename, content)
+        db.add(models.Document(submission_id=submission_id, file_name=file.filename, file_ref=file_ref,
+                                uploaded_by=reviewer_name))
+
+    if approved:
+        _finalize_approval(db, sub, comment or None, reviewer_name)
         return {"status": "ok"}
 
     sub.status = models.SubmissionStatus.REJECTED
-    sub.review_comment = decision.comment
+    sub.review_comment = comment or None
     sub.reviewed_at = datetime.utcnow()
-    db.add(models.WorkflowHistory(submission_id=sub.id, action="rejected", actor_name=decision.reviewer_name, note=decision.comment))
+    db.add(models.WorkflowHistory(submission_id=sub.id, action="rejected", actor_name=reviewer_name, note=comment or None))
     db.commit()
 
     owner_email = sub.owner_email or sub.definition.default_owner_email or ""
     announcements.sme_decision(db, sub.project, owner_email, sub.definition.item_no, sub.definition.name,
-                                False, decision.comment, submission_id=sub.id)
+                                False, comment or None, submission_id=sub.id)
     announcements.followers_notified(db, sub.project, _follower_emails(db, sub.id), sub.definition.item_no,
                                       sub.definition.name, "rejected", submission_id=sub.id)
 
