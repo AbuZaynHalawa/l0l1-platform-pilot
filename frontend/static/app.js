@@ -529,7 +529,11 @@
       row.appendChild(el("div", "aqt-cell aqt-ellipsis aqt-focal", d.owner));
       row.appendChild(el("div", "aqt-cell", deadlineStatusCellHtml(d)));
       row.appendChild(el("div", "aqt-cell", progressStatusCellHtml(d)));
-      row.appendChild(el("div", "aqt-cell aqt-ellipsis aqt-due", fmtDate(d.due_date)));
+      // Item 169: same milestone-wait note as the project detail list,
+      // instead of a bare "—" for an item with no due date yet.
+      var aqtDueCell = el("div", "aqt-cell aqt-ellipsis aqt-due", (!d.due_date && d.awaiting_note) ? d.awaiting_note : fmtDate(d.due_date));
+      if (!d.due_date && d.awaiting_note) aqtDueCell.title = d.awaiting_note;
+      row.appendChild(aqtDueCell);
 
       var authorized = isAssigned(d);
       var actions = el("div", "aqt-cell aqt-actions");
@@ -1643,7 +1647,11 @@
       var nameEl = el("div", "deliv-name", d.name);
       nameEl.title = d.name;
       body.appendChild(nameEl);
-      body.appendChild(el("div", "deliv-due", '<span class="deliv-due-date">Due ' + fmtDate(d.due_date) + '</span> ' + statusPillsHtml(d)));
+      // Item 169: a null due_date pending a milestone reads as a stalled
+      // "Due —" otherwise, with no explanation of what it's actually
+      // waiting on.
+      var dueLabel = (!d.due_date && d.awaiting_note) ? d.awaiting_note : "Due " + fmtDate(d.due_date);
+      body.appendChild(el("div", "deliv-due", '<span class="deliv-due-date">' + dueLabel + '</span> ' + statusPillsHtml(d)));
       var authorized = isAssigned(d);
       if (authorized && d.completion_note) {
         body.appendChild(el("div", "deliv-comment", "&#128172; " + d.completion_note));

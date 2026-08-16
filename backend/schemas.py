@@ -120,6 +120,9 @@ class SubmissionOut(BaseModel):
     is_milestone: bool
     milestone_code: str | None
     doc_total: int = 0  # item 136: total documents attached (primary file + supplementary)
+    # Item 169: set only when due_date is still None because this item is
+    # predecessor-gated on a milestone that hasn't been reached yet.
+    awaiting_note: str | None = None
 
     class Config:
         from_attributes = True

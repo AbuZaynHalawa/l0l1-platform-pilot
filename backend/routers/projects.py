@@ -600,6 +600,7 @@ def get_deliverables(project_id: int, department: str | None = None, db: Session
             completion_note=rules.mark_complete_note(s),
             is_milestone=s.definition.is_milestone, milestone_code=s.definition.milestone_code,
             doc_total=doc_counts.get(s.id, 0),
+            awaiting_note=rules.awaiting_milestone_note(db, s),
         ))
     db.commit()
 

@@ -76,6 +76,7 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
             "review_comment": s.review_comment, "completion_note": rules.mark_complete_note(s),
             "following": s.id in my_follows,
             "doc_total": doc_counts.get(s.id, 0),
+            "awaiting_note": rules.awaiting_milestone_note(db, s),
         })
     return out
 
