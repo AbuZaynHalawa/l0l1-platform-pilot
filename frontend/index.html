@@ -161,11 +161,18 @@
           <p class="sub">Every announcement and targeted notification the platform has sent, automatically, from a single event stream.</p>
         </div>
       </div>
+      <!-- Item 153: kept in the same order as the Type filter below, and
+           using the exact colors .ann-ic's own type classes render with
+           (styles.css), so this always matches both the filter options and
+           what's actually shown next to each announcement. -->
       <div class="ann-type-key">
         <span class="lg"><span class="sw" style="background:var(--purple-1)"></span> Broadcast</span>
         <span class="lg"><span class="sw" style="background:var(--good)"></span> To Owner</span>
-        <span class="lg"><span class="sw" style="background:var(--warn)"></span> SME review request</span>
-        <span class="lg"><span class="sw" style="background:var(--purple-2)"></span> Cross-department unlock</span>
+        <span class="lg"><span class="sw" style="background:var(--warn)"></span> SME Review Request</span>
+        <span class="lg"><span class="sw" style="background:var(--good)"></span> SME Decision</span>
+        <span class="lg"><span class="sw" style="background:var(--purple-2)"></span> Cross-department Unlock</span>
+        <span class="lg"><span class="sw" style="background:var(--warn)"></span> Deadline / Reminder</span>
+        <span class="lg"><span class="sw" style="background:var(--neutral-bg);border:1px solid var(--line)"></span> Closed</span>
       </div>
       <div class="gantt-filter-row">
         <select id="annTypeFilter">
