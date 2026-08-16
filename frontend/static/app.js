@@ -460,8 +460,12 @@
     });
   });
   async function loadAssigned() {
-    var followQS = passiveIdentity() ? "?actor_email=" + encodeURIComponent(passiveIdentity()) : "";
-    var everything = await api("/api/deliverables" + followQS);
+    // Item 166: a non-admin only sees their own assigned deliverables
+    // (owner or SME on that item) -- previously every role saw the
+    // entire cross-project list.
+    var qs = "?actor_role=" + encodeURIComponent(CURRENT_ROLE);
+    if (passiveIdentity()) qs += "&actor_email=" + encodeURIComponent(passiveIdentity());
+    var everything = await api("/api/deliverables" + qs);
     var all = assignedStage ? everything.filter(function (d) { return d.stage === assignedStage; }) : everything;
     document.getElementById("assignedBadge").textContent = everything.filter(function (d) { return d.deadline_status === "due"; }).length || "";
 

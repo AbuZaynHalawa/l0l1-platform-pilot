@@ -23,8 +23,13 @@ def _follower_emails(db: Session, submission_id: int) -> list[str]:
 
 
 @router.get("")
-def list_all_deliverables(status: str | None = None, actor_email: str | None = None, db: Session = Depends(get_db)):
-    """Cross-project queue for the Assigned Deliverables page."""
+def list_all_deliverables(status: str | None = None, actor_email: str | None = None,
+                           actor_role: str | None = None, db: Session = Depends(get_db)):
+    """Cross-project queue for the Assigned Deliverables page. Item 166: a
+    non-admin only sees their own assigned deliverables (owner or SME on
+    that item) -- previously actor_email was accepted but only used for the
+    "following" flag, so every role saw the entire cross-project list.
+    """
     active_projects = db.query(models.Project).filter(models.Project.status == models.ProjectStatus.IN_PROGRESS).all()
     for p in active_projects:
         rules.recompute_project_due_dates(db, p)
@@ -44,11 +49,18 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
             f.submission_id for f in
             db.query(models.Follower).filter(models.Follower.email == actor_email.strip().lower()).all()
         }
+    scope_to_mine = bool(actor_role) and actor_role != "Admin"
+    my_email = (actor_email or "").strip().lower()
     doc_counts = rules.document_counts(db, [s.id for s in subs])
     out = []
     for s in subs:
         if status and s.status.value != status:
             continue
+        if scope_to_mine:
+            owner = (s.owner_email or s.definition.default_owner_email or "").strip().lower()
+            sme = (s.sme_email or s.definition.default_sme_email or "").strip().lower()
+            if not my_email or (my_email != owner and my_email != sme):
+                continue
         deadline_key, deadline_days = rules.deadline_status(s)
         out.append({
             "id": s.id, "est_no": s.project.est_no, "project_name": s.project.name, "stage": s.project.stage.value,
