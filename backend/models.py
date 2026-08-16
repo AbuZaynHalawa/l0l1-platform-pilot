@@ -337,6 +337,11 @@ class SupportMessage(Base):
     author = Column(String, nullable=False)  # "admin" | "asker"
     body = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+    # Item 172.1: an admin can answer by pointing at an existing KB entry
+    # instead of writing fresh -- kept here (not just used transiently) so
+    # resolve-time KB creation can tell this thread already has a real
+    # answer on record and skip adding a duplicate.
+    kb_reference_id = Column(Integer, ForeignKey("kb_entries.id"), nullable=True)
 
     request = relationship("SupportRequest", back_populates="messages")
 

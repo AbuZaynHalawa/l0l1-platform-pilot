@@ -2688,10 +2688,10 @@
       if (opts.canReply) {
         var replyInput = el("input"); replyInput.setAttribute("type", "text"); replyInput.placeholder = opts.replyPlaceholder;
         var kbRefSelect = null;
-        // Item 150: admin-only -- reuse an existing knowledge base answer
-        // instead of writing a fresh one, so this question doesn't turn
-        // into a duplicate entry (the reply still goes out to the asker;
-        // only the "auto-add to the knowledge base" part is skipped).
+        // Item 150/172.1: admin-only -- point this reply at an existing
+        // knowledge base answer instead of writing a fresh one, so
+        // resolving this ticket doesn't add a duplicate entry (the reply
+        // still goes out to the asker either way).
         if (opts.kbEntries && opts.kbEntries.length) {
           kbRefSelect = el("select");
           kbRefSelect.appendChild(el("option", "", "Reference an existing answer&#8230;"));

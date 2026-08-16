@@ -61,11 +61,23 @@ def list_my_support_requests(email: str, db: Session = Depends(get_db)):
 
 @router.get("/kb")
 def list_kb_entries(db: Session = Depends(get_db)):
-    """Item 150: the full knowledge base, unfiltered -- small enough dataset
-    that search/category filtering happens client-side, same convention as
-    Assigned Deliverables and Follow Up's own filters.
+    """Item 150/172.1: the knowledge base, unfiltered beyond one rule --
+    every entry must trace back to a closed topic. Entries are now only
+    created when a ticket resolves, so this mainly guards against stale
+    rows from before that change (created on first admin reply, possibly
+    while the ticket was still open). Search/category filtering happens
+    client-side, same convention as Assigned Deliverables and Follow Up.
     """
-    rows = db.query(models.KnowledgeBaseEntry).order_by(models.KnowledgeBaseEntry.id).all()
+    rows = (
+        db.query(models.KnowledgeBaseEntry)
+        .outerjoin(models.SupportRequest, models.KnowledgeBaseEntry.source_request_id == models.SupportRequest.id)
+        .filter(
+            (models.KnowledgeBaseEntry.source_request_id.is_(None))
+            | (models.SupportRequest.status == "resolved")
+        )
+        .order_by(models.KnowledgeBaseEntry.id)
+        .all()
+    )
     return [
         {"id": r.id, "category": r.category, "question": r.question, "answer": r.answer,
          "created_at": r.created_at, "source_request_id": r.source_request_id}
@@ -108,19 +120,17 @@ def admin_reply(request_id: int, payload: SupportReplyCreate, db: Session = Depe
     body = payload.body.strip()
     if not body:
         raise HTTPException(400, "Reply can't be empty")
-    # Item 150: the first time an admin answers a question, it's auto-added
-    # to the knowledge base -- unless the admin referenced an existing entry
-    # instead, in which case this is a duplicate of a question already there
-    # and no new entry gets created.
-    already_answered = any(m.author == "admin" for m in req.messages)
+    # Item 172.1: a reply on its own no longer adds anything to the
+    # knowledge base -- see resolve_support_request() below, where that now
+    # happens once the ticket is actually marked resolved. A reference to
+    # an existing entry is still recorded here (on the message itself, so
+    # it survives to resolve time) so resolving doesn't add a duplicate for
+    # a question that's really the same as one already documented.
     if payload.kb_reference_id is not None:
         if not db.get(models.KnowledgeBaseEntry, payload.kb_reference_id):
             raise HTTPException(404, "Referenced knowledge base entry not found")
-    elif not already_answered:
-        db.add(models.KnowledgeBaseEntry(
-            category=req.stage or "General", question=req.message, answer=body, source_request_id=req.id,
-        ))
-    db.add(models.SupportMessage(request_id=req.id, author="admin", body=body))
+    db.add(models.SupportMessage(request_id=req.id, author="admin", body=body,
+                                  kb_reference_id=payload.kb_reference_id))
     db.commit()
     return _serialize(req)
 
@@ -154,5 +164,22 @@ def resolve_support_request(request_id: int, actor_role: str = "Viewer", db: Ses
         raise HTTPException(404, "Request not found")
     req.status = "resolved"
     req.resolved_at = datetime.utcnow()
+    # Item 172.1: the knowledge base only gets a new entry once a ticket is
+    # actually resolved, not on the first reply -- and only when this
+    # question doesn't already have a home. Skip if an admin already pointed
+    # this thread at an existing entry (nothing new to add), or if resolving
+    # twice would otherwise create a duplicate.
+    already_referenced = any(m.kb_reference_id is not None for m in req.messages)
+    already_has_entry = db.query(models.KnowledgeBaseEntry).filter(
+        models.KnowledgeBaseEntry.source_request_id == req.id
+    ).first() is not None
+    if not already_referenced and not already_has_entry:
+        admin_replies = [m for m in req.messages if m.author == "admin"]
+        if admin_replies:
+            last_reply = max(admin_replies, key=lambda m: m.created_at)
+            db.add(models.KnowledgeBaseEntry(
+                category=req.stage or "General", question=req.message,
+                answer=last_reply.body, source_request_id=req.id,
+            ))
     db.commit()
     return {"status": "ok"}
