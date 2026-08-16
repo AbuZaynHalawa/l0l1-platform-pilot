@@ -654,7 +654,9 @@
         // Which BU this item belongs to is now conveyed by its group
         // header (item 118), so the row name itself doesn't need a
         // "— DBU" suffix tacked on anymore.
-        body.appendChild(el("div", "deliv-name", d.name));
+        var nameEl = el("div", "deliv-name", d.name);
+        nameEl.title = d.name;
+        body.appendChild(nameEl);
         row.appendChild(body);
         var toggle = el("div", "triage-toggle");
         var appBtn = el("button", "chip" + (remembered ? " active" : ""), "Applicable");
@@ -1215,6 +1217,13 @@
     // data comes back and says it's actually done.
     document.getElementById("dTriageBanner").hidden = true;
     document.getElementById("dTriagePill").hidden = true;
+    // Item 157: this function makes several sequential API calls before
+    // finally switching to the detail view -- previously, if any of them
+    // failed (a transient network hiccup, cold-start timeout), the whole
+    // thing silently aborted right there with no error shown, leaving the
+    // click looking like it just didn't do anything. Now a failure at any
+    // point surfaces as a toast instead of a dead end.
+    try {
     var p = await api("/api/projects/" + id);
     currentProjectStage = p.stage;
     currentProjectTerminal = (p.stage === "L0" && (p.status === "Submitted" || p.status === "Cancelled")) ||
@@ -1465,6 +1474,9 @@
         }
       }, 50);
     }
+    } catch (err) {
+      showToast("Could not open this project &#8211; " + apiErrorDetail(err), true);
+    }
   }
 
   function renderDeliverables(items) {
@@ -1486,7 +1498,9 @@
       var row = el("div", "deliv-row");
       row.dataset.sid = String(d.id);
       var body = el("div", "deliv-body");
-      body.appendChild(el("div", "deliv-name", d.name));
+      var nameEl = el("div", "deliv-name", d.name);
+      nameEl.title = d.name;
+      body.appendChild(nameEl);
       body.appendChild(el("div", "deliv-due", '<span class="deliv-due-date">Due ' + fmtDate(d.due_date) + '</span> ' + statusPillsHtml(d)));
       var authorized = isAssigned(d);
       if (authorized && d.completion_note) {
