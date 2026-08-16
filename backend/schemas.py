@@ -42,6 +42,7 @@ class ProjectDetailsUpdate(BaseModel):
     gets the same full-cascade recompute treatment on edit.
     """
     bid_manager: str | None = None
+    rfx_number: str | None = None
     region: list[str] | None = None
     region_other: str | None = None
     announcement_date: date | None = None

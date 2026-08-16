@@ -1286,7 +1286,7 @@
     meta.innerHTML = "";
     var buLabel = (p.business_units && p.business_units.length) ? p.business_units.join(" / ") : "&#8213;";
     var metaItems = p.stage === "L0"
-      ? [["Bid Manager", p.bid_manager || "&#8213;", "bm"], ["RFX", p.rfx_number || "&#8213;"], ["Region", joinList(p.region), "region"], ["Scope", joinList(p.scope)],
+      ? [["Bid Manager", p.bid_manager || "&#8213;", "bm"], ["RFX", p.rfx_number || "&#8213;", "rfx"], ["Region", joinList(p.region), "region"], ["Scope", joinList(p.scope)],
          ["Business Unit", buLabel],
          ["Announced", fmtDate(p.announcement_date), "date:announcement_date:Announcement Date"],
          ["Site Visit", fmtDate(p.site_visit_date), "date:site_visit_date:Site Visit Date"],
@@ -1332,6 +1332,14 @@
               method: "PATCH", headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ bid_manager: nextBm, actor_role: CURRENT_ROLE }),
             }).then(function () { showToast("Bid Manager updated"); openDetail(id); })
+              .catch(function (err) { showToast("Could not update &#8211; " + apiErrorDetail(err), true); });
+          } else if (tag === "rfx") {
+            var nextRfx = prompt("RFX Number:", p.rfx_number || "");
+            if (nextRfx === null) return;
+            api("/api/projects/" + id + "/details", {
+              method: "PATCH", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ rfx_number: nextRfx.trim() || null, actor_role: CURRENT_ROLE }),
+            }).then(function () { showToast("RFX updated"); openDetail(id); })
               .catch(function (err) { showToast("Could not update &#8211; " + apiErrorDetail(err), true); });
           } else if (tag === "region") {
             var ropts = await getCreateOptions();

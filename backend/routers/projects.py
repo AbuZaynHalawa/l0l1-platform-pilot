@@ -427,6 +427,8 @@ def update_project_details(project_id: int, payload: schemas.ProjectDetailsUpdat
         if (data["bid_manager"] or "").lower() not in active_emails:
             raise HTTPException(400, "Bid Manager must be selected from the directory")
         project.bid_manager = data["bid_manager"]
+    if "rfx_number" in data:
+        project.rfx_number = data["rfx_number"]
     if "region" in data:
         if not data["region"]:
             raise HTTPException(400, "Select at least one Region")
