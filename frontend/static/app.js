@@ -38,22 +38,32 @@
     var d = new Date(iso + "T00:00:00");
     return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
   }
-  // Item 143: the deliverable's whole status pill. When documents are
-  // involved and it isn't Completed yet, shows the live fraction
-  // ("1/2 Documents Pending SME Review" / "2/2 Documents Approved") in
-  // place of the generic status label -- that's the more useful signal
-  // while docs are still coming in one at a time. Falls back to the plain
-  // STATUS_META pill everywhere else. Replaces item 136's separate
-  // "X docs, Y approved" badge, which this supersedes.
-  function docStatusPillHtml(d) {
-    var sm = STATUS_META[d.status] || ["neutral", d.status];
-    if ((d.status === "pending_review" || d.status === "pending_completion") && d.doc_total > 0) {
-      var allApproved = d.doc_approved === d.doc_total;
-      var noun = d.doc_total === 1 ? "Document" : "Documents";
-      var text = d.doc_approved + "/" + d.doc_total + " " + noun + " " + (allApproved ? "Approved" : "Pending SME Review");
-      return '<span class="pill ' + (allApproved ? "good" : "warn") + '"><span class="dot"></span>' + text + "</span>";
+  // Item 143 (2nd revision): a deliverable now carries two independent
+  // status pills -- Deadline (Not Due / Due / On Time / Early / Late, with
+  // a day count) and Progress (No Progress Yet / In Progress / Pending SME
+  // Review / Completed / Rejected). Not Required and Pending Triage sit
+  // outside both axes, so they render as a single pill on their own.
+  function deadlinePillHtml(d) {
+    var meta = DEADLINE_META[d.deadline_status] || ["neutral", d.deadline_status];
+    var text = meta[1];
+    if (d.deadline_days !== null && d.deadline_days !== undefined) {
+      text += " (" + (d.deadline_days > 0 ? "+" : "") + d.deadline_days + " days)";
     }
-    return '<span class="pill ' + sm[0] + '"><span class="dot"></span>' + sm[1] + "</span>";
+    return '<span class="pill ' + meta[0] + '"><span class="dot"></span>' + text + "</span>";
+  }
+  function progressPillHtml(d) {
+    // Auto-completed items (1.1-1.5, milestones) get a distinct label
+    // rather than folding into plain "Completed" -- they were never a real
+    // SME sign-off, just data already known from the project's own form.
+    if (d.status === "approved" && d.auto_completed) {
+      return '<span class="pill good"><span class="dot"></span>Auto-Completed</span>';
+    }
+    var meta = STATUS_META[d.status] || ["neutral", d.status];
+    return '<span class="pill ' + meta[0] + '"><span class="dot"></span>' + meta[1] + "</span>";
+  }
+  function statusPillsHtml(d) {
+    if (d.status === "not_required" || d.status === "pending_triage") return progressPillHtml(d);
+    return deadlinePillHtml(d) + progressPillHtml(d);
   }
   // Item 91: a centered loading popup for every in-flight API call, so a
   // slow reminder/creation/etc. reads as "working" instead of "stuck".
@@ -107,14 +117,25 @@
     window.__toastTimer = setTimeout(function () { t.classList.remove("show"); }, duration);
   }
 
+  // Item 143 (2nd revision): Progress status -- how far the work itself
+  // has gotten. Independent of Deadline status (DEADLINE_META below).
   var STATUS_META = {
-    not_due: ["neutral", "Not Due"], due: ["warn", "Due"], overdue: ["crit", "Overdue"],
+    no_progress: ["neutral", "No Progress Yet"],
+    in_progress: ["warn", "In Progress"],
     pending_review: ["warn", "Pending SME Review"],
-    // Item 143: owner clicked Mark Completed, awaiting the SME's confirm/reject.
-    pending_completion: ["warn", "Awaiting SME Sign-off"],
     approved: ["good", "Completed"], rejected: ["crit", "Rejected"],
     pending_triage: ["neutral", "Pending BM Triage"], not_required: ["neutral", "Not Required"],
   };
+  // Deadline status -- where a deliverable stands against its due date,
+  // live while open (Due's day count grows daily) and frozen the moment it
+  // resolves (Early/On Time/Late read off the actual completion date).
+  var DEADLINE_META = {
+    not_due: ["neutral", "Not Due"], due: ["crit", "Due"],
+    on_time: ["good", "On Time"], early: ["good", "Early"], late: ["crit", "Late"],
+  };
+  // Item 143 (2nd revision): the Dashboard matrix collapses everything down
+  // to just these three buckets (rules.deadline_bucket() on the backend).
+  var MATRIX_BUCKET_META = { not_due: ["neutral", "Not Due"], due: ["crit", "Due"], completed: ["good", "Completed"] };
   var PROJECT_STATUS_CLASS = { "Completed": "good", "Cancelled": "crit", "Submitted": "good", "In Progress": "warn" };
   var L1_MILESTONE_LABELS = {
     M1: "Announcement", M2: "Early Plan", M3: "Handing Over",
@@ -199,15 +220,15 @@
     // Item 121: the three deliverable-status cards jump straight to
     // Assigned Deliverables pre-filtered to match what was clicked,
     // instead of just being a number you then have to go re-find.
-    [["Active L0 Tenders", d.active_l0, "", null], ["Active L1 Projects", d.active_l1, "", null],
-     [mine ? "My Not Due" : "Not Due", d.not_due, "", "not_due"],
-     [mine ? "My Pending SME Review" : "Pending SME Review", d.pending_review, "", "pending_review"],
-     [mine ? "My Overdue" : "Overdue Right Now", d.overdue, "color:var(--crit)", "overdue"]]
+    [["Active L0 Tenders", d.active_l0, "", null, null], ["Active L1 Projects", d.active_l1, "", null, null],
+     [mine ? "My Not Due" : "Not Due", d.not_due, "", "deadline", "not_due"],
+     [mine ? "My Pending SME Review" : "Pending SME Review", d.pending_review, "", "progress", "pending_review"],
+     [mine ? "My Due" : "Due Right Now", d.overdue, "color:var(--crit)", "deadline", "due"]]
       .forEach(function (s) {
         var tile = el("div", "card stat-tile");
         if (s[3]) {
           tile.style.cursor = "pointer";
-          tile.addEventListener("click", function () { goToAssignedFilter(s[3]); });
+          tile.addEventListener("click", function () { goToAssignedFilter(s[3], s[4]); });
         }
         tile.appendChild(el("div", "label", s[0]));
         var v = el("div", "value num", String(s[1]));
@@ -281,7 +302,9 @@
       data.projects.forEach(function (p) {
         var cell = row.cells[p.id];
         if (!cell) { html += '<td class="matrix-empty-cell">&#8213;</td>'; return; }
-        var meta = STATUS_META[cell.status] || ["neutral", cell.status];
+        // Item 143 (2nd revision): the matrix shows the 3-state Deadline
+        // collapse (Not Due / Due / Completed), not the raw Progress status.
+        var meta = MATRIX_BUCKET_META[cell.bucket] || ["neutral", cell.bucket];
         var tip = meta[1] + (cell.due_date ? " &middot; due " + fmtDate(cell.due_date) : "");
         html += '<td><span class="matrix-dot ' + meta[0] + '" title="' + tip.replace(/"/g, "&quot;") +
           '" data-sid="' + cell.submission_id + '" data-pid="' + p.id + '"></span></td>';
@@ -361,24 +384,28 @@
   }
 
   /* ================= ASSIGNED DELIVERABLES ================= */
-  var assignedFilter = "";
+  // Item 143 (2nd revision): Deadline and Progress are independent filters
+  // now, each its own chip row, combined with AND logic.
+  var assignedDeadlineFilter = "";
+  var assignedProgressFilter = "";
   var assignedStage = "";
-  var ASSIGNED_FILTERS = [["", "All"], ["overdue", "Overdue"], ["pending_review", "Pending SME Review"], ["not_due", "Not Due Yet"], ["approved", "Completed"], ["rejected", "Rejected"]];
-  // Item 143: the "Pending SME Review" filter/chip covers both
-  // pending_review (docs still coming in / being reviewed) and
-  // pending_completion (owner said done, awaiting SME confirm) -- both
-  // mean "needs SME attention," and splitting them into two chips would
-  // just clutter the filter bar for a distinction the action buttons
-  // already make clear once you open the item.
-  function statusMatchesFilter(status, filterValue) {
-    if (filterValue === "pending_review") return status === "pending_review" || status === "pending_completion";
-    return status === filterValue;
+  var DEADLINE_FILTERS = [["", "All"], ["not_due", "Not Due"], ["due", "Due"]];
+  var PROGRESS_FILTERS = [
+    ["", "All"], ["no_progress", "No Progress Yet"], ["in_progress", "In Progress"],
+    ["pending_review", "Pending SME Review"], ["approved", "Completed"], ["rejected", "Rejected"],
+  ];
+  function deliverableMatchesFilters(d) {
+    if (assignedDeadlineFilter && d.deadline_status !== assignedDeadlineFilter) return false;
+    if (assignedProgressFilter && d.status !== assignedProgressFilter) return false;
+    return true;
   }
-  // Item 121: jump to Assigned Deliverables pre-filtered by status, from a
-  // Dashboard stat card. Resets the L0/L1 stage toggle back to "All" since
-  // the card being clicked isn't stage-specific.
-  function goToAssignedFilter(status) {
-    assignedFilter = status;
+  // Item 121: jump to Assigned Deliverables pre-filtered, from a Dashboard
+  // stat card. axis is "deadline" or "progress" -- resets the OTHER axis
+  // and the L0/L1 stage toggle back to "All" since the card being clicked
+  // is single-dimension and stage-agnostic.
+  function goToAssignedFilter(axis, value) {
+    assignedDeadlineFilter = axis === "deadline" ? value : "";
+    assignedProgressFilter = axis === "progress" ? value : "";
     assignedStage = "";
     document.querySelectorAll("#assignedStageToggle .chip").forEach(function (b) { b.classList.toggle("active", b.dataset.stage === ""); });
     switchView("assigned");
@@ -395,18 +422,29 @@
     var followQS = actingEmail() ? "?actor_email=" + encodeURIComponent(actingEmail()) : "";
     var everything = await api("/api/deliverables" + followQS);
     var all = assignedStage ? everything.filter(function (d) { return d.stage === assignedStage; }) : everything;
-    document.getElementById("assignedBadge").textContent = everything.filter(function (d) { return d.status === "overdue"; }).length || "";
+    document.getElementById("assignedBadge").textContent = everything.filter(function (d) { return d.deadline_status === "due"; }).length || "";
 
-    var chips = document.getElementById("assignedChips");
-    chips.innerHTML = "";
-    ASSIGNED_FILTERS.forEach(function (f) {
-      var count = f[0] ? all.filter(function (d) { return statusMatchesFilter(d.status, f[0]); }).length : all.length;
-      var chip = el("button", "chip" + (assignedFilter === f[0] ? " active" : ""), f[1] + ' <span class="cnum">' + count + '</span>');
-      chip.addEventListener("click", function () { assignedFilter = f[0]; loadAssigned(); });
-      chips.appendChild(chip);
+    var deadlineBase = assignedProgressFilter ? all.filter(function (d) { return d.status === assignedProgressFilter; }) : all;
+    var dchips = document.getElementById("assignedDeadlineChips");
+    dchips.innerHTML = "";
+    DEADLINE_FILTERS.forEach(function (f) {
+      var count = f[0] ? deadlineBase.filter(function (d) { return d.deadline_status === f[0]; }).length : deadlineBase.length;
+      var chip = el("button", "chip" + (assignedDeadlineFilter === f[0] ? " active" : ""), f[1] + ' <span class="cnum">' + count + '</span>');
+      chip.addEventListener("click", function () { assignedDeadlineFilter = f[0]; loadAssigned(); });
+      dchips.appendChild(chip);
     });
 
-    var items = assignedFilter ? all.filter(function (d) { return statusMatchesFilter(d.status, assignedFilter); }) : all;
+    var progressBase = assignedDeadlineFilter ? all.filter(function (d) { return d.deadline_status === assignedDeadlineFilter; }) : all;
+    var pchips = document.getElementById("assignedProgressChips");
+    pchips.innerHTML = "";
+    PROGRESS_FILTERS.forEach(function (f) {
+      var count = f[0] ? progressBase.filter(function (d) { return d.status === f[0]; }).length : progressBase.length;
+      var chip = el("button", "chip" + (assignedProgressFilter === f[0] ? " active" : ""), f[1] + ' <span class="cnum">' + count + '</span>');
+      chip.addEventListener("click", function () { assignedProgressFilter = f[0]; loadAssigned(); });
+      pchips.appendChild(chip);
+    });
+
+    var items = all.filter(deliverableMatchesFilters);
     var wrap = document.getElementById("assignedList");
     wrap.innerHTML = "";
     if (!items.length) { wrap.appendChild(el("div", "empty-state", "Nothing here right now.")); return; }
@@ -425,24 +463,24 @@
       main.style.cursor = "pointer";
       main.addEventListener("click", function () { openDelivModal(d.id); });
       row.appendChild(main);
-      row.appendChild(el("span", "", docStatusPillHtml(d)));
+      row.appendChild(el("span", "", statusPillsHtml(d)));
       var actions = el("div", "deliv-actions");
       if (authorized && d.file_url) actions.appendChild(fileLink(d));
       actions.appendChild(followButton(d));
       if (!authorized) {
         actions.appendChild(el("span", "locked-note", "Owner/SME only"));
       } else {
-        // Item 143: whole-deliverable Approve/Reject only exists once the
-        // owner has claimed it's done (pending_completion) -- while docs
-        // are still coming in, review happens per-document instead.
-        if (d.status === "pending_completion" && can("review")) {
+        // Item 143 (2nd revision): whole-deliverable Approve/Reject only
+        // exists once Mark Completed has been clicked (Pending SME Review)
+        // -- per-document review no longer exists.
+        if (d.status === "pending_review" && can("review")) {
           var appr = el("button", "btn primary", "Approve");
           appr.addEventListener("click", function () { review(d.id, true, loadAssigned); });
           var rej = el("button", "btn ghost-crit", "Reject");
           rej.addEventListener("click", function () { review(d.id, false, loadAssigned); });
           actions.appendChild(appr); actions.appendChild(rej);
         }
-        if (d.status === "overdue" && can("remind")) {
+        if (d.deadline_status === "due" && can("remind")) {
           var remindBtn = el("button", "btn ghost-crit", "Send reminder");
           remindBtn.addEventListener("click", async function () {
             try {
@@ -722,7 +760,7 @@
         '<div class="mock-body">' +
         '<div class="mock-stat-row">' +
         statMock("Not Due", "142") + statMock("Pending Review", "18") +
-        statMock("Overdue", "7") + statMock("Active Projects", "24") +
+        statMock("Due", "7") + statMock("Active Projects", "24") +
         "</div>" +
         '<div class="tour-callout">&#128072; Click any of these tiles on the real Dashboard to jump ' +
         "straight to that filtered slice of Assigned Deliverables.</div>" +
@@ -746,8 +784,8 @@
         '<div class="mock-folder-row"><span>&#128193; 6. Cost Control</span><span>0%</span></div>' +
         "</div>" +
         '<div class="mock-deliv-list">' +
-        deliverableMock("1.3", "Announce Pre-bid Meeting", "good", "Approved") +
-        deliverableMock("1.7", "Develop Estimate Program", "crit", "Overdue") +
+        deliverableMock("1.3", "Announce Pre-bid Meeting", "good", "Completed") +
+        deliverableMock("1.7", "Develop Estimate Program", "crit", "Due") +
         deliverableMock("1.9", "Float Materials RFQ", "neutral", "Not Due") +
         deliverableMock("1.5", "Assign Bid Manager", "warn", "Pending Review") +
         "</div></div></div>",
@@ -850,13 +888,6 @@
     var body = document.getElementById("delivModalBody");
     body.innerHTML = "";
 
-    // Item 143: doc counts for this specific deliverable, from its own
-    // full document list (already fetched below) rather than the list-view
-    // aggregate fields, since the modal has the real per-document detail.
-    var docTotal = d.documents.length;
-    var docApproved = d.documents.filter(function (doc) { return doc.status === "approved"; }).length;
-    var docPending = d.documents.filter(function (doc) { return doc.status === "pending"; }).length;
-
     var meta = el("div", "modal-meta-grid");
     // Item 134 rework: SME is no longer editable from here -- it's set as
     // a catalog default in Focal Points instead, so every new project
@@ -864,7 +895,7 @@
     // a time from this popup.
     [["Owner", d.owner_email || "&#8213;"], ["SME", d.sme_email || "&#8213;"],
      ["Due Date", fmtDate(d.due_date)],
-     ["Status", docStatusPillHtml({ status: d.status, doc_total: docTotal, doc_approved: docApproved })]]
+     ["Status", statusPillsHtml(d)]]
       .forEach(function (m) {
         var mi = el("div");
         mi.appendChild(el("div", "mk", m[0]));
@@ -895,28 +926,26 @@
     actionsRow.appendChild(shareBtn);
     actionsRow.appendChild(followButton({ id: d.id, following: d.following }));
 
-    // Item 143: Upload/Add Document stays available right up until the
-    // deliverable is actually Completed -- wider than the eligibleStatus
-    // gate below, which still only covers Mark Not Required/Reassign.
-    var canUpload = d.status !== "approved";
+    // Item 143 (2nd revision): Upload/Add Document stays available right up
+    // until Mark Completed is clicked -- once Pending SME Review, uploads
+    // close entirely until the SME confirms or sends it back (no more
+    // slipping in new evidence mid-review).
+    var canUpload = d.status !== "approved" && d.status !== "pending_review";
     if (authorized && canUpload && can("upload")) {
       actionsRow.appendChild(uploadButton(d.id, refreshModal));
     }
 
-    // Item 143: Mark Completed -- Owner or SME, once no document is still
-    // individually awaiting review, and it isn't already claimed
-    // (pending_completion) or finished (approved). The endpoint itself
-    // decides whether the caller's click finalizes it (SME) or just flags
-    // it for the SME's confirmation (Owner).
-    var canMarkComplete = docPending === 0 && (
-      d.status === "not_due" || d.status === "due" || d.status === "overdue" ||
-      d.status === "pending_review" || d.status === "rejected"
-    );
+    // Item 143 (2nd revision): Mark Completed -- Owner or SME, comment-only
+    // or with any number of documents already uploaded, it makes no
+    // difference since there's no more per-document gate to clear first.
+    // The endpoint itself decides whether the caller's click finalizes it
+    // (SME) or just flags it for the SME's confirmation (Owner).
+    var canMarkComplete = d.status === "no_progress" || d.status === "in_progress" || d.status === "rejected";
     if (authorized && canMarkComplete && (can("upload") || can("review"))) {
       actionsRow.appendChild(markCompleteButton(d.id, refreshModal));
     }
 
-    var eligibleStatus = d.status === "not_due" || d.status === "due" || d.status === "overdue" || d.status === "rejected";
+    var eligibleStatus = d.status === "no_progress" || d.status === "rejected";
     if (authorized && eligibleStatus && can("upload")) {
       if (CURRENT_ROLE === "Admin") actionsRow.appendChild(markNotRequiredButton(d.id, refreshModal));
       var reassignBtn = el("button", "btn", "Reassign");
@@ -940,9 +969,10 @@
       actionsRow.appendChild(reassignBtn);
     }
 
-    // Item 143: the SME's confirm/reject on an Owner's completion claim --
-    // the only place a whole-deliverable Approve/Reject still exists.
-    if (authorized && d.status === "pending_completion" && can("review")) {
+    // Item 143 (2nd revision): the SME's confirm/reject on a completion
+    // claim -- the only place a whole-deliverable Approve/Reject exists,
+    // reached only via Mark Completed now.
+    if (authorized && d.status === "pending_review" && can("review")) {
       var confirmBtn = el("button", "btn primary", "Confirm Completion");
       confirmBtn.addEventListener("click", function () { review(d.id, true, refreshModal); });
       var sendBackBtn = el("button", "btn ghost-crit", "Send Back");
@@ -977,12 +1007,11 @@
     }
     body.appendChild(actionsRow);
 
-    // Item 143: workflow nudges -- once every currently-uploaded doc is
-    // approved but nobody's declared it done yet, or while waiting on the
-    // SME's confirmation of an Owner's completion claim.
-    if (authorized && docPending === 0 && docTotal > 0 && d.status === "pending_review") {
+    // Item 143 (2nd revision): workflow nudges -- a reminder to close out
+    // once documents are in, or while waiting on the SME's confirmation.
+    if (authorized && d.status === "in_progress") {
       body.appendChild(el("div", "modal-hint", "Mark Completed if no more documents are needed."));
-    } else if (authorized && d.status === "pending_completion") {
+    } else if (authorized && d.status === "pending_review") {
       body.appendChild(el("div", "modal-hint", "Awaiting SME confirmation."));
     }
 
@@ -995,65 +1024,42 @@
 
     body.appendChild(el("div", "modal-section-title", "Documents"));
     if (!authorized) {
-      // Item 143: approved documents are visible to everyone, even while
-      // the deliverable as a whole is still open -- only pending/rejected
-      // docs and every action (Activity, Upload, review, etc.) stay
-      // restricted to the Owner/SME/Admin.
-      var approvedDocs = d.documents.filter(function (doc) { return doc.status === "approved"; });
-      if (!approvedDocs.length) {
-        body.appendChild(el("div", "empty-state", "No approved documents yet."));
-      } else {
-        approvedDocs.forEach(function (doc) {
+      // Item 143 (2nd revision): per-document review no longer exists, so
+      // there's no more partial mid-flight visibility -- documents are
+      // visible to everyone only once the whole deliverable is Completed,
+      // same as item 7's original rule.
+      if (d.status === "approved" && d.documents.length) {
+        d.documents.forEach(function (doc) {
           var row = el("div", "doc-row");
           var main = el("div", "doc-main");
           var link = el("a", "", doc.file_name);
           link.href = doc.file_url; link.target = "_blank"; link.rel = "noopener";
           main.appendChild(link);
-          main.appendChild(el("div", "doc-sub", "Uploaded by " + (doc.uploaded_by || "&#8213;") +
-            '<span class="pill good" style="margin-left:8px;"><span class="dot"></span>Approved</span>'));
+          main.appendChild(el("div", "doc-sub", "Uploaded by " + (doc.uploaded_by || "&#8213;")));
           row.appendChild(main);
           body.appendChild(row);
         });
+      } else {
+        body.appendChild(el("div", "empty-state",
+          d.status === "approved" ? "No documents were attached." : "Documents are visible once this deliverable is Completed."));
       }
     } else {
-      if (!d.documents.length) body.appendChild(el("div", "empty-state", "No supplementary documents yet."));
+      if (!d.documents.length) body.appendChild(el("div", "empty-state", "No documents yet."));
       d.documents.forEach(function (doc) {
         var row = el("div", "doc-row");
         var main = el("div", "doc-main");
         var link = el("a", "", doc.file_name);
         link.href = doc.file_url; link.target = "_blank"; link.rel = "noopener";
         main.appendChild(link);
-        var docSm = { pending: ["warn", "Pending Review"], approved: ["good", "Approved"], rejected: ["crit", "Rejected"] }[doc.status] || ["neutral", doc.status];
-        main.appendChild(el("div", "doc-sub", "Uploaded by " + (doc.uploaded_by || "&#8213;") +
-          '<span class="pill ' + docSm[0] + '" style="margin-left:8px;"><span class="dot"></span>' + docSm[1] + "</span>"));
+        main.appendChild(el("div", "doc-sub", "Uploaded by " + (doc.uploaded_by || "&#8213;")));
         row.appendChild(main);
-        if (doc.status === "pending" && can("review")) {
-          var appr = el("button", "btn primary", "Approve");
-          appr.addEventListener("click", async function () {
-            await api("/api/deliverables/documents/" + doc.id + "/review", {
-              method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ approved: true, reviewer_name: CURRENT_ROLE, actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
-            });
-            openDelivModal(submissionId);
-          });
-          var rej = el("button", "btn ghost-crit", "Reject");
-          rej.addEventListener("click", async function () {
-            var comment = prompt("Reason for rejecting " + doc.file_name + ":", "") || null;
-            await api("/api/deliverables/documents/" + doc.id + "/review", {
-              method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ approved: false, comment: comment, reviewer_name: CURRENT_ROLE, actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
-            });
-            openDelivModal(submissionId);
-          });
-          row.appendChild(appr); row.appendChild(rej);
-        }
         body.appendChild(row);
       });
       // Item 138: this was gated on role alone, so a Not Required (or
       // approved/client-dependent) deliverable still let you attach a
-      // supplementary document -- item 143 widened this to match the
-      // primary Upload button's own canUpload gate above (available right
-      // up until the deliverable is actually Completed).
+      // supplementary document -- widened to match the primary Upload
+      // button's own canUpload gate above (available right up until the
+      // deliverable is actually Completed).
       if (canUpload && can("upload")) {
         var addBtn = el("button", "btn", "Upload"); // item 101 — same naming as the primary Upload button
         var addInput = el("input"); addInput.type = "file"; addInput.style.display = "none";
@@ -1384,7 +1390,7 @@
       row.dataset.sid = String(d.id);
       var body = el("div", "deliv-body");
       body.appendChild(el("div", "deliv-name", d.name));
-      body.appendChild(el("div", "deliv-due", '<span class="deliv-due-date">Due ' + fmtDate(d.due_date) + '</span> ' + docStatusPillHtml(d)));
+      body.appendChild(el("div", "deliv-due", '<span class="deliv-due-date">Due ' + fmtDate(d.due_date) + '</span> ' + statusPillsHtml(d)));
       var authorized = isAssigned(d);
       if (authorized && d.completion_note) {
         body.appendChild(el("div", "deliv-comment", "&#128172; " + d.completion_note));
@@ -1399,12 +1405,11 @@
         actions.appendChild(el("span", "locked-note", "Owner/SME only"));
       } else if (currentProjectTerminal) {
         if (d.file_url) actions.appendChild(fileLink(d));
-      } else if (d.status === "pending_completion") {
-        // Item 143: owner already claimed this is done -- awaiting the
-        // SME's confirm/reject. Upload still stays open in case more
-        // evidence needs to go in before the SME looks at it.
+      } else if (d.status === "pending_review") {
+        // Item 143 (2nd revision): Mark Completed was clicked -- awaiting
+        // the SME's confirm/reject. Uploads close entirely until the SME
+        // decides, so only a view link shows here, no Upload button.
         if (d.file_url) actions.appendChild(fileLink(d));
-        if (can("upload")) actions.appendChild(uploadButton(d.id));
         if (can("review")) {
           var appr = el("button", "btn primary", "Confirm Completion");
           appr.addEventListener("click", function () { review(d.id, true, function () { openDetail(currentProjectId); }); });
@@ -1414,21 +1419,9 @@
         } else {
           actions.appendChild(el("span", "locked-note", "Awaiting SME confirmation"));
         }
-      } else if (d.status === "pending_review") {
-        // Item 143: no more whole-deliverable Approve/Reject here -- review
-        // happens per document (in the popup) until Mark Completed is
-        // clicked, which only shows once every uploaded doc is approved.
+      } else if (d.status === "no_progress" || d.status === "in_progress" || d.status === "rejected") {
         if (d.file_url) actions.appendChild(fileLink(d));
-        if (can("upload")) {
-          actions.appendChild(uploadButton(d.id));
-          if (!d.doc_pending) actions.appendChild(markCompleteButton(d.id));
-        }
-      } else if (d.status === "overdue") {
-        if (can("remind")) actions.appendChild(el("button", "btn ghost-crit", "Send reminder"));
-        if (can("upload")) { actions.appendChild(uploadButton(d.id)); actions.appendChild(markCompleteButton(d.id)); }
-        if (CURRENT_ROLE === "Admin") actions.appendChild(markNotRequiredButton(d.id));
-      } else if (d.status === "not_due" || d.status === "due" || d.status === "rejected") {
-        if (d.file_url) actions.appendChild(fileLink(d));
+        if (d.deadline_status === "due" && can("remind")) actions.appendChild(el("button", "btn ghost-crit", "Send reminder"));
         if (can("upload")) { actions.appendChild(uploadButton(d.id)); actions.appendChild(markCompleteButton(d.id)); }
         if (CURRENT_ROLE === "Admin") actions.appendChild(markNotRequiredButton(d.id));
       } else if (d.file_url) {
@@ -1567,7 +1560,8 @@
     });
   });
   document.getElementById("ganttDeptFilter").addEventListener("change", applyGanttFilters);
-  document.getElementById("ganttStatusFilter").addEventListener("change", applyGanttFilters);
+  document.getElementById("ganttDeadlineFilter").addEventListener("change", applyGanttFilters);
+  document.getElementById("ganttProgressFilter").addEventListener("change", applyGanttFilters);
   document.getElementById("ganttRows").addEventListener("scroll", function () {
     document.getElementById("ganttAxis").style.transform = "translateX(-" + this.scrollLeft + "px)";
   });
@@ -1583,7 +1577,8 @@
       var o = el("option", "", p.est_no + " &#8211; " + p.name); o.value = p.id;
       scopeSel.appendChild(o);
     });
-    document.getElementById("ganttStatusFilter").value = "";
+    document.getElementById("ganttDeadlineFilter").value = "";
+    document.getElementById("ganttProgressFilter").value = "";
     document.getElementById("ganttDeptFilter").innerHTML = '<option value="">All Departments</option>';
     await renderGanttFor(scopeSel.value);
   }
@@ -1633,9 +1628,10 @@
 
   function applyGanttFilters() {
     var dept = document.getElementById("ganttDeptFilter").value;
-    var status = document.getElementById("ganttStatusFilter").value;
+    var deadline = document.getElementById("ganttDeadlineFilter").value;
+    var progress = document.getElementById("ganttProgressFilter").value;
     var rows = ganttRowsUnfiltered.filter(function (r) {
-      return (!dept || r.department === dept) && (!status || r.status === status);
+      return (!dept || r.department === dept) && (!deadline || r.deadline_status === deadline) && (!progress || r.status === progress);
     });
     drawGanttRows(rows, ganttIsPooled);
   }
@@ -1749,8 +1745,11 @@
         bar = el("div", "gantt-bar" + (r.is_milestone ? " milestone" : ""));
         bar.style.background = deptColor(r.department_number);
       } else {
-        var cls = (STATUS_META[r.status] || ["neutral"])[0];
-        bar = el("div", "gantt-bar " + cls + (r.is_milestone ? " milestone" : ""));
+        // Item 143 (2nd revision): rejected is its own worth-flagging red;
+        // everything else colors by the live Deadline collapse (matches
+        // the matrix) since that's what a schedule view is really about.
+        var barCls = r.status === "rejected" ? "crit" : (MATRIX_BUCKET_META[r.status === "approved" ? "completed" : r.deadline_status] || ["neutral"])[0];
+        bar = el("div", "gantt-bar " + barCls + (r.is_milestone ? " milestone" : ""));
       }
       bar.style.left = leftPx + "px";
       bar.style.width = widthPx + "px";

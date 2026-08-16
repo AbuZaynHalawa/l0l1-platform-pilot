@@ -195,38 +195,32 @@ def deliverable_focal(definition: "models.DeliverableDefinition", project: "mode
     return definition.department.focal_point_email
 
 
-def document_counts(db: Session, submission_ids: list[int]) -> dict[int, tuple[int, int, int]]:
-    """Item 136/143: {submission_id: (total_docs, approved_docs, pending_docs)}
-    across every Document row for a batch of submissions in one query, so a
-    whole list view doesn't pay N+1 queries for a summary badge on every row.
+def document_counts(db: Session, submission_ids: list[int]) -> dict[int, int]:
+    """Item 136: {submission_id: total_docs} across every Document row for a
+    batch of submissions in one query, so a whole list view doesn't pay N+1
+    queries for a count badge on every row.
 
     This already covers the primary file too, not just supplementary ones --
     /upload mirrors the primary into a Document row the same way "Add
     Document" does (so it shows up in the popup's document list one
-    consistent way). Adding a separate +1 for submission.file_name/status
-    here would double-count it. The only submissions with zero Document rows
-    are ones completed via a comment instead of a file (Mark Completed with
-    no upload) -- correctly 0 documents, since there genuinely isn't one.
+    consistent way). Adding a separate +1 for submission.file_name here
+    would double-count it. The only submissions with zero Document rows are
+    ones completed via a comment instead of a file (Mark Completed with no
+    upload) -- correctly 0 documents, since there genuinely isn't one.
 
-    pending_docs (item 143) is what Mark Completed's own gate checks: a
-    deliverable can't be closed while any document is still individually
-    awaiting SME review, regardless of how many others are already approved.
+    Per-document review no longer exists (item 143, 2nd revision) — Document
+    rows are just attachments now, nothing individually tracks approval.
     """
     if not submission_ids:
         return {}
-    counts: dict[int, tuple[int, int, int]] = {}
+    counts: dict[int, int] = {}
     rows = (
-        db.query(models.Document.submission_id, models.Document.status)
+        db.query(models.Document.submission_id)
         .filter(models.Document.submission_id.in_(submission_ids))
         .all()
     )
-    for sub_id, status in rows:
-        total, approved, pending = counts.get(sub_id, (0, 0, 0))
-        counts[sub_id] = (
-            total + 1,
-            approved + (1 if status == "approved" else 0),
-            pending + (1 if status == "pending" else 0),
-        )
+    for (sub_id,) in rows:
+        counts[sub_id] = counts.get(sub_id, 0) + 1
     return counts
 
 
@@ -470,22 +464,65 @@ def compute_due_date(db: Session, definition: models.DeliverableDefinition, proj
 
 
 def refresh_status(submission: models.DeliverableSubmission) -> None:
-    """Recomputes status from due_date + submission state. Doesn't touch
-    pending_review/approved/rejected — those only change through the
-    submit/approve/reject actions, not by the passage of time.
+    """Item 143 (2nd revision): Progress status no longer depends on
+    due_date/today at all — that's Deadline status now (see
+    deadline_status() below), computed live and never stored. This just
+    guards against clobbering a genuine progress state (something's been
+    uploaded, or it's mid/post-review) — anything else settles to
+    NO_PROGRESS regardless of what its due_date happens to be.
     """
     if submission.status in (
+        models.SubmissionStatus.IN_PROGRESS,
         models.SubmissionStatus.PENDING_REVIEW,
         models.SubmissionStatus.APPROVED,
         models.SubmissionStatus.REJECTED,
     ):
         return
+    submission.status = models.SubmissionStatus.NO_PROGRESS
+
+
+def deadline_status(submission: "models.DeliverableSubmission") -> tuple[str, int | None]:
+    """Item 143 (2nd revision): Deadline standing, the axis independent of
+    Progress — computed live, never stored. Returns (key, days):
+      "not_due"  — due_date is unset or still in the future.        days=None
+      "due"      — due_date has passed and it's not yet Completed.  days negative, grows every day it stays open.
+      "on_time"  — Completed exactly on its due_date.                days=None
+      "early"    — Completed before its due_date.                    days positive, e.g. +5.
+      "late"     — Completed after its due_date.                     days negative, e.g. -5.
+    Early/On Time/Late read from reviewed_at, which is set once and never
+    changes — so unlike "due"'s live-growing count, these are naturally
+    frozen the moment the deliverable resolves, no separate storage needed.
+    Not Required / Pending Triage deliverables have no due_date and no
+    completion — callers should check for those statuses first and skip
+    this entirely rather than render "Not Due" for them.
+    """
+    if submission.status == models.SubmissionStatus.APPROVED and submission.reviewed_at and submission.due_date:
+        completed = submission.reviewed_at.date()
+        delta = (submission.due_date - completed).days
+        if delta > 0:
+            return ("early", delta)
+        if delta < 0:
+            return ("late", delta)
+        return ("on_time", None)
     if submission.due_date is None:
-        submission.status = models.SubmissionStatus.NOT_DUE
-        return
-    submission.status = (
-        models.SubmissionStatus.OVERDUE if date.today() > submission.due_date else models.SubmissionStatus.NOT_DUE
-    )
+        return ("not_due", None)
+    if date.today() > submission.due_date:
+        return ("due", -(date.today() - submission.due_date).days)
+    return ("not_due", None)
+
+
+def deadline_bucket(submission: "models.DeliverableSubmission") -> str:
+    """The 3-state collapse used on the Dashboard and the deliverables
+    matrix (item 143, 2nd revision): every Deadline/Progress combination
+    folds down to just "not_due" / "due" / "completed". A Completed
+    deliverable (any of On Time/Early/Late) always reads as "completed"
+    here regardless of how it got there; everything else reads off its
+    live Deadline status.
+    """
+    if submission.status == models.SubmissionStatus.APPROVED:
+        return "completed"
+    key, _ = deadline_status(submission)
+    return "due" if key == "due" else "not_due"
 
 
 def recompute_project_due_dates(db: Session, project: models.Project, force: bool = False) -> None:

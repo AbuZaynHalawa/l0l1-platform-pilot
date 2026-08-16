@@ -505,17 +505,18 @@ def get_deliverables(project_id: int, department: str | None = None, db: Session
     doc_counts = rules.document_counts(db, [s.id for s in subs])
     out = []
     for s in subs:
-        doc_total, doc_approved, doc_pending = doc_counts.get(s.id, (0, 0, 0))
+        deadline_key, deadline_days = rules.deadline_status(s)
         out.append(schemas.SubmissionOut(
             id=s.id, item_no=s.definition.item_no, name=rules.display_name(s.definition, project),
             department=s.definition.department.name, due_date=s.due_date, status=s.status.value,
+            deadline_status=deadline_key, deadline_days=deadline_days, auto_completed=s.auto_completed,
             owner_email=s.owner_email or s.definition.default_owner_email,
             sme_email=s.sme_email or s.definition.default_sme_email,
             file_name=s.file_name, file_url=_storage.file_url(s.file_ref) if s.file_ref else None,
             submitted_at=s.submitted_at, review_comment=s.review_comment,
             completion_note=rules.mark_complete_note(s),
             is_milestone=s.definition.is_milestone, milestone_code=s.definition.milestone_code,
-            doc_total=doc_total, doc_approved=doc_approved, doc_pending=doc_pending,
+            doc_total=doc_counts.get(s.id, 0),
         ))
     db.commit()
 

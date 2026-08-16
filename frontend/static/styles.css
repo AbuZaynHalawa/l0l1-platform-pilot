@@ -460,6 +460,12 @@
 
   /* ---------- Assigned Deliverables ---------- */
   .filter-chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+  /* Item 143 (2nd revision): two independent filter rows -- Deadline and
+     Progress are separate axes now, so each gets its own chip row instead
+     of one combined status filter. */
+  .filter-chips-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+  .filter-chips-row .filter-chips { margin-bottom: 0; }
+  .filter-chips-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-500); flex: none; width: 62px; }
   .chip { border: 1px solid var(--line); background: var(--surface); color: var(--ink-700); border-radius: 20px; padding: 7px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 7px; }
   .chip .cnum { background: var(--surface-sunken); border-radius: 20px; padding: 1px 7px; font-size: 11px; }
   .chip.active { background: linear-gradient(135deg, var(--purple-1), var(--purple-2)); border-color: transparent; color: #fff; }

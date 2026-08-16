@@ -94,6 +94,12 @@ class SubmissionOut(BaseModel):
     department: str
     due_date: date | None
     status: str
+    # Item 143 (2nd revision): Deadline standing is a separate axis from
+    # Progress (`status` above) -- see rules.deadline_status(). deadline_days
+    # is None for not_due/on_time, otherwise the signed day count to show.
+    deadline_status: str = "not_due"
+    deadline_days: int | None = None
+    auto_completed: bool = False
     owner_email: str | None
     sme_email: str | None
     file_name: str | None
@@ -103,13 +109,7 @@ class SubmissionOut(BaseModel):
     completion_note: str | None = None
     is_milestone: bool
     milestone_code: str | None
-    # Item 136: total documents attached (primary file + supplementary) and
-    # how many of those are approved -- e.g. "2 uploaded, 1 approved".
-    doc_total: int = 0
-    doc_approved: int = 0
-    # Item 143: how many of those are still individually awaiting SME
-    # review -- Mark Completed is blocked while this is above 0.
-    doc_pending: int = 0
+    doc_total: int = 0  # item 136: total documents attached (primary file + supplementary)
 
     class Config:
         from_attributes = True

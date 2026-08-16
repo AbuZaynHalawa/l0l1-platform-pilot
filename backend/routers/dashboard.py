@@ -34,14 +34,14 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
             if (s.owner_email or "").strip().lower() == focus or (s.sme_email or "").strip().lower() == focus
         ]
 
-    # Item 143: PENDING_COMPLETION (owner said done, awaiting SME confirm) is
-    # folded into the same "pending_review" bucket everywhere in this file —
-    # both mean "not yet Completed, needs SME attention."
-    _pending_statuses = (models.SubmissionStatus.PENDING_REVIEW, models.SubmissionStatus.PENDING_COMPLETION)
-
-    overdue = sum(1 for s in stat_subs if s.status == models.SubmissionStatus.OVERDUE)
-    pending_review = sum(1 for s in stat_subs if s.status in _pending_statuses)
-    not_due = sum(1 for s in stat_subs if s.status == models.SubmissionStatus.NOT_DUE)
+    # Item 143 (2nd revision): "overdue"/"not_due" are now live Deadline
+    # computations, not stored statuses — see rules.deadline_status().
+    # pending_review reads straight off Progress status, reached only via
+    # Mark Completed now (no more owner-said/SME-confirmed split to fold
+    # together here).
+    overdue = sum(1 for s in stat_subs if rules.deadline_status(s)[0] == "due")
+    pending_review = sum(1 for s in stat_subs if s.status == models.SubmissionStatus.PENDING_REVIEW)
+    not_due = sum(1 for s in stat_subs if rules.deadline_status(s)[0] == "not_due")
 
     dept_rows = []
     for dept in db.query(models.Department).order_by(models.Department.number).all():
@@ -54,14 +54,15 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
             s for s in all_subs
             if s.definition.department_id == dept.id and not s.auto_completed and s.definition.kpi_relevant is not False
         ]
-        due_and_done = [s for s in dept_subs if s.status in (
-            models.SubmissionStatus.APPROVED, models.SubmissionStatus.OVERDUE, *_pending_statuses)]
+        dept_overdue = [s for s in dept_subs if rules.deadline_status(s)[0] == "due"]
+        due_and_done = [s for s in dept_subs if s.status == models.SubmissionStatus.APPROVED] + dept_overdue + [
+            s for s in dept_subs if s.status == models.SubmissionStatus.PENDING_REVIEW]
         approved = sum(1 for s in dept_subs if s.status == models.SubmissionStatus.APPROVED)
         pct = round((approved / len(due_and_done)) * 100, 1) if due_and_done else None
         dept_rows.append({
             "department": dept.name, "department_number": dept.number, "total": len(dept_subs), "approved": approved,
-            "overdue": sum(1 for s in dept_subs if s.status == models.SubmissionStatus.OVERDUE),
-            "pending_review": sum(1 for s in dept_subs if s.status in _pending_statuses),
+            "overdue": len(dept_overdue),
+            "pending_review": sum(1 for s in dept_subs if s.status == models.SubmissionStatus.PENDING_REVIEW),
             "pct": pct,
         })
 
@@ -105,10 +106,12 @@ def _rank_owners(subs, users: dict[str, "models.User"] | None = None):
         if not email:
             continue
         st = stats.setdefault(email, {"approved": 0, "cohort": 0})
-        # Item 143: PENDING_COMPLETION counts alongside PENDING_REVIEW here
-        # too, same "not yet Completed" cohort as the department Live Score.
-        if s.status in (models.SubmissionStatus.APPROVED, models.SubmissionStatus.OVERDUE,
-                        models.SubmissionStatus.PENDING_REVIEW, models.SubmissionStatus.PENDING_COMPLETION):
+        # Item 143 (2nd revision): same cohort as the department Live Score
+        # — Completed, currently overdue (live Deadline computation now,
+        # not a stored status), or awaiting SME review.
+        if (s.status == models.SubmissionStatus.APPROVED
+                or s.status == models.SubmissionStatus.PENDING_REVIEW
+                or rules.deadline_status(s)[0] == "due"):
             st["cohort"] += 1
             if s.status == models.SubmissionStatus.APPROVED:
                 st["approved"] += 1
@@ -257,7 +260,13 @@ def get_matrix(stage: str, db: Session = Depends(get_db)):
         for p in projects:
             s = sub_map.get((p.id, d.id))
             if s:
-                cells[p.id] = {"status": s.status.value, "due_date": s.due_date, "submission_id": s.id}
+                # Item 143 (2nd revision): the matrix shows the 3-state
+                # Deadline collapse (Not Due / Due / Completed), not the raw
+                # Progress status.
+                cells[p.id] = {
+                    "status": s.status.value, "bucket": rules.deadline_bucket(s),
+                    "due_date": s.due_date, "submission_id": s.id,
+                }
         rows.append({
             "item_no": d.item_no, "name": d.name, "short_name": d.short_name or d.name,
             "department": d.department.name, "department_number": d.department.number,

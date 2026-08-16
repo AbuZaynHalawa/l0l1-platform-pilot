@@ -121,9 +121,8 @@
         </div>
         <div class="ann-type-key matrix-legend">
           <span class="lg"><span class="sw" style="background:var(--ink-300)"></span> Not Due</span>
-          <span class="lg"><span class="sw" style="background:var(--warn)"></span> Due / Pending Review</span>
-          <span class="lg"><span class="sw" style="background:var(--crit)"></span> Overdue / Rejected</span>
-          <span class="lg"><span class="sw" style="background:var(--good)"></span> Approved</span>
+          <span class="lg"><span class="sw" style="background:var(--crit)"></span> Due</span>
+          <span class="lg"><span class="sw" style="background:var(--good)"></span> Completed</span>
         </div>
         <div class="matrix-wrap" id="matrixWrap"></div>
       </div>
@@ -144,7 +143,8 @@
         <button class="chip" data-stage="L0">L0 Tenders</button>
         <button class="chip" data-stage="L1">L1 Projects</button>
       </div>
-      <div class="filter-chips" id="assignedChips"></div>
+      <div class="filter-chips-row"><span class="filter-chips-label">Deadline</span><div class="filter-chips" id="assignedDeadlineChips"></div></div>
+      <div class="filter-chips-row"><span class="filter-chips-label">Progress</span><div class="filter-chips" id="assignedProgressChips"></div></div>
       <div class="card table-card"><div id="assignedList"></div></div>
     </section>
 
@@ -235,13 +235,17 @@
       <div class="gantt-filter-row" id="ganttFilterRow">
         <select id="ganttScope"><option value="">Pooled Timeline (all active projects)</option></select>
         <select id="ganttDeptFilter"><option value="">All Departments</option></select>
-        <select id="ganttStatusFilter">
-          <option value="">All Statuses</option>
+        <select id="ganttDeadlineFilter">
+          <option value="">All Deadlines</option>
           <option value="not_due">Not Due</option>
           <option value="due">Due</option>
-          <option value="overdue">Overdue</option>
+        </select>
+        <select id="ganttProgressFilter">
+          <option value="">All Progress</option>
+          <option value="no_progress">No Progress Yet</option>
+          <option value="in_progress">In Progress</option>
           <option value="pending_review">Pending SME Review</option>
-          <option value="approved">Approved</option>
+          <option value="approved">Completed</option>
           <option value="rejected">Rejected</option>
         </select>
       </div>

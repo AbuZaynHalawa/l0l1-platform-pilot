@@ -25,6 +25,8 @@ ensure_column("deliverable_definitions", "kpi_relevant", "BOOLEAN")
 ensure_enum_value("deliverable_submissions", "status", "PENDING_TRIAGE")
 ensure_enum_value("deliverable_submissions", "status", "NOT_REQUIRED")
 ensure_enum_value("deliverable_submissions", "status", "PENDING_COMPLETION")
+ensure_enum_value("deliverable_submissions", "status", "NO_PROGRESS")
+ensure_enum_value("deliverable_submissions", "status", "IN_PROGRESS")
 ensure_column("deliverable_submissions", "auto_completed", "BOOLEAN")
 ensure_not_unique("projects", "est_no")
 
@@ -1329,6 +1331,58 @@ def run():
         if new_bms:
             db.commit()
             print(f"Seeded {new_bms} Bid Manager(s) into the roster.")
+
+        # One-time: item 143 (2nd revision) replaces the whole approval
+        # mechanism, splitting what used to be one combined status into two
+        # independent axes — Progress (this column) and Deadline (now
+        # computed live, never stored, see rules.deadline_status()).
+        # Remaps every existing submission off the old model:
+        #   NOT_DUE/DUE/OVERDUE  -> NO_PROGRESS    (deadline info now lives elsewhere; refresh_status
+        #                                            self-heals these on the next read too, this just
+        #                                            doesn't make everyone wait for that read)
+        #   PENDING_COMPLETION   -> PENDING_REVIEW  (repurposed: awaiting SME's confirm/reject, unambiguous
+        #                                            since nothing sets PENDING_COMPLETION anymore)
+        #   stale (old) PENDING_REVIEW -> IN_PROGRESS (had docs, never got as far as Mark Completed)
+        #
+        # That last step can't just sweep every row currently in
+        # PENDING_REVIEW — after the first deploy, genuinely NEW
+        # PENDING_REVIEW rows exist too (Owner's Mark Completed, the new
+        # meaning), and re-running this on every seed would wrongly demote
+        # them back to In Progress. The two meanings are told apart by
+        # content instead: only the Owner's mark_complete endpoint ever logs
+        # a "mark_complete_requested" WorkflowHistory row (true under both
+        # the old PENDING_COMPLETION flow and the new one) — a PENDING_REVIEW
+        # row missing that marker can only be a stale leftover from the old
+        # per-document-upload flow, safe to re-run indefinitely.
+        remapped = (
+            db.query(models.DeliverableSubmission)
+            .filter(models.DeliverableSubmission.status.in_([
+                models.SubmissionStatus.NOT_DUE, models.SubmissionStatus.DUE, models.SubmissionStatus.OVERDUE,
+            ]))
+            .update({"status": models.SubmissionStatus.NO_PROGRESS}, synchronize_session=False)
+        )
+        remapped += (
+            db.query(models.DeliverableSubmission)
+            .filter(models.DeliverableSubmission.status == models.SubmissionStatus.PENDING_COMPLETION)
+            .update({"status": models.SubmissionStatus.PENDING_REVIEW}, synchronize_session=False)
+        )
+        confirmed_ids = {
+            sid for (sid,) in db.query(models.WorkflowHistory.submission_id)
+            .filter(models.WorkflowHistory.action == "mark_complete_requested")
+            .distinct()
+        }
+        pending_review_subs = (
+            db.query(models.DeliverableSubmission)
+            .filter(models.DeliverableSubmission.status == models.SubmissionStatus.PENDING_REVIEW)
+            .all()
+        )
+        stale_pending_review = [s for s in pending_review_subs if s.id not in confirmed_ids]
+        for sub in stale_pending_review:
+            sub.status = models.SubmissionStatus.IN_PROGRESS
+        remapped += len(stale_pending_review)
+        if remapped:
+            db.commit()
+            print(f"Item 143 (2nd revision): remapped {remapped} submission(s) onto the new Progress-only status model.")
 
         print(f"Seed complete: {len(dept_map)} departments, {len(L0_ITEMS)} L0 items, {len(L1_ITEMS)} L1 items.")
     finally:

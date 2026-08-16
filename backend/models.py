@@ -34,18 +34,36 @@ class ContractStatus(str, enum.Enum):
 
 
 class SubmissionStatus(str, enum.Enum):
+    """Item 143 (2nd revision): this column is now purely a *Progress*
+    status — how far the work itself has gotten. Deadline standing (Not
+    Due / Due / On Time / Early / Late, with a day count) is a separate,
+    unstored concept computed live from due_date/reviewed_at — see
+    rules.deadline_status(). The two used to be conflated in one status
+    value; they're independent axes now, matching the confirmed spec.
+    """
+    NO_PROGRESS = "no_progress"    # nothing uploaded yet, Mark Completed not yet clicked
+    IN_PROGRESS = "in_progress"    # at least one document uploaded, not yet marked complete
+    # Reached ONLY via Mark Completed (comment-only or with documents) —
+    # uploading a document never triggers review on its own anymore. The
+    # Owner/SME split still applies: an Owner's Mark Completed lands here
+    # awaiting the SME's confirm/reject; the SME's own Mark Completed
+    # skips this and goes straight to APPROVED.
+    PENDING_REVIEW = "pending_review"
+    APPROVED = "approved"  # displayed as "Completed" in the UI
+    # SME sent it back. Progress stays REJECTED (not IN_PROGRESS) until the
+    # Owner actually uploads something new — only then does it flip.
+    REJECTED = "rejected"
+    PENDING_TRIAGE = "pending_triage"  # L0 only: awaiting BM applicable/not-required call — its own status, outside this model
+    NOT_REQUIRED = "not_required"      # BM marked this item as not applicable to this tender — its own status, outside this model
+    # Legacy values from the pre-143(2nd-revision) status model, retired
+    # from active use but kept here so the one-time seed.py migration that
+    # remaps existing rows away from them can still reference them by name
+    # (Postgres enum labels can't be removed once added, so these stay
+    # valid at the DB level regardless).
     NOT_DUE = "not_due"
     DUE = "due"
     OVERDUE = "overdue"
-    PENDING_REVIEW = "pending_review"
-    # Item 143: Owner clicked Mark Completed, awaiting the SME's confirm/
-    # reject — reached only from PENDING_REVIEW (not set directly). SME's
-    # own Mark Completed skips this and goes straight to APPROVED.
     PENDING_COMPLETION = "pending_completion"
-    APPROVED = "approved"  # displayed as "Completed" in the UI (item 143)
-    REJECTED = "rejected"
-    PENDING_TRIAGE = "pending_triage"  # L0 only: awaiting BM applicable/not-required call
-    NOT_REQUIRED = "not_required"      # BM marked this item as not applicable to this tender
 
 
 class AnnouncementType(str, enum.Enum):
@@ -203,7 +221,7 @@ class DeliverableSubmission(Base):
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
     deliverable_definition_id = Column(Integer, ForeignKey("deliverable_definitions.id"), nullable=False)
     due_date = Column(Date, nullable=True)
-    status = Column(Enum(SubmissionStatus), default=SubmissionStatus.NOT_DUE)
+    status = Column(Enum(SubmissionStatus), default=SubmissionStatus.NO_PROGRESS)
     applicability = Column(String, default="applicable")  # applicable | not_required | pending (L0 BM triage)
     owner_email = Column(String, nullable=True)
     sme_email = Column(String, nullable=True)
