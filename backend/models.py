@@ -316,6 +316,7 @@ class SupportRequest(Base):
     stage = Column(String, nullable=True)  # "L0" | "L1" | null
     est_no = Column(String, nullable=True)
     deliverable = Column(String, nullable=True)  # free text, e.g. "2.4 Risk Register"
+    target_email = Column(String, nullable=True)  # item 37: null = Admins generally, else a specific SME
     message = Column(Text, nullable=False)
     status = Column(String, default="open")  # open | resolved
     created_at = Column(DateTime, default=datetime.utcnow)

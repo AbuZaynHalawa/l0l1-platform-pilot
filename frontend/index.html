@@ -298,6 +298,14 @@
         <div class="card" style="max-width:640px;">
           <p class="sub" style="margin-bottom:10px;">Sent as <b id="supAsEmail">&#8213;</b> &#8212; set your acting email above to change this.</p>
           <div class="form-grid">
+            <!-- Item 37: choose whether this reaches Admins generally or a
+                 specific SME -- still lands in the same admin Tickets
+                 inbox either way (see item 151), just tagged with who it's
+                 really for. -->
+            <div class="field" style="grid-column:1/-1;">
+              <label>Direct to</label>
+              <select id="supTarget"><option value="">Admins</option></select>
+            </div>
             <div class="field">
               <label>Stage</label>
               <select id="supStage"><option value="">Not specific to a stage</option><option value="L0">L0</option><option value="L1">L1</option></select>

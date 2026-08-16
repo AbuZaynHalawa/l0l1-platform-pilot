@@ -2430,6 +2430,23 @@
   document.getElementById("supStage").addEventListener("change", _populateSupEstNo);
   document.getElementById("supEstNo").addEventListener("change", _populateSupDeliverable);
 
+  // Item 37: "Direct to" picker, populated with real SMEs from the roster
+  // (item 75's role field) so the asker can address a specific person
+  // instead of just Admins generally.
+  async function _populateSupTarget() {
+    var sel = document.getElementById("supTarget");
+    if (sel.dataset.loaded) return;
+    sel.dataset.loaded = "1";
+    try {
+      var users = await api("/api/departments/users");
+      users.filter(function (u) { return u.role === "SME"; }).forEach(function (u) {
+        var opt = el("option", "", (u.name ? u.name + " " : "") + "&#8211; " + u.email);
+        opt.value = u.email;
+        sel.appendChild(opt);
+      });
+    } catch (e) { /* roster lookup is a nice-to-have, not required to submit */ }
+  }
+
   document.getElementById("supSubmit").addEventListener("click", async function () {
     var email = myIdentity();
     var message = document.getElementById("supMessage").value.trim();
@@ -2444,6 +2461,7 @@
       stage: document.getElementById("supStage").value || null,
       est_no: estSel.value ? estSel.options[estSel.selectedIndex].textContent.split(" — ")[0] : null,
       deliverable: document.getElementById("supDeliverable").value || null,
+      target_email: document.getElementById("supTarget").value || null,
       message: message,
     };
     try {
@@ -2460,16 +2478,19 @@
       showToast("Could not send &#8211; " + apiErrorDetail(err), true);
       return;
     }
-    showToast("Sent to the admins &#8211; they'll follow up by email");
+    showToast(payload.target_email ? "Sent, directed to " + payload.target_email : "Sent to the admins &#8211; they'll follow up by email");
     document.getElementById("supMessage").value = "";
     document.getElementById("supStage").value = "";
+    document.getElementById("supTarget").value = "";
     _populateSupEstNo();
     loadSupport();
   });
 
   function _renderSupportThread(container, r, opts) {
     container.innerHTML = "";
-    var context = [r.stage, r.est_no, r.deliverable].filter(Boolean).join(" &middot; ");
+    // Item 37: surface who this was really directed to (a specific SME, or
+    // Admins generally) so whoever's handling it knows to loop them in.
+    var context = ["To: " + (r.target_email || "Admins"), r.stage, r.est_no, r.deliverable].filter(Boolean).join(" &middot; ");
     var row = el("div", "aq-row");
     var main = el("div", "aq-main");
     main.appendChild(el("div", "aq-title", r.name || r.email));
@@ -2609,6 +2630,7 @@
       document.getElementById("supEstNo").dataset.loaded = "1";
       await _populateSupEstNo();
     }
+    await _populateSupTarget();
 
     var mineWrap = document.getElementById("supMineList");
     var email = actingEmail() || localStorage.getItem("myEmail") || "";

@@ -15,13 +15,14 @@ class SupportRequestCreate(BaseModel):
     stage: str | None = None
     est_no: str | None = None
     deliverable: str | None = None
+    target_email: str | None = None  # item 37: null = Admins generally, else a specific SME
     message: str
 
 
 def _serialize(r: models.SupportRequest, include_messages: bool = True) -> dict:
     out = {
         "id": r.id, "name": r.name, "email": r.email, "stage": r.stage, "est_no": r.est_no,
-        "deliverable": r.deliverable, "message": r.message, "status": r.status,
+        "deliverable": r.deliverable, "target_email": r.target_email, "message": r.message, "status": r.status,
         "created_at": r.created_at, "resolved_at": r.resolved_at,
     }
     if include_messages:
@@ -81,7 +82,8 @@ def create_support_request(payload: SupportRequestCreate, db: Session = Depends(
     req = models.SupportRequest(
         name=(payload.name or "").strip() or None, email=payload.email.strip(),
         stage=payload.stage or None, est_no=(payload.est_no or "").strip() or None,
-        deliverable=(payload.deliverable or "").strip() or None, message=payload.message.strip(),
+        deliverable=(payload.deliverable or "").strip() or None,
+        target_email=(payload.target_email or "").strip() or None, message=payload.message.strip(),
     )
     db.add(req)
     db.commit()

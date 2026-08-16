@@ -28,6 +28,7 @@ ensure_enum_value("deliverable_submissions", "status", "PENDING_COMPLETION")
 ensure_enum_value("deliverable_submissions", "status", "NO_PROGRESS")
 ensure_enum_value("deliverable_submissions", "status", "IN_PROGRESS")
 ensure_column("deliverable_submissions", "auto_completed", "BOOLEAN")
+ensure_column("support_requests", "target_email", "VARCHAR")
 ensure_not_unique("projects", "est_no")
 
 # Load-bearing indexes: every one of these columns is filtered or joined on
