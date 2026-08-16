@@ -58,6 +58,20 @@ def list_my_support_requests(email: str, db: Session = Depends(get_db)):
     return [_serialize(r) for r in rows]
 
 
+@router.get("/kb")
+def list_kb_entries(db: Session = Depends(get_db)):
+    """Item 150: the full knowledge base, unfiltered -- small enough dataset
+    that search/category filtering happens client-side, same convention as
+    Assigned Deliverables and Follow Up's own filters.
+    """
+    rows = db.query(models.KnowledgeBaseEntry).order_by(models.KnowledgeBaseEntry.id).all()
+    return [
+        {"id": r.id, "category": r.category, "question": r.question, "answer": r.answer,
+         "created_at": r.created_at, "source_request_id": r.source_request_id}
+        for r in rows
+    ]
+
+
 @router.post("")
 def create_support_request(payload: SupportRequestCreate, db: Session = Depends(get_db)):
     if not payload.email.strip():
@@ -79,6 +93,7 @@ class SupportReplyCreate(BaseModel):
     body: str
     actor_role: str = "Viewer"
     actor_email: str | None = None
+    kb_reference_id: int | None = None  # item 150: admin reused an existing KB answer
 
 
 @router.post("/{request_id}/reply")
@@ -91,6 +106,18 @@ def admin_reply(request_id: int, payload: SupportReplyCreate, db: Session = Depe
     body = payload.body.strip()
     if not body:
         raise HTTPException(400, "Reply can't be empty")
+    # Item 150: the first time an admin answers a question, it's auto-added
+    # to the knowledge base -- unless the admin referenced an existing entry
+    # instead, in which case this is a duplicate of a question already there
+    # and no new entry gets created.
+    already_answered = any(m.author == "admin" for m in req.messages)
+    if payload.kb_reference_id is not None:
+        if not db.get(models.KnowledgeBaseEntry, payload.kb_reference_id):
+            raise HTTPException(404, "Referenced knowledge base entry not found")
+    elif not already_answered:
+        db.add(models.KnowledgeBaseEntry(
+            category=req.stage or "General", question=req.message, answer=body, source_request_id=req.id,
+        ))
     db.add(models.SupportMessage(request_id=req.id, author="admin", body=body))
     db.commit()
     return _serialize(req)

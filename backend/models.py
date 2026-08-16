@@ -340,6 +340,25 @@ class SupportMessage(Base):
     request = relationship("SupportRequest", back_populates="messages")
 
 
+class KnowledgeBaseEntry(Base):
+    """Item 150: a shared, searchable record of admin-answered questions from
+    Ask the Team. Auto-created the first time an admin replies to an open
+    request -- unless the admin instead references an existing entry (see
+    support.py's admin_reply), which reuses that entry as the answer instead
+    of adding a duplicate question. category is auto-set from the request's
+    own stage (L0/L1/General), not a manual pick -- keeps this fully
+    automatic per the original ask ("every admin-answered question is
+    auto-added ... and categorized").
+    """
+    __tablename__ = "kb_entries"
+    id = Column(Integer, primary_key=True)  # doubles as its display number
+    category = Column(String, nullable=False)
+    question = Column(Text, nullable=False)
+    answer = Column(Text, nullable=False)
+    source_request_id = Column(Integer, ForeignKey("support_requests.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class BmTriagePreference(Base):
     """A Bid Manager's last applicable/not-required call for a given item_no
     (item 79) — upserted every time that BM completes a triage, then used to

@@ -2474,14 +2474,35 @@
       side.appendChild(el("span", "pill warn", '<span class="dot"></span>Open'));
       if (opts.canReply) {
         var replyInput = el("input"); replyInput.setAttribute("type", "text"); replyInput.placeholder = opts.replyPlaceholder;
+        var kbRefSelect = null;
+        // Item 150: admin-only -- reuse an existing knowledge base answer
+        // instead of writing a fresh one, so this question doesn't turn
+        // into a duplicate entry (the reply still goes out to the asker;
+        // only the "auto-add to the knowledge base" part is skipped).
+        if (opts.kbEntries && opts.kbEntries.length) {
+          kbRefSelect = el("select");
+          kbRefSelect.appendChild(el("option", "", "Reference an existing answer&#8230;"));
+          opts.kbEntries.forEach(function (e) {
+            var o = el("option", "", "#" + e.id + " &middot; " + e.question.slice(0, 60));
+            o.value = e.id;
+            kbRefSelect.appendChild(o);
+          });
+          kbRefSelect.addEventListener("change", function () {
+            var picked = opts.kbEntries.find(function (e) { return String(e.id) === kbRefSelect.value; });
+            if (picked) replyInput.value = picked.answer;
+          });
+          side.appendChild(kbRefSelect);
+        }
         var replyBtn = el("button", "btn", "Reply");
         replyBtn.addEventListener("click", async function () {
           var body = replyInput.value.trim();
           if (!body) return;
+          var payload = { body: body, actor_role: CURRENT_ROLE, actor_email: myIdentity() };
+          if (kbRefSelect && kbRefSelect.value) payload.kb_reference_id = Number(kbRefSelect.value);
           try {
             await api("/api/support/" + r.id + "/" + opts.replyEndpoint, {
               method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ body: body, actor_role: CURRENT_ROLE, actor_email: myIdentity() }),
+              body: JSON.stringify(payload),
             });
           } catch (err) {
             showToast("Could not reply &#8211; " + apiErrorDetail(err), true);
@@ -2504,6 +2525,68 @@
     }
     row.appendChild(side);
     container.appendChild(row);
+  }
+
+  // Item 150: Ask a Question / Knowledge Base sub-tabs inside the same
+  // "Q/A - Ask the Team" nav item.
+  document.querySelectorAll("#supSubtabRow .chip").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.querySelectorAll("#supSubtabRow .chip").forEach(function (b) { b.classList.remove("active"); });
+      btn.classList.add("active");
+      var pane = btn.dataset.pane;
+      document.getElementById("supAskPane").hidden = pane !== "ask";
+      document.getElementById("supKbPane").hidden = pane !== "kb";
+      if (pane === "kb") loadKb();
+    });
+  });
+  var kbCache = [];
+  function _kbMatches(entry, term, category) {
+    if (category && entry.category !== category) return false;
+    if (!term) return true;
+    var haystack = (entry.question + " " + entry.answer).toLowerCase();
+    return haystack.indexOf(term) !== -1;
+  }
+  function _renderKbList() {
+    var term = document.getElementById("kbSearch").value.trim().toLowerCase();
+    var category = document.getElementById("kbCategoryFilter").value;
+    var wrap = document.getElementById("kbList");
+    wrap.innerHTML = "";
+    var filtered = kbCache.filter(function (e) { return _kbMatches(e, term, category); });
+    if (!filtered.length) {
+      wrap.appendChild(el("div", "empty-state", kbCache.length ? "No matching questions." : "No answered questions yet."));
+      return;
+    }
+    var groups = {}, groupOrder = [];
+    filtered.forEach(function (e) {
+      if (!groups[e.category]) { groups[e.category] = []; groupOrder.push(e.category); }
+      groups[e.category].push(e);
+    });
+    groupOrder.sort();
+    var card = el("div", "card table-card");
+    groupOrder.forEach(function (cat) {
+      card.appendChild(el("div", "deliv-subheader", cat));
+      groups[cat].forEach(function (e) {
+        var row = el("div", "aq-row");
+        var main = el("div", "aq-main");
+        main.appendChild(el("div", "aq-title", "#" + e.id + " &middot; " + e.question));
+        main.appendChild(el("div", "deliv-comment", e.answer));
+        row.appendChild(main);
+        card.appendChild(row);
+      });
+    });
+    wrap.appendChild(card);
+  }
+  document.getElementById("kbSearch").addEventListener("input", _renderKbList);
+  document.getElementById("kbCategoryFilter").addEventListener("change", _renderKbList);
+  async function loadKb() {
+    kbCache = await api("/api/support/kb");
+    var catSel = document.getElementById("kbCategoryFilter");
+    var current = catSel.value;
+    var cats = Array.from(new Set(kbCache.map(function (e) { return e.category; }))).sort();
+    catSel.innerHTML = '<option value="">All categories</option>';
+    cats.forEach(function (c) { var o = el("option", "", c); o.value = c; catSel.appendChild(o); });
+    catSel.value = cats.indexOf(current) !== -1 ? current : "";
+    _renderKbList();
   }
 
   async function loadSupport() {
@@ -2538,6 +2621,9 @@
     if (!can("create")) { inboxCard.style.display = "none"; return; }
     inboxCard.style.display = "";
     var reqs = await api("/api/support?actor_role=" + CURRENT_ROLE);
+    // Item 150: admins get the option to reference an existing KB entry
+    // instead of writing a fresh answer, so the picker needs the full list.
+    var kbEntries = await api("/api/support/kb");
     var wrap = document.getElementById("supInboxList");
     wrap.innerHTML = "";
     if (!reqs.length) { wrap.appendChild(el("div", "empty-state", "No requests yet.")); return; }
@@ -2545,7 +2631,7 @@
       var holder = el("div");
       _renderSupportThread(holder, r, {
         canReply: true, canResolve: true, replyEndpoint: "reply", replyPlaceholder: "Reply to the asker&#8230;",
-        onReplied: loadSupport,
+        onReplied: loadSupport, kbEntries: kbEntries,
       });
       wrap.appendChild(holder);
     });

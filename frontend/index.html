@@ -25,7 +25,7 @@
       <button class="nav-item" data-view="gantt"><span class="ic">&#128198;</span> Timeline</button>
       <button class="nav-item" data-view="performance"><span class="ic">&#128200;</span> Performance</button>
       <button class="nav-item" data-view="journey"><span class="ic">&#128337;</span> L0/L1 History</button>
-      <button class="nav-item" data-view="support"><span class="ic">&#128172;</span> Ask the Team</button>
+      <button class="nav-item" data-view="support"><span class="ic">&#128172;</span> Q/A - Ask the Team</button>
       <!-- Item 110: visible to Admins always, and to a Bid Manager acting
            as themselves (their own email entered) -- scoped server-side
            to just their own tenders in that case, so it lives in the main
@@ -273,41 +273,59 @@
       <div class="view-head">
         <div>
           <div class="eyebrow">Support</div>
-          <h1>Ask the Team</h1>
+          <h1>Q/A - Ask the Team</h1>
           <p class="sub">Question about a tender, a project, or a specific deliverable &#8211; this reaches the admins directly.</p>
         </div>
       </div>
-      <div class="card" style="max-width:640px;">
-        <p class="sub" style="margin-bottom:10px;">Sent as <b id="supAsEmail">&#8213;</b> &#8212; set your acting email above to change this.</p>
-        <div class="form-grid">
-          <div class="field">
-            <label>Stage</label>
-            <select id="supStage"><option value="">Not specific to a stage</option><option value="L0">L0</option><option value="L1">L1</option></select>
+      <div class="subtab-row" id="supSubtabRow">
+        <button class="chip active" data-pane="ask">Ask a Question</button>
+        <button class="chip" data-pane="kb">Knowledge Base</button>
+      </div>
+
+      <div id="supAskPane">
+        <div class="card" style="max-width:640px;">
+          <p class="sub" style="margin-bottom:10px;">Sent as <b id="supAsEmail">&#8213;</b> &#8212; set your acting email above to change this.</p>
+          <div class="form-grid">
+            <div class="field">
+              <label>Stage</label>
+              <select id="supStage"><option value="">Not specific to a stage</option><option value="L0">L0</option><option value="L1">L1</option></select>
+            </div>
+            <div class="field">
+              <label>Est-Num</label>
+              <select id="supEstNo"><option value="">Not specific to a tender/project</option></select>
+            </div>
+            <div class="field" style="grid-column:1/-1;">
+              <label>Deliverable</label>
+              <select id="supDeliverable"><option value="">Not specific to a deliverable</option></select>
+            </div>
+            <div class="field" style="grid-column:1/-1;">
+              <label>Message <span class="req">*</span></label>
+              <textarea id="supMessage" rows="4" placeholder="What do you need help with?"></textarea>
+            </div>
           </div>
-          <div class="field">
-            <label>Est-Num</label>
-            <select id="supEstNo"><option value="">Not specific to a tender/project</option></select>
-          </div>
-          <div class="field" style="grid-column:1/-1;">
-            <label>Deliverable</label>
-            <select id="supDeliverable"><option value="">Not specific to a deliverable</option></select>
-          </div>
-          <div class="field" style="grid-column:1/-1;">
-            <label>Message <span class="req">*</span></label>
-            <textarea id="supMessage" rows="4" placeholder="What do you need help with?"></textarea>
-          </div>
+          <button class="btn primary" id="supSubmit" style="margin-top:6px;">Send to Admins</button>
         </div>
-        <button class="btn primary" id="supSubmit" style="margin-top:6px;">Send to Admins</button>
+
+        <div class="card table-card" id="supMineCard" style="margin-top:18px;">
+          <div class="section-title"><span>My Requests</span></div>
+          <div id="supMineList"></div>
+        </div>
+
+        <div class="card table-card" id="supInboxCard" style="margin-top:18px;display:none;">
+          <div class="section-title"><span>Inbox</span></div>
+          <div id="supInboxList"></div>
+        </div>
       </div>
 
-      <div class="card table-card" id="supMineCard" style="margin-top:18px;">
-        <div class="section-title"><span>My Requests</span></div>
-        <div id="supMineList"></div>
-      </div>
-
-      <div class="card table-card" id="supInboxCard" style="margin-top:18px;display:none;">
-        <div class="section-title"><span>Inbox</span></div>
-        <div id="supInboxList"></div>
+      <!-- Item 150: shared knowledge base of every admin-answered question,
+           numbered and grouped by category (auto-set from the original
+           request's stage), with a search box and category filter. -->
+      <div id="supKbPane" hidden>
+        <div class="card-pad card" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:14px;">
+          <input type="text" id="kbSearch" placeholder="Search questions and answers&#8230;" style="flex:1;min-width:220px;">
+          <select id="kbCategoryFilter"><option value="">All categories</option></select>
+        </div>
+        <div id="kbList"></div>
       </div>
     </section>
 
