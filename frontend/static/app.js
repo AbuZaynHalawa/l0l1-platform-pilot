@@ -1323,16 +1323,20 @@
               .catch(function (err) { showToast("Could not update &#8211; " + apiErrorDetail(err), true); });
           } else if (tag === "bm") {
             var opts = await getCreateOptions();
-            var list = opts.bid_managers.map(function (o) { return "&#8226; " + o; }).join("\n");
-            var nextBm = prompt("Bid Manager &#8211; enter the email exactly as listed:\n\n" + list, p.bid_manager || "");
-            if (nextBm === null) return;
-            nextBm = nextBm.trim();
-            if (!nextBm) return;
-            api("/api/projects/" + id + "/details", {
-              method: "PATCH", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ bid_manager: nextBm, actor_role: CURRENT_ROLE }),
-            }).then(function () { showToast("Bid Manager updated"); openDetail(id); })
-              .catch(function (err) { showToast("Could not update &#8211; " + apiErrorDetail(err), true); });
+            openChecklistEditModal({
+              type: "select",
+              title: "Edit Bid Manager",
+              options: opts.bid_managers,
+              selected: p.bid_manager || "",
+              onSave: function (nextBm) {
+                if (!nextBm) return;
+                api("/api/projects/" + id + "/details", {
+                  method: "PATCH", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ bid_manager: nextBm, actor_role: CURRENT_ROLE }),
+                }).then(function () { closeChecklistEditModal(); showToast("Bid Manager updated"); openDetail(id); })
+                  .catch(function (err) { showToast("Could not update &#8211; " + apiErrorDetail(err), true); });
+              },
+            });
           } else if (tag === "rfx") {
             var nextRfx = prompt("RFX Number:", p.rfx_number || "");
             if (nextRfx === null) return;
@@ -1343,36 +1347,38 @@
               .catch(function (err) { showToast("Could not update &#8211; " + apiErrorDetail(err), true); });
           } else if (tag === "scope") {
             var sopts = await getCreateOptions();
-            var slist = sopts.scopes.map(function (o) { return "&#8226; " + o; }).join("\n");
-            var nextScope = prompt("Scope &#8211; comma-separated, choose from:\n\n" + slist +
-              "\n\nOnly allowed before this tender has any real progress (upload/completion) &#8212; " +
-              "changing it regenerates the deliverable list to match.", (p.scope || []).join(", "));
-            if (nextScope === null) return;
-            var scopeArr = nextScope.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
-            if (!scopeArr.length) { showToast("Select at least one Scope", true); return; }
-            var scopeOther = p.scope_other || "";
-            if (scopeArr.indexOf("Other") !== -1) {
-              var nextScopeOther = prompt("Specify the Other scope:", scopeOther);
-              if (nextScopeOther === null) return;
-              scopeOther = nextScopeOther.trim();
-            }
-            api("/api/projects/" + id + "/details", {
-              method: "PATCH", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ scope: scopeArr, scope_other: scopeOther || null, actor_role: CURRENT_ROLE }),
-            }).then(function () { showToast("Scope updated &#8211; deliverables regenerated"); openDetail(id); })
-              .catch(function (err) { showToast("Could not update &#8211; " + apiErrorDetail(err), true); });
+            openChecklistEditModal({
+              eyebrow: "Only allowed before this tender has any real progress — changing it regenerates the deliverable list to match.",
+              title: "Edit Scope",
+              options: sopts.scopes,
+              selected: p.scope || [],
+              hasOther: true,
+              otherValue: p.scope_other || "",
+              onSave: function (scopeArr, scopeOther) {
+                if (!scopeArr.length) { showToast("Select at least one Scope", true); return; }
+                api("/api/projects/" + id + "/details", {
+                  method: "PATCH", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ scope: scopeArr, scope_other: scopeOther || null, actor_role: CURRENT_ROLE }),
+                }).then(function () { closeChecklistEditModal(); showToast("Scope updated &#8211; deliverables regenerated"); openDetail(id); })
+                  .catch(function (err) { showToast("Could not update &#8211; " + apiErrorDetail(err), true); });
+              },
+            });
           } else if (tag === "bu") {
-            var nextBu = prompt("Business Unit(s) &#8211; comma-separated, choose from TBU, PBU, DBU, BBU, TBA:\n\n" +
-              "Only allowed before this tender has any real progress (upload/completion) &#8212; " +
-              "changing it regenerates the deliverable list to match.", (p.business_units || []).join(", "));
-            if (nextBu === null) return;
-            var buArr = nextBu.split(",").map(function (s) { return s.trim().toUpperCase(); }).filter(Boolean);
-            if (!buArr.length) { showToast("Select at least one Business Unit", true); return; }
-            api("/api/projects/" + id + "/details", {
-              method: "PATCH", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ business_units: buArr, actor_role: CURRENT_ROLE }),
-            }).then(function () { showToast("Business Unit updated &#8211; deliverables regenerated"); openDetail(id); })
-              .catch(function (err) { showToast("Could not update &#8211; " + apiErrorDetail(err), true); });
+            openChecklistEditModal({
+              eyebrow: "Only allowed before this tender has any real progress — changing it regenerates the deliverable list to match.",
+              title: "Edit Business Unit",
+              options: ["TBU", "PBU", "DBU", "BBU", "TBA"],
+              selected: p.business_units || [],
+              hasOther: false,
+              onSave: function (buArr) {
+                if (!buArr.length) { showToast("Select at least one Business Unit", true); return; }
+                api("/api/projects/" + id + "/details", {
+                  method: "PATCH", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ business_units: buArr, actor_role: CURRENT_ROLE }),
+                }).then(function () { closeChecklistEditModal(); showToast("Business Unit updated &#8211; deliverables regenerated"); openDetail(id); })
+                  .catch(function (err) { showToast("Could not update &#8211; " + apiErrorDetail(err), true); });
+              },
+            });
           } else if (tag === "region") {
             var ropts = await getCreateOptions();
             var rlist = ropts.regions.map(function (o) { return "&#8226; " + o; }).join("\n");
@@ -1395,17 +1401,21 @@
             var parts = tag.split(":");
             var fieldName = parts[1], fieldLabel = parts[2];
             var currentVal = p[fieldName] || "";
-            var nextDate = prompt(fieldLabel + " (YYYY-MM-DD):", currentVal);
-            if (nextDate === null) return;
-            nextDate = nextDate.trim();
-            if (!nextDate && fieldName === "announcement_date") { showToast("Announcement Date is required", true); return; }
-            var body = { actor_role: CURRENT_ROLE };
-            body[fieldName] = nextDate || null;
-            api("/api/projects/" + id + "/details", {
-              method: "PATCH", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(body),
-            }).then(function () { showToast(fieldLabel + " updated"); openDetail(id); })
-              .catch(function (err) { showToast("Could not update &#8211; " + apiErrorDetail(err), true); });
+            openChecklistEditModal({
+              type: "date",
+              title: "Edit " + fieldLabel,
+              selected: currentVal,
+              onSave: function (nextDate) {
+                if (!nextDate && fieldName === "announcement_date") { showToast("Announcement Date is required", true); return; }
+                var body = { actor_role: CURRENT_ROLE };
+                body[fieldName] = nextDate || null;
+                api("/api/projects/" + id + "/details", {
+                  method: "PATCH", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(body),
+                }).then(function () { closeChecklistEditModal(); showToast(fieldLabel + " updated"); openDetail(id); })
+                  .catch(function (err) { showToast("Could not update &#8211; " + apiErrorDetail(err), true); });
+              },
+            });
           }
         });
         mv.appendChild(document.createTextNode(" "));
@@ -1519,6 +1529,68 @@
       showToast("Could not open this project &#8211; " + apiErrorDetail(err), true);
     }
   }
+
+  // Item 46 (picker rework): a small reusable edit modal covering every
+  // real-picker case this project detail page needs -- checkboxes
+  // (Scope/Business Unit), a single dropdown (Bid Manager), or a native
+  // date input (every anchor date) -- instead of a free-text prompt()
+  // for any of them. cfg.type: "checklist" (default) | "select" | "date".
+  var _checklistEditSave = null;
+  function openChecklistEditModal(cfg) {
+    document.getElementById("checklistEditEyebrow").textContent = cfg.eyebrow || "";
+    document.getElementById("checklistEditTitle").textContent = cfg.title;
+    var grid = document.getElementById("checklistEditGrid");
+    var otherInput = document.getElementById("checklistEditOtherInput");
+    var selectEl = document.getElementById("checklistEditSelect");
+    var dateEl = document.getElementById("checklistEditDateInput");
+    grid.style.display = "none";
+    otherInput.style.display = "none";
+    selectEl.style.display = "none";
+    dateEl.style.display = "none";
+
+    if (cfg.type === "select") {
+      selectEl.innerHTML = "";
+      cfg.options.forEach(function (opt) {
+        var o = el("option", "", opt); o.value = opt; selectEl.appendChild(o);
+      });
+      selectEl.value = cfg.selected || "";
+      selectEl.style.display = "";
+      _checklistEditSave = function () { cfg.onSave(selectEl.value); };
+    } else if (cfg.type === "date") {
+      dateEl.value = cfg.selected || "";
+      dateEl.style.display = "";
+      _checklistEditSave = function () { cfg.onSave(dateEl.value); };
+    } else {
+      grid.style.display = "";
+      grid.innerHTML = "";
+      cfg.options.forEach(function (opt) {
+        var label = el("label", "scope-opt");
+        var cb = el("input"); cb.type = "checkbox"; cb.value = opt;
+        cb.checked = cfg.selected.indexOf(opt) !== -1;
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(opt));
+        grid.appendChild(label);
+        if (cfg.hasOther && opt === "Other") {
+          cb.addEventListener("change", function () { otherInput.style.display = cb.checked ? "" : "none"; });
+        }
+      });
+      if (cfg.hasOther) {
+        otherInput.style.display = cfg.selected.indexOf("Other") !== -1 ? "" : "none";
+        otherInput.value = cfg.otherValue || "";
+      }
+      _checklistEditSave = function () {
+        var picked = Array.prototype.slice.call(grid.querySelectorAll("input:checked")).map(function (c) { return c.value; });
+        cfg.onSave(picked, otherInput.value.trim());
+      };
+    }
+    document.getElementById("checklistEditOverlay").hidden = false;
+  }
+  function closeChecklistEditModal() {
+    document.getElementById("checklistEditOverlay").hidden = true;
+  }
+  document.getElementById("checklistEditSave").addEventListener("click", function () { if (_checklistEditSave) _checklistEditSave(); });
+  document.getElementById("checklistEditCancel").addEventListener("click", closeChecklistEditModal);
+  document.getElementById("checklistEditClose").addEventListener("click", closeChecklistEditModal);
 
   function renderDeliverables(items) {
     var wrap = document.getElementById("dDeliverables");

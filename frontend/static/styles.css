@@ -534,7 +534,8 @@
   .field.full { grid-column: 1 / -1; }
   .field label { font-size: 12px; font-weight: 700; color: var(--ink-700); }
   .field label .req { color: var(--crit); }
-  .field input[type="text"], .field input[type="date"], .field select {
+  .field input[type="text"], .field input[type="date"], .field select,
+  #checklistEditOtherInput, #checklistEditSelect, #checklistEditDateInput {
     border: 1px solid var(--line); border-radius: 9px; padding: 9px 12px; font-size: 13px; background: var(--surface-sunken); color: var(--ink-900); font-family: inherit;
   }
   .field input:focus, .field select:focus { background: var(--surface); border-color: var(--accent-line); }

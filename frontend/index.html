@@ -804,6 +804,32 @@
   </div>
 </div>
 
+
+<!-- Item 46: Scope/Business Unit/Bid Manager/date edits -- a real picker
+     (checkboxes, a dropdown, or a native date input) instead of a
+     free-text prompt(), same visual language as the create form. -->
+<div class="modal-overlay" id="checklistEditOverlay" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <div class="eyebrow" id="checklistEditEyebrow"></div>
+        <h2 id="checklistEditTitle"></h2>
+      </div>
+      <button class="modal-close" id="checklistEditClose">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <div class="scope-grid" id="checklistEditGrid"></div>
+      <input type="text" id="checklistEditOtherInput" placeholder="Specify Other&#8230;" style="display:none;margin-top:12px;width:100%;" />
+      <select id="checklistEditSelect" style="display:none;width:100%;"></select>
+      <input type="date" id="checklistEditDateInput" style="display:none;width:100%;" />
+      <div class="modal-actions-row" style="margin-top:20px;">
+        <button class="btn" id="checklistEditCancel">Cancel</button>
+        <button class="btn primary" id="checklistEditSave">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"><span class="tic" id="toastIc">&#9989;</span><span id="toastMsg"></span></div>
 
 <script src="/static/app.js"></script>
