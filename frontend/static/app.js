@@ -258,9 +258,20 @@
     if (name !== "triage") checkBmTriageDeadline();
   }
   document.querySelectorAll(".nav-item").forEach(function (btn) {
-    btn.addEventListener("click", function () { switchView(btn.dataset.view); });
+    btn.addEventListener("click", function () { switchView(btn.dataset.view); closeMobileNav(); });
   });
   document.getElementById("backBtn").addEventListener("click", function () { switchView(lastListView); });
+  // Item 154: hamburger nav -- the rail is an off-canvas drawer below the
+  // tablet breakpoint (styles.css), opened/closed via these three triggers.
+  function closeMobileNav() {
+    document.getElementById("rail").classList.remove("open");
+    document.getElementById("railBackdrop").classList.remove("open");
+  }
+  document.getElementById("railToggle").addEventListener("click", function () {
+    document.getElementById("rail").classList.add("open");
+    document.getElementById("railBackdrop").classList.add("open");
+  });
+  document.getElementById("railBackdrop").addEventListener("click", closeMobileNav);
   document.getElementById("dGanttBtn").addEventListener("click", function () { openProjectGantt(currentProjectId); });
 
   /* ================= DASHBOARD ================= */

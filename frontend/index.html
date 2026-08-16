@@ -9,7 +9,12 @@
 <body>
 
 <div class="shell">
-  <aside class="rail">
+  <!-- Item 154: mobile nav toggle + its backdrop. Hidden entirely on wide
+       viewports via CSS; on narrow ones the rail becomes an off-canvas
+       drawer these two control. -->
+  <button class="rail-toggle" id="railToggle" aria-label="Open menu">&#9776;</button>
+  <div class="rail-backdrop" id="railBackdrop"></div>
+  <aside class="rail" id="rail">
     <div class="brand">
       <div class="brand-badge"><img src="/static/logo.png" alt="Algihaz Contracting" /></div>
       <!-- Items 35/36: the Platform-vs-Portal word choice, finally applied. -->

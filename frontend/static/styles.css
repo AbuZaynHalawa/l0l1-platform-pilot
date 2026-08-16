@@ -80,6 +80,14 @@
   /* ---------- shell ---------- */
   .shell { display: grid; grid-template-columns: 236px 1fr; min-height: 100vh; }
   .rail { background: var(--surface); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 20px 14px; gap: 18px; }
+  /* Item 154: hamburger toggle + backdrop, both display:none until the
+     mobile breakpoint below turns the rail into an off-canvas drawer. */
+  .rail-toggle {
+    display: none; position: fixed; top: 12px; left: 12px; z-index: 45; width: 38px; height: 38px;
+    border-radius: 9px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-700);
+    font-size: 18px; align-items: center; justify-content: center; box-shadow: var(--shadow-1); cursor: pointer;
+  }
+  .rail-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 39; }
   .brand { display: flex; flex-direction: column; gap: 10px; padding: 2px 4px 4px; }
   .brand-badge { background: #ffffff; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; box-shadow: var(--shadow-1); }
   .brand-badge img { display: block; width: 100%; height: auto; }
@@ -534,7 +542,11 @@
   /* ---------- Create L0/L1 form ---------- */
   .form-card { padding: 26px 28px; }
   .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px 26px; }
-  .field { display: flex; flex-direction: column; gap: 6px; }
+  /* Item 154: a <select>/<textarea> won't shrink below its own content's
+     intrinsic width by default (min-width:auto on a flex/grid item resolves
+     to that content size), so a long option/placeholder blew the whole grid
+     track -- and the page -- wider than the viewport on narrow screens. */
+  .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
   .field.full { grid-column: 1 / -1; }
   .field label { font-size: 12px; font-weight: 700; color: var(--ink-700); }
   .field label .req { color: var(--crit); }
@@ -717,4 +729,46 @@
   .trend-legend .lg { display: flex; align-items: center; gap: 6px; }
   .trend-legend .sw { width: 12px; height: 3px; border-radius: 2px; }
   .report-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+
+  /* ================= ITEM 154: RESPONSIVE ================= */
+  /* Tablet and below: the fixed 236px rail becomes an off-canvas drawer,
+     opened by the hamburger button (both are display:none above this). */
+  @media (max-width: 860px) {
+    .shell { grid-template-columns: 1fr; }
+    .rail-toggle { display: flex; }
+    .rail {
+      position: fixed; top: 0; left: 0; bottom: 0; width: min(280px, 84vw); z-index: 40;
+      transform: translateX(-100%); transition: transform .2s ease; box-shadow: var(--shadow-2);
+    }
+    .rail.open { transform: translateX(0); }
+    .rail-backdrop.open { display: block; }
+    .topbar { padding-left: 60px; flex-wrap: wrap; row-gap: 8px; }
+    .search-wrap { order: 1; flex: 1 1 100%; max-width: none; }
+    .top-spacer { display: none; }
+    .top-meta { flex-wrap: wrap; row-gap: 8px; }
+  }
+
+  /* Phone and below: stack every multi-column grid to one column, tighten
+     padding/typography, and shrink a few components with fixed-px columns
+     that would otherwise force horizontal overflow at this width. */
+  @media (max-width: 640px) {
+    .view { padding: 16px 14px 44px; }
+    .view-head h1 { font-size: 19px; }
+    .view-head { flex-direction: column; align-items: flex-start; }
+    .stat-row, .dept-grid, .split, .report-grid, .how-grid, .form-grid { grid-template-columns: 1fr !important; }
+    .pipeline { grid-template-columns: repeat(2, 1fr); row-gap: 18px; }
+    .achievers-row { grid-template-columns: 1fr !important; }
+    .card-pad { padding: 14px 16px; }
+    .rank-row { grid-template-columns: 22px 100px 1fr 50px; }
+    .rank-row .rank-val { display: none; }
+    .gantt-filter-row, .top-meta { gap: 8px; }
+    .role-select, #actingEmailQuickPick { font-size: 11.5px; padding: 6px 8px; }
+    .modal-card, .tour-card { max-width: calc(100vw - 24px); }
+    /* Item 154: these action rows use flex:none/flex-shrink:0 on purpose
+       on wide screens (buttons must never get squashed illegibly). A flex
+       item's own content-based size is computed as if it laid out on one
+       line even when it has flex-wrap:wrap itself, so wrapping alone isn't
+       enough -- max-width forces it to actually respect the row's width. */
+    .detail-head-actions, .deliv-row, .deliv-actions { flex-wrap: wrap; max-width: 100%; }
+  }
   @media (max-width: 980px) { .report-grid { grid-template-columns: 1fr; } }
