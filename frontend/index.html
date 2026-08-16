@@ -40,6 +40,10 @@
       <button class="nav-item" data-view="scores"><span class="ic">&#127942;</span> Top Achievers</button>
       <button class="nav-item" data-view="focalpoints"><span class="ic">&#128222;</span> Focal Points</button>
       <button class="nav-item" data-view="followup"><span class="ic">&#128276;</span> Follow Up</button>
+      <!-- Item 151: every Ask the Team thread, in one dedicated admin view --
+           the asker-facing "Ask a Question" tab keeps its own My Requests
+           list, but replying/resolving as an admin now lives here instead. -->
+      <button class="nav-item" data-view="tickets"><span class="ic">&#127915;</span> Tickets</button>
     </nav>
 
     <div class="rail-foot">
@@ -310,11 +314,6 @@
           <div class="section-title"><span>My Requests</span></div>
           <div id="supMineList"></div>
         </div>
-
-        <div class="card table-card" id="supInboxCard" style="margin-top:18px;display:none;">
-          <div class="section-title"><span>Inbox</span></div>
-          <div id="supInboxList"></div>
-        </div>
       </div>
 
       <!-- Item 150: shared knowledge base of every admin-answered question,
@@ -460,6 +459,22 @@
           <button class="btn primary" id="fuRemindAll">Send Reminders to All Shown</button>
         </div>
         <div id="followUpList"></div>
+      </div>
+    </section>
+
+    <!-- TICKETS (admin-only, item 151: every Ask the Team thread in one
+         dedicated view, reply/resolve/reference-KB same as before -- just
+         out of the asker-facing Q/A tab instead of buried inside it) -->
+    <section class="view" id="view-tickets" hidden>
+      <div class="view-head">
+        <div>
+          <div class="eyebrow">Admin</div>
+          <h1>Tickets</h1>
+          <p class="sub">Every question sent through Ask the Team, open and resolved.</p>
+        </div>
+      </div>
+      <div class="card table-card">
+        <div id="ticketsList"></div>
       </div>
     </section>
 

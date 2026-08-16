@@ -180,9 +180,9 @@
     l0: function () { loadProjectsTable("L0"); }, l1: function () { loadProjectsTable("L1"); },
     performance: loadPerformance, reports: loadReports, create: loadCreateOptions, gantt: loadGantt,
     journey: loadJourney, scores: loadScores, focalpoints: loadFocalPoints, followup: loadFollowUp,
-    support: loadSupport, bmtriage: loadBmTriageStatus,
+    support: loadSupport, bmtriage: loadBmTriageStatus, tickets: loadTickets,
   };
-  var ADMIN_ONLY_VIEWS = ["create", "reports", "scores", "focalpoints", "followup"];
+  var ADMIN_ONLY_VIEWS = ["create", "reports", "scores", "focalpoints", "followup", "tickets"];
   // Item 110: BM Triage Status isn't strictly admin-only — a Bid Manager
   // acting as themselves (Owner role, since that's the role they'd pick to
   // represent themselves elsewhere in the app) can see it too, scoped
@@ -2617,21 +2617,24 @@
       }
     }
 
-    var inboxCard = document.getElementById("supInboxCard");
-    if (!can("create")) { inboxCard.style.display = "none"; return; }
-    inboxCard.style.display = "";
+  }
+
+  // Item 151: every Ask the Team thread, admin-only, in its own dedicated
+  // view -- same reply/resolve/reference-KB behavior that used to live
+  // inline inside "Q/A - Ask the Team" as an "Inbox" card.
+  async function loadTickets() {
     var reqs = await api("/api/support?actor_role=" + CURRENT_ROLE);
     // Item 150: admins get the option to reference an existing KB entry
     // instead of writing a fresh answer, so the picker needs the full list.
     var kbEntries = await api("/api/support/kb");
-    var wrap = document.getElementById("supInboxList");
+    var wrap = document.getElementById("ticketsList");
     wrap.innerHTML = "";
     if (!reqs.length) { wrap.appendChild(el("div", "empty-state", "No requests yet.")); return; }
     reqs.forEach(function (r) {
       var holder = el("div");
       _renderSupportThread(holder, r, {
         canReply: true, canResolve: true, replyEndpoint: "reply", replyPlaceholder: "Reply to the asker&#8230;",
-        onReplied: loadSupport, kbEntries: kbEntries,
+        onReplied: loadTickets, kbEntries: kbEntries,
       });
       wrap.appendChild(holder);
     });
