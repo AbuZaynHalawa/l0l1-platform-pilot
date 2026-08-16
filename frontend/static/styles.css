@@ -477,6 +477,38 @@
   .aq-title { font-size: 13.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .aq-sub { font-size: 12px; color: var(--ink-500); margin-top: 3px; display: flex; gap: 8px; flex-wrap: nowrap; align-items: center; overflow: hidden; }
   .aq-sub .sep { color: var(--ink-300); flex: none; }
+
+  /* Item 144: Assigned Deliverables as a real table. Grid columns are a
+     fixed-px + fr mix (not table-layout:auto) so the row always fits the
+     card's width -- text columns ellipsize under pressure instead of the
+     table ever needing horizontal scroll. */
+  .aqt { width: 100%; }
+  .aqt-row { display: grid; grid-template-columns: 78px minmax(0,2.3fr) minmax(0,1.1fr) minmax(0,1fr) 148px 168px 96px 200px; align-items: center; gap: 10px; }
+  .aqt-head { padding: 10px 18px; border-bottom: 1px solid var(--line); background: var(--surface-sunken); }
+  .aqt-head .aqt-cell { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-500); }
+  .aqt-head .aqt-cell:last-child { text-align: right; }
+  .aqt-body-row { padding: 12px 18px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .aqt-body-row:last-child { border-bottom: none; }
+  .aqt-body-row:hover { background: var(--surface-sunken); }
+  .aqt-cell { min-width: 0; }
+  .aqt-cell.aqt-ellipsis { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .aqt-est { font-weight: 700; color: var(--purple-1); font-size: 12.5px; }
+  .aqt-name { font-size: 13px; font-weight: 700; }
+  .aqt-name .aqt-proj { font-weight: 500; color: var(--ink-500); }
+  .aqt-dept, .aqt-focal, .aqt-due { font-size: 12.5px; color: var(--ink-700); }
+  .aqt-status { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+  .aqt-status .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+  .aqt-status.good { color: var(--good); } .aqt-status.good .dot { background: var(--good); }
+  .aqt-status.warn { color: var(--warn); } .aqt-status.warn .dot { background: var(--warn); }
+  .aqt-status.crit { color: var(--crit); } .aqt-status.crit .dot { background: var(--crit); }
+  .aqt-status.neutral { color: var(--ink-500); } .aqt-status.neutral .dot { background: var(--ink-300); }
+  .aqt-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+  .aqt-actions .btn { padding: 5px 12px; font-size: 11.5px; }
+  .aqt-locked { font-size: 11px; color: var(--ink-300); font-style: italic; text-align: right; }
+  @media (max-width: 1180px) {
+    .aqt-row { grid-template-columns: 70px minmax(0,2fr) minmax(0,1fr) 130px 150px 88px 170px; }
+    .aqt-focal { display: none; }
+  }
   /* Item 142 rework: these spans had ellipsis rules but no min-width, so
      flexbox couldn't actually shrink them below their content's natural
      size -- the row just silently overflowed and cut off whatever came

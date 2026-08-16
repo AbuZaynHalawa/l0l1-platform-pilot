@@ -65,6 +65,26 @@
     if (d.status === "not_required" || d.status === "pending_triage") return progressPillHtml(d);
     return deadlinePillHtml(d) + progressPillHtml(d);
   }
+  // Item 144: same two axes as the pills above, rendered as plain
+  // dot+text for the Assigned Deliverables table (no pill background).
+  function deadlineStatusCellHtml(d) {
+    if (d.status === "not_required" || d.status === "pending_triage") {
+      return '<span class="aqt-status neutral">&#8213;</span>';
+    }
+    var meta = DEADLINE_META[d.deadline_status] || ["neutral", d.deadline_status];
+    var text = meta[1];
+    if (d.deadline_days !== null && d.deadline_days !== undefined) {
+      text += " (" + (d.deadline_days > 0 ? "+" : "") + d.deadline_days + " days)";
+    }
+    return '<span class="aqt-status ' + meta[0] + '"><span class="dot"></span>' + text + "</span>";
+  }
+  function progressStatusCellHtml(d) {
+    if (d.status === "approved" && d.auto_completed) {
+      return '<span class="aqt-status good"><span class="dot"></span>Auto-Completed</span>';
+    }
+    var meta = STATUS_META[d.status] || ["neutral", d.status];
+    return '<span class="aqt-status ' + meta[0] + '"><span class="dot"></span>' + meta[1] + "</span>";
+  }
   // Item 91: a centered loading popup for every in-flight API call, so a
   // slow reminder/creation/etc. reads as "working" instead of "stuck".
   // Delayed briefly so a normal fast request never even flickers it.
@@ -448,27 +468,44 @@
     var wrap = document.getElementById("assignedList");
     wrap.innerHTML = "";
     if (!items.length) { wrap.appendChild(el("div", "empty-state", "Nothing here right now.")); return; }
+    // Item 144: a real table -- one column per field, plain buttons off to
+    // the side, no status pills. Grid-based (see .aqt-row in styles.css) so
+    // it always fits the card width instead of ever needing horizontal
+    // scroll -- text columns ellipsize under pressure rather than overflow.
+    var table = el("div", "aqt");
+    var head = el("div", "aqt-row aqt-head");
+    ["Est No.", "Deliverable", "Department", "Focal Point", "Deadline", "Progress", "Due Date", "Actions"].forEach(function (label, i) {
+      var cell = el("div", "aqt-cell", label);
+      if (i === 3) cell.classList.add("aqt-focal");
+      head.appendChild(cell);
+    });
+    table.appendChild(head);
     items.forEach(function (d) {
-      var row = el("div", "aq-row");
+      var row = el("div", "aqt-row aqt-body-row");
       row.dataset.sid = String(d.id);
-      var main = el("div", "aq-main");
-      main.appendChild(el("div", "aq-title", d.item_no + " &middot; " + d.name));
-      main.appendChild(el("div", "aq-sub",
-        '<span>' + d.est_no + ' &#8211; ' + d.project_name + '</span><span class="sep">&middot;</span>' +
-        '<span>' + deptLabel(d.department, d.department_number) + '</span><span class="sep">&middot;</span>' +
-        '<span>Owner: ' + d.owner + '</span><span class="sep">&middot;</span>' +
-        '<span class="aq-due">Due ' + fmtDate(d.due_date) + '</span>'));
+      row.addEventListener("click", function () { openDelivModal(d.id); });
+
+      row.appendChild(el("div", "aqt-cell aqt-ellipsis aqt-est", d.est_no));
+
+      var nameCell = el("div", "aqt-cell aqt-ellipsis aqt-name",
+        d.item_no + " &middot; " + d.name + '<span class="aqt-proj"> &#8211; ' + d.project_name + "</span>");
+      row.appendChild(nameCell);
+
+      row.appendChild(el("div", "aqt-cell aqt-ellipsis aqt-dept", deptLabel(d.department, d.department_number)));
+      row.appendChild(el("div", "aqt-cell aqt-ellipsis aqt-focal", d.owner));
+      row.appendChild(el("div", "aqt-cell", deadlineStatusCellHtml(d)));
+      row.appendChild(el("div", "aqt-cell", progressStatusCellHtml(d)));
+      row.appendChild(el("div", "aqt-cell aqt-ellipsis aqt-due", fmtDate(d.due_date)));
+
       var authorized = isAssigned(d);
-      if (authorized && d.completion_note) main.appendChild(el("div", "deliv-comment", "&#128172; " + d.completion_note));
-      main.style.cursor = "pointer";
-      main.addEventListener("click", function () { openDelivModal(d.id); });
-      row.appendChild(main);
-      row.appendChild(el("span", "", statusPillsHtml(d)));
-      var actions = el("div", "deliv-actions");
+      var actions = el("div", "aqt-cell aqt-actions");
+      // Stop the row's own click (which opens the modal) from also firing
+      // when a button inside the actions cell is clicked.
+      actions.addEventListener("click", function (ev) { ev.stopPropagation(); });
       if (authorized && d.file_url) actions.appendChild(fileLink(d));
       actions.appendChild(followButton(d));
       if (!authorized) {
-        actions.appendChild(el("span", "locked-note", "Owner/SME only"));
+        actions.appendChild(el("span", "aqt-locked", "Owner/SME only"));
       } else {
         // Item 143 (2nd revision): whole-deliverable Approve/Reject only
         // exists once Mark Completed has been clicked (Pending SME Review)
@@ -497,8 +534,9 @@
         }
       }
       row.appendChild(actions);
-      wrap.appendChild(row);
+      table.appendChild(row);
     });
+    wrap.appendChild(table);
   }
   function followButton(d) {
     var btn = el("button", "btn" + (d.following ? " primary" : ""), d.following ? "&#9733; Following" : "&#9734; Follow");
