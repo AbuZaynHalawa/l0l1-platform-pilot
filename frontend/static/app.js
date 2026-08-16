@@ -411,6 +411,7 @@
   // now, each its own chip row, combined with AND logic.
   var assignedDeadlineFilter = "";
   var assignedProgressFilter = "";
+  var assignedEstFilter = "";
   var assignedStage = "";
   var DEADLINE_FILTERS = [["", "All"], ["not_due", "Not Due"], ["due", "Due"]];
   var PROGRESS_FILTERS = [
@@ -420,6 +421,7 @@
   function deliverableMatchesFilters(d) {
     if (assignedDeadlineFilter && d.deadline_status !== assignedDeadlineFilter) return false;
     if (assignedProgressFilter && d.status !== assignedProgressFilter) return false;
+    if (assignedEstFilter && d.est_no !== assignedEstFilter) return false;
     return true;
   }
   // Item 121: jump to Assigned Deliverables pre-filtered, from a Dashboard
@@ -429,6 +431,7 @@
   function goToAssignedFilter(axis, value) {
     assignedDeadlineFilter = axis === "deadline" ? value : "";
     assignedProgressFilter = axis === "progress" ? value : "";
+    assignedEstFilter = "";
     assignedStage = "";
     document.querySelectorAll("#assignedStageToggle .chip").forEach(function (b) { b.classList.toggle("active", b.dataset.stage === ""); });
     switchView("assigned");
@@ -466,6 +469,14 @@
       chip.addEventListener("click", function () { assignedProgressFilter = f[0]; loadAssigned(); });
       pchips.appendChild(chip);
     });
+
+    var estSel = document.getElementById("assignedEstFilter");
+    var seenEsts = {};
+    all.forEach(function (d) { seenEsts[d.est_no] = true; });
+    estSel.innerHTML = '<option value="">All</option>';
+    Object.keys(seenEsts).sort().forEach(function (n) { var o = el("option", "", n); o.value = n; estSel.appendChild(o); });
+    estSel.value = assignedEstFilter;
+    estSel.onchange = function () { assignedEstFilter = estSel.value; loadAssigned(); };
 
     var items = all.filter(deliverableMatchesFilters);
     var wrap = document.getElementById("assignedList");
