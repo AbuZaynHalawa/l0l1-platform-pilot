@@ -941,22 +941,36 @@
     document.getElementById("tourNext").textContent = tourStep === TOUR_STEPS.length - 1 ? "Done" : "Next →";
     document.getElementById("tourBody").scrollTop = 0;
   }
-  function openTour() {
+  // Item 41: a brand-new user (no completed-walkthrough flag yet) gets this
+  // forced open on their very first load and can't back out of it -- no
+  // close button, no backdrop dismiss -- until they've actually clicked
+  // through to the end. Anyone reopening it later (nav item, or a returning
+  // user) gets the normal closable version.
+  var tourLocked = false;
+  function openTour(forced) {
+    tourLocked = !!forced;
+    document.getElementById("tourClose").hidden = tourLocked;
     tourStep = 0;
     renderTourStep();
     document.getElementById("tourOverlay").hidden = false;
   }
   function closeTour() { document.getElementById("tourOverlay").hidden = true; }
-  document.getElementById("tourStartBtn").addEventListener("click", openTour);
+  document.getElementById("tourStartBtn").addEventListener("click", function () { openTour(false); });
   document.getElementById("tourClose").addEventListener("click", closeTour);
   document.getElementById("tourOverlay").addEventListener("click", function (e) {
-    if (e.target.id === "tourOverlay") closeTour();
+    if (e.target.id === "tourOverlay" && !tourLocked) closeTour();
   });
   document.getElementById("tourPrev").addEventListener("click", function () {
     if (tourStep > 0) { tourStep--; renderTourStep(); }
   });
   document.getElementById("tourNext").addEventListener("click", function () {
-    if (tourStep < TOUR_STEPS.length - 1) { tourStep++; renderTourStep(); } else { closeTour(); }
+    if (tourStep < TOUR_STEPS.length - 1) { tourStep++; renderTourStep(); return; }
+    if (tourLocked) {
+      localStorage.setItem("tourCompletedOnce", "1");
+      tourLocked = false;
+      document.getElementById("tourClose").hidden = false;
+    }
+    closeTour();
   });
   async function openDelivModal(submissionId) {
     var qs = passiveIdentity() ? "?actor_email=" + encodeURIComponent(passiveIdentity()) : "";
@@ -2956,4 +2970,8 @@
     if (sharedMatch) openDelivModal(parseInt(sharedMatch[1], 10));
   }
   checkBmTriageDeadline();
+  // Item 41: a brand-new browser (no completed-walkthrough flag) gets the
+  // System Introduction forced open, on top of whatever view they landed
+  // on, before they can do anything else on the site.
+  if (!localStorage.getItem("tourCompletedOnce")) openTour(true);
 })();
