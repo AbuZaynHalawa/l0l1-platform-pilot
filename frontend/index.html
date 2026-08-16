@@ -19,7 +19,7 @@
     <div class="nav-group-label">Workspace</div>
     <nav class="nav">
       <button class="nav-item active" data-view="dashboard"><span class="ic">&#9673;</span> Dashboard</button>
-      <button class="nav-item" data-view="assigned"><span class="ic">&#128203;</span> Assigned Deliverables <span class="nav-badge" id="assignedBadge"></span></button>
+      <button class="nav-item" id="assignedNavItem" data-view="assigned"><span class="ic">&#128203;</span> Assigned Deliverables <span class="nav-badge" id="assignedBadge"></span></button>
       <button class="nav-item" data-view="announcements"><span class="ic">&#128276;</span> Announcements</button>
       <button class="nav-item" data-view="l0"><span class="ic">&#128196;</span> L0 Tenders</button>
       <button class="nav-item" data-view="l1"><span class="ic">&#128274;</span> L1 Projects</button>
@@ -69,6 +69,9 @@
           <option value="Viewer">Viewing as: Viewer</option>
         </select>
         <input class="role-select" id="actingEmail" type="text" placeholder="acting as email&#8230;" style="display:none;width:190px;" />
+        <!-- Item 162: a way to test as a real person with real assigned
+             work, instead of guessing an email that matches nothing. -->
+        <select class="role-select" id="actingEmailQuickPick" style="display:none;"><option value="">Quick pick&#8230;</option></select>
         <button class="theme-btn" id="themeToggle">Dark mode</button>
         <div class="avatar">YH</div>
       </div>

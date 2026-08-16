@@ -152,50 +152,6 @@ def list_documents(submission_id: int, db: Session = Depends(get_db)):
     return [_document_out(d) for d in documents]
 
 
-@router.post("/{submission_id}/documents")
-async def add_document(submission_id: int, file: UploadFile = File(...),
-                        actor_name: str = Form("Owner"), actor_role: str = Form("Owner"),
-                        actor_email: str = Form(""), db: Session = Depends(get_db)):
-    """Adds a supplementary document to an already-submitted deliverable —
-    e.g. a second/third document on a multi-doc deliverable arriving hours
-    or days apart. Item 143 (2nd revision): like the primary upload, this
-    never triggers SME review on its own — it only moves Progress to In
-    Progress (from No Progress or Rejected); Mark Completed is the only
-    review trigger. Blocked outright once the deliverable is Completed or
-    already awaiting SME review (Pending Review closes uploads until the
-    SME confirms or sends it back).
-    """
-    sub = db.get(models.DeliverableSubmission, submission_id)
-    if not sub:
-        raise HTTPException(404, "Deliverable not found")
-    assigned = sub.owner_email or sub.definition.default_owner_email
-    if not rules.can_act(actor_role, actor_email, assigned):
-        raise HTTPException(403, f"Only {assigned or 'the assigned owner'} or an Admin can add documents to this deliverable")
-    if sub.status == models.SubmissionStatus.APPROVED:
-        raise HTTPException(400, "This deliverable is already Completed")
-    if sub.status == models.SubmissionStatus.PENDING_REVIEW:
-        raise HTTPException(400, "This deliverable is awaiting SME review — uploads reopen once it's confirmed or sent back")
-
-    content = await file.read()
-    folder = f"{sub.project.onedrive_folder_path}/{sanitize_segment(sub.definition.department.name)}"
-    file_ref = _storage.upload_file(folder, file.filename, content)
-
-    doc = models.Document(submission_id=submission_id, file_name=file.filename, file_ref=file_ref, uploaded_by=actor_name)
-    db.add(doc)
-    sub.status = models.SubmissionStatus.IN_PROGRESS
-    sub.submitted_at = sub.submitted_at or datetime.utcnow()
-    db.add(models.WorkflowHistory(submission_id=submission_id, action="document_added", actor_name=actor_name,
-                                   note=f"Added {file.filename}"))
-    db.commit()
-    db.refresh(doc)
-
-    # Item 101: this now announces the same way the primary upload does —
-    # it used to add the document silently with no notification at all.
-    announcements.followers_notified(db, sub.project, _follower_emails(db, submission_id),
-                                      sub.definition.item_no, sub.definition.name, "uploaded", submission_id=submission_id)
-    return _document_out(doc)
-
-
 def _finalize_approval(db: Session, sub: "models.DeliverableSubmission", comment: str | None, actor_name: str) -> None:
     """Item 143: the one place a submission actually becomes Completed
     (status stays the APPROVED enum value — only its display label changed

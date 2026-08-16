@@ -187,10 +187,20 @@
   // acting as themselves (Owner role, since that's the role they'd pick to
   // represent themselves elsewhere in the app) can see it too, scoped
   // server-side to just their own tenders.
-  function canSeeBmTriage() { return can("create") || CURRENT_ROLE === "Owner"; }
+  // Item 160: BM Triage Status is the admin-facing overview of every
+  // project's triage state -- it used to also show for "Owner" since
+  // there's no distinct Bid Manager role in the switcher, but a real BM's
+  // own forced triage flow (checkBmTriageDeadline's overlay, openTriage)
+  // is email-matched and independent of this nav item, so restricting the
+  // nav item itself to Admin doesn't block anyone's actual triage work.
+  function canSeeBmTriage() { return can("create"); }
+  // Item 158: Viewer has no upload/review/create actions at all, so a work
+  // queue of assigned items has nothing for them to do with it.
+  function canSeeAssigned() { return CURRENT_ROLE !== "Viewer"; }
   function switchView(name) {
     if (ADMIN_ONLY_VIEWS.indexOf(name) !== -1 && !can("create")) name = "dashboard";
     if (name === "bmtriage" && !canSeeBmTriage()) name = "dashboard";
+    if (name === "assigned" && !canSeeAssigned()) name = "dashboard";
     document.querySelectorAll(".view").forEach(function (v) { v.hidden = true; });
     document.getElementById("view-" + name).hidden = false;
     document.querySelectorAll(".nav-item").forEach(function (n) { n.classList.toggle("active", n.dataset.view === name); });
@@ -1141,7 +1151,7 @@
           var link = el("a", "", doc.file_name);
           link.href = doc.file_url; link.target = "_blank"; link.rel = "noopener";
           main.appendChild(link);
-          main.appendChild(el("div", "doc-sub", "Uploaded by " + (doc.uploaded_by || "&#8213;")));
+          main.appendChild(el("div", "doc-sub", "Submitted by " + (doc.uploaded_by || "&#8213;")));
           row.appendChild(main);
           body.appendChild(row);
         });
@@ -1157,37 +1167,17 @@
         var link = el("a", "", doc.file_name);
         link.href = doc.file_url; link.target = "_blank"; link.rel = "noopener";
         main.appendChild(link);
-        main.appendChild(el("div", "doc-sub", "Uploaded by " + (doc.uploaded_by || "&#8213;")));
+        main.appendChild(el("div", "doc-sub", "Submitted by " + (doc.uploaded_by || "&#8213;")));
         row.appendChild(main);
         body.appendChild(row);
       });
-      // Item 138: this was gated on role alone, so a Not Required (or
-      // approved/client-dependent) deliverable still let you attach a
-      // supplementary document -- widened to match the primary Upload
-      // button's own canUpload gate above (available right up until the
-      // deliverable is actually Completed).
-      if (canUpload && can("upload")) {
-        var addBtn = el("button", "btn", "Upload"); // item 101 — same naming as the primary Upload button
-        var addInput = el("input"); addInput.type = "file"; addInput.style.display = "none";
-        addInput.addEventListener("change", async function () {
-          if (!addInput.files.length) return;
-          var fd = new FormData();
-          fd.append("file", addInput.files[0]);
-          fd.append("actor_name", CURRENT_ROLE + " (pilot)");
-          fd.append("actor_role", CURRENT_ROLE);
-          fd.append("actor_email", actingEmail());
-          try {
-            await api("/api/deliverables/" + submissionId + "/documents", { method: "POST", body: fd });
-          } catch (err) {
-            showToast("Could not add document &#8211; " + apiErrorDetail(err), true);
-            return;
-          }
-          showToast("Document added");
-          openDelivModal(submissionId);
-        });
-        addBtn.addEventListener("click", function () { addInput.click(); });
-        body.appendChild(addBtn); body.appendChild(addInput);
-      }
+      // Item 161: this used to have its own "Upload" button here too, a
+      // second control doing the same thing as the actionsRow Upload above
+      // (same canUpload gate) but through a different endpoint with a
+      // different confirmation message -- confusing since both were
+      // labeled identically. One Upload control is enough; the actionsRow
+      // button already refreshes this whole modal (including this list)
+      // after a successful upload.
     }
 
     body.appendChild(el("div", "modal-section-title", "Activity"));
@@ -1592,7 +1582,7 @@
         showToast("Upload blocked &#8211; " + apiErrorDetail(err), true);
         return;
       }
-      showToast("Uploaded " + fileInput.files[0].name + " &#8211; SME notified");
+      showToast("Submitted " + fileInput.files[0].name + " &#8211; SME notified");
       after();
     });
     var span = el("span"); span.appendChild(btn); span.appendChild(fileInput);
@@ -2727,7 +2717,11 @@
     renderAnnouncements();
   });
   async function loadAnnouncements() {
-    announcementsAll = await api("/api/announcements?limit=500");
+    var qs = "?limit=500";
+    if (CURRENT_ROLE !== "Admin") {
+      qs += "&actor_role=" + encodeURIComponent(CURRENT_ROLE) + "&actor_email=" + encodeURIComponent(passiveIdentity());
+    }
+    announcementsAll = await api("/api/announcements" + qs);
     renderAnnouncements();
   }
   function renderAnnouncements() {
@@ -2934,19 +2928,68 @@
   });
 
   /* ================= ROLE + THEME ================= */
+  // Item 162: lets a tester actually become a real Owner/SME with real
+  // assigned work instead of guessing an email that matches nothing (the
+  // real cause behind item 160's "why can't I upload" question -- the acting
+  // email has to match a real owner_email/sme_email for isAssigned() to
+  // pass). Built from the live /api/deliverables list, so it's always
+  // pointing at real, current, testable rows -- SME options are labelled
+  // with their pending-review count so "test Pending SME Review" is a
+  // one-click pick instead of a hunt through the data.
+  async function populateActingEmailQuickPick() {
+    var quickPick = document.getElementById("actingEmailQuickPick");
+    if (CURRENT_ROLE !== "Owner" && CURRENT_ROLE !== "SME") { quickPick.style.display = "none"; return; }
+    var all = await api("/api/deliverables");
+    var counts = {};
+    all.forEach(function (d) {
+      var email = CURRENT_ROLE === "Owner" ? d.owner_email : d.sme_email;
+      if (!email) return;
+      if (!counts[email]) counts[email] = { due: 0, pendingReview: 0 };
+      if (d.deadline_status === "due") counts[email].due++;
+      if (d.status === "pending_review") counts[email].pendingReview++;
+    });
+    var emails = Object.keys(counts).sort();
+    quickPick.innerHTML = '<option value="">Quick pick&#8230;</option>';
+    emails.forEach(function (email) {
+      var c = counts[email];
+      var label = CURRENT_ROLE === "SME"
+        ? email + " (" + c.pendingReview + " pending review)"
+        : email + " (" + c.due + " due)";
+      var o = el("option", "", label); o.value = email; quickPick.appendChild(o);
+    });
+    quickPick.style.display = emails.length ? "" : "none";
+  }
   document.getElementById("roleSelect").addEventListener("change", function (e) {
     CURRENT_ROLE = e.target.value;
     var showAdmin = can("create");
     document.getElementById("adminNav").style.display = showAdmin ? "" : "none";
     document.getElementById("adminGroupLabel").style.display = showAdmin ? "" : "none";
-    document.getElementById("actingEmail").style.display = (CURRENT_ROLE === "Owner" || CURRENT_ROLE === "SME") ? "" : "none";
+    var actingAsPerson = CURRENT_ROLE === "Owner" || CURRENT_ROLE === "SME";
+    document.getElementById("actingEmail").style.display = actingAsPerson ? "" : "none";
+    // A hidden field a user can no longer see or edit shouldn't keep
+    // silently steering identity-dependent checks (announcement visibility,
+    // isAssigned) after switching away from Owner/SME -- clear it so
+    // Admin/Viewer never inherit whichever email was last typed in.
+    if (!actingAsPerson) document.getElementById("actingEmail").value = "";
     document.getElementById("bmTriageNavItem").hidden = !canSeeBmTriage();
+    document.getElementById("assignedNavItem").hidden = !canSeeAssigned();
+    populateActingEmailQuickPick();
     if (!showAdmin && ADMIN_ONLY_VIEWS.some(function (v) { return !document.getElementById("view-" + v).hidden; })) switchView("dashboard");
     if (!canSeeBmTriage() && !document.getElementById("view-bmtriage").hidden) switchView("dashboard");
+    if (!canSeeAssigned() && !document.getElementById("view-assigned").hidden) switchView("dashboard");
     if (currentProjectId && !document.getElementById("view-detail").hidden) openDetail(currentProjectId);
+    if (!document.getElementById("view-announcements").hidden) loadAnnouncements();
     checkBmTriageDeadline();
   });
-  document.getElementById("actingEmail").addEventListener("change", checkBmTriageDeadline);
+  document.getElementById("actingEmailQuickPick").addEventListener("change", function (e) {
+    if (!e.target.value) return;
+    document.getElementById("actingEmail").value = e.target.value;
+    document.getElementById("actingEmail").dispatchEvent(new Event("change"));
+  });
+  document.getElementById("actingEmail").addEventListener("change", function () {
+    if (!document.getElementById("view-announcements").hidden) loadAnnouncements();
+    checkBmTriageDeadline();
+  });
   document.getElementById("themeToggle").addEventListener("click", function () {
     var root = document.documentElement;
     var next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
