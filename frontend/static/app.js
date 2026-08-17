@@ -2267,7 +2267,7 @@
     var r = Math.round(v * 10) / 10;
     return (Math.round(r) === r ? r.toFixed(0) : r.toFixed(1)) + "%";
   }
-  function buildTrendChartHtml(seriesList, heightPx) {
+  function buildTrendChartHtml(seriesList, heightPx, alignToTable) {
     var allMonths = [];
     seriesList.forEach(function (s) {
       s.points.forEach(function (p) { if (allMonths.indexOf(p.month) === -1) allMonths.push(p.month); });
@@ -2285,7 +2285,15 @@
     if (maxV > 100) maxV = 100;
     // Same formula drives the gridline/tick positions and the dot/line
     // positions, so they always land in exact alignment with each other.
-    function xPos(i) { return allMonths.length > 1 ? (i / (allMonths.length - 1)) * 100 : 50; }
+    // In table-aligned mode (Compare/History modals, which show the same
+    // periods/departments as columns in a table right above the chart)
+    // each point sits at the CENTER of its own equal-width slice, same as
+    // how the table's own header text centers within its column -- not
+    // spread edge-to-edge, which drifted out of alignment with the table.
+    function xPos(i) {
+      if (allMonths.length <= 1) return 50;
+      return alignToTable ? ((i + 0.5) / allMonths.length) * 100 : (i / (allMonths.length - 1)) * 100;
+    }
     function yPos(pct) { return maxV === minV ? 50 : 100 - ((pct - minV) / (maxV - minV)) * 100; }
     var svgHtml = "", dotsHtml = "";
     seriesList.forEach(function (s) {
@@ -2325,14 +2333,15 @@
     var gridHtml = [0, 50, 100].map(function (top) {
       return '<div class="spark-gridline" style="top:' + top + '%;"></div>';
     }).join("");
-    return '<div class="spark-chart-row" style="height:' + (heightPx || 90) + 'px;">' +
-      '<div class="spark-axis">' + axisHtml + "</div>" +
+    var alignCls = alignToTable ? " pcmp-aligned" : "";
+    return '<div class="spark-chart-row' + alignCls + '" style="height:' + (heightPx || 90) + 'px;">' +
+      '<div class="spark-axis' + alignCls + '">' + axisHtml + "</div>" +
       '<div class="spark-plot">' +
         '<div class="spark-gridlines">' + gridHtml + "</div>" +
         '<svg viewBox="0 0 100 100" preserveAspectRatio="none" class="spark-svg">' + svgHtml + "</svg>" +
         dotsHtml +
       "</div></div>" +
-      '<div class="spark-labels-row"><div class="spark-axis-spacer"></div>' +
+      '<div class="spark-labels-row"><div class="spark-axis-spacer' + alignCls + '"></div>' +
       '<div class="spark-labels">' + labelsHtml + "</div></div>" + legendHtml;
   }
   function renderPerfCol(d, levelKey, levelLabel) {
@@ -2371,7 +2380,7 @@
     depts.forEach(function (d) {
       var card = el("div", "card perf-card2");
       var head = el("div", "perf-card2-head");
-      head.appendChild(el("div", "perf-card2-name", deptLabel(d.name, d.number)));
+      head.appendChild(el("div", "perf-card2-name", d.name));
       var actions = el("div", "perf-card2-actions");
       var historyBtn = el("button", "perf-history-btn", "History");
       historyBtn.addEventListener("click", function (e) { e.stopPropagation(); openPerfHistoryModal(d); });
@@ -2423,7 +2432,7 @@
   // the first column reads "baseline" since there's nothing before it to
   // compare against.
   function openPerfHistoryModal(d) {
-    document.getElementById("perfCompareTitle").innerHTML = deptLabel(d.name, d.number) + " &#8211; Period Comparison";
+    document.getElementById("perfCompareTitle").innerHTML = d.name + " &#8211; Period Comparison";
     var body = document.getElementById("perfCompareBody");
     body.innerHTML = ["l1", "l0"].map(function (levelKey) {
       var lv = d[levelKey];
@@ -2453,8 +2462,8 @@
       }).join("") + "</tr>";
       var seriesList = [{ label: d.name, color: levelKey === "l1" ? "#667eea" : "#764ba2", points: periods }];
       return '<div class="pcmp-section-head">' + levelLabel + "</div>" +
-        '<div class="pcmp-table-wrap"><table class="pcmp-table"><tbody>' + rows + "</tbody></table></div>" +
-        buildTrendChartHtml(seriesList, 170);
+        '<div class="pcmp-table-wrap"><table class="pcmp-table pcmp-align-table"><tbody>' + rows + "</tbody></table></div>" +
+        buildTrendChartHtml(seriesList, 170, true);
     }).join("");
     document.getElementById("perfCompareOverlay").hidden = false;
   }
@@ -2465,7 +2474,7 @@
       var levelLabel = levelKey.toUpperCase() + " Performance";
       var rows = "";
       rows += '<tr class="pcmp-head-row"><td></td>' + depts.map(function (d) {
-        return "<td>" + deptLabel(d.name, d.number) + "</td>";
+        return "<td>" + d.name + "</td>";
       }).join("") + "</tr>";
       rows += "<tr><td>Performance</td>" + depts.map(function (d) {
         var lv = d[levelKey];
@@ -2492,8 +2501,8 @@
         return { label: d.name, color: PERF_COLORS[i % PERF_COLORS.length], points: d[levelKey].history };
       });
       return '<div class="pcmp-section-head">' + levelLabel + "</div>" +
-        '<div class="pcmp-table-wrap"><table class="pcmp-table"><tbody>' + rows + "</tbody></table></div>" +
-        buildTrendChartHtml(seriesList, 170);
+        '<div class="pcmp-table-wrap"><table class="pcmp-table pcmp-align-table"><tbody>' + rows + "</tbody></table></div>" +
+        buildTrendChartHtml(seriesList, 170, true);
     }).join("");
     document.getElementById("perfCompareOverlay").hidden = false;
   }
@@ -2582,16 +2591,18 @@
         var w = totalRated ? (n / totalRated * 100) : 0;
         return '<div class="psb-seg ' + perfStatusClass(status) + '" style="width:' + w + '%;"></div>';
       }).join("");
+      var hasFilter = perfStatusFilter && perfStatusFilter.level === levelKey;
       var legendHtml = ["Excellent", "Acceptable", "Needs Action"].map(function (status) {
-        var active = perfStatusFilter && perfStatusFilter.level === levelKey && perfStatusFilter.status === status;
-        return '<span class="psc2-legend-item ' + perfStatusClass(status) + (active ? " active" : "") +
+        var active = hasFilter && perfStatusFilter.level === levelKey && perfStatusFilter.status === status;
+        var dim = hasFilter && !active;
+        return '<span class="psc2-legend-item ' + perfStatusClass(status) + (active ? " active" : "") + (dim ? " dim" : "") +
           '" data-level="' + levelKey + '" data-status="' + status + '"><span class="dot"></span>' + counts[status] + " " + status + "</span>";
       }).join("");
       card.innerHTML = '<div class="psc2-head"><span class="psc2-title">' + levelKey.toUpperCase() + ' Performance</span>' +
         '<span class="psc2-avg">' + (avg === null ? "&#8213;" : avg + "%") + ' <span class="psc2-avg-lbl">AVG</span></span></div>' +
         '<div class="psc2-pill">Total Number of ' + levelKey.toUpperCase() + " Projects: " + projectCount + "</div>" +
         '<div class="psc2-body">' +
-          '<div class="psc2-count"><b>' + totalRated + '</b><span>DEPARTMENTS</span></div>' +
+          '<div class="psc2-count psc2-count-clickable"><b>' + totalRated + '</b><span>DEPARTMENTS</span></div>' +
           '<div class="psc2-bar-wrap"><div class="psc2-bar">' + barSegs + '</div>' +
             '<div class="psc2-legend">' + legendHtml + "</div></div>" +
         "</div>" +
@@ -2606,6 +2617,17 @@
           renderPerfCards();
         });
       });
+      // Design spec: clicking the count/average area clears every active
+      // filter (status, chips, search) at once, not just this card's own.
+      card.querySelector(".psc2-count-clickable").addEventListener("click", function () {
+        perfStatusFilter = null;
+        perfChipSelected = {};
+        perfSearchTerm = "";
+        document.getElementById("perfSearch").value = "";
+        renderPerfSummaryCards();
+        renderPerfChips();
+        renderPerfCards();
+      });
     });
   }
   function renderPerfChips() {
@@ -2614,7 +2636,7 @@
     perfTrackedDepts().forEach(function (d) {
       var dim = perfSearchTerm && d.name.toLowerCase().indexOf(perfSearchTerm) === -1;
       var chip = el("span", "perf-chip" + (perfChipSelected[d.name] ? " active" : "") + (dim ? " dim" : ""),
-        deptLabel(d.name, d.number));
+        d.name);
       chip.addEventListener("click", function () {
         if (perfChipSelected[d.name]) delete perfChipSelected[d.name]; else perfChipSelected[d.name] = true;
         renderPerfChips();

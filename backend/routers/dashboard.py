@@ -505,8 +505,17 @@ def get_performance(db: Session = Depends(get_db)):
     db.commit()
     all_subs = db.query(models.DeliverableSubmission).all()
 
+    # Item [performance history]: "Operation Units" (plain) is a legacy
+    # general grouping predating the TBU/PBU/DBU/BBU split -- it has real
+    # tracked deliverables of its own (so has_data alone wouldn't hide it),
+    # but Yasser wants performance tracked only through the four specific
+    # splits, not the general bucket too.
+    _PERF_EXCLUDED_DEPTS = {"Operation Units"}
+
     departments = []
     for dept in db.query(models.Department).order_by(models.Department.number).all():
+        if dept.name in _PERF_EXCLUDED_DEPTS:
+            continue
         dept_subs = _kpi_cohort([s for s in all_subs if s.definition.department_id == dept.id])
         l1 = _level_stats(dept_subs, models.Stage.L1)
         l0 = _level_stats(dept_subs, models.Stage.L0)
