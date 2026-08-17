@@ -1429,6 +1429,22 @@ def run():
             db.commit()
             print(f"Item [multi-SME]: backfilled {backfilled} legacy single-value focal/SME field(s) into their list form.")
 
+        # Item [old projects 500]: auto_completed was added to an
+        # already-live deliverable_submissions table via ensure_column, which
+        # leaves every pre-existing row NULL (Postgres ADD COLUMN has no
+        # backfill without an explicit DEFAULT) -- SubmissionOut requires a
+        # real bool, so any project with a submission that predates this
+        # column 500'd on every /deliverables read. NULL only ever means
+        # "not auto-completed" here, so backfilling to False is safe.
+        auto_completed_fixed = (
+            db.query(models.DeliverableSubmission)
+            .filter(models.DeliverableSubmission.auto_completed.is_(None))
+            .update({models.DeliverableSubmission.auto_completed: False}, synchronize_session=False)
+        )
+        if auto_completed_fixed:
+            db.commit()
+            print(f"Item [old projects 500]: backfilled {auto_completed_fixed} submission(s) with a NULL auto_completed to False.")
+
         print(f"Seed complete: {len(dept_map)} departments, {len(L0_ITEMS)} L0 items, {len(L1_ITEMS)} L1 items.")
     finally:
         db.close()
