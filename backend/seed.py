@@ -306,15 +306,17 @@ L0_ITEMS = [
     ("5.5", "Provide Updated Productivity Norms and Calculations (PCO-01-SPR-001)", "planning", None, None, 0, "after", "library", None),
 
     ("6.1", "Prepare Risk Register", "costctrl", "predecessor", "2.2", 1, "after", "date_driven", None),
-    # Item 172: unlike every other department's identically-worded "Highlight
-    # points require Pre-bid clarifications" item (e.g. Planning's 5.2 above,
-    # which stays at 3 days), Cost Control's own 6.2 is 1 day before the
-    # clarification deadline -- a deliberate, unique exception per Yasser.
-    ("6.2", "Highlight points require Pre-bid clarifications", "costctrl", "pre_bid", None, 1, "before", "date_driven", None),
+    ("6.2", "Highlight points require Pre-bid clarifications", "costctrl", "pre_bid", None, 3, "before", "date_driven", None),
     ("6.3", "Fleet Productivities (equipment productivity rates)", "costctrl", None, None, 0, "after", "library", None),
 
     ("7.1", "Prepare Risk Register", "contract", "predecessor", "1.20", 5, "before", "date_driven", None),
-    ("7.2", "Highlight points require Pre-bid clarifications (Review Contracts and Terms)", "contract", "pre_bid", None, 3, "before", "date_driven", None),
+    # Item 172 (corrected): unlike every other department's identically-
+    # worded "Highlight points require Pre-bid clarifications" item (e.g.
+    # Planning's 5.2 above, which stays at 3 days), Contract's own 7.2 is
+    # 1 day before the clarification deadline -- a deliberate, unique
+    # exception per Yasser (originally applied to Cost Control's 6.2 by
+    # mistake; 6.2 is back to the standard 3 days above).
+    ("7.2", "Highlight points require Pre-bid clarifications (Review Contracts and Terms)", "contract", "pre_bid", None, 1, "before", "date_driven", None),
     ("7.3", "Prepare Non Disclosure Agreements (NDA's) (if applicable)", "contract", None, None, 0, "after", "on_request", None),
     ("7.4", "Review Pre-bid agreements and provide Contractual comments as needed", "contract", None, None, 0, "after", "on_request", None),
 

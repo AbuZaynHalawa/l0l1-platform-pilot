@@ -149,6 +149,13 @@
      regardless of how wide the window actually was, forcing a horizontal
      scrollbar or clipped row content even on a roomy monitor. */
   #view-bmtriage, #view-assigned { max-width: 1560px; }
+  /* Same wide-monitor fix as the Dashboard, applied to every other
+     list/table/dashboard-style view -- pure single-column forms
+     (Create L0/L1, the walkthrough launcher) are deliberately left at the
+     narrower default, since a form usually reads worse stretched full-width. */
+  #view-announcements, #view-l0, #view-l1, #view-gantt, #view-support,
+  #view-scores, #view-focalpoints, #view-followup, #view-tickets,
+  #view-performance, #view-reports, #view-triage { max-width: 1680px; }
   .view[hidden] { display: none; }
   .view-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
 
