@@ -30,7 +30,6 @@
       <button class="nav-item" data-view="l1"><span class="ic">&#128274;</span> L1 Projects</button>
       <button class="nav-item" data-view="gantt"><span class="ic">&#128198;</span> Timeline</button>
       <button class="nav-item" data-view="performance"><span class="ic">&#128200;</span> Performance</button>
-      <button class="nav-item" data-view="journey"><span class="ic">&#128337;</span> L0/L1 History</button>
       <button class="nav-item" data-view="support"><span class="ic">&#128172;</span> Q/A - Ask the Team</button>
       <!-- Item 110: visible to Admins always, and to a Bid Manager acting
            as themselves (their own email entered) -- scoped server-side
@@ -261,18 +260,6 @@
       <div class="card table-card">
         <div class="gantt-axis-clip"><div class="gantt-axis" id="ganttAxis"></div></div>
         <div class="gantt-scroll" id="ganttRows"></div>
-      </div>
-    </section>
-
-    <!-- JOURNEY / HISTORY -->
-    <!-- Item 131 rework: no reference page underneath -- switching to this
-         view opens the walkthrough modal directly (see switchView in
-         app.js). This is only a fallback shown for the instant before that
-         modal opens, and if someone closes the modal without navigating
-         away. -->
-    <section class="view" id="view-journey" hidden>
-      <div class="tour-fallback">
-        <button class="btn primary" id="tourStartBtn" type="button">&#9654; Open Interactive Walkthrough</button>
       </div>
     </section>
 
