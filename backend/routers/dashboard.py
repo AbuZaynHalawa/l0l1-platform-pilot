@@ -61,7 +61,16 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
         due_and_done = [s for s in dept_subs if s.status == models.SubmissionStatus.APPROVED] + dept_overdue + [
             s for s in dept_subs if s.status == models.SubmissionStatus.PENDING_REVIEW]
         approved = sum(1 for s in dept_subs if s.status == models.SubmissionStatus.APPROVED)
-        pct = round((approved / len(due_and_done)) * 100, 1) if due_and_done else None
+        # Item [kpi rewrite]: this concerns list is the same "department
+        # on-time performance" concept as the Performance tab, just pooled
+        # across both stages together -- it needs the real point-based
+        # Calculation Criteria too, not the old plain approved/cohort ratio,
+        # or the two would silently disagree about the same department.
+        total_points = sum(
+            (rules.kpi_points(s.due_date, s.submitted_at.date() if s.submitted_at else None) or 0.0)
+            for s in due_and_done
+        )
+        pct = round((total_points / len(due_and_done)) * 100, 1) if due_and_done else None
         dept_rows.append({
             "department": dept.name, "department_number": dept.number, "total": len(dept_subs), "approved": approved,
             "overdue": len(dept_overdue),
@@ -95,9 +104,12 @@ def _user_lookup(db: Session) -> dict[str, "models.User"]:
 
 
 def _rank_owners(subs, users: dict[str, "models.User"] | None = None):
-    """Ranks owners by on-time approval rate: approved / (approved + overdue +
-    pending_review) — the same cohort/formula already used for department
-    Live Score, just grouped by person instead of department.
+    """Ranks owners by on-time performance -- item [kpi rewrite]: `pct` now
+    uses the real point-based Calculation Criteria (rules.kpi_points, same
+    as the Performance tab/dashboard concerns list) instead of a plain
+    approved/cohort ratio. `approved`/`total` stay literal counts (for the
+    "X / Y approved on time" card text) -- only the ranking percentage
+    itself changed.
     """
     stats: dict[str, dict] = {}
     for s in subs:
@@ -112,7 +124,7 @@ def _rank_owners(subs, users: dict[str, "models.User"] | None = None):
         # shares credit/blame for this item's on-time performance, same as
         # the department Live Score already does across a whole team.
         for email in emails:
-            st = stats.setdefault(email, {"approved": 0, "cohort": 0})
+            st = stats.setdefault(email, {"approved": 0, "points": 0.0, "cohort": 0})
             # Item 143 (2nd revision): same cohort as the department Live
             # Score — Completed, currently overdue (live Deadline
             # computation now, not a stored status), or awaiting SME review.
@@ -122,13 +134,16 @@ def _rank_owners(subs, users: dict[str, "models.User"] | None = None):
                 st["cohort"] += 1
                 if s.status == models.SubmissionStatus.APPROVED:
                     st["approved"] += 1
+                submitted = s.submitted_at.date() if s.submitted_at else None
+                st["points"] += rules.kpi_points(s.due_date, submitted) or 0.0
     ranked = []
     for email, st in stats.items():
         if not st["cohort"]:
             continue
         u = (users or {}).get(email.strip().lower())
         ranked.append({
-            "email": email, "approved": st["approved"], "total": st["cohort"], "pct": round((st["approved"] / st["cohort"]) * 100, 1),
+            "email": email, "approved": st["approved"], "total": st["cohort"],
+            "pct": round((st["points"] / st["cohort"]) * 100, 1),
             "name": u.name if u else None, "department": u.department.name if (u and u.department) else None,
         })
     ranked.sort(key=lambda r: (-r["pct"], -r["total"]))
