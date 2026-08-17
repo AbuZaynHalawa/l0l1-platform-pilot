@@ -3407,6 +3407,13 @@
         if (d.status === "pending_review") counts[email].pendingReview++;
       });
     });
+    // Every roster member of this role is offered, not just whoever
+    // already has assigned work -- a freshly-added Owner/SME with nothing
+    // assigned yet still needs to be pickable to actually test as them.
+    var roster = await _getRoster();
+    roster.filter(function (u) { return u.role === CURRENT_ROLE; }).forEach(function (u) {
+      if (!counts[u.email]) counts[u.email] = { due: 0, pendingReview: 0 };
+    });
     var emails = Object.keys(counts).sort();
     quickPick.innerHTML = '<option value="">Quick pick&#8230;</option>';
     emails.forEach(function (email) {
