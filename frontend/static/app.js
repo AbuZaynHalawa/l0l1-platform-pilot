@@ -2218,18 +2218,6 @@
     var sign = level.variance > 0 ? "+" : "";
     return '<span class="perf-trend ' + level.trend + '">' + arrow + " " + sign + level.variance + "% vs " + level.prev_month + "</span>";
   }
-  function perfDueList(dept, levelKey, level) {
-    if (!level.due_items.length) return "";
-    var html = '<div class="perf-due-list">';
-    level.due_items.forEach(function (it) {
-      html += '<div class="perf-due-item"><span>' + it.item_no + " " + it.name + '</span><span>' + it.delay_days + "d late</span></div>";
-    });
-    if (level.all_due_items.length > level.due_items.length) {
-      html += '<div class="perf-due-more" data-dept="' + dept.name.replace(/"/g, "&quot;") + '" data-level="' + levelKey + '">View all ' + level.all_due_items.length + ' &#8250;</div>';
-    }
-    html += "</div>";
-    return html;
-  }
   function renderPerfCards() {
     var wrap = document.getElementById("perfCardGrid");
     wrap.innerHTML = "";
@@ -2254,42 +2242,19 @@
       var detail = el("div", "perf-card-detail");
       var c1 = el("div", "perf-level-col");
       c1.innerHTML = '<b>L1</b><div>' + (d.l1.total ? d.l1.approved + "/" + d.l1.total + " on-time" : "No tracked L1 items") + "</div>" +
-        perfTrendBadge(d.l1) + perfDueList(d, "l1", d.l1);
+        perfTrendBadge(d.l1);
       var c0 = el("div", "perf-level-col");
       c0.innerHTML = '<b>L0</b><div>' + (d.l0.total ? d.l0.approved + "/" + d.l0.total + " on-time" : "No tracked L0 items") + "</div>" +
-        perfTrendBadge(d.l0) + perfDueList(d, "l0", d.l0);
+        perfTrendBadge(d.l0);
       detail.appendChild(c1); detail.appendChild(c0);
       card.appendChild(detail);
-      card.addEventListener("click", function (e) {
-        if (e.target.classList.contains("perf-due-more")) {
-          e.stopPropagation();
-          openPerfDueModal(d, e.target.dataset.level);
-          return;
-        }
+      card.addEventListener("click", function () {
         perfPinned[d.name] = !perfPinned[d.name];
         card.classList.toggle("pinned", perfPinned[d.name]);
       });
       wrap.appendChild(card);
     });
   }
-  function openPerfDueModal(dept, levelKey) {
-    var level = dept[levelKey];
-    var overlay = document.getElementById("perfDueOverlay");
-    document.getElementById("perfDueTitle").textContent = deptLabel(dept.name, dept.number) + " — " + levelKey.toUpperCase() + " overdue items";
-    var body = document.getElementById("perfDueBody");
-    body.innerHTML = "";
-    level.all_due_items.forEach(function (it) {
-      var row = el("div", "perf-due-modal-row");
-      row.innerHTML = '<span>' + it.item_no + " " + it.name + " <span style=\"color:var(--ink-500);\">(" + it.project + ")</span></span><span>" + it.delay_days + "d late</span>";
-      row.style.cursor = "pointer";
-      row.addEventListener("click", function () { closePerfDueModal(); openDetail(it.project_id); });
-      body.appendChild(row);
-    });
-    overlay.hidden = false;
-  }
-  function closePerfDueModal() { document.getElementById("perfDueOverlay").hidden = true; }
-  document.getElementById("perfDueClose").addEventListener("click", closePerfDueModal);
-  document.getElementById("perfDueOverlay").addEventListener("click", function (e) { if (e.target === this) closePerfDueModal(); });
   document.getElementById("perfSearch").addEventListener("input", function (e) {
     perfSearchTerm = e.target.value.trim().toLowerCase();
     renderPerfCards();

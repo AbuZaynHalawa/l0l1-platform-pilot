@@ -580,16 +580,25 @@
       </div>
       <div id="perfOverviewPane">
         <div class="card calc-panel" style="margin-bottom:20px;">
-          <h3>How a score is calculated <span style="font-weight:400;color:var(--ink-500);font-size:12px;">&#8211; Algihaz's existing rule, carried over as-is</span></h3>
-          <p>On-time submission (within a 4-day grace period) = full point. Deliverables not yet due are excluded. Late submissions taper down; anything over 28 days late counts as not submitted.</p>
-          <div class="calc-tiers">
-            <span class="tier-chip">On time &rarr; 100%</span>
-            <span class="tier-chip">1&ndash;7d late &rarr; 90%</span>
-            <span class="tier-chip">8&ndash;14d &rarr; 80%</span>
-            <span class="tier-chip">15&ndash;21d &rarr; 70%</span>
-            <span class="tier-chip">22&ndash;28d &rarr; 60%</span>
-            <span class="tier-chip" style="color:var(--crit)">&gt;28d &rarr; 0%</span>
-          </div>
+          <h3>How the Performance % is calculated</h3>
+          <ol class="calc-list">
+            <li>Submitted Deliverables (On Time) equals = <b>1 Point</b></li>
+            <li>Not Submitted Deliverables equals = <b>0 Point</b></li>
+            <li>POs points will be calculated on a pro rata basis (Eg: 5 out of 10 POs submitted equals = <b>0.5 Point</b>)</li>
+            <li>Deliverables that are <b>Not Due</b> are excluded from the calculation</li>
+            <li>Delay Tolerance of <b>4 days</b> is used (Delay is calculated from Day 5 after Due Date)</li>
+            <li>Late Deliverables (Submitted after Day 4) will have a penalty as follows:
+              <div class="calc-tiers">
+                <span class="tier-chip">1&ndash;7 Days Delay &rarr; -10% (0.9 Point)</span>
+                <span class="tier-chip">8&ndash;14 Days Delay &rarr; -20% (0.8 Point)</span>
+                <span class="tier-chip">15&ndash;21 Days Delay &rarr; -30% (0.7 Point)</span>
+                <span class="tier-chip">22&ndash;28 Days Delay &rarr; -40% (0.6 Point)</span>
+                <span class="tier-chip" style="color:var(--crit)">&gt;28 Days Delay &rarr; -100% (0 Point / Considered not Submitted)</span>
+              </div>
+            </li>
+            <li><b>L1</b> Performance % = Total Points for Submitted items / Overall Due Items</li>
+            <li><b>L0</b> Performance % = Average of (Submitted items for each deliverable / Due Items for each deliverable)</li>
+          </ol>
         </div>
         <!-- Item 42: real Performance Dashboard rebuild. Excellent/Acceptable/
              Needs Action classification and the trend sparkline/time-travel
@@ -846,18 +855,6 @@
         <button class="btn primary" id="actionCommentConfirm"></button>
       </div>
     </div>
-  </div>
-</div>
-
-<!-- Item 42: full overdue-items list for one department/level, opened from
-     a Performance card's "View all" link. -->
-<div class="modal-overlay" id="perfDueOverlay" hidden>
-  <div class="modal-card">
-    <div class="modal-head">
-      <div><h2 id="perfDueTitle"></h2></div>
-      <button class="modal-close" id="perfDueClose">&#10005;</button>
-    </div>
-    <div class="modal-body" id="perfDueBody"></div>
   </div>
 </div>
 

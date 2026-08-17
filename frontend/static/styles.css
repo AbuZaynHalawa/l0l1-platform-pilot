@@ -433,6 +433,8 @@
   .calc-tiers { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
   .tier-chip { font-size: 11px; padding: 4px 9px; border-radius: 20px; background: var(--surface-sunken); border: 1px solid var(--line); font-weight: 600; }
   .calc-panel p { font-size: 12.5px; color: var(--ink-700); margin: 0 0 4px; }
+  .calc-list { font-size: 12.5px; color: var(--ink-700); margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 7px; }
+  .calc-list li { line-height: 1.5; }
 
   .breakdown { margin-top: 12px; border-top: 1px dashed var(--line); padding-top: 12px; display: none; }
   .breakdown.open { display: block; }
@@ -801,12 +803,6 @@
   .perf-trend.up { color: var(--good); }
   .perf-trend.down { color: var(--crit); }
   .perf-trend.stable, .perf-trend.no_baseline { color: var(--neutral); }
-  .perf-due-list { margin-top: 8px; font-size: 11.5px; }
-  .perf-due-item { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; }
-  .perf-due-more { font-size: 11px; color: var(--purple-1); cursor: pointer; font-weight: 700; margin-top: 4px; }
-  .perf-due-modal-row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--line); font-size: 13px; }
-  .perf-due-modal-row:last-child { border-bottom: none; }
-  .perf-due-modal-row:hover { background: var(--surface-sunken); }
 
   /* ================= ITEM 154: RESPONSIVE ================= */
   /* Tablet and below: the fixed 236px rail becomes an off-canvas drawer,
