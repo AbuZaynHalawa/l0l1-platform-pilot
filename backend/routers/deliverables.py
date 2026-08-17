@@ -68,7 +68,8 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
                 # rejected -- not every status on items they're tied to.
                 is_pending_for_me = my_email in smes and s.status == models.SubmissionStatus.PENDING_REVIEW
                 is_my_rejection = s.status == models.SubmissionStatus.REJECTED and (s.reviewed_by_email or "").strip().lower() == my_email
-                if not (is_pending_for_me or is_my_rejection):
+                is_my_approval = s.status == models.SubmissionStatus.APPROVED and (s.reviewed_by_email or "").strip().lower() == my_email
+                if not (is_pending_for_me or is_my_rejection or is_my_approval):
                     continue
             elif my_email not in owners and my_email not in smes:
                 continue

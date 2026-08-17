@@ -488,6 +488,7 @@
   // absent from his list, so those chips would always read 0 and are hidden.
   var SME_PROGRESS_FILTERS = [
     ["", "All"], ["pending_review", "Pending My Review"], ["rejected", "Rejected by Me"],
+    ["approved", "Approved by Me"],
   ];
   function deliverableMatchesFilters(d) {
     if (assignedDeadlineFilter && d.deadline_status !== assignedDeadlineFilter) return false;
