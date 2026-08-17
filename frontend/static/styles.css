@@ -138,6 +138,12 @@
   .avatar { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, var(--purple-1), var(--purple-2)); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
 
   .view { padding: 26px 30px 60px; max-width: 1280px; }
+  /* The Dashboard is the default landing view -- on a wide monitor the
+     1280px cap left a large dead strip down the right side instead of
+     using the screen. Its own grids (.stat-row, .split, .achievers-row)
+     all size themselves in fractions/repeat(), so they reflow cleanly
+     into the extra width rather than leaving individual elements stretched. */
+  #view-dashboard { max-width: 1680px; }
   #view-detail { max-width: 1560px; }
   /* Items 139/142 rework: both tables were still hard-capped at 1280px
      regardless of how wide the window actually was, forcing a horizontal
