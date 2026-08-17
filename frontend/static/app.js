@@ -3220,7 +3220,7 @@
         mine.forEach(function (r) {
           var holder = el("div");
           _renderSupportThread(holder, r, {
-            canReply: true, canResolve: false, replyEndpoint: "respond", replyPlaceholder: "Reply to the admin&#8230;",
+            canReply: true, canResolve: false, replyEndpoint: "respond", replyPlaceholder: "Reply to the admin…",
             onReplied: loadSupport,
           });
           mineWrap.appendChild(holder);
@@ -3244,7 +3244,7 @@
     reqs.forEach(function (r) {
       var holder = el("div");
       _renderSupportThread(holder, r, {
-        canReply: true, canResolve: true, replyEndpoint: "reply", replyPlaceholder: "Reply to the asker&#8230;",
+        canReply: true, canResolve: true, replyEndpoint: "reply", replyPlaceholder: "Reply to the asker…",
         onReplied: loadTickets, kbEntries: kbEntries,
       });
       wrap.appendChild(holder);
