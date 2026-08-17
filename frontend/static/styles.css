@@ -271,7 +271,7 @@
   .back-link:hover { color: var(--purple-1); }
   .detail-title { font-size: 21px; margin-top: 8px; }
   .stage-badge { font-size: 12px; font-weight: 800; padding: 5px 14px; border-radius: 999px; letter-spacing: .04em; }
-  .stage-badge.l0 { background: var(--accent-soft); color: var(--purple-1); }
+  .stage-badge.l0 { background: var(--accent-line); color: var(--purple-1); }
   .stage-badge.l1 { background: var(--good-bg); color: var(--good); }
   .detail-meta-row { display: flex; gap: 22px; flex-wrap: wrap; margin: 16px 0 22px; }
   .terminal-banner { background: var(--surface-sunken); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; margin: -8px 0 22px; font-size: 13px; color: var(--ink-700); font-weight: 600; }
@@ -549,6 +549,10 @@
   .chip .cnum { background: var(--surface-sunken); border-radius: 20px; padding: 1px 7px; font-size: 11px; }
   .chip.active { background: linear-gradient(135deg, var(--purple-1), var(--purple-2)); border-color: transparent; color: #fff; }
   .chip.active .cnum { background: rgba(255,255,255,.25); color: #fff; }
+  /* L0/L1 stage toggles (matrix, gantt, focal points, etc.) get their real
+     identity color when active instead of both turning the same purple. */
+  .chip.active[data-stage="L0"] { background: linear-gradient(135deg, var(--purple-1), var(--purple-2)); }
+  .chip.active[data-stage="L1"] { background: linear-gradient(135deg, #1f9d5c, #146c3e); }
   .aq-row { display: flex; align-items: center; gap: 14px; padding: 13px 18px; border-bottom: 1px solid var(--line); }
   .aq-row.flash { animation: annFlash 1.8s ease; }
   .aq-row:last-child { border-bottom: none; }
@@ -758,7 +762,7 @@
   .journey-stage p { font-size: 13px; line-height: 1.65; color: var(--ink-700); margin: 0; }
   .journey-stage-head { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 14px; margin-bottom: 8px; }
   .journey-badge { font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: 999px; }
-  .journey-badge.l0 { background: var(--accent-soft); color: var(--purple-1); }
+  .journey-badge.l0 { background: var(--accent-line); color: var(--purple-1); }
   .journey-badge.l1 { background: var(--good-bg); color: var(--good); }
   .journey-arrow { text-align: center; font-size: 18px; color: var(--ink-300); margin: 10px 0; }
   .journey-event { display: flex; gap: 12px; padding: 13px 18px; border-bottom: 1px solid var(--line); }
@@ -812,16 +816,16 @@
   .report-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 
   /* ================= ITEM 42: PERFORMANCE DASHBOARD ================= */
-  /* L1/L0 each get their own identity color, consistently, everywhere they
-     appear on this tab -- reusing the app's own existing purple-1/purple-2
-     tokens, which already match the design spec's own two-level palette. */
+  /* L0/L1 each get their own identity color, consistently, everywhere they
+     appear across the whole app (Dashboard cards, stage badges, journey
+     badges) -- purple for L0, green for L1. */
   .perf-freshness { font-size: 12px; color: var(--ink-500); margin-bottom: 14px; }
   .perf-summary-strip { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
-  .perf-summary-card2 { padding: 20px 22px; border-top: 3px solid var(--purple-1); }
-  .perf-summary-card2.l0 { border-top-color: var(--purple-2); }
+  .perf-summary-card2 { padding: 20px 22px; border-top: 3px solid var(--good); }
+  .perf-summary-card2.l0 { border-top-color: var(--purple-1); }
   .psc2-head { display: flex; justify-content: space-between; align-items: baseline; }
-  .psc2-title { font-size: 14px; font-weight: 800; color: var(--purple-1); }
-  .perf-summary-card2.l0 .psc2-title { color: var(--purple-2); }
+  .psc2-title { font-size: 14px; font-weight: 800; color: var(--good); }
+  .perf-summary-card2.l0 .psc2-title { color: var(--purple-1); }
   .psc2-avg { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; }
   .psc2-avg-lbl { font-size: 10px; font-weight: 700; color: var(--ink-500); }
   .psc2-pill { display: inline-block; font-size: 11px; font-weight: 700; color: var(--purple-2); background: var(--accent-soft); border-radius: 20px; padding: 4px 12px; margin: 10px 0 14px; }
