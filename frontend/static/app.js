@@ -3632,6 +3632,17 @@
   });
 
   /* ================= INIT ================= */
+  // Item [BM triage viewer bug], part 2: a page restored from the browser's
+  // back-forward cache (bfcache -- back/forward nav, some "reopen tab"
+  // flows) resumes its exact frozen JS state without re-running any script
+  // on this page at all -- so a role switched right before navigating away
+  // stays showing in the dropdown, but every nav-visibility decision this
+  // file makes only runs once, at initial script execution, and never
+  // reruns. The only reliable fix is forcing a real reload when this
+  // happens, so the whole app boots fresh instead of resuming stale state.
+  window.addEventListener("pageshow", function (event) {
+    if (event.persisted) location.reload();
+  });
   document.getElementById("todayLabel").textContent = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
 
   // Item 120: loadDashboard() used to always fire immediately, then a
