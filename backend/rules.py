@@ -423,12 +423,13 @@ def _resolve_predecessor_anchor(db: Session, project: "models.Project", pred_ite
 
 def awaiting_milestone_note(db: Session, sub: "models.DeliverableSubmission",
                              lookup: dict[str, list] | None = None) -> str | None:
-    """Item 169: when a deliverable has no due date yet because it's
-    predecessor-gated on a milestone that hasn't been reached, returns a
-    human note ("Awaiting Contract Signing (M6)") instead of leaving the
-    date blank with no explanation. None for anything else (due date is
-    already set, or it's blocked on a non-milestone predecessor or an
-    un-set project date field instead).
+    """Item 169 (extended beyond milestones, per Yasser): when a deliverable
+    has no due date yet because it's predecessor-gated on another item that
+    hasn't been approved, returns a human note instead of leaving the date
+    blank with no explanation -- "Awaiting Contract Signing (M6)" for a
+    milestone predecessor, "Awaiting 3.4 Prepare Risk Register" for an
+    ordinary one. None for anything else (due date is already set, or it's
+    blocked on a non-predecessor anchor like an un-set project date field).
     """
     if sub.due_date is not None or sub.definition.anchor_type != "predecessor":
         return None
@@ -438,9 +439,11 @@ def awaiting_milestone_note(db: Session, sub: "models.DeliverableSubmission",
     for item_no in [p.strip() for p in pred_item_no.split(",") if p.strip()]:
         for pred_sub in _get_submissions(db, sub.project_id, item_no, sub.definition.stage,
                                           sub.definition.department_id, lookup):
-            if pred_sub.definition.is_milestone and pred_sub.status != models.SubmissionStatus.APPROVED:
-                code = pred_sub.definition.milestone_code
-                return f"Awaiting {pred_sub.definition.name}" + (f" ({code})" if code else "")
+            if pred_sub.status != models.SubmissionStatus.APPROVED:
+                if pred_sub.definition.is_milestone:
+                    code = pred_sub.definition.milestone_code
+                    return f"Awaiting {pred_sub.definition.name}" + (f" ({code})" if code else "")
+                return f"Awaiting {pred_sub.definition.item_no} {pred_sub.definition.name}"
     return None
 
 
