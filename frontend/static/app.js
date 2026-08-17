@@ -330,20 +330,24 @@
   document.getElementById("dGanttBtn").addEventListener("click", function () { openProjectGantt(currentProjectId); });
 
   /* ================= DASHBOARD ================= */
+  // Item 183: "My Items" reuses the acting-as-email identity that's already
+  // how the rest of the app tracks "who's doing this" (topbar field /
+  // myIdentity()'s cached prompt) -- no separate email box just for the
+  // Dashboard. Concerns, the Deliverable Matrix, and the announcements feed
+  // all scope down too now, not just the stat cards.
   var dashFocus = "all";
   document.querySelectorAll("#dashFocusToggle .chip").forEach(function (btn) {
     btn.addEventListener("click", function () {
       document.querySelectorAll("#dashFocusToggle .chip").forEach(function (b) { b.classList.remove("active"); });
       btn.classList.add("active");
       dashFocus = btn.dataset.focus;
-      document.getElementById("dashFocusEmail").style.display = dashFocus === "mine" ? "" : "none";
+      if (dashFocus === "mine") myIdentity();
       loadDashboard();
     });
   });
-  document.getElementById("dashFocusEmail").addEventListener("change", loadDashboard);
 
   async function loadDashboard() {
-    var focusEmail = (dashFocus === "mine" ? document.getElementById("dashFocusEmail").value.trim() : "");
+    var focusEmail = dashFocus === "mine" ? myIdentity() : "";
     var qs = focusEmail ? "?focus_email=" + encodeURIComponent(focusEmail) : "";
     var d = await api("/api/dashboard" + qs);
 
@@ -425,6 +429,12 @@
     if (CURRENT_ROLE !== "Admin") {
       annsQs += "&actor_role=" + encodeURIComponent(CURRENT_ROLE) + "&actor_email=" + encodeURIComponent(passiveIdentity());
     }
+    // Item 183: "My Items" narrows the feed to only announcements actually
+    // addressed to the focus email, on top of whatever role-visibility
+    // filtering already applied above -- an Admin toggling My Items gets
+    // this for the first time too, since the role branch above never runs
+    // for them.
+    if (focusEmail) annsQs += "&mine=true&actor_email=" + encodeURIComponent(focusEmail);
     var anns = await api("/api/announcements" + annsQs);
     var digest = document.getElementById("digestList");
     digest.innerHTML = "";
@@ -449,11 +459,17 @@
       }
     });
 
+    matrixFocusEmail = focusEmail;
     await loadMatrix();
   }
 
   /* ================= DELIVERABLES MATRIX ================= */
   var matrixStage = "L0";
+  // Item 183: set by loadDashboard() to the current "My Items" focus email
+  // (empty when "All" is selected) -- the L0/L1 toggle inside the matrix
+  // widget re-fetches independently of a full dashboard reload, so it needs
+  // its own remembered copy rather than reading dashFocus/focusEmail directly.
+  var matrixFocusEmail = "";
   document.querySelectorAll(".matrix-toggle .chip").forEach(function (btn) {
     btn.addEventListener("click", function () {
       document.querySelectorAll(".matrix-toggle .chip").forEach(function (b) { b.classList.remove("active"); });
@@ -463,7 +479,9 @@
     });
   });
   async function loadMatrix() {
-    var data = await api("/api/dashboard/matrix?stage=" + matrixStage);
+    var qs = "?stage=" + matrixStage;
+    if (matrixFocusEmail) qs += "&focus_email=" + encodeURIComponent(matrixFocusEmail);
+    var data = await api("/api/dashboard/matrix" + qs);
     var wrap = document.getElementById("matrixWrap");
     if (!data.projects.length) {
       wrap.innerHTML = '<div class="empty-state">No active ' + matrixStage + ' projects right now.</div>';
@@ -4074,6 +4092,10 @@
   });
   document.getElementById("actingEmail").addEventListener("change", async function () {
     if (!document.getElementById("view-announcements").hidden) loadAnnouncements();
+    // Item 183: "My Items" reads the acting-as-email identity live, so
+    // switching who you're acting as should refresh the Dashboard's scoped
+    // view immediately rather than showing stale data until the next visit.
+    if (dashFocus === "mine" && !document.getElementById("view-dashboard").hidden) loadDashboard();
     checkBmTriageDeadline();
     await _refreshCanSeeBmTriage();
     document.getElementById("bmTriageNavItem").hidden = !canSeeBmTriage();

@@ -28,7 +28,7 @@ _ALWAYS_VISIBLE_TYPES = {
 
 @router.get("", response_model=list[schemas.AnnouncementOut])
 def list_announcements(limit: int = 50, actor_role: str | None = None, actor_email: str | None = None,
-                        db: Session = Depends(get_db)):
+                        mine: bool = False, db: Session = Depends(get_db)):
     items = (
         db.query(models.Announcement)
         .order_by(models.Announcement.created_at.desc())
@@ -47,4 +47,18 @@ def list_announcements(limit: int = 50, actor_role: str | None = None, actor_ema
             return email in recipients
 
         items = [a for a in items if visible(a)]
+
+    # Item 183: Dashboard's "My Items" toggle -- strictly items addressed to
+    # this email, regardless of role (unlike the visibility filter above,
+    # which still lets org-wide broadcast news through for Admin/everyone).
+    # "Mine" means it's actually about my work, not just that I'm allowed
+    # to see it.
+    if mine:
+        email = (actor_email or "").strip().lower()
+        if not email:
+            return []
+        items = [
+            a for a in items
+            if email in [r.strip().lower() for r in (a.recipients or "").split(",")]
+        ]
     return items

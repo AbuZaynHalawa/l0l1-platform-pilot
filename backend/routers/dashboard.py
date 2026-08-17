@@ -11,11 +11,12 @@ router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
 @router.get("")
 def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db)):
-    """`focus_email` (item 72) scopes the stat tiles to just what that person
-    owns or reviews, instead of the whole portfolio — the project counts and
-    department breakdown stay organization-wide either way, since neither
-    "how many active L0 tenders" nor the department table means anything
-    scoped to one person.
+    """`focus_email` (item 72) scopes the stat tiles, per-department Concerns
+    breakdown, and Deliverables Matrix (see get_matrix) to just what that
+    person owns or reviews — "My Items" narrows the whole Dashboard, not
+    only the top stat cards (item 183). Project counts (active_l0/active_l1)
+    stay organization-wide either way, since "how many active L0 tenders
+    exist" doesn't mean anything scoped to one person.
     """
     projects = db.query(models.Project).all()
     l0_count = sum(1 for p in projects if p.stage == models.Stage.L0 and p.status == models.ProjectStatus.IN_PROGRESS)
@@ -68,8 +69,12 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
         # cohort entirely -- not counted as a win, not counted as a miss.
         # Item 117: same for any catalog item an admin has explicitly
         # opted out of performance tracking (kpi_relevant == False).
+        # Item 183: draws from stat_subs, not all_subs -- stat_subs is
+        # already narrowed to the focus email's own items when "My Items"
+        # is on (identical to all_subs when it isn't), so Concerns scopes
+        # right along with the stat cards instead of always staying org-wide.
         dept_subs = [
-            s for s in all_subs
+            s for s in stat_subs
             if s.definition.department_id == dept.id and not s.auto_completed and s.definition.kpi_relevant is not False
         ]
         dept_overdue = [s for s in dept_subs if rules.deadline_status(s)[0] == "due"]
@@ -267,10 +272,13 @@ def get_top_achievers(db: Session = Depends(get_db)):
 
 
 @router.get("/matrix")
-def get_matrix(stage: str, db: Session = Depends(get_db)):
+def get_matrix(stage: str, focus_email: str | None = None, db: Session = Depends(get_db)):
     """Deliverables (rows, grouped by department) x active projects (columns) —
     the live equivalent of the old Control Sheet's L0/L1 Tracking Sheets, scoped
     to currently in-progress projects instead of every tender ever tracked.
+    Item 183: `focus_email` narrows the columns to only projects the caller
+    owns or reviews at least one deliverable on -- same "My Items" concept
+    the Dashboard stat cards already use, not a separate filter.
     """
     projects = (
         db.query(models.Project)
@@ -309,6 +317,17 @@ def get_matrix(stage: str, db: Session = Depends(get_db)):
             .filter(models.DeliverableSubmission.project_id.in_([p.id for p in projects]))
             .all()
         )
+
+    focus = (focus_email or "").strip().lower()
+    if focus:
+        my_project_ids = set()
+        for s in subs:
+            owners = {e.strip().lower() for e in rules.resolve_owners(s) if e}
+            smes = {e.strip().lower() for e in rules.resolve_smes(s) if e}
+            if focus in owners or focus in smes:
+                my_project_ids.add(s.project_id)
+        projects = [p for p in projects if p.id in my_project_ids]
+
     sub_map = {(s.project_id, s.deliverable_definition_id): s for s in subs}
 
     rows = []
