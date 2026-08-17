@@ -59,7 +59,18 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
         if scope_to_mine:
             owners = {e.strip().lower() for e in rules.resolve_owners(s) if e}
             smes = {e.strip().lower() for e in rules.resolve_smes(s) if e}
-            if not my_email or (my_email not in owners and my_email not in smes):
+            if not my_email:
+                continue
+            if actor_role == "SME":
+                # Item [SME scope]: an SME's assigned cohort is only what
+                # needs their review right now -- pending review, or
+                # rejected by them specifically until it moves past
+                # rejected -- not every status on items they're tied to.
+                is_pending_for_me = my_email in smes and s.status == models.SubmissionStatus.PENDING_REVIEW
+                is_my_rejection = s.status == models.SubmissionStatus.REJECTED and (s.reviewed_by_email or "").strip().lower() == my_email
+                if not (is_pending_for_me or is_my_rejection):
+                    continue
+            elif my_email not in owners and my_email not in smes:
                 continue
         deadline_key, deadline_days = rules.deadline_status(s)
         out.append({

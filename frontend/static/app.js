@@ -483,6 +483,12 @@
     ["", "All"], ["no_progress", "No Progress Yet"], ["in_progress", "In Progress"],
     ["pending_review", "Pending SME Review"], ["approved", "Completed"], ["rejected", "Rejected"],
   ];
+  // Item [SME scope]: an SME's Assigned cohort is now only pending_review
+  // (his own) or rejected (his own) -- every other status is permanently
+  // absent from his list, so those chips would always read 0 and are hidden.
+  var SME_PROGRESS_FILTERS = [
+    ["", "All"], ["pending_review", "Pending My Review"], ["rejected", "Rejected by Me"],
+  ];
   function deliverableMatchesFilters(d) {
     if (assignedDeadlineFilter && d.deadline_status !== assignedDeadlineFilter) return false;
     if (assignedProgressFilter && d.status !== assignedProgressFilter) return false;
@@ -532,7 +538,8 @@
     var progressBase = assignedDeadlineFilter ? all.filter(function (d) { return d.deadline_status === assignedDeadlineFilter; }) : all;
     var pchips = document.getElementById("assignedProgressChips");
     pchips.innerHTML = "";
-    PROGRESS_FILTERS.forEach(function (f) {
+    var progressFilterSet = CURRENT_ROLE === "SME" ? SME_PROGRESS_FILTERS : PROGRESS_FILTERS;
+    progressFilterSet.forEach(function (f) {
       var count = f[0] ? progressBase.filter(function (d) { return d.status === f[0]; }).length : progressBase.length;
       var chip = el("button", "chip" + (assignedProgressFilter === f[0] ? " active" : ""), f[1] + ' <span class="cnum">' + count + '</span>');
       chip.addEventListener("click", function () { assignedProgressFilter = f[0]; loadAssigned(); });
