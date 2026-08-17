@@ -54,6 +54,18 @@
     if (!d.due_date) return d.awaiting_note || fmtDate(d.due_date);
     return fmtDate(d.due_date) + (d.awaiting_note ? ' <span class="pending-note">(' + d.awaiting_note + ")</span>" : "");
   }
+  // Item [early bonus]: human label for a Completed deliverable's earned
+  // point value, matching rules.kpi_points' exact tiers on the backend.
+  function pointsEarnedLabel(pts) {
+    var why = pts >= 1.1 ? "Early &#8211; 10% bonus"
+      : pts === 1.0 ? "On Time"
+      : pts === 0.9 ? "1&#8211;7 days late"
+      : pts === 0.8 ? "8&#8211;14 days late"
+      : pts === 0.7 ? "15&#8211;21 days late"
+      : pts === 0.6 ? "22&#8211;28 days late"
+      : "Not submitted in time";
+    return pts.toFixed(1) + " pts <span class=\"pending-note\">(" + why + ")</span>";
+  }
   // Item 143 (2nd revision): a deliverable now carries two independent
   // status pills -- Deadline (Not Due / Due / On Time / Early / Late, with
   // a day count) and Progress (No Progress Yet / In Progress / Pending SME
@@ -1152,10 +1164,15 @@
     // a catalog default in Focal Points instead, so every new project
     // picks it up automatically rather than being patched one project at
     // a time from this popup.
-    [["Owner", (d.owner_emails && d.owner_emails.length) ? d.owner_emails.join(", ") : "&#8213;"], ["SME", (d.sme_emails && d.sme_emails.length) ? d.sme_emails.join(", ") : "&#8213;"],
+    var metaRows = [["Owner", (d.owner_emails && d.owner_emails.length) ? d.owner_emails.join(", ") : "&#8213;"], ["SME", (d.sme_emails && d.sme_emails.length) ? d.sme_emails.join(", ") : "&#8213;"],
      ["Due Date", dueDateHtml(d)],
-     ["Status", statusPillsHtml(d)]]
-      .forEach(function (m) {
+     ["Status", statusPillsHtml(d)]];
+    // Item [early bonus]: once Completed, show the real point value earned
+    // under the Calculation Criteria, not just the pass/fail status pill.
+    if (d.points_earned !== null && d.points_earned !== undefined) {
+      metaRows.push(["Points Earned", pointsEarnedLabel(d.points_earned)]);
+    }
+    metaRows.forEach(function (m) {
         var mi = el("div");
         mi.appendChild(el("div", "mk", m[0]));
         mi.appendChild(el("div", "mv", m[1]));

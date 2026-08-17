@@ -438,8 +438,16 @@ def awaiting_milestone_note(db: Session, sub: "models.DeliverableSubmission",
         rather than reading as final.
     None only when the predecessor itself is already approved, or this
     isn't a predecessor-anchored item at all (un-set project date field etc).
+
+    Excludes offset_direction == "before": that's compute_due_date's
+    "counting backward from a downstream deadline" mode (e.g. an item
+    scheduled some days before BSD-anchored 1.20/M5) -- it uses the
+    referenced item's date purely as a scheduling anchor, the same way a
+    BSD- or announcement-anchored item does, and was never actually
+    waiting on that item to be completed first. Flagging it as "pending
+    completion" was backwards.
     """
-    if sub.definition.anchor_type != "predecessor":
+    if sub.definition.anchor_type != "predecessor" or sub.definition.offset_direction == "before":
         return None
     pred_item_no = sub.definition.predecessor_item_no
     if not pred_item_no:
@@ -697,11 +705,21 @@ def check_l1_completion(db: Session, project: "models.Project") -> None:
 
 
 def kpi_points(due_date: date | None, submitted_date: date | None, grace_days: int = 4) -> float | None:
-    """The Calculation Criteria rule from architecture_map.md section 4.3, verbatim."""
+    """The Calculation Criteria rule from architecture_map.md section 4.3,
+    plus a 10% early bonus per Yasser: a submission that landed strictly
+    before its due date (not merely within the grace window) earns 1.1
+    points instead of 1.0. Aggregation call sites are responsible for
+    capping the resulting department/owner percentage at 100 -- individual
+    submissions are allowed to earn more than a full point so an early
+    streak can pull an average back up, but the reported overall score
+    itself never reads as more than "fully on track."
+    """
     if due_date is None:
         return None
     if submitted_date is None:
         return 0.0 if date.today() > due_date else None
+    if submitted_date < due_date:
+        return 1.1
     days_late = (submitted_date - due_date).days - grace_days
     if days_late <= 0:
         return 1.0

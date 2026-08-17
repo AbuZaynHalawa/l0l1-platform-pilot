@@ -589,13 +589,21 @@ def get_deliverable_detail(submission_id: int, actor_email: str | None = None, d
             submission_id=submission_id, email=actor_email.strip().lower()
         ).first() is not None
     deadline_key, deadline_days = rules.deadline_status(sub)
+    # Item [early bonus]: once a deliverable is actually Completed, show the
+    # real point value it earned under the Calculation Criteria (1.1 for
+    # early, 1.0 on time, tiered down for late) -- None before that, since
+    # a not-yet-approved item hasn't earned anything yet to show.
+    points_earned = (
+        rules.kpi_points(sub.due_date, sub.submitted_at.date() if sub.submitted_at else None)
+        if sub.status == models.SubmissionStatus.APPROVED else None
+    )
     return {
         "id": sub.id, "item_no": sub.definition.item_no, "name": rules.display_name(sub.definition, sub.project),
         "department": sub.definition.department.name, "department_number": sub.definition.department.number,
         "est_no": sub.project.est_no, "project_id": sub.project_id, "project_name": sub.project.name,
         "due_date": sub.due_date, "status": sub.status.value,
         "deadline_status": deadline_key, "deadline_days": deadline_days, "auto_completed": sub.auto_completed,
-        "awaiting_note": rules.awaiting_milestone_note(db, sub),
+        "awaiting_note": rules.awaiting_milestone_note(db, sub), "points_earned": points_earned,
         "owner_emails": rules.resolve_owners(sub),
         "sme_emails": rules.resolve_smes(sub),
         "file_name": sub.file_name, "file_url": _storage.file_url(sub.file_ref) if sub.file_ref else None,

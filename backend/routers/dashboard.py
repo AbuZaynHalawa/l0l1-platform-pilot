@@ -70,7 +70,10 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
             (rules.kpi_points(s.due_date, s.submitted_at.date() if s.submitted_at else None) or 0.0)
             for s in due_and_done
         )
-        pct = round((total_points / len(due_and_done)) * 100, 1) if due_and_done else None
+        # Item [early bonus]: an early submission earns >1.0 points, which
+        # can push this ratio past 100% -- individual items keep their real
+        # bonus, but the reported department score itself caps at 100.
+        pct = round(min((total_points / len(due_and_done)) * 100, 100.0), 1) if due_and_done else None
         dept_rows.append({
             "department": dept.name, "department_number": dept.number, "total": len(dept_subs), "approved": approved,
             "overdue": len(dept_overdue),
@@ -143,7 +146,7 @@ def _rank_owners(subs, users: dict[str, "models.User"] | None = None):
         u = (users or {}).get(email.strip().lower())
         ranked.append({
             "email": email, "approved": st["approved"], "total": st["cohort"],
-            "pct": round((st["points"] / st["cohort"]) * 100, 1),
+            "pct": round(min((st["points"] / st["cohort"]) * 100, 100.0), 1),  # item [early bonus]: capped, see kpi_points
             "name": u.name if u else None, "department": u.department.name if (u and u.department) else None,
         })
     ranked.sort(key=lambda r: (-r["pct"], -r["total"]))
@@ -332,7 +335,9 @@ def _kpi_pct_pooled(cohort: list) -> float | None:
     if not cohort:
         return None
     total_points = sum((rules.kpi_points(s.due_date, s.submitted_at.date() if s.submitted_at else None) or 0.0) for s in cohort)
-    return round((total_points / len(cohort)) * 100, 1)
+    # Item [early bonus]: capped at 100 -- individual items can earn more
+    # than a full point for being early, the reported score can't.
+    return round(min((total_points / len(cohort)) * 100, 100.0), 1)
 
 
 def _kpi_pct_per_item_averaged(cohort: list) -> float | None:
@@ -350,7 +355,7 @@ def _kpi_pct_per_item_averaged(cohort: list) -> float | None:
     for item_subs in groups.values():
         total_points = sum((rules.kpi_points(s.due_date, s.submitted_at.date() if s.submitted_at else None) or 0.0) for s in item_subs)
         ratios.append(total_points / len(item_subs))
-    return round((sum(ratios) / len(ratios)) * 100, 1)
+    return round(min((sum(ratios) / len(ratios)) * 100, 100.0), 1)  # item [early bonus]: capped, see kpi_points
 
 
 def _level_stats(subs: list, stage: models.Stage) -> dict:
@@ -634,12 +639,14 @@ def get_performance_breakdown(department: str, stage: str, db: Session = Depends
                               "due": len(item_subs), "pct": round(ratio * 100, 1)})
         per_item.sort(key=lambda x: rules.item_sort_key(x["item_no"]))
         result["per_item_groups"] = per_item
-        result["overall_pct"] = round((sum(ratios) / len(ratios)) * 100, 1) if ratios else None
+        # Item [early bonus]: the final department score caps at 100 even
+        # though an individual item group's own ratio (above) can exceed it.
+        result["overall_pct"] = round(min((sum(ratios) / len(ratios)) * 100, 100.0), 1) if ratios else None
         result["aggregation"] = "per_item_averaged"
     else:
         total_points = sum(i["points"] for i in items)
         result["overall_points"] = round(total_points, 2)
         result["overall_due"] = len(items)
-        result["overall_pct"] = round((total_points / len(items)) * 100, 1) if items else None
+        result["overall_pct"] = round(min((total_points / len(items)) * 100, 100.0), 1) if items else None
         result["aggregation"] = "pooled"
     return result
