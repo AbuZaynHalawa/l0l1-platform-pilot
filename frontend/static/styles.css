@@ -628,6 +628,15 @@
      columns out of view. */
   .fp-deliv-name { max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
   .fp-hint { padding: 14px 18px 0; }
+  /* Sticky column header for the Focal Points deliverables table -- a
+     bounded scroll box (like the Matrix table's own .matrix-wrap) rather
+     than sticky-to-viewport, so it stays consistent with that pattern. */
+  .fp-table-scroll { max-height: 65vh; overflow-y: auto; }
+  .fp-table thead th { position: sticky; top: 0; background: var(--surface); z-index: 2; }
+  .fp-stats { display: flex; gap: 18px; padding: 14px 18px 0; font-size: 12.5px; color: var(--ink-700); }
+  .fp-stats b { color: var(--ink-900); font-variant-numeric: tabular-nums; }
+  .fp-filter-row { display: flex; gap: 8px; flex-wrap: wrap; padding: 12px 18px; }
+  .fp-filter-row select { border: 1px solid var(--line); background: var(--surface-sunken); border-radius: 8px; padding: 7px 10px; font-size: 12px; color: var(--ink-900); font-family: inherit; max-width: 220px; }
   /* Item [multi-SME]: roster-only, multi-value picker used for the Focal
      Point / SME columns -- chips for what's picked, a typeahead input
      below that only ever offers real roster matches (no free text). */

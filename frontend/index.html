@@ -389,11 +389,21 @@
       </div>
 
       <div class="card table-card" id="fpDeliverablePanel">
-        <p class="sub fp-hint">Set a focal email for a specific item to override its department's default, and the SME assigned to new submissions of it. Tendering Department items are always routed to that project's own Bid Manager for the focal point (not editable here), but their SME still is.</p>
-        <table class="fp-table">
-          <thead><tr><th>Item</th><th>Deliverable</th><th>Department</th><th>Focal Point Email</th><th>SME Email</th><th></th></tr></thead>
-          <tbody id="focalPointsBody"></tbody>
-        </table>
+        <p class="sub fp-hint">Set the Owner email for a specific item to override its department's default, and the SME assigned to new submissions of it. Tendering Department items are always routed to that project's own Bid Manager for the Owner (not editable here), but their SME still is.</p>
+        <div class="fp-stats" id="fpStats"></div>
+        <div class="fp-filter-row" id="fpFilterRow">
+          <select id="fpFilterDept"><option value="">All Departments</option></select>
+          <select id="fpFilterItem"><option value="">All Deliverables</option></select>
+          <select id="fpFilterOwner"><option value="">All Owners</option></select>
+          <select id="fpFilterSme"><option value="">All SMEs</option></select>
+          <button class="btn" id="fpFilterClear">Clear</button>
+        </div>
+        <div class="fp-table-scroll">
+          <table class="fp-table">
+            <thead><tr><th>Item</th><th>Deliverable</th><th>Department</th><th>Deliverable's Owner Email</th><th>SME Email</th><th></th></tr></thead>
+            <tbody id="focalPointsBody"></tbody>
+          </table>
+        </div>
       </div>
 
       <div class="card table-card" id="fpBmPanel" hidden>

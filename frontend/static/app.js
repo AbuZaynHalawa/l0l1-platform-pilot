@@ -2459,12 +2459,64 @@
     return { getValues: function () { return current.slice(); } };
   }
 
-  async function loadFocalDeliverables(stage) {
-    var rows = await api("/api/departments/deliverable-focal?stage=" + stage);
-    var roster = await _getRoster();
-    var smeRoster = roster.filter(function (u) { return u.role === "SME"; });
+  var _fpRows = [];
+  var _fpRoster = [];
+  function _fpFilterValues() {
+    return {
+      dept: document.getElementById("fpFilterDept").value,
+      item: document.getElementById("fpFilterItem").value,
+      owner: document.getElementById("fpFilterOwner").value,
+      sme: document.getElementById("fpFilterSme").value,
+    };
+  }
+  function _fpPopulateFilterOptions() {
+    var depts = [], items = [], owners = {}, smes = {};
+    _fpRows.forEach(function (d) {
+      if (depts.indexOf(d.department) === -1) depts.push(d.department);
+      items.push(d);
+      (d.focal_point_emails || []).forEach(function (e) { owners[e] = true; });
+      (d.default_sme_emails || []).forEach(function (e) { smes[e] = true; });
+    });
+    function fill(selectId, options, placeholder) {
+      var sel = document.getElementById(selectId);
+      var current = sel.value;
+      sel.innerHTML = "";
+      var placeholderOpt = el("option", "", placeholder); placeholderOpt.value = "";
+      sel.appendChild(placeholderOpt);
+      options.forEach(function (o) {
+        var opt = el("option", "", o.label); opt.value = o.value; sel.appendChild(opt);
+      });
+      if (options.some(function (o) { return o.value === current; })) sel.value = current;
+    }
+    fill("fpFilterDept", depts.map(function (d) { return { value: d, label: d }; }), "All Departments");
+    fill("fpFilterItem", items.map(function (d) { return { value: d.id, label: d.item_no + " · " + d.name }; }), "All Deliverables");
+    fill("fpFilterOwner", Object.keys(owners).sort().map(function (e) { return { value: e, label: e }; }), "All Owners");
+    fill("fpFilterSme", Object.keys(smes).sort().map(function (e) { return { value: e, label: e }; }), "All SMEs");
+  }
+  function _fpRenderStats(rows) {
+    var owners = {}, smes = {};
+    rows.forEach(function (d) {
+      (d.focal_point_emails || []).forEach(function (e) { owners[e] = true; });
+      (d.default_sme_emails || []).forEach(function (e) { smes[e] = true; });
+    });
+    document.getElementById("fpStats").innerHTML =
+      "<span><b>" + Object.keys(owners).length + "</b> Owner(s) assigned</span>" +
+      "<span><b>" + Object.keys(smes).length + "</b> SME(s) assigned</span>" +
+      "<span><b>" + rows.length + "</b> deliverable(s) shown</span>";
+  }
+  function _fpRenderRows(rows) {
+    var smeRoster = _fpRoster.filter(function (u) { return u.role === "SME"; });
     var tbody = document.getElementById("focalPointsBody");
     tbody.innerHTML = "";
+    if (!rows.length) {
+      var emptyTr = el("tr");
+      var emptyTd = el("td", "empty-state", "No deliverables match this filter.");
+      emptyTd.setAttribute("colspan", "6");
+      emptyTr.appendChild(emptyTd);
+      tbody.appendChild(emptyTr);
+      _fpRenderStats(rows);
+      return;
+    }
     var lastDept = null;
     rows.forEach(function (d) {
       if (d.department !== lastDept) {
@@ -2482,24 +2534,24 @@
       tr.appendChild(nameCell);
       tr.appendChild(el("td", "", d.department));
       // Item 134 rework: SME is editable here for every row including
-      // Tendering (unlike focal point name/email, which Tendering always
-      // routes to that project's own Bid Manager instead) -- no per-project
-      // popup edit anymore, this catalog default is the one place for it.
+      // Tendering (unlike the Owner email, which Tendering always routes to
+      // that project's own Bid Manager instead) -- no per-project popup
+      // edit anymore, this catalog default is the one place for it.
       // Item [multi-SME]: both pickers are roster-only and multi-value --
       // any of the picked SMEs can approve/reject a submission of this item.
-      var smeCell = el("td");
-      var smePicker = renderRosterPicker(smeCell, d.default_sme_emails, smeRoster, "Add an SME&#8230;");
-      tr.appendChild(smeCell);
       var focalPicker = null;
       if (d.is_tendering_bm) {
         var noteCell = el("td", "muted", "Defaults to the project's Bid Manager");
         tr.appendChild(noteCell);
       } else {
         var focalCell = el("td");
-        focalPicker = renderRosterPicker(focalCell, d.focal_point_emails, roster,
-          d.department_focal_email ? "Defaults to " + d.department_focal_email : "Add a focal point&#8230;");
+        focalPicker = renderRosterPicker(focalCell, d.focal_point_emails, _fpRoster,
+          d.department_focal_email ? "Defaults to " + d.department_focal_email : "Add an owner…");
         tr.appendChild(focalCell);
       }
+      var smeCell = el("td");
+      var smePicker = renderRosterPicker(smeCell, d.default_sme_emails, smeRoster, "Add an SME…");
+      tr.appendChild(smeCell);
       var saveBtn = el("button", "btn", "Save");
       saveBtn.addEventListener("click", async function () {
         var body = { default_sme_emails: smePicker.getValues() };
@@ -2513,12 +2565,45 @@
           showToast("Could not save &#8211; " + apiErrorDetail(err), true);
           return;
         }
+        // Keep the in-memory rows (and therefore stats/filters) in sync
+        // with what was just saved, without a full re-fetch.
+        d.default_sme_emails = smePicker.getValues();
+        if (focalPicker) d.focal_point_emails = focalPicker.getValues();
+        _fpPopulateFilterOptions();
+        _fpRenderStats(_fpApplyFilters());
         showToast("Updated for " + d.item_no);
       });
       var tdSave = el("td"); tdSave.appendChild(saveBtn);
       tr.appendChild(tdSave);
       tbody.appendChild(tr);
     });
+    _fpRenderStats(rows);
+  }
+  function _fpApplyFilters() {
+    var f = _fpFilterValues();
+    return _fpRows.filter(function (d) {
+      if (f.dept && d.department !== f.dept) return false;
+      if (f.item && String(d.id) !== f.item) return false;
+      if (f.owner && (d.focal_point_emails || []).indexOf(f.owner) === -1) return false;
+      if (f.sme && (d.default_sme_emails || []).indexOf(f.sme) === -1) return false;
+      return true;
+    });
+  }
+  ["fpFilterDept", "fpFilterItem", "fpFilterOwner", "fpFilterSme"].forEach(function (id) {
+    document.getElementById(id).addEventListener("change", function () { _fpRenderRows(_fpApplyFilters()); });
+  });
+  document.getElementById("fpFilterClear").addEventListener("click", function () {
+    ["fpFilterDept", "fpFilterItem", "fpFilterOwner", "fpFilterSme"].forEach(function (id) {
+      document.getElementById(id).value = "";
+    });
+    _fpRenderRows(_fpApplyFilters());
+  });
+
+  async function loadFocalDeliverables(stage) {
+    _fpRows = await api("/api/departments/deliverable-focal?stage=" + stage);
+    _fpRoster = await _getRoster();
+    _fpPopulateFilterOptions();
+    _fpRenderRows(_fpApplyFilters());
   }
 
   async function loadBidManagers() {
