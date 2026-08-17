@@ -1447,6 +1447,26 @@ def run():
             db.commit()
             print(f"Item [old projects 500]: backfilled {auto_completed_fixed} submission(s) with a NULL auto_completed to False.")
 
+        # Item [points backfill]: mark_complete's SME-immediate-finalize
+        # branch used to skip setting submitted_at (fixed separately), so
+        # every submission approved before that fix has submitted_at stuck
+        # at NULL forever -- kpi_points can never score them, so a genuinely
+        # Completed item silently shows no points earned. reviewed_at is
+        # always set by _finalize_approval regardless of which branch ran,
+        # so it's the best available stand-in for when approval happened.
+        submitted_at_fixed = (
+            db.query(models.DeliverableSubmission)
+            .filter(
+                models.DeliverableSubmission.status == models.SubmissionStatus.APPROVED,
+                models.DeliverableSubmission.submitted_at.is_(None),
+                models.DeliverableSubmission.reviewed_at.isnot(None),
+            )
+            .update({models.DeliverableSubmission.submitted_at: models.DeliverableSubmission.reviewed_at}, synchronize_session=False)
+        )
+        if submitted_at_fixed:
+            db.commit()
+            print(f"Item [points backfill]: backfilled {submitted_at_fixed} approved submission(s) with a NULL submitted_at from reviewed_at.")
+
         # Item [performance history]: one-time seed of real pre-pilot monthly
         # performance, transcribed from Yasser's own Feb-Jul 2026 tracking
         # spreadsheet, into PerformanceSnapshot -- so the Yearly Trend chart

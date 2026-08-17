@@ -398,7 +398,9 @@
     statusRow.appendChild(statusCard("Deadline Status", [
       [mine ? "My Not Due" : "Not Due", d.not_due, ["deadline", "not_due"], ""],
       [mine ? "My Due" : "Due", d.overdue, ["deadline", "due"], "crit"],
-      ["Completed", d.approved, ["progress", "approved"], "good"],
+      ["Early", d.early, null, "good"],
+      ["On Time", d.on_time, null, "good"],
+      ["Late", d.late, null, "crit"],
     ]));
     statusRow.appendChild(statusCard("Progress Status", [
       ["No Progress Yet", d.no_progress, ["progress", "no_progress"], ""],
@@ -650,6 +652,14 @@
     estSel.onchange = function () { assignedEstFilter = estSel.value; loadAssigned(); };
 
     var items = all.filter(deliverableMatchesFilters);
+    // Newest action first: items with a real submit/review timestamp sort
+    // by that descending; untouched items (no action yet) sink to the
+    // bottom, in their existing relative order.
+    items = items.slice().sort(function (a, b) {
+      var at = a.last_action_at ? new Date(a.last_action_at).getTime() : -1;
+      var bt = b.last_action_at ? new Date(b.last_action_at).getTime() : -1;
+      return bt - at;
+    });
     var wrap = document.getElementById("assignedList");
     wrap.innerHTML = "";
     if (!items.length) { wrap.appendChild(el("div", "empty-state", "Nothing here right now.")); return; }

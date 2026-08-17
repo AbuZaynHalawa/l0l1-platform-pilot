@@ -42,15 +42,20 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
     # pending_review reads straight off Progress status, reached only via
     # Mark Completed now (no more owner-said/SME-confirmed split to fold
     # together here).
-    overdue = sum(1 for s in stat_subs if rules.deadline_status(s)[0] == "due")
+    _deadline_keys = [rules.deadline_status(s)[0] for s in stat_subs]
+    overdue = _deadline_keys.count("due")
+    not_due = _deadline_keys.count("not_due")
+    # Item [dashboard cards redesign]: Deadline Status card breaks completed
+    # items down into how they actually landed against their due date --
+    # same on_time/early/late buckets rules.deadline_status() already
+    # computes for the pills elsewhere, not a generic "Completed" count.
+    early = _deadline_keys.count("early")
+    on_time = _deadline_keys.count("on_time")
+    late = _deadline_keys.count("late")
     pending_review = sum(1 for s in stat_subs if s.status == models.SubmissionStatus.PENDING_REVIEW)
-    not_due = sum(1 for s in stat_subs if rules.deadline_status(s)[0] == "not_due")
     # Item [dashboard cards redesign]: Progress Status breakdown, same
     # bucket set as the Assigned Deliverables filter chips (PROGRESS_FILTERS
-    # in app.js) -- Deadline Status reuses these same counts for its own
-    # "Completed" child (deadline_bucket() already folds any Approved item
-    # into "completed" regardless of its actual due date), so there's no
-    # separate query for that.
+    # in app.js).
     no_progress = sum(1 for s in stat_subs if s.status == models.SubmissionStatus.NO_PROGRESS)
     in_progress = sum(1 for s in stat_subs if s.status == models.SubmissionStatus.IN_PROGRESS)
     approved = sum(1 for s in stat_subs if s.status == models.SubmissionStatus.APPROVED)
@@ -70,7 +75,7 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
         dept_overdue = [s for s in dept_subs if rules.deadline_status(s)[0] == "due"]
         due_and_done = [s for s in dept_subs if s.status == models.SubmissionStatus.APPROVED] + dept_overdue + [
             s for s in dept_subs if s.status == models.SubmissionStatus.PENDING_REVIEW]
-        approved = sum(1 for s in dept_subs if s.status == models.SubmissionStatus.APPROVED)
+        dept_approved = sum(1 for s in dept_subs if s.status == models.SubmissionStatus.APPROVED)
         # Item [kpi rewrite]: this concerns list is the same "department
         # on-time performance" concept as the Performance tab, just pooled
         # across both stages together -- it needs the real point-based
@@ -85,7 +90,7 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
         # bonus, but the reported department score itself caps at 100.
         pct = round(min((total_points / len(due_and_done)) * 100, 100.0), 1) if due_and_done else None
         dept_rows.append({
-            "department": dept.name, "department_number": dept.number, "total": len(dept_subs), "approved": approved,
+            "department": dept.name, "department_number": dept.number, "total": len(dept_subs), "approved": dept_approved,
             "overdue": len(dept_overdue),
             "pending_review": sum(1 for s in dept_subs if s.status == models.SubmissionStatus.PENDING_REVIEW),
             "pct": pct,
@@ -104,6 +109,7 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
     return {
         "active_l0": l0_count, "active_l1": l1_count, "signed": signed_count,
         "overdue": overdue, "pending_review": pending_review, "not_due": not_due,
+        "early": early, "on_time": on_time, "late": late,
         "no_progress": no_progress, "in_progress": in_progress, "approved": approved, "rejected": rejected,
         "departments": dept_rows, "concerns": concerns,
     }

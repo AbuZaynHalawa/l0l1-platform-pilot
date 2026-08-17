@@ -74,6 +74,7 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
             elif my_email not in owners and my_email not in smes:
                 continue
         deadline_key, deadline_days = rules.deadline_status(s)
+        _action_ts = [t for t in (s.submitted_at, s.reviewed_at) if t]
         out.append({
             "id": s.id, "est_no": s.project.est_no, "project_name": s.project.name, "stage": s.project.stage.value,
             "department": s.definition.department.name, "department_number": s.definition.department.number,
@@ -89,6 +90,11 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
             "following": s.id in my_follows,
             "doc_total": doc_counts.get(s.id, 0),
             "awaiting_note": rules.awaiting_milestone_note(db, s),
+            # Newest-action-first ordering on Assigned Deliverables: the most
+            # recent of submit/review timestamps, so a just-completed or
+            # just-rejected item surfaces at the top instead of wherever the
+            # catalog's static item order happens to place it.
+            "last_action_at": max(_action_ts).isoformat() if _action_ts else None,
             "points_earned": (
                 rules.kpi_points(s.due_date, s.submitted_at.date() if s.submitted_at else None)
                 if s.status == models.SubmissionStatus.APPROVED else None
