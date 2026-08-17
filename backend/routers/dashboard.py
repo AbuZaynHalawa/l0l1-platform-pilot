@@ -33,7 +33,7 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
     if focus:
         stat_subs = [
             s for s in all_subs
-            if (s.owner_email or "").strip().lower() == focus
+            if focus in {e.strip().lower() for e in rules.resolve_owners(s) if e}
             or focus in {e.strip().lower() for e in rules.resolve_smes(s) if e}
         ]
 
@@ -105,19 +105,23 @@ def _rank_owners(subs, users: dict[str, "models.User"] | None = None):
             continue
         if s.definition.kpi_relevant is False:  # item 117: admin opted this catalog item out of tracking
             continue
-        email = s.owner_email or s.definition.default_owner_email
-        if not email:
+        emails = rules.resolve_owners(s)
+        if not emails:
             continue
-        st = stats.setdefault(email, {"approved": 0, "cohort": 0})
-        # Item 143 (2nd revision): same cohort as the department Live Score
-        # — Completed, currently overdue (live Deadline computation now,
-        # not a stored status), or awaiting SME review.
-        if (s.status == models.SubmissionStatus.APPROVED
-                or s.status == models.SubmissionStatus.PENDING_REVIEW
-                or rules.deadline_status(s)[0] == "due"):
-            st["cohort"] += 1
-            if s.status == models.SubmissionStatus.APPROVED:
-                st["approved"] += 1
+        # Item [multi-owner]: joint responsibility -- every assigned Owner
+        # shares credit/blame for this item's on-time performance, same as
+        # the department Live Score already does across a whole team.
+        for email in emails:
+            st = stats.setdefault(email, {"approved": 0, "cohort": 0})
+            # Item 143 (2nd revision): same cohort as the department Live
+            # Score — Completed, currently overdue (live Deadline
+            # computation now, not a stored status), or awaiting SME review.
+            if (s.status == models.SubmissionStatus.APPROVED
+                    or s.status == models.SubmissionStatus.PENDING_REVIEW
+                    or rules.deadline_status(s)[0] == "due"):
+                st["cohort"] += 1
+                if s.status == models.SubmissionStatus.APPROVED:
+                    st["approved"] += 1
     ranked = []
     for email, st in stats.items():
         if not st["cohort"]:

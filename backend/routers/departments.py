@@ -65,9 +65,13 @@ def list_deliverable_focal(stage: str, db: Session = Depends(get_db)):
         {
             "id": d.id, "item_no": d.item_no, "name": d.name,
             "department": d.department.name, "department_number": d.department.number,
-            "focal_point_name": d.focal_point_name,
-            "focal_point_emails": d.focal_point_emails or ([d.focal_point_email] if d.focal_point_email else []),
-            "department_focal_name": d.department.focal_point_name, "department_focal_email": d.department.focal_point_email,
+            # The "Deliverable's Owner Email" column edits actual ownership
+            # (default_owner_emails) now, not the old notify-only focal
+            # point concept -- department_focal_email is kept only as a
+            # placeholder hint (there's nothing item-level to fall back to
+            # for ownership the way there was for a focal contact).
+            "owner_emails": d.default_owner_emails or ([d.default_owner_email] if d.default_owner_email else []),
+            "department_focal_email": d.department.focal_point_email,
             "default_sme_emails": d.default_sme_emails or ([d.default_sme_email] if d.default_sme_email else []),
             "is_tendering_bm": d.department.name == "Tendering Department",
         }
@@ -76,12 +80,12 @@ def list_deliverable_focal(stage: str, db: Session = Depends(get_db)):
 
 
 class DeliverableFocalUpdate(BaseModel):
-    focal_point_name: str | None = None
-    # Item [multi-SME]: both fields are now roster-only, multi-value picks
+    # Item [multi-SME/owner]: both fields are roster-only, multi-value picks
     # from the L0-L1 Group -- free text is no longer accepted here, every
-    # email must match a real roster member (and, for SME, one with the SME
-    # role) so the picker's suggestions are always exactly what's allowed.
-    focal_point_emails: list[str] = []
+    # email must match a real roster member (Owner role for the owner
+    # field, SME role for the SME field) so the picker's suggestions are
+    # always exactly what's allowed.
+    default_owner_emails: list[str] = []
     default_sme_emails: list[str] = []
 
 
@@ -107,16 +111,35 @@ def update_deliverable_focal(definition_id: int, payload: DeliverableFocalUpdate
     if not d:
         raise HTTPException(404, "Deliverable definition not found")
     if d.department.name != "Tendering Department":
-        # Tendering Department's focal point is always that project's own
-        # Bid Manager — its name/email fields aren't editable here, but its
-        # SME still is (see below, unconditional).
-        d.focal_point_name = (payload.focal_point_name or "").strip() or None
-        d.focal_point_emails = _validate_roster_emails(db, payload.focal_point_emails) or None
+        # Tendering Department's Owner is always that project's own Bid
+        # Manager — not editable here, but its SME still is (below,
+        # unconditional).
+        d.default_owner_emails = _validate_roster_emails(db, payload.default_owner_emails, require_role="Owner") or None
     d.default_sme_emails = _validate_roster_emails(db, payload.default_sme_emails, require_role="SME") or None
+    # A catalog default only feeds *new* submissions by itself -- without
+    # this, changing it here would do nothing for every project that
+    # already exists, which is most of them in practice. Safe to push onto
+    # an existing submission only if nothing real has happened on it yet
+    # (same safety gate item 46's Scope/BU resync uses) -- once someone's
+    # actually uploaded or it's mid-review, changing who's responsible has
+    # to go through Reassign / the SME's own action instead.
+    _SAFE_STATUSES = {models.SubmissionStatus.NO_PROGRESS, models.SubmissionStatus.PENDING_TRIAGE,
+                       models.SubmissionStatus.NOT_REQUIRED}
+    untouched = (
+        db.query(models.DeliverableSubmission)
+        .filter(models.DeliverableSubmission.deliverable_definition_id == d.id,
+                models.DeliverableSubmission.status.in_(_SAFE_STATUSES))
+        .all()
+    )
+    for s in untouched:
+        if d.department.name != "Tendering Department":
+            s.owner_emails = d.default_owner_emails
+        s.sme_emails = d.default_sme_emails
     db.commit()
     return {
-        "id": d.id, "focal_point_name": d.focal_point_name, "focal_point_emails": d.focal_point_emails or [],
+        "id": d.id, "owner_emails": d.default_owner_emails or [],
         "default_sme_emails": d.default_sme_emails or [],
+        "resynced_submissions": len(untouched),
     }
 
 

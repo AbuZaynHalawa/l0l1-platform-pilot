@@ -22,9 +22,9 @@
     if (CURRENT_ROLE === "Admin") return true;
     var email = actingEmail().trim().toLowerCase();
     if (!email) return false;
-    var owner = (d.owner_email || "").trim().toLowerCase();
+    var owners = (d.owner_emails || []).map(function (e) { return (e || "").trim().toLowerCase(); });
     var smes = (d.sme_emails || []).map(function (e) { return (e || "").trim().toLowerCase(); });
-    return (!!owner && email === owner) || smes.indexOf(email) !== -1;
+    return owners.indexOf(email) !== -1 || smes.indexOf(email) !== -1;
   }
 
   function el(tag, cls, html) {
@@ -1069,7 +1069,7 @@
     var d = await api("/api/deliverables/" + submissionId + qs);
     document.getElementById("delivModalEyebrow").textContent = d.est_no + " – " + deptLabel(d.department, d.department_number);
     document.getElementById("delivModalTitle").textContent = d.item_no + " · " + d.name;
-    var authorized = isAssigned({ owner_email: d.owner_email, sme_emails: d.sme_emails });
+    var authorized = isAssigned({ owner_emails: d.owner_emails, sme_emails: d.sme_emails });
     var body = document.getElementById("delivModalBody");
     body.innerHTML = "";
 
@@ -1078,7 +1078,7 @@
     // a catalog default in Focal Points instead, so every new project
     // picks it up automatically rather than being patched one project at
     // a time from this popup.
-    [["Owner", d.owner_email || "&#8213;"], ["SME", (d.sme_emails && d.sme_emails.length) ? d.sme_emails.join(", ") : "&#8213;"],
+    [["Owner", (d.owner_emails && d.owner_emails.length) ? d.owner_emails.join(", ") : "&#8213;"], ["SME", (d.sme_emails && d.sme_emails.length) ? d.sme_emails.join(", ") : "&#8213;"],
      ["Due Date", fmtDate(d.due_date)],
      ["Status", statusPillsHtml(d)]]
       .forEach(function (m) {
@@ -1143,7 +1143,7 @@
         try {
           await api("/api/deliverables/" + d.id + "/reassign-request", {
             method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ to_email: toEmail, reason: reason, from_email: d.owner_email }),
+            body: JSON.stringify({ to_email: toEmail, reason: reason, from_email: (d.owner_emails || []).join(", ") }),
           });
         } catch (err) {
           showToast("Could not request reassignment – " + apiErrorDetail(err), true);
@@ -1166,7 +1166,7 @@
     }
 
     var isOwnerOrAdmin = CURRENT_ROLE === "Admin" ||
-      (actingEmail() && actingEmail().trim().toLowerCase() === (d.owner_email || "").trim().toLowerCase());
+      (actingEmail() && (d.owner_emails || []).map(function (e) { return (e || "").trim().toLowerCase(); }).indexOf(actingEmail().trim().toLowerCase()) !== -1);
     // Item 108: reopening a Not Required item undoes an admin's earlier
     // call, so it's admin-only — symmetric with markNotRequiredButton's
     // own gating, unlike the approved case which the owner can also do.
@@ -2474,7 +2474,7 @@
     _fpRows.forEach(function (d) {
       if (depts.indexOf(d.department) === -1) depts.push(d.department);
       items.push(d);
-      (d.focal_point_emails || []).forEach(function (e) { owners[e] = true; });
+      (d.owner_emails || []).forEach(function (e) { owners[e] = true; });
       (d.default_sme_emails || []).forEach(function (e) { smes[e] = true; });
     });
     function fill(selectId, options, placeholder) {
@@ -2496,7 +2496,7 @@
   function _fpRenderStats(rows) {
     var owners = {}, smes = {};
     rows.forEach(function (d) {
-      (d.focal_point_emails || []).forEach(function (e) { owners[e] = true; });
+      (d.owner_emails || []).forEach(function (e) { owners[e] = true; });
       (d.default_sme_emails || []).forEach(function (e) { smes[e] = true; });
     });
     document.getElementById("fpStats").innerHTML =
@@ -2506,6 +2506,7 @@
   }
   function _fpRenderRows(rows) {
     var smeRoster = _fpRoster.filter(function (u) { return u.role === "SME"; });
+    var ownerRoster = _fpRoster.filter(function (u) { return u.role === "Owner"; });
     var tbody = document.getElementById("focalPointsBody");
     tbody.innerHTML = "";
     if (!rows.length) {
@@ -2539,15 +2540,15 @@
       // edit anymore, this catalog default is the one place for it.
       // Item [multi-SME]: both pickers are roster-only and multi-value --
       // any of the picked SMEs can approve/reject a submission of this item.
-      var focalPicker = null;
+      var ownerPicker = null;
       if (d.is_tendering_bm) {
         var noteCell = el("td", "muted", "Defaults to the project's Bid Manager");
         tr.appendChild(noteCell);
       } else {
-        var focalCell = el("td");
-        focalPicker = renderRosterPicker(focalCell, d.focal_point_emails, _fpRoster,
+        var ownerCell = el("td");
+        ownerPicker = renderRosterPicker(ownerCell, d.owner_emails, ownerRoster,
           d.department_focal_email ? "Defaults to " + d.department_focal_email : "Add an owner…");
-        tr.appendChild(focalCell);
+        tr.appendChild(ownerCell);
       }
       var smeCell = el("td");
       var smePicker = renderRosterPicker(smeCell, d.default_sme_emails, smeRoster, "Add an SME…");
@@ -2555,7 +2556,7 @@
       var saveBtn = el("button", "btn", "Save");
       saveBtn.addEventListener("click", async function () {
         var body = { default_sme_emails: smePicker.getValues() };
-        if (focalPicker) body.focal_point_emails = focalPicker.getValues();
+        if (ownerPicker) body.default_owner_emails = ownerPicker.getValues();
         try {
           await api("/api/departments/deliverable-focal/" + d.id, {
             method: "PATCH", headers: { "Content-Type": "application/json" },
@@ -2568,7 +2569,7 @@
         // Keep the in-memory rows (and therefore stats/filters) in sync
         // with what was just saved, without a full re-fetch.
         d.default_sme_emails = smePicker.getValues();
-        if (focalPicker) d.focal_point_emails = focalPicker.getValues();
+        if (ownerPicker) d.owner_emails = ownerPicker.getValues();
         _fpPopulateFilterOptions();
         _fpRenderStats(_fpApplyFilters());
         showToast("Updated for " + d.item_no);
@@ -2584,7 +2585,7 @@
     return _fpRows.filter(function (d) {
       if (f.dept && d.department !== f.dept) return false;
       if (f.item && String(d.id) !== f.item) return false;
-      if (f.owner && (d.focal_point_emails || []).indexOf(f.owner) === -1) return false;
+      if (f.owner && (d.owner_emails || []).indexOf(f.owner) === -1) return false;
       if (f.sme && (d.default_sme_emails || []).indexOf(f.sme) === -1) return false;
       return true;
     });
@@ -3400,7 +3401,7 @@
     var all = await api("/api/deliverables");
     var counts = {};
     all.forEach(function (d) {
-      var emails = CURRENT_ROLE === "Owner" ? (d.owner_email ? [d.owner_email] : []) : (d.sme_emails || []);
+      var emails = CURRENT_ROLE === "Owner" ? (d.owner_emails || []) : (d.sme_emails || []);
       emails.forEach(function (email) {
         if (!counts[email]) counts[email] = { due: 0, pendingReview: 0 };
         if (d.deadline_status === "due") counts[email].due++;

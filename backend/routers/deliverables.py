@@ -57,9 +57,9 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
         if status and s.status.value != status:
             continue
         if scope_to_mine:
-            owner = (s.owner_email or s.definition.default_owner_email or "").strip().lower()
+            owners = {e.strip().lower() for e in rules.resolve_owners(s) if e}
             smes = {e.strip().lower() for e in rules.resolve_smes(s) if e}
-            if not my_email or (my_email != owner and my_email not in smes):
+            if not my_email or (my_email not in owners and my_email not in smes):
                 continue
         deadline_key, deadline_days = rules.deadline_status(s)
         out.append({
@@ -68,8 +68,8 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
             "item_no": s.definition.item_no,
             "name": rules.display_name(s.definition, s.project), "due_date": s.due_date, "status": s.status.value,
             "deadline_status": deadline_key, "deadline_days": deadline_days, "auto_completed": s.auto_completed,
-            "owner": s.owner_email or s.definition.default_owner_email or "Unassigned",
-            "owner_email": s.owner_email or s.definition.default_owner_email,
+            "owner": ", ".join(rules.resolve_owners(s)) or "Unassigned",
+            "owner_emails": rules.resolve_owners(s),
             "sme_emails": rules.resolve_smes(s),
             "is_milestone": s.definition.is_milestone, "milestone_code": s.definition.milestone_code,
             "file_name": s.file_name, "file_url": _storage.file_url(s.file_ref) if s.file_ref else None,
@@ -107,9 +107,9 @@ async def upload_deliverable(submission_id: int, file: UploadFile = File(...),
     if not sub:
         raise HTTPException(404, "Deliverable not found")
 
-    assigned = sub.owner_email or sub.definition.default_owner_email
-    if not rules.can_act(actor_role, actor_email, assigned):
-        raise HTTPException(403, f"Only {assigned or 'the assigned owner'} or an Admin can upload this deliverable")
+    assigned_owners = rules.resolve_owners(sub)
+    if not rules.can_act(actor_role, actor_email, assigned_owners):
+        raise HTTPException(403, f"Only {', '.join(assigned_owners) or 'the assigned owner'} or an Admin can upload this deliverable")
     if sub.status == models.SubmissionStatus.APPROVED:
         raise HTTPException(400, "This deliverable is already Completed")
     if sub.status == models.SubmissionStatus.PENDING_REVIEW:
@@ -193,8 +193,7 @@ def _finalize_approval(db: Session, sub: "models.DeliverableSubmission", comment
     db.add(models.WorkflowHistory(submission_id=sub.id, action="approved", actor_name=actor_name, note=comment))
     db.commit()
 
-    owner_email = sub.owner_email or sub.definition.default_owner_email or ""
-    announcements.sme_decision(db, sub.project, owner_email, sub.definition.item_no, sub.definition.name,
+    announcements.sme_decision(db, sub.project, rules.resolve_owners(sub), sub.definition.item_no, sub.definition.name,
                                 True, comment, submission_id=sub.id)
     announcements.followers_notified(db, sub.project, _follower_emails(db, sub.id), sub.definition.item_no,
                                       sub.definition.name, "approved", submission_id=sub.id)
@@ -224,8 +223,7 @@ def _finalize_approval(db: Session, sub: "models.DeliverableSubmission", comment
         if s2.id == sub.id:
             continue
         if before.get(s2.id) is None and s2.due_date is not None:
-            target_email = s2.owner_email or s2.definition.default_owner_email or ""
-            announcements.cross_department_unlock(db, sub.project, target_email, trigger_label, s2.definition.item_no, s2.definition.name,
+            announcements.cross_department_unlock(db, sub.project, rules.resolve_owners(s2), trigger_label, s2.definition.item_no, s2.definition.name,
                                                     submission_id=s2.id)
             db.add(models.WorkflowHistory(submission_id=s2.id, action="unlocked",
                                            actor_name="system", note=f"Unlocked by approval of {trigger_label}"))
@@ -250,12 +248,12 @@ def mark_complete(submission_id: int, payload: schemas.MarkCompleteRequest, db: 
     if sub.status in (models.SubmissionStatus.PENDING_REVIEW, models.SubmissionStatus.APPROVED):
         raise HTTPException(400, "Deliverable has already been marked complete")
 
-    owner_email = sub.owner_email or sub.definition.default_owner_email
+    owner_emails = rules.resolve_owners(sub)
     sme_emails = rules.resolve_smes(sub)
-    is_owner = rules.can_act(payload.actor_role, payload.actor_email, owner_email)
+    is_owner = rules.can_act(payload.actor_role, payload.actor_email, owner_emails)
     is_sme = rules.can_act(payload.actor_role, payload.actor_email, sme_emails)
     if not (is_owner or is_sme):
-        raise HTTPException(403, f"Only {owner_email or 'the assigned owner'} or {', '.join(sme_emails) or 'the assigned SME'} can complete this deliverable")
+        raise HTTPException(403, f"Only {', '.join(owner_emails) or 'the assigned owner'} or {', '.join(sme_emails) or 'the assigned SME'} can complete this deliverable")
 
     comment = payload.comment.strip()
     if not comment:
@@ -275,7 +273,7 @@ def mark_complete(submission_id: int, payload: schemas.MarkCompleteRequest, db: 
 
     if sme_emails:
         announcements.sme_review_requested(db, sub.project, sme_emails, sub.definition.item_no, sub.definition.name,
-                                            submission_id=sub.id, owner_email=owner_email)
+                                            submission_id=sub.id, owner_emails=owner_emails)
         db.add(models.WorkflowHistory(submission_id=sub.id, action="review_requested",
                                        actor_name="system", note=f"Sent to {', '.join(sme_emails)}"))
         db.commit()
@@ -326,8 +324,7 @@ async def review_deliverable(submission_id: int, approved: bool = Form(...), com
     db.add(models.WorkflowHistory(submission_id=sub.id, action="rejected", actor_name=reviewer_name, note=comment or None))
     db.commit()
 
-    owner_email = sub.owner_email or sub.definition.default_owner_email or ""
-    announcements.sme_decision(db, sub.project, owner_email, sub.definition.item_no, sub.definition.name,
+    announcements.sme_decision(db, sub.project, rules.resolve_owners(sub), sub.definition.item_no, sub.definition.name,
                                 False, comment or None, submission_id=sub.id)
     announcements.followers_notified(db, sub.project, _follower_emails(db, sub.id), sub.definition.item_no,
                                       sub.definition.name, "rejected", submission_id=sub.id)
@@ -362,9 +359,9 @@ def reopen_deliverable(submission_id: int, actor_role: str = "Viewer", actor_ema
 
     if sub.status != models.SubmissionStatus.APPROVED:
         raise HTTPException(400, "Only an approved or Not-Required deliverable can be reopened")
-    assigned = sub.owner_email or sub.definition.default_owner_email
-    if not rules.can_act(actor_role, actor_email, assigned):
-        raise HTTPException(403, f"Only {assigned or 'the assigned owner'} or an Admin can reopen this deliverable")
+    assigned_owners = rules.resolve_owners(sub)
+    if not rules.can_act(actor_role, actor_email, assigned_owners):
+        raise HTTPException(403, f"Only {', '.join(assigned_owners) or 'the assigned owner'} or an Admin can reopen this deliverable")
 
     sub.reviewed_at = None
     sub.review_comment = None
@@ -429,7 +426,7 @@ def request_reassignment(submission_id: int, payload: schemas.ReassignRequestCre
         raise HTTPException(400, f"{to_email} must be a user with Owner permissions in the system roster (Focal Points &#8594; L0-L1 Group)")
     req = models.ReassignmentRequest(
         submission_id=submission_id,
-        from_email=(payload.from_email or sub.owner_email or sub.definition.default_owner_email or "").strip() or None,
+        from_email=(payload.from_email or ", ".join(rules.resolve_owners(sub)) or "").strip() or None,
         to_email=to_email, reason=payload.reason,
     )
     db.add(req)
@@ -468,6 +465,10 @@ def decide_reassignment(request_id: int, decision: schemas.ReassignmentDecision,
     req.status = "approved" if decision.approved else "rejected"
     req.decided_at = datetime.utcnow()
     if decision.approved:
+        # Reassignment replaces responsibility with the one new person,
+        # unlike the Focal Points multi-picker which adds alongside
+        # whoever's already there.
+        req.submission.owner_emails = [req.to_email]
         req.submission.owner_email = req.to_email
     db.commit()
     return {"status": "ok"}
@@ -509,7 +510,7 @@ def get_follow_up(department: str | None = None, project_id: int | None = None, 
             "id": s.id, "est_no": s.project.est_no, "project_name": s.project.name, "project_id": s.project_id,
             "department": s.definition.department.name, "item_no": s.definition.item_no,
             "name": rules.display_name(s.definition, s.project), "due_date": s.due_date, "status": s.status.value,
-            "owner": s.owner_email or s.definition.default_owner_email or "Unassigned",
+            "owner": ", ".join(rules.resolve_owners(s)) or "Unassigned",
             "focal": rules.deliverable_focal(s.definition, s.project) or "Unassigned",
         }
         for s in subs
@@ -524,14 +525,18 @@ def bulk_remind(payload: schemas.BulkRemindRequest, db: Session = Depends(get_db
     users_by_email = {u.email.strip().lower(): u for u in db.query(models.User).all()} if payload.cc_manager else {}
     sent = 0
     for s in subs:
-        owner = s.owner_email or s.definition.default_owner_email
-        if owner:
-            cc = []
+        owners = rules.resolve_owners(s)
+        if owners:
+            # Item [multi-owner]: reminder_sent's own signature stays a
+            # single primary + cc -- everyone past the first assigned Owner
+            # just rides along as a cc recipient instead.
+            primary, rest = owners[0], owners[1:]
+            cc = list(rest)
             if payload.cc_manager:
-                u = users_by_email.get(owner.strip().lower())
+                u = users_by_email.get(primary.strip().lower())
                 if u and u.manager_email:
                     cc.append(u.manager_email)
-            announcements.reminder_sent(db, s.project, owner, s.definition.item_no, s.definition.name, s.due_date,
+            announcements.reminder_sent(db, s.project, primary, s.definition.item_no, s.definition.name, s.due_date,
                                          submission_id=s.id, custom_message=payload.message, cc=cc)
             sent += 1
     return {"sent": sent}
@@ -578,7 +583,7 @@ def get_deliverable_detail(submission_id: int, actor_email: str | None = None, d
         "est_no": sub.project.est_no, "project_id": sub.project_id, "project_name": sub.project.name,
         "due_date": sub.due_date, "status": sub.status.value,
         "deadline_status": deadline_key, "deadline_days": deadline_days, "auto_completed": sub.auto_completed,
-        "owner_email": sub.owner_email or sub.definition.default_owner_email,
+        "owner_emails": rules.resolve_owners(sub),
         "sme_emails": rules.resolve_smes(sub),
         "file_name": sub.file_name, "file_url": _storage.file_url(sub.file_ref) if sub.file_ref else None,
         "submitted_at": sub.submitted_at, "review_comment": sub.review_comment, "reviewed_at": sub.reviewed_at,

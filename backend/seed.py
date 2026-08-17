@@ -59,6 +59,8 @@ ensure_column("deliverable_definitions", "focal_point_emails", "JSON")
 ensure_column("deliverable_definitions", "default_sme_emails", "JSON")
 ensure_column("deliverable_submissions", "sme_emails", "JSON")
 ensure_column("deliverable_submissions", "reviewed_by_email", "VARCHAR")
+ensure_column("deliverable_definitions", "default_owner_emails", "JSON")
+ensure_column("deliverable_submissions", "owner_emails", "JSON")
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -1413,9 +1415,15 @@ def run():
             if not d.default_sme_emails and d.default_sme_email:
                 d.default_sme_emails = [d.default_sme_email]
                 backfilled += 1
+            if not d.default_owner_emails and d.default_owner_email:
+                d.default_owner_emails = [d.default_owner_email]
+                backfilled += 1
         for s in db.query(models.DeliverableSubmission).all():
             if not s.sme_emails and s.sme_email:
                 s.sme_emails = [s.sme_email]
+                backfilled += 1
+            if not s.owner_emails and s.owner_email:
+                s.owner_emails = [s.owner_email]
                 backfilled += 1
         if backfilled:
             db.commit()

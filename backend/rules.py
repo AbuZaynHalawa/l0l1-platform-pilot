@@ -114,6 +114,20 @@ def resolve_smes(sub: "models.DeliverableSubmission") -> list[str]:
     return [legacy] if legacy else []
 
 
+def resolve_owners(sub: "models.DeliverableSubmission") -> list[str]:
+    """Every Owner who may act on this submission (upload, mark complete,
+    reopen) — any one of them can act. Same fallback shape as
+    resolve_smes(): submission-level list -> catalog default list ->
+    either field's legacy single value, for rows seeded before this existed.
+    """
+    if sub.owner_emails:
+        return sub.owner_emails
+    if sub.definition.default_owner_emails:
+        return sub.definition.default_owner_emails
+    legacy = sub.owner_email or sub.definition.default_owner_email
+    return [legacy] if legacy else []
+
+
 def resolve_focal_emails(definition: "models.DeliverableDefinition", project: "models.Project | None" = None) -> list[str]:
     """List form of deliverable_focal() below, for building real recipient
     lists rather than a single display string.

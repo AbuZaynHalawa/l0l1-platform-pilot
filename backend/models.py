@@ -207,7 +207,7 @@ class DeliverableDefinition(Base):
     milestone_code = Column(String, nullable=True)   # M1..M6 when is_milestone
     milestone_name = Column(String, nullable=True)
     kpi_relevant = Column(Boolean, default=True)
-    default_owner_email = Column(String, nullable=True)
+    default_owner_email = Column(String, nullable=True)  # legacy single value, superseded by default_owner_emails below
     default_sme_email = Column(String, nullable=True)  # legacy single value, superseded by default_sme_emails below
     active = Column(Boolean, default=True)
     # Per-deliverable focal contact (item 75) — overrides the department's
@@ -215,17 +215,22 @@ class DeliverableDefinition(Base):
     # Left unset, notification routing falls back to the department's.
     # Tendering Department items ignore this (see rules.deliverable_focal) —
     # their focal is always whichever Bid Manager is running that project.
+    # Superseded at the UI level by default_owner_emails below (the Focal
+    # Points tab's "Deliverable's Owner Email" column now edits ownership,
+    # not a separate notify-only contact) -- kept for whatever still reads
+    # it (the Follow Up tab's legacy "focal" label) but no longer editable.
     focal_point_name = Column(String, nullable=True)
     focal_point_email = Column(String, nullable=True)  # legacy single value, superseded by focal_point_emails below
-    # Item [multi-SME]: any number of roster members can be the focal point
-    # or the SME on a catalog item -- for SME specifically, any one of them
-    # can approve/reject a submission of it, not just a single fixed person.
-    # list[str], JSON so SQLite and Postgres both store it natively. The
-    # legacy singular columns above are kept (not dropped -- this codebase's
-    # migration helpers only ever add) and used as a one-time seed source /
-    # fallback for rows created before this existed.
+    # Item [multi-SME/owner]: any number of roster members can be the Owner
+    # or the SME on a catalog item -- any one of them can act (upload/
+    # complete for Owner, approve/reject for SME), not just a single fixed
+    # person. list[str], JSON so SQLite and Postgres both store it natively.
+    # The legacy singular columns above are kept (not dropped -- this
+    # codebase's migration helpers only ever add) and used as a one-time
+    # seed source / fallback for rows created before this existed.
     focal_point_emails = Column(JSON, nullable=True)
     default_sme_emails = Column(JSON, nullable=True)
+    default_owner_emails = Column(JSON, nullable=True)
 
     department = relationship("Department", back_populates="deliverable_definitions")
 
@@ -239,7 +244,8 @@ class DeliverableSubmission(Base):
     due_date = Column(Date, nullable=True)
     status = Column(Enum(SubmissionStatus), default=SubmissionStatus.NO_PROGRESS)
     applicability = Column(String, default="applicable")  # applicable | not_required | pending (L0 BM triage)
-    owner_email = Column(String, nullable=True)
+    owner_email = Column(String, nullable=True)  # legacy single value, superseded by owner_emails below
+    owner_emails = Column(JSON, nullable=True)  # list[str] snapshotted from the definition's default_owner_emails at creation
     sme_email = Column(String, nullable=True)  # legacy single value, superseded by sme_emails below
     sme_emails = Column(JSON, nullable=True)  # list[str] snapshotted from the definition's default_sme_emails at creation
     file_name = Column(String, nullable=True)

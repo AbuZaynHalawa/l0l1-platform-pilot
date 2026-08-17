@@ -110,7 +110,7 @@ class SubmissionOut(BaseModel):
     deadline_status: str = "not_due"
     deadline_days: int | None = None
     auto_completed: bool = False
-    owner_email: str | None
+    owner_emails: list[str] = []
     sme_emails: list[str] = []
     file_name: str | None
     file_url: str | None = None

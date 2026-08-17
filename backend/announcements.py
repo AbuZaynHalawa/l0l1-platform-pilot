@@ -49,16 +49,16 @@ def owner_assigned(db: Session, project: models.Project, owner_email: str, dept_
 
 
 def sme_review_requested(db: Session, project: models.Project, sme_emails: list[str], item_no: str, item_name: str,
-                          submission_id: int | None = None, owner_email: str | None = None) -> models.Announcement:
-    """Item 165: the Owner who asked for review needs to see this too, not
-    just the SME who has to act on it -- both are recipients now. Item
-    [multi-SME]: every assigned SME is a recipient, since any one of them
-    can act on it.
+                          submission_id: int | None = None, owner_emails: list[str] | None = None) -> models.Announcement:
+    """Item 165: the Owner(s) who asked for review need to see this too, not
+    just the SME(s) who have to act on it -- all are recipients now. Item
+    [multi-SME/owner]: every assigned SME and every assigned Owner is a
+    recipient, since any one of the SMEs can act on it.
     """
     title = "Review Requested &#8211; SME Action Needed"
     body = (f"{item_no} {item_name} was submitted on {project.est_no} and is now awaiting your review. "
             f"<b>You have 1 day to review and submit feedback.</b>")
-    recipients = sorted({e for e in (list(sme_emails) + [owner_email or ""]) if e})
+    recipients = sorted({e for e in (list(sme_emails) + list(owner_emails or [])) if e})
     return _create(db, type=models.AnnouncementType.SME_REQUEST, title=title, body=body,
                     recipients=recipients, project=project, submission_id=submission_id)
 
@@ -75,11 +75,12 @@ def document_added(db: Session, project: models.Project, sme_emails: list[str], 
                     recipients=sorted({e for e in sme_emails if e}), project=project, submission_id=submission_id)
 
 
-def sme_decision(db: Session, project: models.Project, owner_email: str, item_no: str, item_name: str,
+def sme_decision(db: Session, project: models.Project, owner_emails: list[str], item_no: str, item_name: str,
                   approved: bool, comment: str | None = None, submission_id: int | None = None) -> models.Announcement:
     """Item 165: an approval is general news (DELIVERABLE_APPROVED, everyone
     sees it) same as a milestone or unlock; a rejection stays private
-    feedback to the Owner (SME_DECISION), not something to broadcast.
+    feedback to the Owner(s) (SME_DECISION), not something to broadcast.
+    Item [multi-owner]: every assigned Owner is a recipient on a rejection.
     """
     if approved:
         title = "Deliverable Approved"
@@ -90,18 +91,18 @@ def sme_decision(db: Session, project: models.Project, owner_email: str, item_no
         note = comment or "Please review and resubmit with updated supporting documents."
         body = f"{item_no} {item_name} on {project.est_no} was rejected: &quot;{note}&quot;"
         ann_type = models.AnnouncementType.SME_DECISION
-    return _create(db, type=ann_type, title=title, body=body, recipients=[owner_email], project=project,
-                    submission_id=submission_id)
+    return _create(db, type=ann_type, title=title, body=body, recipients=sorted({e for e in owner_emails if e}),
+                    project=project, submission_id=submission_id)
 
 
-def cross_department_unlock(db: Session, project: models.Project, newly_active_owner_email: str,
+def cross_department_unlock(db: Session, project: models.Project, newly_active_owner_emails: list[str],
                              trigger_item: str, unlocked_item_no: str, unlocked_item_name: str,
                              submission_id: int | None = None) -> models.Announcement:
     title = "Deliverable Unlocked &#8211; Predecessor Approved"
     body = (f"{trigger_item} being approved on {project.est_no} unlocks "
             f"{unlocked_item_no} {unlocked_item_name}.")
     return _create(db, type=models.AnnouncementType.UNLOCK, title=title, body=body,
-                    recipients=[newly_active_owner_email], project=project, submission_id=submission_id)
+                    recipients=sorted({e for e in newly_active_owner_emails if e}), project=project, submission_id=submission_id)
 
 
 def deadline_extended(db: Session, project: models.Project, recipients: list[str], old_date: str, new_date: str) -> models.Announcement:
