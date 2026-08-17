@@ -193,6 +193,18 @@
     { value: "sme_decision", label: "SME Decision &#8211; Rejected", sw: "var(--good)", audience: ["Owner"] },
     { value: "deadline", label: "Deadline / Reminder", sw: "var(--warn)", audience: ["Owner", "SME"] },
   ];
+  // Item [announcement recipients]: the "To:" line used to list every
+  // recipient email verbatim -- fine at a handful of test users, unreadable
+  // once the roster is hundreds of real people. Show the audience group
+  // instead (same audience metadata already driving the type filter/legend
+  // above), not the literal address list.
+  var _ROLE_PLURAL = { Owner: "Owners", SME: "SMEs" };
+  function annAudienceTag(a) {
+    var meta = ANN_TYPE_META.find(function (t) { return t.value === a.type; });
+    if (!meta) return "&#8213;";
+    if (meta.audience === "all") return "All Users";
+    return meta.audience.map(function (r) { return _ROLE_PLURAL[r] || r; }).join(" &amp; ");
+  }
   function buildAnnouncementFilterUI() {
     var visible = ANN_TYPE_META.filter(function (t) {
       return CURRENT_ROLE === "Admin" || t.audience === "all" || t.audience.indexOf(CURRENT_ROLE) !== -1;
@@ -3335,7 +3347,7 @@
       var when = new Date(a.created_at).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
       main.appendChild(el("div", "ann-top", '<span class="ann-title">' + a.title + '</span><span class="ann-time">' + when + '</span>'));
       main.appendChild(el("div", "ann-body", a.body));
-      main.appendChild(el("div", "ann-meta", "To: <b>" + (a.recipients || "&#8213;") + "</b> &middot; " + a.email_status));
+      main.appendChild(el("div", "ann-meta", "To: <b>" + annAudienceTag(a) + "</b> &middot; " + a.email_status));
       row.appendChild(main);
       if (a.submission_id || a.project_id) {
         row.style.cursor = "pointer";
