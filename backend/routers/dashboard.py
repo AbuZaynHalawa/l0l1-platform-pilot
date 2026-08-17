@@ -270,7 +270,14 @@ def get_matrix(stage: str, db: Session = Depends(get_db)):
     # Tracking (kpi_relevant == False) has no place here either. Same
     # is-not-False rule as _kpi_cohort (None/unset still counts as on).
     defs = [d for d in defs if d.kpi_relevant is not False]
-    defs.sort(key=lambda d: (d.department.number or 0, rules.item_sort_key(d.item_no)))
+    # Sorting by (number, item_no) alone interleaved the four Operation
+    # Units TBU/PBU/DBU/BBU rows -- they all share department number 2, so
+    # ties broke on item_no first, printing "2.1" for all four, then "2.2"
+    # for all four, etc. instead of one department's full block at a time.
+    # department.id (their real creation order: TBU, PBU, DBU, BBU) as the
+    # secondary key keeps each department's rows grouped together, with
+    # item_no only as the tertiary tiebreaker within one department.
+    defs.sort(key=lambda d: (d.department.number or 0, d.department.id, rules.item_sort_key(d.item_no)))
 
     subs = []
     if projects:

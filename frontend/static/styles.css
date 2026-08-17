@@ -635,6 +635,7 @@
   .focus-toggle { display: flex; gap: 8px; }
   .focus-toggle .chip { padding: 5px 12px; font-size: 11.5px; }
   .matrix-legend { padding: 12px 18px 0; margin-bottom: 4px; }
+  .matrix-note { padding: 0 18px 10px; margin: 0; font-size: 11.5px; color: var(--ink-500); }
   .matrix-wrap { overflow: auto; max-height: 560px; }
   .fp-table { border-collapse: collapse; font-size: 12.5px; width: 100%; }
   .fp-table th, .fp-table td { padding: 9px 12px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
