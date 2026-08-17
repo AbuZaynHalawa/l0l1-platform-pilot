@@ -3591,6 +3591,14 @@
     if (!document.getElementById("view-announcements").hidden) loadAnnouncements();
     checkBmTriageDeadline();
   });
+  // Item [BM triage viewer bug]: on a page refresh, some browsers restore a
+  // <select>'s prior value from before the reload without firing "change" --
+  // the dropdown then visually shows e.g. "Viewer" while every piece of app
+  // state (CURRENT_ROLE, the nav's hidden flags) is still sitting at the
+  // "Admin" default, since nothing ever re-ran to sync them. This pilot has
+  // no real login and doesn't persist the role choice across reloads by
+  // design, so force the control back to the actual default on every load.
+  document.getElementById("roleSelect").value = "Admin";
   document.getElementById("actingEmailQuickPick").addEventListener("change", function (e) {
     if (!e.target.value) return;
     document.getElementById("actingEmail").value = e.target.value;
