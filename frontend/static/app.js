@@ -1974,7 +1974,8 @@
         return;
       }
       showToast("Marked complete &#8211; SME notified");
-      after();
+      // Item [auto-refresh]: same full reload as an SME approval -- see review().
+      location.reload();
     });
     return btn;
   }
@@ -2026,6 +2027,12 @@
       return;
     }
     showToast(approved ? "Approved &#8211; owner notified" : "Rejected &#8211; owner notified");
+    // Item [auto-refresh]: an approval reaches a real Completed state, so a
+    // full reload replaces the usual in-place after() -- guarantees every
+    // stale surface (sidebar badge, dashboard stats, other open panes)
+    // reflects it, not just the list/modal the click happened in. A
+    // rejection isn't "completed," so it keeps the lighter in-place refresh.
+    if (approved) { location.reload(); return; }
     if (after) after();
   }
 
