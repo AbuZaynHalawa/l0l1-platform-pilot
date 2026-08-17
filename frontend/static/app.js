@@ -4023,10 +4023,23 @@
   // pointing at real, current, testable rows -- SME options are labelled
   // with their pending-review count so "test Pending SME Review" is a
   // one-click pick instead of a hunt through the data.
-  async function populateActingEmailQuickPick() {
+  async function populateActingEmailQuickPick(isRetry) {
     var quickPick = document.getElementById("actingEmailQuickPick");
     if (CURRENT_ROLE !== "Owner" && CURRENT_ROLE !== "SME") { quickPick.style.display = "none"; return; }
-    var all = await api("/api/deliverables");
+    // A slow/failed fetch here (e.g. Render's free-tier cold start on the
+    // very first request after idling) used to throw uncaught and leave the
+    // quick-pick permanently stuck hidden with nothing but the placeholder --
+    // no error shown anywhere, just silently broken until the next full role
+    // switch happened to succeed. One quiet retry covers the transient case.
+    var all, roster;
+    try {
+      all = await api("/api/deliverables");
+      roster = await _getRoster();
+    } catch (err) {
+      if (!isRetry) return populateActingEmailQuickPick(true);
+      console.error("Quick pick failed to load", err);
+      return;
+    }
     var counts = {};
     all.forEach(function (d) {
       var emails = CURRENT_ROLE === "Owner" ? (d.owner_emails || []) : (d.sme_emails || []);
@@ -4039,7 +4052,6 @@
     // Every roster member of this role is offered, not just whoever
     // already has assigned work -- a freshly-added Owner/SME with nothing
     // assigned yet still needs to be pickable to actually test as them.
-    var roster = await _getRoster();
     roster.filter(function (u) { return u.role === CURRENT_ROLE; }).forEach(function (u) {
       if (!counts[u.email]) counts[u.email] = { due: 0, pendingReview: 0 };
     });
