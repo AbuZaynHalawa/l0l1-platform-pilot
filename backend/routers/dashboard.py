@@ -250,6 +250,11 @@ def get_matrix(stage: str, db: Session = Depends(get_db)):
         .order_by(models.Department.number)
         .all()
     )
+    # Item [matrix kpi_relevant]: the matrix should mirror exactly what the
+    # Performance tab tracks -- an item an admin has turned off via Manage
+    # Tracking (kpi_relevant == False) has no place here either. Same
+    # is-not-False rule as _kpi_cohort (None/unset still counts as on).
+    defs = [d for d in defs if d.kpi_relevant is not False]
     defs.sort(key=lambda d: (d.department.number or 0, rules.item_sort_key(d.item_no)))
 
     subs = []

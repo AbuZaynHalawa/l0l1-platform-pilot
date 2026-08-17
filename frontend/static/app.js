@@ -362,7 +362,17 @@
     renderAchievers("topOwners", achievers.owners.slice(0, 3), "owner");
     renderAchievers("topSmes", achievers.smes.slice(0, 3), "sme");
 
-    var anns = await api("/api/announcements?limit=6");
+    // Item [dashboard announcements scoping]: this mini feed was calling
+    // the endpoint with no actor_role/actor_email at all, which the backend
+    // treats as "show everything" -- the same private SME/Owner-only
+    // announcements the full Announcements page correctly hides from the
+    // wrong role were leaking onto every Dashboard regardless of who's
+    // looking. Same actor_role/actor_email pattern as loadAnnouncements().
+    var annsQs = "?limit=6";
+    if (CURRENT_ROLE !== "Admin") {
+      annsQs += "&actor_role=" + encodeURIComponent(CURRENT_ROLE) + "&actor_email=" + encodeURIComponent(passiveIdentity());
+    }
+    var anns = await api("/api/announcements" + annsQs);
     var digest = document.getElementById("digestList");
     digest.innerHTML = "";
     if (!anns.length) digest.appendChild(el("div", "empty-state", "No announcements yet."));
