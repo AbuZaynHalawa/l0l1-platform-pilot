@@ -1141,7 +1141,7 @@
     // picks it up automatically rather than being patched one project at
     // a time from this popup.
     [["Owner", (d.owner_emails && d.owner_emails.length) ? d.owner_emails.join(", ") : "&#8213;"], ["SME", (d.sme_emails && d.sme_emails.length) ? d.sme_emails.join(", ") : "&#8213;"],
-     ["Due Date", fmtDate(d.due_date)],
+     ["Due Date", (!d.due_date && d.awaiting_note) ? d.awaiting_note : fmtDate(d.due_date)],
      ["Status", statusPillsHtml(d)]]
       .forEach(function (m) {
         var mi = el("div");

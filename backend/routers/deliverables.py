@@ -595,6 +595,7 @@ def get_deliverable_detail(submission_id: int, actor_email: str | None = None, d
         "est_no": sub.project.est_no, "project_id": sub.project_id, "project_name": sub.project.name,
         "due_date": sub.due_date, "status": sub.status.value,
         "deadline_status": deadline_key, "deadline_days": deadline_days, "auto_completed": sub.auto_completed,
+        "awaiting_note": rules.awaiting_milestone_note(db, sub),
         "owner_emails": rules.resolve_owners(sub),
         "sme_emails": rules.resolve_smes(sub),
         "file_name": sub.file_name, "file_url": _storage.file_url(sub.file_ref) if sub.file_ref else None,
