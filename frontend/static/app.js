@@ -3104,6 +3104,28 @@
       if (opts.canResolve) {
         var resolveBtn = el("button", "btn", "Mark Resolved");
         resolveBtn.addEventListener("click", async function () {
+          // If the admin picked a KB reference but resolved straight away
+          // without hitting Reply, the asker would otherwise get nothing --
+          // send them the referenced answer first so resolving always means
+          // "they've been answered."
+          var hasAdminReply = (r.messages || []).some(function (m) { return m.author === "admin"; });
+          if (!hasAdminReply && kbRefSelect && kbRefSelect.value) {
+            var picked = opts.kbEntries.find(function (e) { return String(e.id) === kbRefSelect.value; });
+            if (picked) {
+              try {
+                await api("/api/support/" + r.id + "/reply", {
+                  method: "POST", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    body: picked.answer, actor_role: CURRENT_ROLE, actor_email: myIdentity(),
+                    kb_reference_id: picked.id,
+                  }),
+                });
+              } catch (err) {
+                showToast("Could not send the referenced answer &#8211; " + apiErrorDetail(err), true);
+                return;
+              }
+            }
+          }
           await api("/api/support/" + r.id + "/resolve?actor_role=" + CURRENT_ROLE, { method: "PATCH" });
           showToast("Marked resolved");
           opts.onReplied();
