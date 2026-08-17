@@ -518,6 +518,7 @@ def update_project_details(project_id: int, payload: schemas.ProjectDetailsUpdat
         db.commit()
         _instantiate_deliverables(db, project)
     date_changed = False
+    old_bsd = project.bsd
     for field in ("announcement_date", "site_visit_date", "pre_bid_meeting_date", "pre_bid_deadline", "bsd"):
         if field in data:
             setattr(project, field, data[field])
@@ -526,6 +527,12 @@ def update_project_details(project_id: int, payload: schemas.ProjectDetailsUpdat
     if date_changed:
         rules.recompute_project_due_dates(db, project, force=True)
         db.commit()
+    if "bsd" in data and data["bsd"] and data["bsd"] != old_bsd:
+        recipients = sorted({d.focal_point_email for d in db.query(models.Department).all() if d.focal_point_email} | rules.system_group_emails(db))
+        announcements.deadline_extended(
+            db, project, recipients,
+            old_bsd.isoformat() if old_bsd else "not set", data["bsd"].isoformat(),
+        )
     db.refresh(project)
     return project
 

@@ -1307,6 +1307,27 @@
     currentProjectTerminal = (p.stage === "L0" && (p.status === "Submitted" || p.status === "Cancelled")) ||
       (p.stage === "L1" && p.status === "Completed");
     document.getElementById("dTerminalBanner").hidden = !currentProjectTerminal;
+    var extendBtn = document.getElementById("dExtendBsdBtn");
+    extendBtn.hidden = !(p.stage === "L0" && can("create") && !currentProjectTerminal);
+    extendBtn.onclick = function () {
+      openChecklistEditModal({
+        type: "date",
+        title: "Extend Bid Submission Date",
+        eyebrow: "Every dependent deliverable due date recalculates automatically, and every user is notified.",
+        selected: p.bsd || "",
+        onSave: function (nextDate) {
+          if (!nextDate) { showToast("Pick a date", true); return; }
+          api("/api/projects/" + id + "/details", {
+            method: "PATCH", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ bsd: nextDate, actor_role: CURRENT_ROLE }),
+          }).then(function () {
+            closeChecklistEditModal();
+            showToast("Bid Submission Date extended &#8211; announced to all users");
+            openDetail(id);
+          }).catch(function (err) { showToast("Could not update &#8211; " + apiErrorDetail(err), true); });
+        },
+      });
+    };
     var triageBanner = document.getElementById("dTriageBanner");
     var triagePill = document.getElementById("dTriagePill");
     if (p.stage !== "L0") {
