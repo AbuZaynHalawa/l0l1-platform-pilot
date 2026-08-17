@@ -580,7 +580,20 @@
             <span class="tier-chip" style="color:var(--crit)">&gt;28d &rarr; 0%</span>
           </div>
         </div>
-        <div class="dept-grid" id="perfDeptGrid" style="grid-template-columns:repeat(3,1fr);"></div>
+        <!-- Item 42: real Performance Dashboard rebuild. Excellent/Acceptable/
+             Needs Action classification and the trend sparkline/time-travel
+             history UI are deliberately not here yet -- per Yasser's own
+             call, thresholds are still queued and there's no real month-
+             over-month history before this shipped (see the code-side note
+             on /api/dashboard/performance). Both levels' accent colors here
+             (purple-1 = L1, purple-2 = L0) reuse the app's existing palette,
+             the same one the design spec calls for. -->
+        <div class="perf-freshness" id="perfFreshness"></div>
+        <div class="perf-summary-strip" id="perfSummaryStrip"></div>
+        <div class="perf-filter-row">
+          <input type="text" id="perfSearch" placeholder="Search departments&#8230;" />
+        </div>
+        <div class="perf-card-grid" id="perfCardGrid"></div>
       </div>
       <div id="perfTriagePane" hidden>
         <p class="sub fp-hint">Choose which catalog items count toward on-time performance tracking. Turning an item off excludes it everywhere &#8212; department scores, Top Achievers, everything &#8212; for every project, past and future. Milestones stay on; they anchor the due-date chain regardless.</p>
@@ -798,6 +811,18 @@
 <!-- Item 46: Scope/Business Unit/Bid Manager/date edits -- a real picker
      (checkboxes, a dropdown, or a native date input) instead of a
      free-text prompt(), same visual language as the create form. -->
+<!-- Item 42: full overdue-items list for one department/level, opened from
+     a Performance card's "View all" link. -->
+<div class="modal-overlay" id="perfDueOverlay" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <div><h2 id="perfDueTitle"></h2></div>
+      <button class="modal-close" id="perfDueClose">&#10005;</button>
+    </div>
+    <div class="modal-body" id="perfDueBody"></div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="checklistEditOverlay" hidden>
   <div class="modal-card">
     <div class="modal-head">

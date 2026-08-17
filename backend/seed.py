@@ -54,6 +54,7 @@ ensure_index("workflow_history", "ix_history_submission_id", "submission_id")
 ensure_index("documents", "ix_documents_submission_id", "submission_id")
 ensure_index("followers", "ix_followers_submission_id", "submission_id")
 ensure_index("reassignment_requests", "ix_reassign_submission_id", "submission_id")
+ensure_index("performance_snapshots", "ix_perf_snap_dept_stage_month", "department_id, stage, month")
 
 models.Base.metadata.create_all(bind=engine)
 

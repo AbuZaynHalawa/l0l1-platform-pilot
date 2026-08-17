@@ -2095,9 +2095,106 @@
 
   /* ================= PERFORMANCE / REPORTS ================= */
   var perfTriageStage = "L0";
+  var perfData = null;
+  var perfSearchTerm = "";
+  var perfPinned = {};  // department name -> true, for click-to-pin expand
+  function perfTrendBadge(level) {
+    if (level.trend === "no_baseline") return '<span class="perf-trend no_baseline">&#8213; No Baseline</span>';
+    var arrow = level.trend === "up" ? "&#8593;" : (level.trend === "down" ? "&#8595;" : "&#8594;");
+    var sign = level.variance > 0 ? "+" : "";
+    return '<span class="perf-trend ' + level.trend + '">' + arrow + " " + sign + level.variance + "% vs " + level.prev_month + "</span>";
+  }
+  function perfDueList(dept, levelKey, level) {
+    if (!level.due_items.length) return "";
+    var html = '<div class="perf-due-list">';
+    level.due_items.forEach(function (it) {
+      html += '<div class="perf-due-item"><span>' + it.item_no + " " + it.name + '</span><span>' + it.delay_days + "d late</span></div>";
+    });
+    if (level.all_due_items.length > level.due_items.length) {
+      html += '<div class="perf-due-more" data-dept="' + dept.name.replace(/"/g, "&quot;") + '" data-level="' + levelKey + '">View all ' + level.all_due_items.length + ' &#8250;</div>';
+    }
+    html += "</div>";
+    return html;
+  }
+  function renderPerfCards() {
+    var wrap = document.getElementById("perfCardGrid");
+    wrap.innerHTML = "";
+    var depts = perfData.departments.filter(function (d) {
+      return !perfSearchTerm || d.name.toLowerCase().indexOf(perfSearchTerm) !== -1;
+    });
+    if (!depts.length) { wrap.appendChild(el("div", "empty-state", "No departments match your search.")); return; }
+    depts.forEach(function (d) {
+      var card = el("div", "card perf-card" + (perfPinned[d.name] ? " pinned" : ""));
+      var head = el("div", "perf-card-head");
+      head.appendChild(el("div", "perf-card-name", deptLabel(d.name, d.number)));
+      card.appendChild(head);
+      var nums = el("div", "perf-card-nums");
+      var n1 = el("div", "perf-card-num l1");
+      n1.appendChild(el("div", "pcn-val", d.l1.percentage === null ? "&#8213;" : d.l1.percentage + "%"));
+      n1.appendChild(el("div", "pcn-label", "L1"));
+      var n0 = el("div", "perf-card-num l0");
+      n0.appendChild(el("div", "pcn-val", d.l0.percentage === null ? "&#8213;" : d.l0.percentage + "%"));
+      n0.appendChild(el("div", "pcn-label", "L0"));
+      nums.appendChild(n1); nums.appendChild(n0);
+      card.appendChild(nums);
+      var detail = el("div", "perf-card-detail");
+      var c1 = el("div", "perf-level-col");
+      c1.innerHTML = '<b>L1</b><div>' + (d.l1.total ? d.l1.approved + "/" + d.l1.total + " on-time" : "No tracked L1 items") + "</div>" +
+        perfTrendBadge(d.l1) + perfDueList(d, "l1", d.l1);
+      var c0 = el("div", "perf-level-col");
+      c0.innerHTML = '<b>L0</b><div>' + (d.l0.total ? d.l0.approved + "/" + d.l0.total + " on-time" : "No tracked L0 items") + "</div>" +
+        perfTrendBadge(d.l0) + perfDueList(d, "l0", d.l0);
+      detail.appendChild(c1); detail.appendChild(c0);
+      card.appendChild(detail);
+      card.addEventListener("click", function (e) {
+        if (e.target.classList.contains("perf-due-more")) {
+          e.stopPropagation();
+          openPerfDueModal(d, e.target.dataset.level);
+          return;
+        }
+        perfPinned[d.name] = !perfPinned[d.name];
+        card.classList.toggle("pinned", perfPinned[d.name]);
+      });
+      wrap.appendChild(card);
+    });
+  }
+  function openPerfDueModal(dept, levelKey) {
+    var level = dept[levelKey];
+    var overlay = document.getElementById("perfDueOverlay");
+    document.getElementById("perfDueTitle").textContent = deptLabel(dept.name, dept.number) + " — " + levelKey.toUpperCase() + " overdue items";
+    var body = document.getElementById("perfDueBody");
+    body.innerHTML = "";
+    level.all_due_items.forEach(function (it) {
+      var row = el("div", "perf-due-modal-row");
+      row.innerHTML = '<span>' + it.item_no + " " + it.name + " <span style=\"color:var(--ink-500);\">(" + it.project + ")</span></span><span>" + it.delay_days + "d late</span>";
+      row.style.cursor = "pointer";
+      row.addEventListener("click", function () { closePerfDueModal(); openDetail(it.project_id); });
+      body.appendChild(row);
+    });
+    overlay.hidden = false;
+  }
+  function closePerfDueModal() { document.getElementById("perfDueOverlay").hidden = true; }
+  document.getElementById("perfDueClose").addEventListener("click", closePerfDueModal);
+  document.getElementById("perfDueOverlay").addEventListener("click", function (e) { if (e.target === this) closePerfDueModal(); });
+  document.getElementById("perfSearch").addEventListener("input", function (e) {
+    perfSearchTerm = e.target.value.trim().toLowerCase();
+    renderPerfCards();
+  });
   async function loadPerformance() {
-    var d = await api("/api/dashboard");
-    renderDeptGrid(document.getElementById("perfDeptGrid"), d.departments, true);
+    perfData = await api("/api/dashboard/performance");
+    document.getElementById("perfFreshness").textContent = "Data as of " + fmtDate(perfData.data_as_of);
+    var strip = document.getElementById("perfSummaryStrip");
+    strip.innerHTML = "";
+    ["l1", "l0"].forEach(function (key) {
+      var vals = perfData.departments.map(function (d) { return d[key].percentage; }).filter(function (v) { return v !== null; });
+      var avg = vals.length ? Math.round((vals.reduce(function (a, b) { return a + b; }, 0) / vals.length) * 10) / 10 : null;
+      var card = el("div", "card perf-summary-card " + key);
+      card.innerHTML = '<div class="psc-head"><span class="psc-title">' + key.toUpperCase() + ' Average</span>' +
+        '<span class="psc-avg">' + (avg === null ? "&#8213;" : avg + "%") + '</span></div>' +
+        '<div class="psc-count">' + vals.length + " of " + perfData.departments.length + " departments have tracked " + key.toUpperCase() + " items</div>";
+      strip.appendChild(card);
+    });
+    renderPerfCards();
     // Item 117: only admins get the "Manage Tracking" sub-tab; everyone
     // else just sees the Overview scores.
     document.getElementById("perfTriageTabBtn").hidden = !can("create");

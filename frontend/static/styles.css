@@ -730,6 +730,50 @@
   .trend-legend .sw { width: 12px; height: 3px; border-radius: 2px; }
   .report-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 
+  /* ================= ITEM 42: PERFORMANCE DASHBOARD ================= */
+  /* L1/L0 each get their own identity color, consistently, everywhere they
+     appear on this tab -- reusing the app's own existing purple-1/purple-2
+     tokens, which already match the design spec's own two-level palette. */
+  .perf-freshness { font-size: 12px; color: var(--ink-500); margin-bottom: 14px; }
+  .perf-summary-strip { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+  .perf-summary-card { padding: 20px 22px; border-top: 3px solid var(--purple-1); }
+  .perf-summary-card.l0 { border-top-color: var(--purple-2); }
+  .perf-summary-card .psc-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .perf-summary-card .psc-title { font-size: 14px; font-weight: 800; }
+  .perf-summary-card .psc-avg { font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .perf-summary-card .psc-count { font-size: 12px; color: var(--ink-500); }
+
+  .perf-filter-row { margin-bottom: 16px; }
+  .perf-filter-row input { width: 100%; max-width: 320px; border: 1px solid var(--line); background: var(--surface-sunken); border-radius: 9px; padding: 9px 14px; font-size: 13px; color: var(--ink-900); font-family: inherit; }
+
+  .perf-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+  .perf-card { padding: 18px 20px; cursor: pointer; transition: box-shadow .15s ease; }
+  .perf-card:hover, .perf-card.pinned { box-shadow: var(--shadow-2); }
+  .perf-card-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .perf-card-name { font-weight: 700; font-size: 13.5px; }
+  .perf-card-nums { display: flex; gap: 18px; margin-top: 10px; }
+  .perf-card-num { flex: 1; text-align: center; }
+  .perf-card-num .pcn-val { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--purple-1); }
+  .perf-card-num.l0 .pcn-val { color: var(--purple-2); }
+  .perf-card-num .pcn-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-500); font-weight: 700; margin-top: 2px; }
+
+  /* Hover auto-expands (pure CSS); click toggles .pinned, which persists
+     the expanded state after the mouse leaves -- max-height/opacity
+     transition rather than display:none/block, since that can't animate. */
+  .perf-card-detail { max-height: 0; opacity: 0; overflow: hidden; transition: max-height .25s ease, opacity .2s ease; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .perf-card:hover .perf-card-detail, .perf-card.pinned .perf-card-detail { max-height: 600px; opacity: 1; margin-top: 14px; }
+  .perf-level-col { border-top: 1px solid var(--line); padding-top: 10px; font-size: 12px; color: var(--ink-700); }
+  .perf-trend { display: block; font-size: 11px; font-weight: 700; margin-top: 4px; }
+  .perf-trend.up { color: var(--good); }
+  .perf-trend.down { color: var(--crit); }
+  .perf-trend.stable, .perf-trend.no_baseline { color: var(--neutral); }
+  .perf-due-list { margin-top: 8px; font-size: 11.5px; }
+  .perf-due-item { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; }
+  .perf-due-more { font-size: 11px; color: var(--purple-1); cursor: pointer; font-weight: 700; margin-top: 4px; }
+  .perf-due-modal-row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .perf-due-modal-row:last-child { border-bottom: none; }
+  .perf-due-modal-row:hover { background: var(--surface-sunken); }
+
   /* ================= ITEM 154: RESPONSIVE ================= */
   /* Tablet and below: the fixed 236px rail becomes an off-canvas drawer,
      opened by the hamburger button (both are display:none above this). */
@@ -755,7 +799,8 @@
     .view { padding: 16px 14px 44px; }
     .view-head h1 { font-size: 19px; }
     .view-head { flex-direction: column; align-items: flex-start; }
-    .stat-row, .dept-grid, .split, .report-grid, .how-grid, .form-grid { grid-template-columns: 1fr !important; }
+    .stat-row, .dept-grid, .split, .report-grid, .how-grid, .form-grid,
+    .perf-summary-strip, .perf-card-detail { grid-template-columns: 1fr !important; }
     .pipeline { grid-template-columns: repeat(2, 1fr); row-gap: 18px; }
     .achievers-row { grid-template-columns: 1fr !important; }
     .card-pad { padding: 14px 16px; }

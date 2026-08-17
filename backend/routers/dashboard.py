@@ -1,3 +1,5 @@
+from datetime import date, datetime
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -277,4 +279,126 @@ def get_matrix(stage: str, db: Session = Depends(get_db)):
     return {
         "projects": [{"id": p.id, "est_no": p.est_no, "name": p.name} for p in projects],
         "rows": rows,
+    }
+
+
+def _kpi_cohort(subs: list) -> list:
+    """Item 42/117: the same tracked-work filter used everywhere else on this
+    page (auto-completed and admin-opted-out items are never real cohort
+    members, in either direction).
+    """
+    return [s for s in subs if not s.auto_completed and s.definition.kpi_relevant is not False]
+
+
+def _level_stats(subs: list, stage: models.Stage) -> dict:
+    """One tracked level ("L1" or "L0") of one department's Performance card
+    — the same approved/(approved+overdue+pending_review) cohort formula the
+    dashboard's own department Live Score already uses (item 42 gives it a
+    real name and a due-items list to back it up, not a new formula).
+    """
+    stage_subs = [s for s in subs if s.definition.stage == stage]
+    overdue = [s for s in stage_subs if rules.deadline_status(s)[0] == "due"]
+    pending = [s for s in stage_subs if s.status == models.SubmissionStatus.PENDING_REVIEW]
+    approved = [s for s in stage_subs if s.status == models.SubmissionStatus.APPROVED]
+    cohort_size = len(approved) + len(overdue) + len(pending)
+    pct = round((len(approved) / cohort_size) * 100, 1) if cohort_size else None
+
+    due_items = []
+    for s in sorted(overdue, key=lambda s: rules.deadline_status(s)[1] or 0):
+        delay_days = abs(rules.deadline_status(s)[1] or 0)
+        due_items.append({
+            "item_no": s.definition.item_no, "name": s.definition.name,
+            "project": s.project.est_no, "project_id": s.project_id, "delay_days": delay_days,
+        })
+
+    return {
+        "percentage": pct, "approved": len(approved), "total": cohort_size,
+        "due_items": due_items[:5], "all_due_items": due_items,
+    }
+
+
+def _capture_snapshot(db: Session, department_id: int, stage: models.Stage, stats: dict) -> None:
+    """Item 42: idempotent per calendar month — the first Performance tab
+    load in a given month records that month's real numbers; every load
+    after that in the same month is a no-op (today's figures are always
+    computed live anyway, this is purely for next month's trend to have
+    something real to compare against).
+    """
+    month_start = date.today().replace(day=1)
+    existing = (
+        db.query(models.PerformanceSnapshot)
+        .filter(models.PerformanceSnapshot.department_id == department_id,
+                models.PerformanceSnapshot.stage == stage,
+                models.PerformanceSnapshot.month == month_start)
+        .first()
+    )
+    if existing:
+        return
+    db.add(models.PerformanceSnapshot(
+        department_id=department_id, stage=stage, month=month_start,
+        pct=stats["percentage"], approved=stats["approved"], total=stats["total"],
+    ))
+
+
+def _trend(db: Session, department_id: int, stage: models.Stage, current_pct: float | None) -> dict:
+    """Item 42: month-over-month, against the most recent *prior* real
+    snapshot on record (never a fabricated one) -- "No Baseline" until a
+    second real month exists to compare against, exactly like the design
+    spec's own rule for a brand-new entity's first month.
+    """
+    this_month = date.today().replace(day=1)
+    prev = (
+        db.query(models.PerformanceSnapshot)
+        .filter(models.PerformanceSnapshot.department_id == department_id,
+                models.PerformanceSnapshot.stage == stage,
+                models.PerformanceSnapshot.month < this_month)
+        .order_by(models.PerformanceSnapshot.month.desc())
+        .first()
+    )
+    if not prev or prev.pct is None or current_pct is None:
+        return {"trend": "no_baseline", "variance": 0, "prev_month": None}
+    variance = round(current_pct - prev.pct, 1)
+    trend = "up" if variance > 0 else ("down" if variance < 0 else "stable")
+    return {"trend": trend, "variance": variance, "prev_month": prev.month.isoformat()}
+
+
+@router.get("/performance")
+def get_performance(db: Session = Depends(get_db)):
+    """Item 42: the Performance tab's real data source -- per department, a
+    tracked-level (L1/L0) card with a live percentage, a due-items list, and
+    a month-over-month trend once there's real history to compare against.
+
+    Deliberately NOT included yet, per Yasser's own call: the Excellent/
+    Acceptable/Needs Action color classification (needs real per-department
+    thresholds he'll provide later) and the sparkline/time-travel history UI
+    (there's no recorded history before this endpoint started capturing it,
+    and fabricating past months isn't something to do on a live tool people
+    use to judge department performance).
+    """
+    # Same cohort scope as the dashboard's own department Live Score --
+    # every submission ever, not just currently-active projects (a closed
+    # project's on-time record is still real performance history).
+    for p in db.query(models.Project).filter(models.Project.status == models.ProjectStatus.IN_PROGRESS).all():
+        rules.recompute_project_due_dates(db, p)
+    db.commit()
+    all_subs = db.query(models.DeliverableSubmission).all()
+
+    departments = []
+    for dept in db.query(models.Department).order_by(models.Department.number).all():
+        dept_subs = _kpi_cohort([s for s in all_subs if s.definition.department_id == dept.id])
+        l1 = _level_stats(dept_subs, models.Stage.L1)
+        l0 = _level_stats(dept_subs, models.Stage.L0)
+        _capture_snapshot(db, dept.id, models.Stage.L1, l1)
+        _capture_snapshot(db, dept.id, models.Stage.L0, l0)
+        l1.update(_trend(db, dept.id, models.Stage.L1, l1["percentage"]))
+        l0.update(_trend(db, dept.id, models.Stage.L0, l0["percentage"]))
+        departments.append({
+            "name": dept.name, "number": dept.number, "l1": l1, "l0": l0,
+        })
+    db.commit()
+
+    departments.sort(key=lambda d: ((d["l1"]["percentage"] or 0) + (d["l0"]["percentage"] or 0)) / 2, reverse=True)
+    return {
+        "departments": departments,
+        "data_as_of": datetime.utcnow().date().isoformat(),
     }

@@ -8,7 +8,7 @@ rules.py for how this drives both due-date chaining and milestone status.
 """
 from datetime import datetime, date
 from sqlalchemy import (
-    Column, Integer, String, Date, DateTime, ForeignKey, Boolean, Text, Enum, JSON
+    Column, Integer, String, Date, DateTime, ForeignKey, Boolean, Text, Enum, JSON, Float
 )
 from sqlalchemy.orm import declarative_base, relationship
 import enum
@@ -384,6 +384,26 @@ class BmTriagePreference(Base):
     item_no = Column(String, nullable=False)
     applicable = Column(Boolean, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class PerformanceSnapshot(Base):
+    """Item 42: one row per department per stage per calendar month, so the
+    Performance tab's trend can eventually show real month-over-month
+    history. The app has never recorded this before this item, so real
+    history only starts accumulating from whenever this first runs --
+    there's nothing to backfill honestly, and the frontend deliberately
+    doesn't try to chart or "time-travel" through history until there are
+    at least two real months to compare.
+    """
+    __tablename__ = "performance_snapshots"
+    id = Column(Integer, primary_key=True)
+    department_id = Column(Integer, ForeignKey("departments.id"), nullable=False)
+    stage = Column(Enum(Stage), nullable=False)
+    month = Column(Date, nullable=False)  # always the 1st of the month
+    pct = Column(Float, nullable=True)  # None when the cohort was empty that month (N/A, not 0)
+    approved = Column(Integer, nullable=False)
+    total = Column(Integer, nullable=False)
+    captured_at = Column(DateTime, default=datetime.utcnow)
 
 
 class Announcement(Base):
