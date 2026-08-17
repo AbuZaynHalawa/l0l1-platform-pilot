@@ -2211,12 +2211,113 @@
   var perfTriageStage = "L0";
   var perfData = null;
   var perfSearchTerm = "";
-  var perfPinned = {};  // department name -> true, for click-to-pin expand
-  function perfTrendBadge(level) {
+  var perfCompareSelected = {};  // department name -> true
+  var PERF_MONTH_ORDER = ["Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Current"];
+  var PERF_COLORS = ["#667eea", "#764ba2", "#10b981", "#f59e0b", "#ef4444", "#06b6d4", "#8b5cf6", "#ec4899"];
+  function perfStatusClass(status) {
+    if (status === "Excellent") return "excellent";
+    if (status === "Acceptable") return "acceptable";
+    if (status === "Needs Action") return "needs-action";
+    return "na";
+  }
+  function perfPct(pct) { return pct === null || pct === undefined ? "&#8213;" : pct + "%"; }
+  // "Monthly Trend & Variance" wording -- the design spec's arrow+word
+  // convention (Improved/Declined/Stable), kept separate from the raw
+  // signed variance number so a card can show both side by side.
+  function perfTrendWord(level) {
     if (level.trend === "no_baseline") return '<span class="perf-trend no_baseline">&#8213; No Baseline</span>';
     var arrow = level.trend === "up" ? "&#8593;" : (level.trend === "down" ? "&#8595;" : "&#8594;");
+    var word = level.trend === "up" ? "Improved" : (level.trend === "down" ? "Declined" : "Stable");
+    return '<span class="perf-trend ' + level.trend + '">' + arrow + " " + word + "</span>";
+  }
+  function perfVariance(level) {
+    if (level.trend === "no_baseline") return "";
     var sign = level.variance > 0 ? "+" : "";
-    return '<span class="perf-trend ' + level.trend + '">' + arrow + " " + sign + level.variance + "% vs " + level.prev_month + "</span>";
+    return '<span class="pc2-variance ' + level.trend + '">' + sign + level.variance + "%</span>";
+  }
+  function perfYtd(level) {
+    if (!level.ytd) return '<div class="pc2-flex-row"><span class="pc2-ytd-range">&#8213;</span></div>';
+    var y = level.ytd;
+    var cls = y.delta > 0 ? "up" : (y.delta < 0 ? "down" : "stable");
+    var sign = y.delta > 0 ? "+" : "";
+    return '<div class="pc2-flex-row">' +
+      '<span class="pc2-ytd-range">vs ' + y.month + ": " + y.from + "% &rarr; " + y.to + '%</span>' +
+      '<span class="pc2-ytd-delta ' + cls + '">' + sign + y.delta + '%</span>' +
+      "</div>";
+  }
+  // Item [performance history]: minimal inline trend chart, shared by the
+  // card sparkline and the Compare/History modal's bigger version -- one or
+  // more series (department histories) plotted on a shared axis. Dots are
+  // absolutely-positioned divs, not SVG <circle>s, since the SVG stretches
+  // non-uniformly and circles would distort into ellipses; the line itself
+  // (a <polyline>) doesn't have that problem.
+  function buildTrendChartHtml(seriesList, heightPx) {
+    var allMonths = [];
+    seriesList.forEach(function (s) {
+      s.points.forEach(function (p) { if (allMonths.indexOf(p.month) === -1) allMonths.push(p.month); });
+    });
+    allMonths.sort(function (a, b) { return PERF_MONTH_ORDER.indexOf(a) - PERF_MONTH_ORDER.indexOf(b); });
+    if (!allMonths.length) return '<div class="perf-chart-empty">No history yet</div>';
+    var allPcts = [];
+    seriesList.forEach(function (s) { s.points.forEach(function (p) { if (p.pct !== null && p.pct !== undefined) allPcts.push(p.pct); }); });
+    var minV = allPcts.length ? Math.min.apply(null, allPcts) : 0;
+    var maxV = allPcts.length ? Math.max.apply(null, allPcts) : 100;
+    if (maxV === minV) { minV -= 5; maxV += 5; }
+    var pad = (maxV - minV) * 0.15;
+    minV -= pad; maxV += pad;
+    if (minV < 0) minV = 0;
+    if (maxV > 100) maxV = 100;
+    function xPos(i) { return allMonths.length > 1 ? (i / (allMonths.length - 1)) * 100 : 50; }
+    function yPos(pct) { return maxV === minV ? 50 : 100 - ((pct - minV) / (maxV - minV)) * 100; }
+    var svgHtml = "", dotsHtml = "";
+    seriesList.forEach(function (s, si) {
+      var byMonth = {};
+      s.points.forEach(function (p) { byMonth[p.month] = p.pct; });
+      var coords = [];
+      allMonths.forEach(function (m, i) {
+        var pct = byMonth[m];
+        if (pct === null || pct === undefined) return;
+        coords.push([xPos(i), yPos(pct)]);
+      });
+      if (coords.length > 1) {
+        var poly = coords.map(function (c) { return c[0] + "," + c[1]; }).join(" ");
+        svgHtml += '<polyline points="' + poly + '" fill="none" stroke="' + s.color +
+          '" stroke-width="2" vector-effect="non-scaling-stroke" />';
+      }
+      coords.forEach(function (c, ci) {
+        var isLast = ci === coords.length - 1;
+        var size = isLast ? 8 : 5;
+        dotsHtml += '<div class="spark-dot' + (isLast ? " last" : "") + '" style="left:' + c[0] + "%;top:" + c[1] +
+          "%;background:" + s.color + ";width:" + size + "px;height:" + size + "px;margin-left:-" + (size / 2) +
+          "px;margin-top:-" + (size / 2) + 'px;" title="' + s.label + '"></div>';
+      });
+    });
+    var labelsHtml = allMonths.map(function (m, i) {
+      return '<span class="spark-label" style="left:' + xPos(i) + '%;">' + m + "</span>";
+    }).join("");
+    var legendHtml = seriesList.length > 1
+      ? '<div class="spark-legend">' + seriesList.map(function (s) {
+          return '<span class="spark-legend-item"><span class="dot" style="background:' + s.color + '"></span>' + s.label + "</span>";
+        }).join("") + "</div>"
+      : "";
+    return '<div class="spark-wrap" style="height:' + (heightPx || 90) + 'px;">' +
+      '<svg viewBox="0 0 100 100" preserveAspectRatio="none" class="spark-svg">' + svgHtml + "</svg>" +
+      dotsHtml + "</div>" +
+      '<div class="spark-labels">' + labelsHtml + "</div>" + legendHtml;
+  }
+  function renderPerfCol(d, levelKey, levelLabel) {
+    var lv = d[levelKey];
+    var statusCls = perfStatusClass(lv.status);
+    var html = '<div class="pc2-title">' + levelLabel + " Performance</div>" +
+      '<div class="pc2-pct ' + statusCls + '">' + perfPct(lv.percentage) + "</div>" +
+      '<span class="pc2-status ' + statusCls + '">' + lv.status + "</span>" +
+      '<div class="pc2-label">Monthly Trend &amp; Variance</div>' +
+      '<div class="pc2-flex-row">' + perfTrendWord(lv) + perfVariance(lv) + "</div>" +
+      '<div class="pc2-label">YTD Trend' + (lv.ytd ? " (vs " + lv.ytd.month + ")" : "") + "</div>" +
+      perfYtd(lv) +
+      '<div class="pc2-label">Yearly Trend (2026)</div>' +
+      buildTrendChartHtml([{ label: d.name, color: levelKey === "l1" ? "#667eea" : "#764ba2", points: lv.history }], 70);
+    return html;
   }
   function renderPerfCards() {
     var wrap = document.getElementById("perfCardGrid");
@@ -2226,35 +2327,100 @@
     });
     if (!depts.length) { wrap.appendChild(el("div", "empty-state", "No departments match your search.")); return; }
     depts.forEach(function (d) {
-      var card = el("div", "card perf-card" + (perfPinned[d.name] ? " pinned" : ""));
-      var head = el("div", "perf-card-head");
-      head.appendChild(el("div", "perf-card-name", deptLabel(d.name, d.number)));
-      card.appendChild(head);
-      var nums = el("div", "perf-card-nums");
-      var n1 = el("div", "perf-card-num l1");
-      n1.appendChild(el("div", "pcn-val", d.l1.percentage === null ? "&#8213;" : d.l1.percentage + "%"));
-      n1.appendChild(el("div", "pcn-label", "L1"));
-      var n0 = el("div", "perf-card-num l0");
-      n0.appendChild(el("div", "pcn-val", d.l0.percentage === null ? "&#8213;" : d.l0.percentage + "%"));
-      n0.appendChild(el("div", "pcn-label", "L0"));
-      nums.appendChild(n1); nums.appendChild(n0);
-      card.appendChild(nums);
-      var detail = el("div", "perf-card-detail");
-      var c1 = el("div", "perf-level-col");
-      c1.innerHTML = '<b>L1</b><div>' + (d.l1.total ? d.l1.approved + "/" + d.l1.total + " on-time" : "No tracked L1 items") + "</div>" +
-        perfTrendBadge(d.l1);
-      var c0 = el("div", "perf-level-col");
-      c0.innerHTML = '<b>L0</b><div>' + (d.l0.total ? d.l0.approved + "/" + d.l0.total + " on-time" : "No tracked L0 items") + "</div>" +
-        perfTrendBadge(d.l0);
-      detail.appendChild(c1); detail.appendChild(c0);
-      card.appendChild(detail);
-      card.addEventListener("click", function () {
-        perfPinned[d.name] = !perfPinned[d.name];
-        card.classList.toggle("pinned", perfPinned[d.name]);
+      var card = el("div", "card perf-card2");
+      var head = el("div", "perf-card2-head");
+      head.appendChild(el("div", "perf-card2-name", deptLabel(d.name, d.number)));
+      var actions = el("div", "perf-card2-actions");
+      var historyBtn = el("button", "perf-history-btn", "History");
+      historyBtn.addEventListener("click", function (e) { e.stopPropagation(); openPerfCompareModal([d]); });
+      actions.appendChild(historyBtn);
+      var compareLbl = el("label", "perf-compare-check");
+      var compareCb = document.createElement("input");
+      compareCb.type = "checkbox";
+      compareCb.checked = !!perfCompareSelected[d.name];
+      compareCb.addEventListener("click", function (e) { e.stopPropagation(); });
+      compareCb.addEventListener("change", function () {
+        if (compareCb.checked) perfCompareSelected[d.name] = true; else delete perfCompareSelected[d.name];
+        renderPerfCompareBar();
       });
+      compareLbl.appendChild(compareCb);
+      compareLbl.appendChild(document.createTextNode("Compare"));
+      actions.appendChild(compareLbl);
+      head.appendChild(actions);
+      card.appendChild(head);
+      var cols = el("div", "perf-card2-cols");
+      var c1 = el("div", "perf-card2-col l1");
+      c1.innerHTML = renderPerfCol(d, "l1", "L1");
+      var c0 = el("div", "perf-card2-col l0");
+      c0.innerHTML = renderPerfCol(d, "l0", "L0");
+      cols.appendChild(c1); cols.appendChild(c0);
+      card.appendChild(cols);
       wrap.appendChild(card);
     });
   }
+  function renderPerfCompareBar() {
+    var names = Object.keys(perfCompareSelected);
+    var bar = document.getElementById("perfCompareBar");
+    if (!bar) return;
+    if (!names.length) { bar.hidden = true; return; }
+    bar.hidden = false;
+    document.getElementById("perfCompareCount").textContent = names.length + " selected";
+    document.getElementById("perfCompareGo").disabled = names.length < 2;
+  }
+  function openPerfCompareModal(depts) {
+    var title = depts.length === 1
+      ? deptLabel(depts[0].name, depts[0].number) + " &#8211; History"
+      : "Department Comparison";
+    document.getElementById("perfCompareTitle").innerHTML = title;
+    var body = document.getElementById("perfCompareBody");
+    body.innerHTML = ["l1", "l0"].map(function (levelKey) {
+      var levelLabel = levelKey.toUpperCase() + " Performance";
+      var rows = "";
+      rows += '<tr class="pcmp-head-row"><td></td>' + depts.map(function (d) {
+        return "<td>" + deptLabel(d.name, d.number) + "</td>";
+      }).join("") + "</tr>";
+      rows += "<tr><td>Performance</td>" + depts.map(function (d) {
+        var lv = d[levelKey];
+        return '<td class="pcmp-pct ' + perfStatusClass(lv.status) + '">' + perfPct(lv.percentage) + "</td>";
+      }).join("") + "</tr>";
+      rows += "<tr><td>Status</td>" + depts.map(function (d) {
+        var lv = d[levelKey];
+        return '<td><span class="pc2-status ' + perfStatusClass(lv.status) + '">' + lv.status + "</span></td>";
+      }).join("") + "</tr>";
+      rows += "<tr><td>Monthly Trend</td>" + depts.map(function (d) {
+        return "<td>" + perfTrendWord(d[levelKey]) + "</td>";
+      }).join("") + "</tr>";
+      rows += "<tr><td>Yearly Trend</td>" + depts.map(function (d) {
+        var lv = d[levelKey];
+        if (!lv.ytd) return "<td>&#8213;</td>";
+        var cls = lv.ytd.delta > 0 ? "up" : (lv.ytd.delta < 0 ? "down" : "stable");
+        var sign = lv.ytd.delta > 0 ? "+" : "";
+        return '<td><span class="pc2-ytd-delta ' + cls + '">' + sign + lv.ytd.delta + '%</span>' +
+          '<div class="pc2-ytd-sub">vs ' + lv.ytd.month + ": " + lv.ytd.from + "% &rarr; " + lv.ytd.to + "%</div></td>";
+      }).join("") + "</tr>";
+      var seriesList = depts.map(function (d, i) {
+        return { label: d.name, color: PERF_COLORS[i % PERF_COLORS.length], points: d[levelKey].history };
+      });
+      return '<div class="pcmp-section-head">' + levelLabel + "</div>" +
+        '<div class="pcmp-table-wrap"><table class="pcmp-table"><tbody>' + rows + "</tbody></table></div>" +
+        buildTrendChartHtml(seriesList, 170);
+    }).join("");
+    document.getElementById("perfCompareOverlay").hidden = false;
+  }
+  function closePerfCompareModal() { document.getElementById("perfCompareOverlay").hidden = true; }
+  document.getElementById("perfCompareClose").addEventListener("click", closePerfCompareModal);
+  document.getElementById("perfCompareOverlay").addEventListener("click", function (e) { if (e.target === this) closePerfCompareModal(); });
+  document.getElementById("perfCompareGo").addEventListener("click", function () {
+    var names = Object.keys(perfCompareSelected);
+    if (names.length < 2) return;
+    var depts = perfData.departments.filter(function (d) { return perfCompareSelected[d.name]; });
+    openPerfCompareModal(depts);
+  });
+  document.getElementById("perfCompareClear").addEventListener("click", function () {
+    perfCompareSelected = {};
+    renderPerfCompareBar();
+    renderPerfCards();
+  });
   document.getElementById("perfSearch").addEventListener("input", function (e) {
     perfSearchTerm = e.target.value.trim().toLowerCase();
     renderPerfCards();
@@ -2274,6 +2440,7 @@
       strip.appendChild(card);
     });
     renderPerfCards();
+    renderPerfCompareBar();
     // Item 117: only admins get the "Manage Tracking" sub-tab; everyone
     // else just sees the Overview scores.
     document.getElementById("perfTriageTabBtn").hidden = !can("create");

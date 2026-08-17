@@ -1445,6 +1445,73 @@ def run():
             db.commit()
             print(f"Item [old projects 500]: backfilled {auto_completed_fixed} submission(s) with a NULL auto_completed to False.")
 
+        # Item [performance history]: one-time seed of real pre-pilot monthly
+        # performance, transcribed from Yasser's own Feb-Jul 2026 tracking
+        # spreadsheet, into PerformanceSnapshot -- so the Yearly Trend chart
+        # and YTD-vs-Feb figures have real history instead of starting blank
+        # the day this feature shipped. August onward is deliberately NOT
+        # seeded here; it's computed live by get_performance() every time,
+        # same as before. A department/stage with no row below has no real
+        # history and stays correctly blank rather than getting a fabricated
+        # number. Idempotent: only inserts a given dept/stage/month once.
+        import datetime as _dt
+        _HIST_MONTHS = [2, 3, 4, 5, 6, 7]  # Feb..Jul 2026
+        _HIST_L1 = {
+            "Tendering Department": [100.0, 100.0, 100.0, 100.0, 100.0, 100.0],
+            "Operation Units (TBU)": [66.3, 67.0, 69.9, 69.5, 70.7, 62.4],
+            "Operation Units (PBU)": [73.6, 73.1, 73.5, 72.2, 66.4, 64.9],
+            "Operation Units (BBU)": [23.8, 20.8, 35.6, 35.6, 37.9, 24.7],
+            "Engineering Department": [87.8, 84.6, 95.9, 96.0, 94.1, 89.7],
+            "Planning": [67.0, 87.3, 94.5, 94.2, 86.9, 90.0],
+            "Cost Control": [95.0, 88.5, 93.9, 97.6, 97.9, 96.0],
+            "Contract": [100.0, 100.0, 100.0, 100.0, 100.0, 100.0],
+            "Human Resources": [50.0, 50.0, 46.2, 44.3, 39.8, 36.5],
+            "HSSE": [100.0, 100.0, 100.0, 100.0, 100.0, 98.6],
+            "Quality": [83.3, 91.4, 97.3, 97.6, 97.8, 97.7],
+            "Fleet": [100.0, 100.0, 100.0, 100.0, 94.4, 90.5],
+            # Supply Chain's L1 tracking (split SS/PBU Procurement in the
+            # original sheet) only starts in Aug -- no Feb-Jul figure exists.
+        }
+        _HIST_L0 = {
+            "Tendering Department": [73.1, 98.9, 99.7, 96.8, 96.2, 95.1],
+            "Operation Units (TBU)": [41.5, 35.4, 34.9, 40.0, 40.8, 40.8],
+            "Operation Units (PBU)": [51.2, 62.5, 50.5, 55.1, 53.9, 49.4],
+            "Operation Units (BBU)": [21.4, 21.8, 21.6, 28.6, 30.8, 40.6],
+            "Supply Chain": [31.0, 29.0, 27.7, 27.0, 27.3, 27.3],
+            "Engineering Department": [78.2, 69.1, 87.2, 88.8, 82.8, 78.9],
+            "Planning": [96.7, 96.9, 100.0, 100.0, 100.0, 90.3],
+            "Contract": [90.0, 98.0, 98.8, 98.4, 98.6, 99.4],
+            "Human Resources": [100.0, 15.4, 9.1, 6.9, 9.5, 8.3],
+            "HSSE": [96.4, 86.1, 89.5, 99.8, 93.0, 100.0],
+            "Quality": [97.0, 85.5, 89.4, 99.7, 91.9, 100.0],
+            # Every other department genuinely has no L0 historical tracking.
+        }
+        hist_added = 0
+        for stage, table in ((models.Stage.L1, _HIST_L1), (models.Stage.L0, _HIST_L0)):
+            for dept_name, values in table.items():
+                dept = dept_map.get(dept_name)
+                if not dept:
+                    continue
+                for month_num, pct in zip(_HIST_MONTHS, values):
+                    month = _dt.date(2026, month_num, 1)
+                    existing = (
+                        db.query(models.PerformanceSnapshot)
+                        .filter(models.PerformanceSnapshot.department_id == dept.id,
+                                models.PerformanceSnapshot.stage == stage,
+                                models.PerformanceSnapshot.month == month)
+                        .first()
+                    )
+                    if existing:
+                        continue
+                    db.add(models.PerformanceSnapshot(
+                        department_id=dept.id, stage=stage, month=month,
+                        pct=pct, approved=round(pct), total=100,
+                    ))
+                    hist_added += 1
+        if hist_added:
+            db.commit()
+            print(f"Item [performance history]: seeded {hist_added} historical monthly performance snapshot(s).")
+
         print(f"Seed complete: {len(dept_map)} departments, {len(L0_ITEMS)} L0 items, {len(L1_ITEMS)} L1 items.")
     finally:
         db.close()

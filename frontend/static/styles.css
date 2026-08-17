@@ -782,27 +782,84 @@
   .perf-filter-row { margin-bottom: 16px; }
   .perf-filter-row input { width: 100%; max-width: 320px; border: 1px solid var(--line); background: var(--surface-sunken); border-radius: 9px; padding: 9px 14px; font-size: 13px; color: var(--ink-900); font-family: inherit; }
 
-  .perf-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-  .perf-card { padding: 18px 20px; cursor: pointer; transition: box-shadow .15s ease; }
-  .perf-card:hover, .perf-card.pinned { box-shadow: var(--shadow-2); }
-  .perf-card-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-  .perf-card-name { font-weight: 700; font-size: 13.5px; }
-  .perf-card-nums { display: flex; gap: 18px; margin-top: 10px; }
-  .perf-card-num { flex: 1; text-align: center; }
-  .perf-card-num .pcn-val { font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--purple-1); }
-  .perf-card-num.l0 .pcn-val { color: var(--purple-2); }
-  .perf-card-num .pcn-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-500); font-weight: 700; margin-top: 2px; }
-
-  /* Hover auto-expands (pure CSS); click toggles .pinned, which persists
-     the expanded state after the mouse leaves -- max-height/opacity
-     transition rather than display:none/block, since that can't animate. */
-  .perf-card-detail { max-height: 0; opacity: 0; overflow: hidden; transition: max-height .25s ease, opacity .2s ease; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-  .perf-card:hover .perf-card-detail, .perf-card.pinned .perf-card-detail { max-height: 600px; opacity: 1; margin-top: 14px; }
-  .perf-level-col { border-top: 1px solid var(--line); padding-top: 10px; font-size: 12px; color: var(--ink-700); }
-  .perf-trend { display: block; font-size: 11px; font-weight: 700; margin-top: 4px; }
+  /* Item [performance history]: 2 cards per row, always-expanded detail
+     (no more hover/pin-to-open -- everything's visible at once now). */
+  .perf-card-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .perf-card2 { padding: 20px 22px; }
+  .perf-card2-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+  .perf-card2-name { font-weight: 800; font-size: 15px; }
+  .perf-card2-actions { display: flex; align-items: center; gap: 12px; }
+  .perf-compare-check { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-500); font-weight: 600; cursor: pointer; }
+  .perf-history-btn { font-size: 11.5px; font-weight: 700; padding: 5px 12px; border-radius: 18px; background: var(--accent-soft); color: var(--purple-2); border: 1.5px solid var(--accent-line); cursor: pointer; }
+  .perf-history-btn:hover { background: var(--purple-2); color: #fff; }
+  .perf-card2-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .pc2-title { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; color: var(--ink-500); margin-bottom: 6px; }
+  .pc2-pct { font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .pc2-pct.excellent { color: var(--good); }
+  .pc2-pct.acceptable { color: var(--warn); }
+  .pc2-pct.needs-action { color: var(--crit); }
+  .pc2-pct.na { color: var(--ink-300); }
+  .pc2-status { display: inline-block; font-size: 10.5px; font-weight: 800; padding: 2px 10px; border-radius: 12px; margin: 5px 0 12px; }
+  .pc2-status.excellent { background: var(--good-bg); color: var(--good); }
+  .pc2-status.acceptable { background: var(--warn-bg); color: var(--warn); }
+  .pc2-status.needs-action { background: var(--crit-bg); color: var(--crit); }
+  .pc2-status.na { background: var(--neutral-bg); color: var(--ink-500); }
+  .pc2-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; font-weight: 700; color: var(--ink-500); margin-top: 12px; }
+  .pc2-flex-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-top: 3px; font-size: 12px; }
+  .perf-trend { font-size: 12px; font-weight: 700; }
   .perf-trend.up { color: var(--good); }
   .perf-trend.down { color: var(--crit); }
   .perf-trend.stable, .perf-trend.no_baseline { color: var(--neutral); }
+  .pc2-variance { font-weight: 700; }
+  .pc2-variance.up { color: var(--good); }
+  .pc2-variance.down { color: var(--crit); }
+  .pc2-variance.stable { color: var(--neutral); }
+  .pc2-ytd-range { color: var(--ink-500); font-size: 11.5px; }
+  .pc2-ytd-delta { font-weight: 800; }
+  .pc2-ytd-delta.up { color: var(--good); }
+  .pc2-ytd-delta.down { color: var(--crit); }
+  .pc2-ytd-delta.stable { color: var(--neutral); }
+  .pc2-ytd-sub { font-size: 10.5px; color: var(--ink-500); margin-top: 2px; }
+  .perf-chart-empty { font-size: 11.5px; color: var(--ink-300); margin-top: 8px; }
+
+  /* Sparkline/trend chart -- dots are absolutely-positioned divs, not SVG
+     circles, so they don't distort into ellipses when the SVG stretches
+     non-uniformly to fill the container. */
+  .spark-wrap { position: relative; margin-top: 8px; }
+  .spark-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .spark-dot { position: absolute; border-radius: 50%; }
+  .spark-dot.last { border: 2px solid var(--surface); box-shadow: 0 0 0 1px rgba(0,0,0,.15); }
+  .spark-labels { position: relative; height: 14px; margin-top: 4px; }
+  .spark-label { position: absolute; transform: translateX(-50%); font-size: 9.5px; color: var(--ink-300); white-space: nowrap; }
+  .spark-legend { display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap; }
+  .spark-legend-item { display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--ink-700); font-weight: 600; }
+  .spark-legend-item .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  /* Floating multi-select bar for the Compare feature. */
+  .perf-compare-bar { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--ink-900); color: var(--surface); padding: 10px 10px 10px 18px; border-radius: 30px; display: flex; align-items: center; gap: 14px; box-shadow: var(--shadow-2); z-index: 50; font-size: 13px; font-weight: 600; }
+  .perf-compare-bar button { border: none; border-radius: 16px; padding: 7px 16px; font-size: 12px; font-weight: 700; cursor: pointer; }
+  .perf-compare-bar button:disabled { opacity: .5; cursor: not-allowed; }
+  .perf-compare-bar .cmp-go { background: var(--purple-1); color: #fff; }
+  .perf-compare-bar .cmp-clear { background: rgba(255,255,255,.15); color: var(--surface); }
+
+  /* Compare/History modal table. */
+  .modal-card.wide { max-width: 960px; }
+  .pcmp-section-head { font-size: 13px; font-weight: 800; color: var(--purple-2); background: var(--accent-soft); padding: 8px 14px; border-radius: 8px; margin: 18px 0 10px; }
+  .pcmp-section-head:first-child { margin-top: 0; }
+  .pcmp-table-wrap { overflow-x: auto; }
+  .pcmp-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .pcmp-table td { padding: 9px 14px; border-bottom: 1px solid var(--line); vertical-align: top; white-space: nowrap; }
+  .pcmp-table td:first-child { color: var(--ink-500); font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; white-space: normal; }
+  .pcmp-head-row td { font-weight: 800; font-size: 13px; color: var(--ink-900); }
+  .pcmp-pct { font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .pcmp-pct.excellent { color: var(--good); }
+  .pcmp-pct.acceptable { color: var(--warn); }
+  .pcmp-pct.needs-action { color: var(--crit); }
+  .pcmp-pct.na { color: var(--ink-300); }
+
+  @media (max-width: 860px) {
+    .perf-card-grid, .perf-card2-cols { grid-template-columns: 1fr !important; }
+  }
 
   /* ================= ITEM 154: RESPONSIVE ================= */
   /* Tablet and below: the fixed 236px rail becomes an off-canvas drawer,
@@ -830,7 +887,7 @@
     .view-head h1 { font-size: 19px; }
     .view-head { flex-direction: column; align-items: flex-start; }
     .stat-row, .dept-grid, .split, .report-grid, .how-grid, .form-grid,
-    .perf-summary-strip, .perf-card-detail { grid-template-columns: 1fr !important; }
+    .perf-summary-strip, .perf-card-grid, .perf-card2-cols { grid-template-columns: 1fr !important; }
     .pipeline { grid-template-columns: repeat(2, 1fr); row-gap: 18px; }
     .achievers-row { grid-template-columns: 1fr !important; }
     .card-pad { padding: 14px 16px; }

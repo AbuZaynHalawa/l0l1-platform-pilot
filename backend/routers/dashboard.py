@@ -370,18 +370,76 @@ def _trend(db: Session, department_id: int, stage: models.Stage, current_pct: fl
     return {"trend": trend, "variance": variance, "prev_month": prev.month.isoformat()}
 
 
+# Item [performance history]: Yasser's real per-department Acceptable
+# thresholds -- everyone defaults to 80% unless listed here. "Supply chain
+# (SS)" and "PBU Procurement" (his original sheet's two Supply Chain
+# sub-splits, both 85%) collapse onto the app's single "Supply Chain"
+# department, which has no such split.
+_MIN_ACCEPTABLE = {
+    "Planning": 70.0,
+    "Cost Control": 70.0,
+    "Supply Chain": 85.0,
+}
+
+
+def _min_acceptable_for(dept_name: str) -> float:
+    return _MIN_ACCEPTABLE.get(dept_name, 80.0)
+
+
+def _status(pct: float | None, min_acceptable: float) -> str:
+    """Item [performance history]: three-tier evaluation the Performance tab
+    cards/badges key off. 90% is a fixed "Excellent" cutoff for everyone;
+    min_acceptable is the per-department floor below which a department
+    reads "Needs Action" rather than "Acceptable" (see _MIN_ACCEPTABLE).
+    """
+    if pct is None:
+        return "N/A"
+    if pct >= 90:
+        return "Excellent"
+    if pct >= min_acceptable:
+        return "Acceptable"
+    return "Needs Action"
+
+
+def _history_and_ytd(db: Session, department_id: int, stage: models.Stage, current_pct: float | None) -> dict:
+    """Item [performance history]: every real recorded month (historical
+    seed data plus any snapshot captured since) up to but excluding the
+    current in-progress month, which is always represented by the live
+    number under the label "Current" -- a month isn't final until it's
+    over, so it's never shown under its real name (matches the design
+    spec's "in-progress period" rule). `ytd` compares today's live number
+    against the first month actually on record for this department/stage,
+    whatever that happens to be -- None when there's no real history yet
+    (e.g. a department with no tracking before this pilot), rather than a
+    fabricated "vs Feb" for a department that never had a Feb.
+    """
+    this_month = date.today().replace(day=1)
+    rows = (
+        db.query(models.PerformanceSnapshot)
+        .filter(models.PerformanceSnapshot.department_id == department_id,
+                models.PerformanceSnapshot.stage == stage,
+                models.PerformanceSnapshot.month < this_month)
+        .order_by(models.PerformanceSnapshot.month)
+        .all()
+    )
+    history = [{"month": r.month.strftime("%b"), "pct": r.pct} for r in rows if r.pct is not None]
+    ytd = None
+    if history and current_pct is not None:
+        first = history[0]
+        ytd = {"month": first["month"], "from": first["pct"], "to": current_pct,
+               "delta": round(current_pct - first["pct"], 1)}
+    history.append({"month": "Current", "pct": current_pct})
+    return {"history": history, "ytd": ytd}
+
+
 @router.get("/performance")
 def get_performance(db: Session = Depends(get_db)):
     """Item 42: the Performance tab's real data source -- per department, a
-    tracked-level (L1/L0) card with a live percentage, a due-items list, and
-    a month-over-month trend once there's real history to compare against.
-
-    Deliberately NOT included yet, per Yasser's own call: the Excellent/
-    Acceptable/Needs Action color classification (needs real per-department
-    thresholds he'll provide later) and the sparkline/time-travel history UI
-    (there's no recorded history before this endpoint started capturing it,
-    and fabricating past months isn't something to do on a live tool people
-    use to judge department performance).
+    tracked-level (L1/L0) card with a live percentage, a due-items list, a
+    month-over-month trend, and (item [performance history]) a real Excellent/
+    Acceptable/Needs Action classification plus a monthly history/YTD figure
+    once real historical data exists to back it (seeded once from Yasser's
+    own Feb-Jul 2026 tracking sheet -- see seed.py -- never fabricated).
     """
     # Same cohort scope as the dashboard's own department Live Score --
     # every submission ever, not just currently-active projects (a closed
@@ -400,6 +458,11 @@ def get_performance(db: Session = Depends(get_db)):
         _capture_snapshot(db, dept.id, models.Stage.L0, l0)
         l1.update(_trend(db, dept.id, models.Stage.L1, l1["percentage"]))
         l0.update(_trend(db, dept.id, models.Stage.L0, l0["percentage"]))
+        l1.update(_history_and_ytd(db, dept.id, models.Stage.L1, l1["percentage"]))
+        l0.update(_history_and_ytd(db, dept.id, models.Stage.L0, l0["percentage"]))
+        min_acceptable = _min_acceptable_for(dept.name)
+        l1["status"] = _status(l1["percentage"], min_acceptable)
+        l0["status"] = _status(l0["percentage"], min_acceptable)
         departments.append({
             "name": dept.name, "number": dept.number, "l1": l1, "l0": l0,
         })
