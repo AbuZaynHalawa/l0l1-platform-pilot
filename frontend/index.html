@@ -573,6 +573,9 @@
           <h1>Department Performance</h1>
           <p class="sub">Live approval rate per department, this pilot.</p>
         </div>
+        <div class="report-actions">
+          <button class="btn primary" id="perfPrintBtn">Print</button>
+        </div>
       </div>
       <div class="subtab-row" id="perfSubTabs">
         <button class="chip active" data-pane="overview">Overview</button>
@@ -610,8 +613,13 @@
              the same one the design spec calls for. -->
         <div class="perf-freshness" id="perfFreshness"></div>
         <div class="perf-summary-strip" id="perfSummaryStrip"></div>
-        <div class="perf-filter-row">
-          <input type="text" id="perfSearch" placeholder="Search departments&#8230;" />
+        <div class="card perf-filter-card">
+          <div class="perf-filter-card-head">
+            <div class="section-title">All Departments</div>
+            <input type="text" id="perfSearch" placeholder="Search departments by name&#8230;" />
+          </div>
+          <div class="perf-chip-row" id="perfDeptChips"></div>
+          <div class="perf-filter-footer" id="perfDeptFooter"></div>
         </div>
         <div class="perf-card-grid" id="perfCardGrid"></div>
         <div class="perf-compare-bar" id="perfCompareBar" hidden>
@@ -870,6 +878,16 @@
       <button class="modal-close" id="perfCompareClose">&#10005;</button>
     </div>
     <div class="modal-body" id="perfCompareBody"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="perfBreakdownOverlay" hidden>
+  <div class="modal-card wide">
+    <div class="modal-head">
+      <div><h2 id="perfBreakdownTitle"></h2></div>
+      <button class="modal-close" id="perfBreakdownClose">&#10005;</button>
+    </div>
+    <div class="modal-body" id="perfBreakdownBody"></div>
   </div>
 </div>
 

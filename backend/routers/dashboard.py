@@ -298,18 +298,54 @@ def _kpi_cohort(subs: list) -> list:
     return [s for s in subs if not s.auto_completed and s.definition.kpi_relevant is not False]
 
 
+def _kpi_pct_pooled(cohort: list) -> float | None:
+    """L1 aggregation per architecture_map.md section 3.4/4.3: SUM(points for
+    due items) / COUNT(due items), one pooled ratio across every submission.
+    """
+    if not cohort:
+        return None
+    total_points = sum((rules.kpi_points(s.due_date, s.submitted_at.date() if s.submitted_at else None) or 0.0) for s in cohort)
+    return round((total_points / len(cohort)) * 100, 1)
+
+
+def _kpi_pct_per_item_averaged(cohort: list) -> float | None:
+    """L0 aggregation per architecture_map.md section 3.4: AVERAGE(per-
+    deliverable-type submission ratio across all projects) -- each distinct
+    item_no gets its own pooled ratio first, then those ratios are averaged
+    equally, so a rarely-due item counts the same as a frequently-due one.
+    """
+    if not cohort:
+        return None
+    groups: dict[str, list] = {}
+    for s in cohort:
+        groups.setdefault(s.definition.item_no, []).append(s)
+    ratios = []
+    for item_subs in groups.values():
+        total_points = sum((rules.kpi_points(s.due_date, s.submitted_at.date() if s.submitted_at else None) or 0.0) for s in item_subs)
+        ratios.append(total_points / len(item_subs))
+    return round((sum(ratios) / len(ratios)) * 100, 1)
+
+
 def _level_stats(subs: list, stage: models.Stage) -> dict:
-    """One tracked level ("L1" or "L0") of one department's Performance card
-    — the same approved/(approved+overdue+pending_review) cohort formula the
-    dashboard's own department Live Score already uses (item 42 gives it a
-    real name and a due-items list to back it up, not a new formula).
+    """One tracked level ("L1" or "L0") of one department's Performance card.
+    Cohort membership (item 42's original rule, unchanged): approved +
+    overdue + pending-review submissions -- excludes not-due, not-required,
+    and pending-triage items. Item [kpi rewrite]: the percentage itself now
+    uses the real point-based Calculation Criteria (kpi_points -- on-time =
+    1, 4-day grace period, tiered credit for late submissions, 0 once
+    genuinely not submitted) instead of a plain approved/cohort ratio, with
+    L1/L0 aggregating differently per architecture_map.md section 3.4 (L1
+    pools every submission into one ratio; L0 averages each deliverable
+    item's own ratio equally). `approved`/`total` below stay literal counts
+    for the card's "X/Y on-time" display text -- only `percentage` changed.
     """
     stage_subs = [s for s in subs if s.definition.stage == stage]
     overdue = [s for s in stage_subs if rules.deadline_status(s)[0] == "due"]
     pending = [s for s in stage_subs if s.status == models.SubmissionStatus.PENDING_REVIEW]
     approved = [s for s in stage_subs if s.status == models.SubmissionStatus.APPROVED]
-    cohort_size = len(approved) + len(overdue) + len(pending)
-    pct = round((len(approved) / cohort_size) * 100, 1) if cohort_size else None
+    cohort = approved + overdue + pending
+    cohort_size = len(cohort)
+    pct = (_kpi_pct_per_item_averaged(cohort) if stage == models.Stage.L0 else _kpi_pct_pooled(cohort)) if cohort_size else None
 
     due_items = []
     for s in sorted(overdue, key=lambda s: rules.deadline_status(s)[1] or 0):
@@ -463,13 +499,91 @@ def get_performance(db: Session = Depends(get_db)):
         min_acceptable = _min_acceptable_for(dept.name)
         l1["status"] = _status(l1["percentage"], min_acceptable)
         l0["status"] = _status(l0["percentage"], min_acceptable)
+        # Item [performance history]: some department rows are legacy/
+        # duplicate entries left over from before the Operation Units TBU/
+        # PBU/DBU/BBU split existed (e.g. "TBU / PBU", "BBU / PBU") -- never
+        # a real cohort and never any historical data either. Rather than
+        # deleting them (a real destructive call, not this endpoint's to
+        # make), flag them so the UI can leave them out of the department
+        # count/filter chips by default.
+        has_data = bool(l1["total"] or l0["total"] or len(l1["history"]) > 1 or len(l0["history"]) > 1)
         departments.append({
-            "name": dept.name, "number": dept.number, "l1": l1, "l0": l0,
+            "name": dept.name, "number": dept.number, "l1": l1, "l0": l0, "has_data": has_data,
+            "min_acceptable": min_acceptable,
         })
     db.commit()
 
     departments.sort(key=lambda d: ((d["l1"]["percentage"] or 0) + (d["l0"]["percentage"] or 0)) / 2, reverse=True)
+    l1_project_count = db.query(models.Project).filter(models.Project.stage == models.Stage.L1).count()
+    l0_project_count = db.query(models.Project).filter(models.Project.stage == models.Stage.L0).count()
     return {
         "departments": departments,
         "data_as_of": datetime.utcnow().date().isoformat(),
+        "l1_project_count": l1_project_count,
+        "l0_project_count": l0_project_count,
     }
+
+
+@router.get("/performance/breakdown")
+def get_performance_breakdown(department: str, stage: str, db: Session = Depends(get_db)):
+    """Item [performance history]: the "click a percentage to see the math"
+    drill-down -- every submission in that department/stage's KPI cohort,
+    its own point value (rules.kpi_points), and how those points roll up
+    into the final percentage. L0 shows the intermediate per-deliverable-
+    item groups too, since its aggregation averages those rather than
+    pooling everything directly (see _kpi_pct_per_item_averaged).
+    """
+    dept = db.query(models.Department).filter(models.Department.name == department).first()
+    if not dept:
+        raise HTTPException(404, "Department not found")
+    try:
+        stage_enum = models.Stage(stage)
+    except ValueError:
+        raise HTTPException(400, "Invalid stage")
+    for p in db.query(models.Project).filter(models.Project.status == models.ProjectStatus.IN_PROGRESS).all():
+        rules.recompute_project_due_dates(db, p)
+    db.commit()
+    all_subs = db.query(models.DeliverableSubmission).all()
+    dept_subs = _kpi_cohort([s for s in all_subs if s.definition.department_id == dept.id])
+    stage_subs = [s for s in dept_subs if s.definition.stage == stage_enum]
+    overdue = [s for s in stage_subs if rules.deadline_status(s)[0] == "due"]
+    pending = [s for s in stage_subs if s.status == models.SubmissionStatus.PENDING_REVIEW]
+    approved = [s for s in stage_subs if s.status == models.SubmissionStatus.APPROVED]
+    cohort = approved + overdue + pending
+
+    items = []
+    for s in cohort:
+        submitted_date = s.submitted_at.date() if s.submitted_at else None
+        points = rules.kpi_points(s.due_date, submitted_date) or 0.0
+        items.append({
+            "item_no": s.definition.item_no, "name": s.definition.name, "project": s.project.est_no,
+            "due_date": s.due_date.isoformat() if s.due_date else None,
+            "submitted_date": submitted_date.isoformat() if submitted_date else None,
+            "status": s.status.value, "points": points,
+        })
+    items.sort(key=lambda x: (rules.item_sort_key(x["item_no"]), x["project"]))
+
+    result = {"department": dept.name, "stage": stage, "items": items}
+    if stage_enum == models.Stage.L0:
+        groups: dict[str, list] = {}
+        for s in cohort:
+            groups.setdefault(s.definition.item_no, []).append(s)
+        per_item = []
+        ratios = []
+        for item_no, item_subs in groups.items():
+            pts = sum((rules.kpi_points(s.due_date, s.submitted_at.date() if s.submitted_at else None) or 0.0) for s in item_subs)
+            ratio = pts / len(item_subs)
+            ratios.append(ratio)
+            per_item.append({"item_no": item_no, "name": item_subs[0].definition.name, "points": round(pts, 2),
+                              "due": len(item_subs), "pct": round(ratio * 100, 1)})
+        per_item.sort(key=lambda x: rules.item_sort_key(x["item_no"]))
+        result["per_item_groups"] = per_item
+        result["overall_pct"] = round((sum(ratios) / len(ratios)) * 100, 1) if ratios else None
+        result["aggregation"] = "per_item_averaged"
+    else:
+        total_points = sum(i["points"] for i in items)
+        result["overall_points"] = round(total_points, 2)
+        result["overall_due"] = len(items)
+        result["overall_pct"] = round((total_points / len(items)) * 100, 1) if items else None
+        result["aggregation"] = "pooled"
+    return result

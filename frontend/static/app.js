@@ -2212,6 +2212,8 @@
   var perfData = null;
   var perfSearchTerm = "";
   var perfCompareSelected = {};  // department name -> true
+  var perfChipSelected = {};  // department name -> true, independent multi-select
+  var perfStatusFilter = null;  // { level: "l1"|"l0", status: "Excellent"|"Acceptable"|"Needs Action" } | null
   var PERF_MONTH_ORDER = ["Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Current"];
   var PERF_COLORS = ["#667eea", "#764ba2", "#10b981", "#f59e0b", "#ef4444", "#06b6d4", "#8b5cf6", "#ec4899"];
   function perfStatusClass(status) {
@@ -2251,6 +2253,10 @@
   // absolutely-positioned divs, not SVG <circle>s, since the SVG stretches
   // non-uniformly and circles would distort into ellipses; the line itself
   // (a <polyline>) doesn't have that problem.
+  function _perfFmtTick(v) {
+    var r = Math.round(v * 10) / 10;
+    return (Math.round(r) === r ? r.toFixed(0) : r.toFixed(1)) + "%";
+  }
   function buildTrendChartHtml(seriesList, heightPx) {
     var allMonths = [];
     seriesList.forEach(function (s) {
@@ -2267,10 +2273,12 @@
     minV -= pad; maxV += pad;
     if (minV < 0) minV = 0;
     if (maxV > 100) maxV = 100;
+    // Same formula drives the gridline/tick positions and the dot/line
+    // positions, so they always land in exact alignment with each other.
     function xPos(i) { return allMonths.length > 1 ? (i / (allMonths.length - 1)) * 100 : 50; }
     function yPos(pct) { return maxV === minV ? 50 : 100 - ((pct - minV) / (maxV - minV)) * 100; }
     var svgHtml = "", dotsHtml = "";
-    seriesList.forEach(function (s, si) {
+    seriesList.forEach(function (s) {
       var byMonth = {};
       s.points.forEach(function (p) { byMonth[p.month] = p.pct; });
       var coords = [];
@@ -2282,7 +2290,7 @@
       if (coords.length > 1) {
         var poly = coords.map(function (c) { return c[0] + "," + c[1]; }).join(" ");
         svgHtml += '<polyline points="' + poly + '" fill="none" stroke="' + s.color +
-          '" stroke-width="2" vector-effect="non-scaling-stroke" />';
+          '" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round" />';
       }
       coords.forEach(function (c, ci) {
         var isLast = ci === coords.length - 1;
@@ -2300,16 +2308,30 @@
           return '<span class="spark-legend-item"><span class="dot" style="background:' + s.color + '"></span>' + s.label + "</span>";
         }).join("") + "</div>"
       : "";
-    return '<div class="spark-wrap" style="height:' + (heightPx || 90) + 'px;">' +
-      '<svg viewBox="0 0 100 100" preserveAspectRatio="none" class="spark-svg">' + svgHtml + "</svg>" +
-      dotsHtml + "</div>" +
-      '<div class="spark-labels">' + labelsHtml + "</div>" + legendHtml;
+    var midV = (minV + maxV) / 2;
+    var axisHtml = [maxV, midV, minV].map(function (v, i) {
+      return '<span style="top:' + (i * 50) + '%;">' + _perfFmtTick(v) + "</span>";
+    }).join("");
+    var gridHtml = [0, 50, 100].map(function (top) {
+      return '<div class="spark-gridline" style="top:' + top + '%;"></div>';
+    }).join("");
+    return '<div class="spark-chart-row" style="height:' + (heightPx || 90) + 'px;">' +
+      '<div class="spark-axis">' + axisHtml + "</div>" +
+      '<div class="spark-plot">' +
+        '<div class="spark-gridlines">' + gridHtml + "</div>" +
+        '<svg viewBox="0 0 100 100" preserveAspectRatio="none" class="spark-svg">' + svgHtml + "</svg>" +
+        dotsHtml +
+      "</div></div>" +
+      '<div class="spark-labels-row"><div class="spark-axis-spacer"></div>' +
+      '<div class="spark-labels">' + labelsHtml + "</div></div>" + legendHtml;
   }
   function renderPerfCol(d, levelKey, levelLabel) {
     var lv = d[levelKey];
     var statusCls = perfStatusClass(lv.status);
+    var clickable = lv.percentage !== null ? " pc2-pct-clickable" : "";
     var html = '<div class="pc2-title">' + levelLabel + " Performance</div>" +
-      '<div class="pc2-pct ' + statusCls + '">' + perfPct(lv.percentage) + "</div>" +
+      '<div class="pc2-pct ' + statusCls + clickable + '" data-dept="' + d.name.replace(/"/g, "&quot;") +
+      '" data-level="' + levelKey + '">' + perfPct(lv.percentage) + "</div>" +
       '<span class="pc2-status ' + statusCls + '">' + lv.status + "</span>" +
       '<div class="pc2-label">Monthly Trend &amp; Variance</div>' +
       '<div class="pc2-flex-row">' + perfTrendWord(lv) + perfVariance(lv) + "</div>" +
@@ -2319,20 +2341,30 @@
       buildTrendChartHtml([{ label: d.name, color: levelKey === "l1" ? "#667eea" : "#764ba2", points: lv.history }], 70);
     return html;
   }
+  function perfTrackedDepts() {
+    return perfData.departments.filter(function (d) { return d.has_data; });
+  }
   function renderPerfCards() {
     var wrap = document.getElementById("perfCardGrid");
     wrap.innerHTML = "";
-    var depts = perfData.departments.filter(function (d) {
-      return !perfSearchTerm || d.name.toLowerCase().indexOf(perfSearchTerm) !== -1;
+    var chipNames = Object.keys(perfChipSelected);
+    var tracked = perfTrackedDepts();
+    var depts = tracked.filter(function (d) {
+      if (perfSearchTerm && d.name.toLowerCase().indexOf(perfSearchTerm) === -1) return false;
+      if (chipNames.length && !perfChipSelected[d.name]) return false;
+      if (perfStatusFilter && d[perfStatusFilter.level].status !== perfStatusFilter.status) return false;
+      return true;
     });
-    if (!depts.length) { wrap.appendChild(el("div", "empty-state", "No departments match your search.")); return; }
+    var footer = document.getElementById("perfDeptFooter");
+    if (footer) footer.textContent = "Showing " + depts.length + " of " + tracked.length + " departments.";
+    if (!depts.length) { wrap.appendChild(el("div", "empty-state", "No departments match your filters.")); return; }
     depts.forEach(function (d) {
       var card = el("div", "card perf-card2");
       var head = el("div", "perf-card2-head");
       head.appendChild(el("div", "perf-card2-name", deptLabel(d.name, d.number)));
       var actions = el("div", "perf-card2-actions");
       var historyBtn = el("button", "perf-history-btn", "History");
-      historyBtn.addEventListener("click", function (e) { e.stopPropagation(); openPerfCompareModal([d]); });
+      historyBtn.addEventListener("click", function (e) { e.stopPropagation(); openPerfHistoryModal(d); });
       actions.appendChild(historyBtn);
       var compareLbl = el("label", "perf-compare-check");
       var compareCb = document.createElement("input");
@@ -2367,11 +2399,57 @@
     document.getElementById("perfCompareCount").textContent = names.length + " selected";
     document.getElementById("perfCompareGo").disabled = names.length < 2;
   }
+  function perfStatusFor(pct, minAcceptable) {
+    if (pct === null || pct === undefined) return "N/A";
+    if (pct >= 90) return "Excellent";
+    if (pct >= minAcceptable) return "Acceptable";
+    return "Needs Action";
+  }
+  // Item [performance history]: per-card "History" -- the last up to 3
+  // recorded periods (2 completed months + the live "Current") for just
+  // that one department, laid out as a period-over-period comparison: each
+  // column's Change is vs the column immediately to its left (not vs the
+  // first month, which is what the card's own YTD row already shows), and
+  // the first column reads "baseline" since there's nothing before it to
+  // compare against.
+  function openPerfHistoryModal(d) {
+    document.getElementById("perfCompareTitle").innerHTML = deptLabel(d.name, d.number) + " &#8211; Period Comparison";
+    var body = document.getElementById("perfCompareBody");
+    body.innerHTML = ["l1", "l0"].map(function (levelKey) {
+      var lv = d[levelKey];
+      var periods = lv.history.slice(-3);
+      var levelLabel = levelKey.toUpperCase() + " Performance";
+      var rows = "";
+      rows += '<tr class="pcmp-head-row"><td></td>' + periods.map(function (p) { return "<td>" + p.month + "</td>"; }).join("") + "</tr>";
+      rows += "<tr><td>Performance</td>" + periods.map(function (p) {
+        var st = perfStatusFor(p.pct, d.min_acceptable);
+        var clickable = p.month === "Current" && p.pct !== null ? " pc2-pct-clickable" : "";
+        var attrs = p.month === "Current" ? ' data-dept="' + d.name.replace(/"/g, "&quot;") + '" data-level="' + levelKey + '"' : "";
+        return '<td class="pcmp-pct ' + perfStatusClass(st) + clickable + '"' + attrs + ">" + perfPct(p.pct) + "</td>";
+      }).join("") + "</tr>";
+      rows += "<tr><td>Status</td>" + periods.map(function (p) {
+        var st = perfStatusFor(p.pct, d.min_acceptable);
+        return '<td><span class="pc2-status ' + perfStatusClass(st) + '">' + st + "</span></td>";
+      }).join("") + "</tr>";
+      rows += "<tr><td>Change</td>" + periods.map(function (p, i) {
+        if (i === 0) return '<td><span class="pc2-ytd-range">baseline</span></td>';
+        var prev = periods[i - 1];
+        if (p.pct === null || p.pct === undefined || prev.pct === null || prev.pct === undefined) return "<td>&#8213;</td>";
+        var delta = p.pct - prev.pct;
+        var cls = delta > 0 ? "up" : (delta < 0 ? "down" : "stable");
+        var sign = delta > 0 ? "+" : "";
+        return '<td><span class="pc2-ytd-delta ' + cls + '">' + sign + delta.toFixed(2) + '%</span>' +
+          '<div class="pc2-ytd-sub">vs ' + prev.month + "</div></td>";
+      }).join("") + "</tr>";
+      var seriesList = [{ label: d.name, color: levelKey === "l1" ? "#667eea" : "#764ba2", points: periods }];
+      return '<div class="pcmp-section-head">' + levelLabel + "</div>" +
+        '<div class="pcmp-table-wrap"><table class="pcmp-table"><tbody>' + rows + "</tbody></table></div>" +
+        buildTrendChartHtml(seriesList, 170);
+    }).join("");
+    document.getElementById("perfCompareOverlay").hidden = false;
+  }
   function openPerfCompareModal(depts) {
-    var title = depts.length === 1
-      ? deptLabel(depts[0].name, depts[0].number) + " &#8211; History"
-      : "Department Comparison";
-    document.getElementById("perfCompareTitle").innerHTML = title;
+    document.getElementById("perfCompareTitle").innerHTML = "Department Comparison";
     var body = document.getElementById("perfCompareBody");
     body.innerHTML = ["l1", "l0"].map(function (levelKey) {
       var levelLabel = levelKey.toUpperCase() + " Performance";
@@ -2381,7 +2459,9 @@
       }).join("") + "</tr>";
       rows += "<tr><td>Performance</td>" + depts.map(function (d) {
         var lv = d[levelKey];
-        return '<td class="pcmp-pct ' + perfStatusClass(lv.status) + '">' + perfPct(lv.percentage) + "</td>";
+        var clickable = lv.percentage !== null ? " pc2-pct-clickable" : "";
+        return '<td class="pcmp-pct ' + perfStatusClass(lv.status) + clickable + '" data-dept="' +
+          d.name.replace(/"/g, "&quot;") + '" data-level="' + levelKey + '">' + perfPct(lv.percentage) + "</td>";
       }).join("") + "</tr>";
       rows += "<tr><td>Status</td>" + depts.map(function (d) {
         var lv = d[levelKey];
@@ -2421,24 +2501,123 @@
     renderPerfCompareBar();
     renderPerfCards();
   });
+  // Item [performance history]: "click a percentage to see the math" --
+  // itemized cohort breakdown, per architecture_map.md section 5's
+  // "drill-down why this score" modal. Delegated so it works from the
+  // card grid and the Compare/History modal's Current-period cells alike.
+  async function openPerfBreakdownModal(deptName, levelKey) {
+    var data;
+    try {
+      data = await api("/api/dashboard/performance/breakdown?department=" + encodeURIComponent(deptName) +
+        "&stage=" + encodeURIComponent(levelKey.toUpperCase()));
+    } catch (err) { showToast("Could not load breakdown &#8211; " + apiErrorDetail(err), true); return; }
+    document.getElementById("perfBreakdownTitle").innerHTML = deptName + " &#8211; " + levelKey.toUpperCase() + " Calculation Breakdown";
+    var body = document.getElementById("perfBreakdownBody");
+    var html = "";
+    if (data.aggregation === "per_item_averaged") {
+      html += '<p class="pbd-note">L0 averages each deliverable item\'s own submitted &#247; due ratio, then averages those ratios equally.</p>';
+      html += '<table class="pcmp-table pbd-table"><thead><tr><th>Item</th><th>Name</th><th>Points</th><th>Due</th><th>Ratio</th></tr></thead><tbody>';
+      data.per_item_groups.forEach(function (g) {
+        html += "<tr><td>" + g.item_no + "</td><td>" + g.name + "</td><td>" + g.points + "</td><td>" + g.due + "</td><td>" + g.pct + "%</td></tr>";
+      });
+      html += "</tbody></table>";
+      html += '<div class="pbd-total">Overall = average of ' + data.per_item_groups.length + ' item ratios = <b>' +
+        (data.overall_pct === null ? "&#8213;" : data.overall_pct + "%") + "</b></div>";
+    } else {
+      html += '<p class="pbd-note">L1 pools every due submission\'s points into one ratio.</p>';
+      html += '<div class="pbd-total">Overall = ' + data.overall_points + " points &#247; " + data.overall_due +
+        " due items = <b>" + (data.overall_pct === null ? "&#8213;" : data.overall_pct + "%") + "</b></div>";
+    }
+    html += '<table class="pcmp-table pbd-table"><thead><tr><th>Item</th><th>Name</th><th>Project</th><th>Due</th><th>Submitted</th><th>Status</th><th>Points</th></tr></thead><tbody>';
+    data.items.forEach(function (it) {
+      html += "<tr><td>" + it.item_no + "</td><td>" + it.name + "</td><td>" + it.project + "</td>" +
+        "<td>" + (it.due_date ? fmtDate(it.due_date) : "&#8213;") + "</td>" +
+        "<td>" + (it.submitted_date ? fmtDate(it.submitted_date) : "Not submitted") + "</td>" +
+        "<td>" + it.status + "</td><td>" + it.points + "</td></tr>";
+    });
+    html += "</tbody></table>";
+    body.innerHTML = html;
+    document.getElementById("perfBreakdownOverlay").hidden = false;
+  }
+  function closePerfBreakdownModal() { document.getElementById("perfBreakdownOverlay").hidden = true; }
+  document.getElementById("perfBreakdownClose").addEventListener("click", closePerfBreakdownModal);
+  document.getElementById("perfBreakdownOverlay").addEventListener("click", function (e) { if (e.target === this) closePerfBreakdownModal(); });
+  [document.getElementById("perfCardGrid"), document.getElementById("perfCompareBody")].forEach(function (container) {
+    container.addEventListener("click", function (e) {
+      var target = e.target.closest(".pc2-pct-clickable");
+      if (!target) return;
+      openPerfBreakdownModal(target.dataset.dept, target.dataset.level);
+    });
+  });
   document.getElementById("perfSearch").addEventListener("input", function (e) {
     perfSearchTerm = e.target.value.trim().toLowerCase();
+    renderPerfChips();
     renderPerfCards();
   });
+  document.getElementById("perfPrintBtn").addEventListener("click", function () { window.print(); });
+  function renderPerfSummaryCards() {
+    var strip = document.getElementById("perfSummaryStrip");
+    strip.innerHTML = "";
+    var tracked = perfTrackedDepts();
+    ["l1", "l0"].forEach(function (levelKey) {
+      var vals = tracked.map(function (d) { return d[levelKey].percentage; }).filter(function (v) { return v !== null; });
+      var avg = vals.length ? Math.round((vals.reduce(function (a, b) { return a + b; }, 0) / vals.length) * 10) / 10 : null;
+      var counts = { Excellent: 0, Acceptable: 0, "Needs Action": 0 };
+      tracked.forEach(function (d) { var st = d[levelKey].status; if (counts.hasOwnProperty(st)) counts[st]++; });
+      var totalRated = counts.Excellent + counts.Acceptable + counts["Needs Action"];
+      var projectCount = levelKey === "l1" ? perfData.l1_project_count : perfData.l0_project_count;
+      var card = el("div", "card perf-summary-card2 " + levelKey);
+      var barSegs = ["Excellent", "Acceptable", "Needs Action"].map(function (status) {
+        var n = counts[status];
+        var w = totalRated ? (n / totalRated * 100) : 0;
+        return '<div class="psb-seg ' + perfStatusClass(status) + '" style="width:' + w + '%;"></div>';
+      }).join("");
+      var legendHtml = ["Excellent", "Acceptable", "Needs Action"].map(function (status) {
+        var active = perfStatusFilter && perfStatusFilter.level === levelKey && perfStatusFilter.status === status;
+        return '<span class="psc2-legend-item ' + perfStatusClass(status) + (active ? " active" : "") +
+          '" data-level="' + levelKey + '" data-status="' + status + '"><span class="dot"></span>' + counts[status] + " " + status + "</span>";
+      }).join("");
+      card.innerHTML = '<div class="psc2-head"><span class="psc2-title">' + levelKey.toUpperCase() + ' Performance</span>' +
+        '<span class="psc2-avg">' + (avg === null ? "&#8213;" : avg + "%") + ' <span class="psc2-avg-lbl">AVG</span></span></div>' +
+        '<div class="psc2-pill">Total Number of ' + levelKey.toUpperCase() + " Projects: " + projectCount + "</div>" +
+        '<div class="psc2-body">' +
+          '<div class="psc2-count"><b>' + totalRated + '</b><span>DEPARTMENTS</span></div>' +
+          '<div class="psc2-bar-wrap"><div class="psc2-bar">' + barSegs + '</div>' +
+            '<div class="psc2-legend">' + legendHtml + "</div></div>" +
+        "</div>" +
+        '<div class="psc2-hint">Click a status to filter</div>';
+      strip.appendChild(card);
+      card.querySelectorAll("[data-status]").forEach(function (item) {
+        item.addEventListener("click", function () {
+          var level = item.dataset.level, status = item.dataset.status;
+          perfStatusFilter = (perfStatusFilter && perfStatusFilter.level === level && perfStatusFilter.status === status)
+            ? null : { level: level, status: status };
+          renderPerfSummaryCards();
+          renderPerfCards();
+        });
+      });
+    });
+  }
+  function renderPerfChips() {
+    var wrap = document.getElementById("perfDeptChips");
+    wrap.innerHTML = "";
+    perfTrackedDepts().forEach(function (d) {
+      var dim = perfSearchTerm && d.name.toLowerCase().indexOf(perfSearchTerm) === -1;
+      var chip = el("span", "perf-chip" + (perfChipSelected[d.name] ? " active" : "") + (dim ? " dim" : ""),
+        deptLabel(d.name, d.number));
+      chip.addEventListener("click", function () {
+        if (perfChipSelected[d.name]) delete perfChipSelected[d.name]; else perfChipSelected[d.name] = true;
+        renderPerfChips();
+        renderPerfCards();
+      });
+      wrap.appendChild(chip);
+    });
+  }
   async function loadPerformance() {
     perfData = await api("/api/dashboard/performance");
     document.getElementById("perfFreshness").textContent = "Data as of " + fmtDate(perfData.data_as_of);
-    var strip = document.getElementById("perfSummaryStrip");
-    strip.innerHTML = "";
-    ["l1", "l0"].forEach(function (key) {
-      var vals = perfData.departments.map(function (d) { return d[key].percentage; }).filter(function (v) { return v !== null; });
-      var avg = vals.length ? Math.round((vals.reduce(function (a, b) { return a + b; }, 0) / vals.length) * 10) / 10 : null;
-      var card = el("div", "card perf-summary-card " + key);
-      card.innerHTML = '<div class="psc-head"><span class="psc-title">' + key.toUpperCase() + ' Average</span>' +
-        '<span class="psc-avg">' + (avg === null ? "&#8213;" : avg + "%") + '</span></div>' +
-        '<div class="psc-count">' + vals.length + " of " + perfData.departments.length + " departments have tracked " + key.toUpperCase() + " items</div>";
-      strip.appendChild(card);
-    });
+    renderPerfSummaryCards();
+    renderPerfChips();
     renderPerfCards();
     renderPerfCompareBar();
     // Item 117: only admins get the "Manage Tracking" sub-tab; everyone
