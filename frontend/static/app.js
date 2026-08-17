@@ -231,13 +231,34 @@
   // acting as themselves (Owner role, since that's the role they'd pick to
   // represent themselves elsewhere in the app) can see it too, scoped
   // server-side to just their own tenders.
-  // Item 160: BM Triage Status is the admin-facing overview of every
-  // project's triage state -- it used to also show for "Owner" since
-  // there's no distinct Bid Manager role in the switcher, but a real BM's
-  // own forced triage flow (checkBmTriageDeadline's overlay, openTriage)
-  // is email-matched and independent of this nav item, so restricting the
-  // nav item itself to Admin doesn't block anyone's actual triage work.
-  function canSeeBmTriage() { return can("create"); }
+  // Item 164: back to showing it for Owner, but only when the acting email
+  // is actually an active Bid Manager -- every other Owner, and SME/Viewer
+  // entirely, have no use for it. The BM roster is fetched once and cached,
+  // same pattern as _getRoster()/_rosterCache for the SME/Owner picker.
+  var _bmEmailSet = null;
+  async function _getBmEmailSet() {
+    if (_bmEmailSet) return _bmEmailSet;
+    try {
+      var bms = await api("/api/departments/bid-managers");
+      _bmEmailSet = new Set(bms.filter(function (b) { return b.active; })
+        .map(function (b) { return b.email.trim().toLowerCase(); }));
+    } catch (e) { _bmEmailSet = new Set(); }
+    return _bmEmailSet;
+  }
+  var _canSeeBmTriageCached = true; // matches the default CURRENT_ROLE of "Admin"
+  async function _refreshCanSeeBmTriage() {
+    if (CURRENT_ROLE === "Admin") { _canSeeBmTriageCached = true; return true; }
+    if (CURRENT_ROLE !== "Owner") { _canSeeBmTriageCached = false; return false; }
+    var email = actingEmail().trim().toLowerCase();
+    if (!email) { _canSeeBmTriageCached = false; return false; }
+    var set = await _getBmEmailSet();
+    _canSeeBmTriageCached = set.has(email);
+    return _canSeeBmTriageCached;
+  }
+  // switchView needs a synchronous answer (no flash of content while an
+  // async roster fetch resolves), so it reads this cache -- kept current by
+  // _refreshCanSeeBmTriage() on every role/acting-email change below.
+  function canSeeBmTriage() { return _canSeeBmTriageCached; }
   // Item 158: Viewer has no upload/review/create actions at all, so a work
   // queue of assigned items has nothing for them to do with it.
   function canSeeAssigned() { return CURRENT_ROLE !== "Viewer"; }
@@ -3535,7 +3556,7 @@
     });
     quickPick.style.display = emails.length ? "" : "none";
   }
-  document.getElementById("roleSelect").addEventListener("change", function (e) {
+  document.getElementById("roleSelect").addEventListener("change", async function (e) {
     CURRENT_ROLE = e.target.value;
     var showAdmin = can("create");
     document.getElementById("adminNav").style.display = showAdmin ? "" : "none";
@@ -3547,6 +3568,7 @@
     // isAssigned) after switching away from Owner/SME -- clear it so
     // Admin/Viewer never inherit whichever email was last typed in.
     if (!actingAsPerson) document.getElementById("actingEmail").value = "";
+    await _refreshCanSeeBmTriage();
     document.getElementById("bmTriageNavItem").hidden = !canSeeBmTriage();
     document.getElementById("assignedNavItem").hidden = !canSeeAssigned();
     populateActingEmailQuickPick();
@@ -3562,9 +3584,12 @@
     document.getElementById("actingEmail").value = e.target.value;
     document.getElementById("actingEmail").dispatchEvent(new Event("change"));
   });
-  document.getElementById("actingEmail").addEventListener("change", function () {
+  document.getElementById("actingEmail").addEventListener("change", async function () {
     if (!document.getElementById("view-announcements").hidden) loadAnnouncements();
     checkBmTriageDeadline();
+    await _refreshCanSeeBmTriage();
+    document.getElementById("bmTriageNavItem").hidden = !canSeeBmTriage();
+    if (!canSeeBmTriage() && !document.getElementById("view-bmtriage").hidden) switchView("dashboard");
   });
   document.getElementById("themeToggle").addEventListener("click", function () {
     var root = document.documentElement;
