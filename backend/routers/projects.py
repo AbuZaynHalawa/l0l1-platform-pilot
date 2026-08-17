@@ -574,6 +574,16 @@ def get_project_history(project_id: int, db: Session = Depends(get_db)):
 
 @router.get("/{project_id}/deliverables", response_model=list[schemas.SubmissionOut])
 def get_deliverables(project_id: int, department: str | None = None, db: Session = Depends(get_db)):
+    import traceback
+    try:
+        return _get_deliverables_impl(project_id, department, db)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"{type(e).__name__}: {e}\n{traceback.format_exc()}")
+
+
+def _get_deliverables_impl(project_id: int, department: str | None, db: Session):
     project = db.get(models.Project, project_id)
     if not project:
         raise HTTPException(404, "Project not found")
