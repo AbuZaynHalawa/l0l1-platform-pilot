@@ -123,6 +123,9 @@ class SubmissionOut(BaseModel):
     # Item 169: set only when due_date is still None because this item is
     # predecessor-gated on a milestone that hasn't been reached yet.
     awaiting_note: str | None = None
+    # Item [early bonus]: the real Calculation Criteria point value earned,
+    # set only once the deliverable is actually Completed.
+    points_earned: float | None = None
 
     class Config:
         from_attributes = True

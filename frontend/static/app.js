@@ -1866,7 +1866,11 @@
       // "Due —" otherwise, with no explanation of what it's actually
       // waiting on.
       var dueLabel = d.due_date ? ("Due " + dueDateHtml(d)) : (d.awaiting_note || "Due " + fmtDate(d.due_date));
-      body.appendChild(el("div", "deliv-due", '<span class="deliv-due-date">' + dueLabel + '</span> ' + statusPillsHtml(d)));
+      // Item [early bonus]: once Completed, show the real point value
+      // earned right in the list row, not just inside the detail modal.
+      var pointsHtml = (d.points_earned !== null && d.points_earned !== undefined)
+        ? ' &middot; ' + pointsEarnedLabel(d.points_earned) : "";
+      body.appendChild(el("div", "deliv-due", '<span class="deliv-due-date">' + dueLabel + '</span> ' + statusPillsHtml(d) + pointsHtml));
       var authorized = isAssigned(d);
       if (authorized && d.completion_note) {
         body.appendChild(el("div", "deliv-comment", "&#128172; " + d.completion_note));

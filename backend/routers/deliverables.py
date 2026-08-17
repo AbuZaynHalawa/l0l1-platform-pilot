@@ -89,6 +89,10 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
             "following": s.id in my_follows,
             "doc_total": doc_counts.get(s.id, 0),
             "awaiting_note": rules.awaiting_milestone_note(db, s),
+            "points_earned": (
+                rules.kpi_points(s.due_date, s.submitted_at.date() if s.submitted_at else None)
+                if s.status == models.SubmissionStatus.APPROVED else None
+            ),
         })
     return out
 
@@ -273,7 +277,13 @@ def mark_complete(submission_id: int, payload: schemas.MarkCompleteRequest, db: 
 
     # SME wins ties (someone assigned as both owner and SME on the same
     # item) — their own Mark Completed is always the stronger, final action.
+    # Item [points bug]: this branch never recorded submitted_at (only the
+    # Owner branch below did), so kpi_points had nothing to score from --
+    # every Admin-triggered completion took this branch too, since
+    # rules.can_act() treats Admin as passing every actor check, so is_sme
+    # is always true for Admin regardless of who's actually assigned.
     if is_sme:
+        sub.submitted_at = sub.submitted_at or datetime.utcnow()
         _finalize_approval(db, sub, comment, payload.actor_name, actor_email=payload.actor_email)
         return {"status": "ok", "completed": True}
 

@@ -598,6 +598,10 @@ def get_deliverables(project_id: int, department: str | None = None, db: Session
     out = []
     for s in subs:
         deadline_key, deadline_days = rules.deadline_status(s)
+        points_earned = (
+            rules.kpi_points(s.due_date, s.submitted_at.date() if s.submitted_at else None)
+            if s.status == models.SubmissionStatus.APPROVED else None
+        )
         out.append(schemas.SubmissionOut(
             id=s.id, item_no=s.definition.item_no, name=rules.display_name(s.definition, project),
             department=s.definition.department.name, due_date=s.due_date, status=s.status.value,
@@ -610,6 +614,7 @@ def get_deliverables(project_id: int, department: str | None = None, db: Session
             is_milestone=s.definition.is_milestone, milestone_code=s.definition.milestone_code,
             doc_total=doc_counts.get(s.id, 0),
             awaiting_note=rules.awaiting_milestone_note(db, s),
+            points_earned=points_earned,
         ))
     db.commit()
 
