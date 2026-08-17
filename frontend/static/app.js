@@ -1604,6 +1604,60 @@
     }
   }
 
+  // Item [action-comment-modal]: replaces the native prompt()/confirm()
+  // pair used for Mark Completed / Confirm Completion / Send Back with a
+  // real, centered modal. Returns a Promise resolving to {comment, file}
+  // on Confirm, or null on Cancel/close -- same call shape as the old
+  // `var x = prompt(...); if (x === null) return;` pattern it replaces.
+  function openActionCommentModal(cfg) {
+    return new Promise(function (resolve) {
+      document.getElementById("actionCommentTitle").textContent = cfg.title;
+      document.getElementById("actionCommentHint").textContent = cfg.hint || "";
+      var textEl = document.getElementById("actionCommentText");
+      textEl.value = cfg.defaultValue || "";
+      textEl.placeholder = cfg.placeholder || "";
+      var fileRow = document.getElementById("actionCommentFileRow");
+      var fileInput = document.getElementById("actionCommentFile");
+      var fileNameEl = document.getElementById("actionCommentFileName");
+      fileInput.value = "";
+      fileNameEl.textContent = "";
+      fileRow.hidden = !cfg.allowFile;
+      var confirmBtn = document.getElementById("actionCommentConfirm");
+      confirmBtn.textContent = cfg.confirmLabel;
+      confirmBtn.className = "btn " + (cfg.confirmVariant === "crit" ? "ghost-crit" : "primary");
+      var cancelBtn = document.getElementById("actionCommentCancel");
+      var closeBtn = document.getElementById("actionCommentClose");
+      var overlay = document.getElementById("actionCommentOverlay");
+
+      function cleanup() {
+        overlay.hidden = true;
+        confirmBtn.removeEventListener("click", onConfirm);
+        cancelBtn.removeEventListener("click", onCancel);
+        closeBtn.removeEventListener("click", onCancel);
+        fileInput.removeEventListener("change", onFileChange);
+      }
+      function onFileChange() { fileNameEl.textContent = fileInput.files[0] ? fileInput.files[0].name : ""; }
+      function onConfirm() {
+        var comment = textEl.value.trim();
+        if (cfg.required && !comment) {
+          showToast(cfg.requiredMessage || "A comment is required", true);
+          return;
+        }
+        var file = fileInput.files[0] || null;
+        cleanup();
+        resolve({ comment: comment, file: file });
+      }
+      function onCancel() { cleanup(); resolve(null); }
+
+      confirmBtn.addEventListener("click", onConfirm);
+      cancelBtn.addEventListener("click", onCancel);
+      closeBtn.addEventListener("click", onCancel);
+      fileInput.addEventListener("change", onFileChange);
+      overlay.hidden = false;
+      textEl.focus();
+    });
+  }
+
   // Item 46 (picker rework): a small reusable edit modal covering every
   // real-picker case this project detail page needs -- checkboxes
   // (Scope/Business Unit/Region), a single dropdown (Bid Manager), a
@@ -1790,10 +1844,14 @@
     after = after || refreshCurrentFolder;
     var btn = el("button", "btn", "Mark Completed");
     btn.addEventListener("click", async function () {
-      var comment = prompt("Describe how this was completed (required — no file to attach):", "");
-      if (comment === null) return;
-      comment = comment.trim();
-      if (!comment) { showToast("A comment is required to mark this complete", true); return; }
+      var result = await openActionCommentModal({
+        title: "Mark Completed", hint: "Describe how this was completed — no file to attach here.",
+        placeholder: "e.g. Uploaded via email, confirmed by client…",
+        required: true, requiredMessage: "A comment is required to mark this complete",
+        confirmLabel: "Mark Completed", allowFile: false,
+      });
+      if (!result) return;
+      var comment = result.comment;
       try {
         await api("/api/deliverables/" + submissionId + "/mark-complete", {
           method: "POST", headers: { "Content-Type": "application/json" },
@@ -1826,28 +1884,22 @@
     return btn;
   }
   async function review(submissionId, approved, after) {
-    var comment;
-    if (approved) {
-      comment = prompt("Add a comment (optional):", "");
-      if (comment === null) return;
-      comment = comment.trim() || null;
-    } else {
-      comment = prompt("Reason for rejection (shown to the owner):", "Please review and resubmit with updated supporting documents.");
-      if (comment === null) return;
-    }
-    // Item 152: optional attachment as part of the decision (e.g. a
-    // marked-up file or reference doc) -- native confirm+file-picker,
-    // matching this app's existing lightweight prompt()-based quick-action
-    // pattern rather than a new custom modal just for this one step.
-    var file = null;
-    if (confirm("Attach a document to this decision? (optional)")) {
-      file = await new Promise(function (resolve) {
-        var input = document.createElement("input");
-        input.type = "file";
-        input.addEventListener("change", function () { resolve(input.files[0] || null); });
-        input.click();
-      });
-    }
+    // Item 152's optional attachment (e.g. a marked-up file or reference
+    // doc) is now just part of the same modal's file row, instead of a
+    // separate confirm()+file-picker step.
+    var result = approved
+      ? await openActionCommentModal({
+          title: "Confirm Completion", hint: "Add a comment (optional).",
+          placeholder: "Optional comment…", confirmLabel: "Confirm", allowFile: true,
+        })
+      : await openActionCommentModal({
+          title: "Send Back", hint: "Reason for rejection (shown to the owner).",
+          defaultValue: "Please review and resubmit with updated supporting documents.",
+          confirmLabel: "Send Back", confirmVariant: "crit", allowFile: true,
+        });
+    if (!result) return;
+    var comment = result.comment || null;
+    var file = result.file;
     var fd = new FormData();
     fd.append("approved", approved ? "true" : "false");
     fd.append("comment", comment || "");

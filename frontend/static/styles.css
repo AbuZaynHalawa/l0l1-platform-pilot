@@ -368,6 +368,11 @@
   .modal-actions-row .btn { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
   .modal-actions-row .btn:hover { filter: brightness(0.97); }
   .modal-actions-row .btn.primary { background: linear-gradient(135deg, var(--purple-1), var(--purple-2)); color: #fff; }
+  .modal-actions-row .btn.ghost-crit { background: var(--crit-bg); color: var(--crit); }
+  /* Item [action-comment-modal]: Mark Completed / Confirm / Send Back now
+     open a real centered modal instead of the browser's native prompt(). */
+  #actionCommentText { border: 1px solid var(--line); background: var(--surface-sunken); border-radius: 9px; padding: 10px 12px; font-size: 13px; color: var(--ink-900); font-family: inherit; }
+  #actionCommentText:focus { background: var(--surface); border-color: var(--accent-line); outline: none; }
   /* Item 143: nudge shown once every uploaded doc is approved ("Mark
      Completed if no more documents are needed") or while awaiting the
      SME's completion confirmation -- same visual weight as the tour's own

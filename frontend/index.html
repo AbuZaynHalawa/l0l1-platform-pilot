@@ -821,6 +821,33 @@
 <!-- Item 46: Scope/Business Unit/Bid Manager/date edits -- a real picker
      (checkboxes, a dropdown, or a native date input) instead of a
      free-text prompt(), same visual language as the create form. -->
+<!-- Item [action-comment-modal]: replaces the native prompt()/confirm() pair
+     used for Mark Completed / Confirm Completion / Send Back with a real,
+     centered modal matching the rest of the app. -->
+<div class="modal-overlay" id="actionCommentOverlay" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <div><h2 id="actionCommentTitle"></h2></div>
+      <button class="modal-close" id="actionCommentClose">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <p class="sub" id="actionCommentHint" style="margin-bottom:10px;"></p>
+      <textarea id="actionCommentText" rows="4" style="width:100%;resize:vertical;"></textarea>
+      <div id="actionCommentFileRow" style="margin-top:14px;" hidden>
+        <label class="btn" id="actionCommentFileLabel" style="display:inline-flex;cursor:pointer;">
+          Attach a document (optional)
+          <input type="file" id="actionCommentFile" style="display:none;" />
+        </label>
+        <span id="actionCommentFileName" style="margin-left:10px;font-size:12.5px;color:var(--ink-500);"></span>
+      </div>
+      <div class="modal-actions-row" style="margin-top:20px;">
+        <button class="btn" id="actionCommentCancel">Cancel</button>
+        <button class="btn primary" id="actionCommentConfirm"></button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Item 42: full overdue-items list for one department/level, opened from
      a Performance card's "View all" link. -->
 <div class="modal-overlay" id="perfDueOverlay" hidden>
