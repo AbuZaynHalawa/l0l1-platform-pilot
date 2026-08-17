@@ -70,7 +70,7 @@
     -webkit-font-smoothing: antialiased;
   }
   h1, h2, h3 { font-family: var(--font); font-weight: 700; text-wrap: balance; color: var(--ink-900); margin: 0; }
-  .num { font-variant-numeric: tabular-nums; }
+  .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
   a { color: inherit; }
   button { font-family: inherit; }
   select { font-family: inherit; }
@@ -258,7 +258,7 @@
   table.data tbody tr:hover { background: var(--surface-sunken); }
   table.data tbody tr:last-child td { border-bottom: none; }
   .est-no { color: var(--purple-1); font-weight: 700; white-space: nowrap; }
-  .proj-name { display: block; max-width: 340px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .proj-name { display: block; max-width: 340px; white-space: normal; }
   .mini-stepper { display: flex; gap: 3px; }
   .mini-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line); }
   .mini-dot.on { background: var(--purple-1); }
