@@ -2895,6 +2895,17 @@
     var pid = document.getElementById("supEstNo").value;
     if (!pid) return;
     var delivs = await api("/api/projects/" + pid + "/deliverables");
+    // The question is only ever routed to Admins (blank target) or a real
+    // SME email (never a name) -- when a specific SME is picked, only show
+    // deliverables actually assigned to them on Focal Points, so the asker
+    // can't pick an item that person has nothing to do with.
+    var target = document.getElementById("supTarget").value;
+    if (target) {
+      var targetLower = target.trim().toLowerCase();
+      delivs = delivs.filter(function (d) {
+        return (d.sme_emails || []).some(function (e) { return (e || "").trim().toLowerCase() === targetLower; });
+      });
+    }
     delivs.forEach(function (d) {
       var opt = document.createElement("option");
       opt.value = d.item_no + " " + d.name; opt.textContent = d.item_no + " · " + d.name;
@@ -2903,6 +2914,7 @@
   }
   document.getElementById("supStage").addEventListener("change", _populateSupEstNo);
   document.getElementById("supEstNo").addEventListener("change", _populateSupDeliverable);
+  document.getElementById("supTarget").addEventListener("change", _populateSupDeliverable);
 
   // Item 37: "Direct to" picker, populated with real SMEs from the roster
   // (item 75's role field) so the asker can address a specific person
