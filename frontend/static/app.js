@@ -235,7 +235,7 @@
     dashboard: loadDashboard, assigned: loadAssigned, announcements: loadAnnouncements,
     l0: function () { loadProjectsTable("L0"); }, l1: function () { loadProjectsTable("L1"); },
     performance: loadPerformance, reports: loadReports, create: loadCreateOptions, gantt: loadGantt,
-    scores: loadScores, focalpoints: loadFocalPoints, followup: loadFollowUp,
+    journey: loadJourney, scores: loadScores, focalpoints: loadFocalPoints, followup: loadFollowUp,
     support: loadSupport, bmtriage: loadBmTriageStatus, tickets: loadTickets,
   };
   var ADMIN_ONLY_VIEWS = ["create", "reports", "scores", "focalpoints", "followup", "tickets"];
@@ -1097,7 +1097,16 @@
     renderTourStep();
     document.getElementById("tourOverlay").hidden = false;
   }
-  function closeTour() { document.getElementById("tourOverlay").hidden = true; }
+  function closeTour() {
+    document.getElementById("tourOverlay").hidden = true;
+    // The "L0/L1 History" nav item has no real page of its own -- it just
+    // opens this modal (see loadJourney) -- so closing it while that's the
+    // active view would otherwise strand the user on its bare fallback
+    // screen (an empty background with just a "reopen" button). Land back
+    // on the Dashboard instead, same as if they'd navigated there directly.
+    if (!document.getElementById("view-journey").hidden) switchView("dashboard");
+  }
+  document.getElementById("tourStartBtn").addEventListener("click", function () { openTour(false); });
   document.getElementById("tourClose").addEventListener("click", closeTour);
   document.getElementById("tourOverlay").addEventListener("click", function (e) {
     if (e.target.id === "tourOverlay" && !tourLocked) closeTour();
@@ -2769,6 +2778,14 @@
       r.appendChild(el("span", "pill " + ev.cls, '<span class="dot"></span>' + ev.label));
       wrap.appendChild(r);
     });
+  }
+
+  /* ================= JOURNEY / HISTORY ================= */
+  async function loadJourney() {
+    // Item 131 rework: the tab has no reference page of its own anymore --
+    // opens straight into the walkthrough. Fallback content (just the
+    // reopen button) stays underneath for when the modal is closed.
+    openTour();
   }
 
   /* ================= ACTIVITY TRAIL (L0 Tenders / L1 Projects tab) ================= */
