@@ -78,7 +78,7 @@
   @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 
   /* ---------- shell ---------- */
-  .shell { display: grid; grid-template-columns: 236px 1fr; min-height: 100vh; }
+  .shell { display: grid; grid-template-columns: 264px 1fr; min-height: 100vh; }
   .rail { background: var(--surface); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 20px 14px; gap: 18px; }
   /* Item 154: hamburger toggle + backdrop, both display:none until the
      mobile breakpoint below turns the rail into an off-canvas drawer. */
