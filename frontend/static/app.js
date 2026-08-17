@@ -44,6 +44,16 @@
     var day = String(d.getDate()).padStart(2, "0");
     return day + "-" + MONTH_ABBR[d.getMonth()] + "-" + d.getFullYear();
   }
+  // Item 169: a predecessor-gated deliverable's due_date/awaiting_note pair
+  // covers two cases -- no date at all yet (awaiting_note replaces the
+  // date entirely) and a date that's already computed but still only
+  // tentative (awaiting_note appends alongside it, in parens). Shared by
+  // every place a deliverable's due date is rendered so the wording/shape
+  // never drifts between them.
+  function dueDateHtml(d) {
+    if (!d.due_date) return d.awaiting_note || fmtDate(d.due_date);
+    return fmtDate(d.due_date) + (d.awaiting_note ? ' <span class="pending-note">(' + d.awaiting_note + ")</span>" : "");
+  }
   // Item 143 (2nd revision): a deliverable now carries two independent
   // status pills -- Deadline (Not Due / Due / On Time / Early / Late, with
   // a day count) and Progress (No Progress Yet / In Progress / Pending SME
@@ -629,10 +639,11 @@
       row.appendChild(el("div", "aqt-cell aqt-ellipsis aqt-focal", d.owner));
       row.appendChild(el("div", "aqt-cell", deadlineStatusCellHtml(d)));
       row.appendChild(el("div", "aqt-cell", progressStatusCellHtml(d)));
-      // Item 169: same milestone-wait note as the project detail list,
-      // instead of a bare "—" for an item with no due date yet.
-      var aqtDueCell = el("div", "aqt-cell aqt-ellipsis aqt-due", (!d.due_date && d.awaiting_note) ? d.awaiting_note : fmtDate(d.due_date));
-      if (!d.due_date && d.awaiting_note) aqtDueCell.title = d.awaiting_note;
+      // Item 169: same predecessor-wait note as the project detail list,
+      // instead of a bare "—" for an item with no due date yet -- or,
+      // alongside an already-computed date that's still only tentative.
+      var aqtDueCell = el("div", "aqt-cell aqt-ellipsis aqt-due", dueDateHtml(d));
+      if (d.awaiting_note) aqtDueCell.title = d.awaiting_note;
       row.appendChild(aqtDueCell);
 
       var authorized = isAssigned(d);
@@ -1142,7 +1153,7 @@
     // picks it up automatically rather than being patched one project at
     // a time from this popup.
     [["Owner", (d.owner_emails && d.owner_emails.length) ? d.owner_emails.join(", ") : "&#8213;"], ["SME", (d.sme_emails && d.sme_emails.length) ? d.sme_emails.join(", ") : "&#8213;"],
-     ["Due Date", (!d.due_date && d.awaiting_note) ? d.awaiting_note : fmtDate(d.due_date)],
+     ["Due Date", dueDateHtml(d)],
      ["Status", statusPillsHtml(d)]]
       .forEach(function (m) {
         var mi = el("div");
@@ -1837,7 +1848,7 @@
       // Item 169: a null due_date pending a milestone reads as a stalled
       // "Due —" otherwise, with no explanation of what it's actually
       // waiting on.
-      var dueLabel = (!d.due_date && d.awaiting_note) ? d.awaiting_note : "Due " + fmtDate(d.due_date);
+      var dueLabel = d.due_date ? ("Due " + dueDateHtml(d)) : (d.awaiting_note || "Due " + fmtDate(d.due_date));
       body.appendChild(el("div", "deliv-due", '<span class="deliv-due-date">' + dueLabel + '</span> ' + statusPillsHtml(d)));
       var authorized = isAssigned(d);
       if (authorized && d.completion_note) {

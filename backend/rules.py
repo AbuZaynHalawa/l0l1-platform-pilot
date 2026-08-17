@@ -423,15 +423,23 @@ def _resolve_predecessor_anchor(db: Session, project: "models.Project", pred_ite
 
 def awaiting_milestone_note(db: Session, sub: "models.DeliverableSubmission",
                              lookup: dict[str, list] | None = None) -> str | None:
-    """Item 169 (extended beyond milestones, per Yasser): when a deliverable
-    has no due date yet because it's predecessor-gated on another item that
-    hasn't been approved, returns a human note instead of leaving the date
-    blank with no explanation -- "Awaiting Contract Signing (M6)" for a
-    milestone predecessor, "Awaiting 3.4 Prepare Risk Register" for an
-    ordinary one. None for anything else (due date is already set, or it's
-    blocked on a non-predecessor anchor like an un-set project date field).
+    """Item 169 (extended twice, per Yasser): a predecessor-gated deliverable
+    whose predecessor isn't approved yet gets a human note instead of no
+    explanation at all -- covering both shapes this takes:
+      - No due date computed yet at all (fully blocked, chain traces back to
+        an unresolved anchor): "Awaiting Contract Signing (M6)" for a
+        milestone predecessor, "Awaiting 3.4 Prepare Risk Register" for an
+        ordinary one.
+      - A due date already computed (predecessor-chain dates shift forward
+        day by day off the predecessor's own due_date even before it's
+        actually done, per recompute_project_due_dates): that date is only
+        an estimate until the predecessor is real, so it still gets a
+        "Pending X completion -- date shown is tentative" note alongside it
+        rather than reading as final.
+    None only when the predecessor itself is already approved, or this
+    isn't a predecessor-anchored item at all (un-set project date field etc).
     """
-    if sub.due_date is not None or sub.definition.anchor_type != "predecessor":
+    if sub.definition.anchor_type != "predecessor":
         return None
     pred_item_no = sub.definition.predecessor_item_no
     if not pred_item_no:
@@ -442,8 +450,12 @@ def awaiting_milestone_note(db: Session, sub: "models.DeliverableSubmission",
             if pred_sub.status != models.SubmissionStatus.APPROVED:
                 if pred_sub.definition.is_milestone:
                     code = pred_sub.definition.milestone_code
-                    return f"Awaiting {pred_sub.definition.name}" + (f" ({code})" if code else "")
-                return f"Awaiting {pred_sub.definition.item_no} {pred_sub.definition.name}"
+                    label = pred_sub.definition.name + (f" ({code})" if code else "")
+                else:
+                    label = f"{pred_sub.definition.item_no} {pred_sub.definition.name}"
+                if sub.due_date is None:
+                    return f"Awaiting {label}"
+                return f"Pending {label} completion &#8211; date shown is tentative"
     return None
 
 
