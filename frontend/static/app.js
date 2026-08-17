@@ -3045,7 +3045,8 @@
       '<span>' + r.email + '</span>' + (context ? '<span class="sep">&middot;</span><span>' + context + "</span>" : "")));
     main.appendChild(el("div", "deliv-comment", r.message));
     (r.messages || []).forEach(function (m) {
-      var mrow = el("div", "deliv-comment", "<b>" + (m.author === "admin" ? "Admin" : "You") + ":</b> " + m.body);
+      var who = m.author === "admin" ? "Admin" : (r.name || r.email || "Asker");
+      var mrow = el("div", "deliv-comment", "<b>" + who + ":</b> " + m.body);
       main.appendChild(mrow);
     });
     row.appendChild(main);
@@ -3055,7 +3056,6 @@
     } else {
       side.appendChild(el("span", "pill warn", '<span class="dot"></span>Open'));
       if (opts.canReply) {
-        var replyInput = el("input"); replyInput.setAttribute("type", "text"); replyInput.placeholder = opts.replyPlaceholder;
         var kbRefSelect = null;
         // Item 150/172.1: admin-only -- point this reply at an existing
         // knowledge base answer instead of writing a fresh one, so
@@ -3069,18 +3069,25 @@
             o.value = e.id;
             kbRefSelect.appendChild(o);
           });
-          kbRefSelect.addEventListener("change", function () {
-            var picked = opts.kbEntries.find(function (e) { return String(e.id) === kbRefSelect.value; });
-            if (picked) replyInput.value = picked.answer;
-          });
           side.appendChild(kbRefSelect);
         }
         var replyBtn = el("button", "btn", "Reply");
         replyBtn.addEventListener("click", async function () {
-          var body = replyInput.value.trim();
-          if (!body) return;
-          var payload = { body: body, actor_role: CURRENT_ROLE, actor_email: myIdentity() };
-          if (kbRefSelect && kbRefSelect.value) payload.kb_reference_id = Number(kbRefSelect.value);
+          var picked = (kbRefSelect && kbRefSelect.value)
+            ? opts.kbEntries.find(function (e) { return String(e.id) === kbRefSelect.value; }) : null;
+          var result = await openActionCommentModal({
+            title: "Reply",
+            hint: opts.replyPlaceholder,
+            placeholder: opts.replyPlaceholder,
+            defaultValue: picked ? picked.answer : "",
+            required: true,
+            requiredMessage: "A reply message is required",
+            confirmLabel: "Send Reply",
+            allowFile: false,
+          });
+          if (!result) return;
+          var payload = { body: result.comment, actor_role: CURRENT_ROLE, actor_email: myIdentity() };
+          if (picked) payload.kb_reference_id = picked.id;
           try {
             await api("/api/support/" + r.id + "/" + opts.replyEndpoint, {
               method: "POST", headers: { "Content-Type": "application/json" },
@@ -3092,7 +3099,6 @@
           }
           opts.onReplied();
         });
-        side.appendChild(replyInput);
         side.appendChild(replyBtn);
       }
       if (opts.canResolve) {
