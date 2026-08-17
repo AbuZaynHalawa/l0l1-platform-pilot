@@ -102,6 +102,12 @@
     color: var(--ink-700); font-size: 13.5px; font-weight: 600; cursor: pointer; border: none; background: none;
     text-align: left; width: 100%; white-space: nowrap;
   }
+  /* Same gotcha as .terminal-banner.triage-banner below: the class's own
+     display:flex outranks the [hidden] attribute's display:none in the
+     cascade, so JS toggling .hidden on a nav item (Assigned Deliverables/
+     BM Triage Status for a role that shouldn't see them) did nothing
+     visually without this explicit override. */
+  .nav-item[hidden] { display: none; }
   .nav-item .ic { width: 17px; text-align: center; opacity: .85; }
   .nav-item:hover { background: var(--surface-sunken); color: var(--ink-900); }
   .nav-item.active {
