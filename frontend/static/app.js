@@ -1116,15 +1116,16 @@
   });
   document.getElementById("tourNext").addEventListener("click", function () {
     if (tourStep < TOUR_STEPS.length - 1) { tourStep++; renderTourStep(); return; }
-    // Clicking "Done" on the last slide used to auto-close the tour --
-    // now it just unlocks it (reveals the X so a first-time forced tour
-    // can finally be dismissed) and leaves it open on the last slide,
-    // so whatever's shown there stays visible until the user closes it.
+    // Reaching the last slide via "Next" already leaves it on screen to
+    // read -- clicking "Done" itself is the real "I'm finished" action, so
+    // it closes the tour exactly like the X does (same dashboard-redirect
+    // logic in closeTour() if it was opened from the Walkthrough tab).
     if (tourLocked) {
       localStorage.setItem("tourCompletedOnce", "1");
       tourLocked = false;
       document.getElementById("tourClose").hidden = false;
     }
+    closeTour();
   });
   async function openDelivModal(submissionId) {
     var qs = passiveIdentity() ? "?actor_email=" + encodeURIComponent(passiveIdentity()) : "";
