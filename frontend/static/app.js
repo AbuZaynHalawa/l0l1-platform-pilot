@@ -360,25 +360,54 @@
     var stats = document.getElementById("statRow");
     stats.innerHTML = "";
     var mine = !!focusEmail;
-    // Item 121: the three deliverable-status cards jump straight to
-    // Assigned Deliverables pre-filtered to match what was clicked,
-    // instead of just being a number you then have to go re-find.
-    [["Active L0 Tenders", d.active_l0, "", null, null], ["Active L1 Projects", d.active_l1, "", null, null],
-     [mine ? "My Not Due" : "Not Due", d.not_due, "", "deadline", "not_due"],
-     [mine ? "My Pending SME Review" : "Pending SME Review", d.pending_review, "", "progress", "pending_review"],
-     [mine ? "My Due" : "Due Right Now", d.overdue, "color:var(--crit)", "deadline", "due"]]
+    // Item [dashboard cards redesign]: project counts get their own more
+    // prominent pair of cards (a real headline number, not just another
+    // tile in a flat row), and every deadline/progress status becomes a
+    // child stat inside one of two parent "Status" cards -- clicking a
+    // child still jumps straight to Assigned Deliverables pre-filtered,
+    // same as the old flat tiles did (item 121).
+    var projectRow = el("div", "dash-project-row");
+    [["L0", mine ? "My Active L0 Tenders" : "Active L0 Tenders", d.active_l0],
+     ["L1", mine ? "My Active L1 Projects" : "Active L1 Projects", d.active_l1]]
       .forEach(function (s) {
-        var tile = el("div", "card stat-tile");
-        if (s[3]) {
-          tile.style.cursor = "pointer";
-          tile.addEventListener("click", function () { goToAssignedFilter(s[3], s[4]); });
-        }
-        tile.appendChild(el("div", "label", s[0]));
-        var v = el("div", "value num", String(s[1]));
-        if (s[2]) v.setAttribute("style", s[2]);
-        tile.appendChild(v);
-        stats.appendChild(tile);
+        var card = el("div", "card dash-project-card " + s[0].toLowerCase());
+        card.innerHTML = '<div class="dpc-tag">' + s[0] + '</div><div class="dpc-value">' + s[2] +
+          '</div><div class="dpc-label">' + s[1] + "</div>";
+        projectRow.appendChild(card);
       });
+    stats.appendChild(projectRow);
+
+    function statusCard(title, children) {
+      var card = el("div", "card dash-status-card");
+      var head = el("div", "dsc-head", title);
+      card.appendChild(head);
+      var kids = el("div", "dsc-children");
+      children.forEach(function (c) {
+        var child = el("div", "dsc-child" + (c[3] ? " " + c[3] : ""));
+        child.innerHTML = '<div class="dsc-child-val">' + c[1] + '</div><div class="dsc-child-label">' + c[0] + "</div>";
+        if (c[2]) {
+          child.style.cursor = "pointer";
+          child.addEventListener("click", function () { goToAssignedFilter(c[2][0], c[2][1]); });
+        }
+        kids.appendChild(child);
+      });
+      card.appendChild(kids);
+      return card;
+    }
+    var statusRow = el("div", "dash-status-row");
+    statusRow.appendChild(statusCard("Deadline Status", [
+      [mine ? "My Not Due" : "Not Due", d.not_due, ["deadline", "not_due"], ""],
+      [mine ? "My Due" : "Due", d.overdue, ["deadline", "due"], "crit"],
+      ["Completed", d.approved, ["progress", "approved"], "good"],
+    ]));
+    statusRow.appendChild(statusCard("Progress Status", [
+      ["No Progress Yet", d.no_progress, ["progress", "no_progress"], ""],
+      ["In Progress", d.in_progress, ["progress", "in_progress"], "warn"],
+      [mine ? "My Pending SME Review" : "Pending SME Review", d.pending_review, ["progress", "pending_review"], "warn"],
+      ["Completed", d.approved, ["progress", "approved"], "good"],
+      ["Rejected", d.rejected, ["progress", "rejected"], "crit"],
+    ]));
+    stats.appendChild(statusRow);
 
     var achievers = await api("/api/dashboard/top-achievers");
     renderAchievers("topOwners", achievers.owners.slice(0, 3), "owner");
@@ -3945,8 +3974,12 @@
     // an exact Est-No match can hit two rows instead of one -- go to
     // whichever is still active (its L1, once the L0 auto-closes) rather
     // than silently doing nothing the way a length!==1 check used to.
-    var exact = match.filter(function (p) { return p.est_no.toLowerCase() === v; });
-    if (exact.length > 1) {
+    // Est numbers were failing (e.g. searching "1800"/"1553") because users
+    // type bare digits, not the "Est-" prefix -- normalize both sides so a
+    // digits-only search still counts as an exact Est-No match.
+    var norm = function (s) { return s.toLowerCase().replace(/^est-/, ""); };
+    var exact = match.filter(function (p) { return norm(p.est_no) === norm(v); });
+    if (exact.length >= 1) {
       var active = exact.filter(function (p) { return p.status === "In Progress"; });
       var pick = (active.length ? active : exact).sort(function (a, b) { return b.id - a.id; })[0];
       openDetail(pick.id); e.target.value = "";

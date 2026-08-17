@@ -45,6 +45,16 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
     overdue = sum(1 for s in stat_subs if rules.deadline_status(s)[0] == "due")
     pending_review = sum(1 for s in stat_subs if s.status == models.SubmissionStatus.PENDING_REVIEW)
     not_due = sum(1 for s in stat_subs if rules.deadline_status(s)[0] == "not_due")
+    # Item [dashboard cards redesign]: Progress Status breakdown, same
+    # bucket set as the Assigned Deliverables filter chips (PROGRESS_FILTERS
+    # in app.js) -- Deadline Status reuses these same counts for its own
+    # "Completed" child (deadline_bucket() already folds any Approved item
+    # into "completed" regardless of its actual due date), so there's no
+    # separate query for that.
+    no_progress = sum(1 for s in stat_subs if s.status == models.SubmissionStatus.NO_PROGRESS)
+    in_progress = sum(1 for s in stat_subs if s.status == models.SubmissionStatus.IN_PROGRESS)
+    approved = sum(1 for s in stat_subs if s.status == models.SubmissionStatus.APPROVED)
+    rejected = sum(1 for s in stat_subs if s.status == models.SubmissionStatus.REJECTED)
 
     dept_rows = []
     for dept in db.query(models.Department).order_by(models.Department.number).all():
@@ -94,6 +104,7 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
     return {
         "active_l0": l0_count, "active_l1": l1_count, "signed": signed_count,
         "overdue": overdue, "pending_review": pending_review, "not_due": not_due,
+        "no_progress": no_progress, "in_progress": in_progress, "approved": approved, "rejected": rejected,
         "departments": dept_rows, "concerns": concerns,
     }
 
