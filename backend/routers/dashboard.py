@@ -457,6 +457,19 @@ def _status(pct: float | None, min_acceptable: float) -> str:
     return "Needs Action"
 
 
+def _most_recent_known_pct(level: dict) -> float | None:
+    """Live percentage if there's anything due right now, else the most
+    recent *real* historical month on record (never the always-present
+    "Current" placeholder, which is what's None in the first place).
+    """
+    if level["percentage"] is not None:
+        return level["percentage"]
+    for h in reversed(level["history"]):
+        if h["month"] != "Current" and h["pct"] is not None:
+            return h["pct"]
+    return None
+
+
 def _history_and_ytd(db: Session, department_id: int, stage: models.Stage, current_pct: float | None) -> dict:
     """Item [performance history]: every real recorded month (historical
     seed data plus any snapshot captured since) up to but excluding the
@@ -526,8 +539,15 @@ def get_performance(db: Session = Depends(get_db)):
         l1.update(_history_and_ytd(db, dept.id, models.Stage.L1, l1["percentage"]))
         l0.update(_history_and_ytd(db, dept.id, models.Stage.L0, l0["percentage"]))
         min_acceptable = _min_acceptable_for(dept.name)
-        l1["status"] = _status(l1["percentage"], min_acceptable)
-        l0["status"] = _status(l0["percentage"], min_acceptable)
+        # Item [performance history]: a department with nothing due exactly
+        # today still has a real track record if it has recorded history --
+        # status (and therefore the Level Summary Card's Excellent/
+        # Acceptable/Needs Action count) falls back to the most recent
+        # actual month on file rather than reading N/A just because
+        # nothing's due right this moment. The live `percentage` field
+        # itself is untouched (still honestly blank when nothing's due).
+        l1["status"] = _status(_most_recent_known_pct(l1), min_acceptable)
+        l0["status"] = _status(_most_recent_known_pct(l0), min_acceptable)
         # Item [performance history]: some department rows are legacy/
         # duplicate entries left over from before the Operation Units TBU/
         # PBU/DBU/BBU split existed (e.g. "TBU / PBU", "BBU / PBU") -- never

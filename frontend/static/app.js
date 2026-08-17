@@ -2424,47 +2424,78 @@
     if (pct >= minAcceptable) return "Acceptable";
     return "Needs Action";
   }
-  // Item [performance history]: per-card "History" -- the last up to 3
-  // recorded periods (2 completed months + the live "Current") for just
-  // that one department, laid out as a period-over-period comparison: each
-  // column's Change is vs the column immediately to its left (not vs the
-  // first month, which is what the card's own YTD row already shows), and
-  // the first column reads "baseline" since there's nothing before it to
-  // compare against.
+  // Item [performance history]: per-card "History" -- pick any 2+ recorded
+  // periods for just that one department and compare them, laid out as a
+  // period-over-period comparison: each column's Change is vs the column
+  // immediately to its left (not vs the first month, which is what the
+  // card's own YTD row already shows), and the first selected column reads
+  // "baseline" since there's nothing before it to compare against.
   function openPerfHistoryModal(d) {
+    var allMonths = [];
+    ["l1", "l0"].forEach(function (levelKey) {
+      d[levelKey].history.forEach(function (p) { if (allMonths.indexOf(p.month) === -1) allMonths.push(p.month); });
+    });
+    allMonths.sort(function (a, b) { return PERF_MONTH_ORDER.indexOf(a) - PERF_MONTH_ORDER.indexOf(b); });
+    var selected = {};
+    allMonths.slice(-2).forEach(function (m) { selected[m] = true; });
+
+    function renderHistoryBody() {
+      var chosen = allMonths.filter(function (m) { return selected[m]; });
+      var pillsHtml = '<div class="pmonth-picker"><div class="pmonth-label">Select 2+ months to compare:</div>' +
+        '<div class="pmonth-pills">' + allMonths.map(function (m) {
+          return '<button type="button" class="pmonth-pill' + (selected[m] ? " active" : "") + '" data-month="' +
+            m + '">' + m + "</button>";
+        }).join("") + "</div></div>";
+      var sectionsHtml = ["l1", "l0"].map(function (levelKey) {
+        var lv = d[levelKey];
+        var byMonth = {};
+        lv.history.forEach(function (p) { byMonth[p.month] = p.pct; });
+        var periods = chosen.map(function (m) { return { month: m, pct: byMonth.hasOwnProperty(m) ? byMonth[m] : null }; });
+        var levelLabel = levelKey.toUpperCase() + " Performance";
+        var rows = "";
+        rows += '<tr class="pcmp-head-row"><td></td>' + periods.map(function (p) { return "<td>" + p.month + "</td>"; }).join("") + "</tr>";
+        rows += "<tr><td>Performance</td>" + periods.map(function (p) {
+          var st = perfStatusFor(p.pct, d.min_acceptable);
+          var clickable = p.month === "Current" && p.pct !== null ? " pc2-pct-clickable" : "";
+          var attrs = p.month === "Current" ? ' data-dept="' + d.name.replace(/"/g, "&quot;") + '" data-level="' + levelKey + '"' : "";
+          return '<td class="pcmp-pct ' + perfStatusClass(st) + clickable + '"' + attrs + ">" + perfPct(p.pct) + "</td>";
+        }).join("") + "</tr>";
+        rows += "<tr><td>Status</td>" + periods.map(function (p) {
+          var st = perfStatusFor(p.pct, d.min_acceptable);
+          return '<td><span class="pc2-status ' + perfStatusClass(st) + '">' + st + "</span></td>";
+        }).join("") + "</tr>";
+        rows += "<tr><td>Change</td>" + periods.map(function (p, i) {
+          if (i === 0) return '<td><span class="pc2-ytd-range">baseline</span></td>';
+          var prev = periods[i - 1];
+          if (p.pct === null || p.pct === undefined || prev.pct === null || prev.pct === undefined) return "<td>&#8213;</td>";
+          var delta = p.pct - prev.pct;
+          var cls = delta > 0 ? "up" : (delta < 0 ? "down" : "stable");
+          var sign = delta > 0 ? "+" : "";
+          return '<td><span class="pc2-ytd-delta ' + cls + '">' + sign + delta.toFixed(2) + '%</span>' +
+            '<div class="pc2-ytd-sub">vs ' + prev.month + "</div></td>";
+        }).join("") + "</tr>";
+        var seriesList = [{ label: d.name, color: levelKey === "l1" ? "#667eea" : "#764ba2", points: periods }];
+        return '<div class="pcmp-section-head">' + levelLabel + "</div>" +
+          '<div class="pcmp-table-wrap"><table class="pcmp-table pcmp-align-table"><tbody>' + rows + "</tbody></table></div>" +
+          buildTrendChartHtml(seriesList, 170, true);
+      }).join("");
+      var body = document.getElementById("perfCompareBody");
+      body.innerHTML = pillsHtml + sectionsHtml;
+      body.querySelectorAll(".pmonth-pill").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var m = btn.dataset.month;
+          if (selected[m]) {
+            if (Object.keys(selected).length <= 2) return;
+            delete selected[m];
+          } else {
+            selected[m] = true;
+          }
+          renderHistoryBody();
+        });
+      });
+    }
     document.getElementById("perfCompareTitle").innerHTML = d.name + " &#8211; Period Comparison";
-    var body = document.getElementById("perfCompareBody");
-    body.innerHTML = ["l1", "l0"].map(function (levelKey) {
-      var lv = d[levelKey];
-      var periods = lv.history.slice(-3);
-      var levelLabel = levelKey.toUpperCase() + " Performance";
-      var rows = "";
-      rows += '<tr class="pcmp-head-row"><td></td>' + periods.map(function (p) { return "<td>" + p.month + "</td>"; }).join("") + "</tr>";
-      rows += "<tr><td>Performance</td>" + periods.map(function (p) {
-        var st = perfStatusFor(p.pct, d.min_acceptable);
-        var clickable = p.month === "Current" && p.pct !== null ? " pc2-pct-clickable" : "";
-        var attrs = p.month === "Current" ? ' data-dept="' + d.name.replace(/"/g, "&quot;") + '" data-level="' + levelKey + '"' : "";
-        return '<td class="pcmp-pct ' + perfStatusClass(st) + clickable + '"' + attrs + ">" + perfPct(p.pct) + "</td>";
-      }).join("") + "</tr>";
-      rows += "<tr><td>Status</td>" + periods.map(function (p) {
-        var st = perfStatusFor(p.pct, d.min_acceptable);
-        return '<td><span class="pc2-status ' + perfStatusClass(st) + '">' + st + "</span></td>";
-      }).join("") + "</tr>";
-      rows += "<tr><td>Change</td>" + periods.map(function (p, i) {
-        if (i === 0) return '<td><span class="pc2-ytd-range">baseline</span></td>';
-        var prev = periods[i - 1];
-        if (p.pct === null || p.pct === undefined || prev.pct === null || prev.pct === undefined) return "<td>&#8213;</td>";
-        var delta = p.pct - prev.pct;
-        var cls = delta > 0 ? "up" : (delta < 0 ? "down" : "stable");
-        var sign = delta > 0 ? "+" : "";
-        return '<td><span class="pc2-ytd-delta ' + cls + '">' + sign + delta.toFixed(2) + '%</span>' +
-          '<div class="pc2-ytd-sub">vs ' + prev.month + "</div></td>";
-      }).join("") + "</tr>";
-      var seriesList = [{ label: d.name, color: levelKey === "l1" ? "#667eea" : "#764ba2", points: periods }];
-      return '<div class="pcmp-section-head">' + levelLabel + "</div>" +
-        '<div class="pcmp-table-wrap"><table class="pcmp-table pcmp-align-table"><tbody>' + rows + "</tbody></table></div>" +
-        buildTrendChartHtml(seriesList, 170, true);
-    }).join("");
+    renderHistoryBody();
     document.getElementById("perfCompareOverlay").hidden = false;
   }
   function openPerfCompareModal(depts) {
@@ -2602,7 +2633,7 @@
         '<span class="psc2-avg">' + (avg === null ? "&#8213;" : avg + "%") + ' <span class="psc2-avg-lbl">AVG</span></span></div>' +
         '<div class="psc2-pill">Total Number of ' + levelKey.toUpperCase() + " Projects: " + projectCount + "</div>" +
         '<div class="psc2-body">' +
-          '<div class="psc2-count psc2-count-clickable"><b>' + totalRated + '</b><span>DEPARTMENTS</span></div>' +
+          '<div class="psc2-count psc2-count-clickable' + (hasFilter ? " dim" : "") + '"><b>' + totalRated + '</b><span>DEPARTMENTS</span></div>' +
           '<div class="psc2-bar-wrap"><div class="psc2-bar">' + barSegs + '</div>' +
             '<div class="psc2-legend">' + legendHtml + "</div></div>" +
         "</div>" +

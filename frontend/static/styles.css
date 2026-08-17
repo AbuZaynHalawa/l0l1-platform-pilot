@@ -783,6 +783,7 @@
   .psc2-body { display: flex; align-items: center; gap: 18px; border-top: 1px solid var(--line); padding-top: 14px; }
   .psc2-count { text-align: center; flex-shrink: 0; border-radius: 8px; padding: 4px 6px; margin: -4px -6px; cursor: pointer; }
   .psc2-count:hover { background: var(--surface-sunken); }
+  .psc2-count.dim { opacity: .4; transition: opacity .15s ease; }
   .psc2-count b { display: block; font-size: 24px; font-weight: 800; }
   .psc2-count span { font-size: 9.5px; font-weight: 700; color: var(--ink-500); text-transform: uppercase; letter-spacing: .05em; }
   .psc2-bar-wrap { flex: 1; min-width: 0; }
@@ -892,6 +893,12 @@
   .modal-card.wide { max-width: 960px; }
   .pcmp-section-head { font-size: 13px; font-weight: 800; color: var(--purple-2); background: var(--accent-soft); padding: 8px 14px; border-radius: 8px; margin: 18px 0 10px; }
   .pcmp-section-head:first-child { margin-top: 0; }
+  .pmonth-picker { margin-bottom: 6px; }
+  .pmonth-label { font-size: 11px; font-weight: 700; color: var(--ink-500); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
+  .pmonth-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pmonth-pill { font-size: 12.5px; font-weight: 700; padding: 7px 16px; border-radius: 20px; background: var(--neutral-bg); color: var(--ink-500); border: none; cursor: pointer; font-family: inherit; }
+  .pmonth-pill:hover { background: var(--surface-sunken); }
+  .pmonth-pill.active { background: var(--purple-1); color: #fff; }
   .pcmp-table-wrap { overflow-x: auto; }
   /* table-layout:fixed + an explicit width on just the label column makes
      the browser divide the rest equally among the data columns -- the
