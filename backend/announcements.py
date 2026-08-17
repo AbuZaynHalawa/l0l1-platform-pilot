@@ -48,29 +48,31 @@ def owner_assigned(db: Session, project: models.Project, owner_email: str, dept_
                     recipients=[owner_email], project=project)
 
 
-def sme_review_requested(db: Session, project: models.Project, sme_email: str, item_no: str, item_name: str,
+def sme_review_requested(db: Session, project: models.Project, sme_emails: list[str], item_no: str, item_name: str,
                           submission_id: int | None = None, owner_email: str | None = None) -> models.Announcement:
     """Item 165: the Owner who asked for review needs to see this too, not
-    just the SME who has to act on it -- both are recipients now.
+    just the SME who has to act on it -- both are recipients now. Item
+    [multi-SME]: every assigned SME is a recipient, since any one of them
+    can act on it.
     """
     title = "Review Requested &#8211; SME Action Needed"
     body = (f"{item_no} {item_name} was submitted on {project.est_no} and is now awaiting your review. "
             f"<b>You have 1 day to review and submit feedback.</b>")
-    recipients = [e for e in {sme_email, (owner_email or "")} if e]
+    recipients = sorted({e for e in (list(sme_emails) + [owner_email or ""]) if e})
     return _create(db, type=models.AnnouncementType.SME_REQUEST, title=title, body=body,
                     recipients=recipients, project=project, submission_id=submission_id)
 
 
-def document_added(db: Session, project: models.Project, sme_email: str, item_no: str, item_name: str,
+def document_added(db: Session, project: models.Project, sme_emails: list[str], item_no: str, item_name: str,
                     file_name: str, submission_id: int | None = None) -> models.Announcement:
     """Item 165: general news (everyone sees it, per the DOC_ADDED type),
-    while still emailing the SME directly since they're the one who needs
-    to act on it.
+    while still emailing every assigned SME directly since they're the ones
+    who need to act on it.
     """
     title = "Document Added &#8211; New Supporting File"
     body = f"{file_name} was added to {item_no} {item_name} on {project.est_no}."
     return _create(db, type=models.AnnouncementType.DOC_ADDED, title=title, body=body,
-                    recipients=[sme_email] if sme_email else [], project=project, submission_id=submission_id)
+                    recipients=sorted({e for e in sme_emails if e}), project=project, submission_id=submission_id)
 
 
 def sme_decision(db: Session, project: models.Project, owner_email: str, item_no: str, item_name: str,

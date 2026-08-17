@@ -85,15 +85,48 @@ L1_OPERATION_BU_DEPARTMENTS = {
 }
 
 
-def can_act(actor_role: str, actor_email: str, assigned_email: str | None) -> bool:
-    """Admins can always act. Otherwise the actor must be the specific person
-    assigned (owner, SME, or bid manager) — not just 'anyone with that role'.
+def can_act(actor_role: str, actor_email: str, assigned_email) -> bool:
+    """Admins can always act. Otherwise the actor must be one of the specific
+    people assigned (owner, or any one of possibly several SMEs) — not just
+    'anyone with that role'. `assigned_email` takes either a single email
+    (existing owner/bid-manager call sites) or a list (multi-SME) — any one
+    match is enough.
     """
     if actor_role == "Admin":
         return True
     if not assigned_email or not actor_email:
         return False
-    return actor_email.strip().lower() == assigned_email.strip().lower()
+    actor = actor_email.strip().lower()
+    candidates = assigned_email if isinstance(assigned_email, (list, tuple, set)) else [assigned_email]
+    return any(actor == c.strip().lower() for c in candidates if c)
+
+
+def resolve_smes(sub: "models.DeliverableSubmission") -> list[str]:
+    """Every SME who may approve/reject this submission — any one of them
+    can act. Falls back: submission-level list -> catalog default list ->
+    either field's legacy single value, for rows seeded before this existed.
+    """
+    if sub.sme_emails:
+        return sub.sme_emails
+    if sub.definition.default_sme_emails:
+        return sub.definition.default_sme_emails
+    legacy = sub.sme_email or sub.definition.default_sme_email
+    return [legacy] if legacy else []
+
+
+def resolve_focal_emails(definition: "models.DeliverableDefinition", project: "models.Project | None" = None) -> list[str]:
+    """List form of deliverable_focal() below, for building real recipient
+    lists rather than a single display string.
+    """
+    if definition.department.name == "Tendering Department" and project is not None and project.bid_manager:
+        return [project.bid_manager]
+    if definition.focal_point_emails:
+        return definition.focal_point_emails
+    if definition.focal_point_email:
+        return [definition.focal_point_email]
+    if definition.department.focal_point_email:
+        return [definition.department.focal_point_email]
+    return []
 
 
 def is_bu_applicable(definition: models.DeliverableDefinition, project: models.Project) -> bool:
@@ -188,17 +221,11 @@ def system_group_emails(db: Session) -> set[str]:
 
 
 def deliverable_focal(definition: "models.DeliverableDefinition", project: "models.Project | None" = None) -> str | None:
-    """Who to notify about this specific deliverable (item 75): Tendering
-    Department items don't have one fixed contact — the real focal is
-    whoever the project's own Bid Manager is — so that always wins when a
-    project is given. Every other department falls back from the item's
-    own focal_point_email to its department's, in that order.
+    """Display string (comma-joined) of who to notify about this specific
+    deliverable — see resolve_focal_emails() for the real recipient list.
     """
-    if definition.department.name == "Tendering Department" and project is not None and project.bid_manager:
-        return project.bid_manager
-    if definition.focal_point_email:
-        return definition.focal_point_email
-    return definition.department.focal_point_email
+    emails = resolve_focal_emails(definition, project)
+    return ", ".join(emails) if emails else None
 
 
 def document_counts(db: Session, submission_ids: list[int]) -> dict[int, int]:

@@ -33,7 +33,8 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
     if focus:
         stat_subs = [
             s for s in all_subs
-            if (s.owner_email or "").strip().lower() == focus or (s.sme_email or "").strip().lower() == focus
+            if (s.owner_email or "").strip().lower() == focus
+            or focus in {e.strip().lower() for e in rules.resolve_smes(s) if e}
         ]
 
     # Item 143 (2nd revision): "overdue"/"not_due" are now live Deadline
@@ -154,7 +155,10 @@ def _rank_smes(subs, users: dict[str, "models.User"] | None = None):
             continue
         if not s.submitted_at or not s.reviewed_at:
             continue
-        email = s.sme_email or s.definition.default_sme_email
+        # Item [multi-SME]: credit whoever actually made the call. Rows from
+        # before reviewed_by_email existed fall back to the assigned list --
+        # if that's more than one person, this is a best-effort guess.
+        email = s.reviewed_by_email or (rules.resolve_smes(s)[0] if rules.resolve_smes(s) else None)
         if not email:
             continue
         st = stats.setdefault(email, {"total_seconds": 0.0, "count": 0})

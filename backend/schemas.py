@@ -111,7 +111,7 @@ class SubmissionOut(BaseModel):
     deadline_days: int | None = None
     auto_completed: bool = False
     owner_email: str | None
-    sme_email: str | None
+    sme_emails: list[str] = []
     file_name: str | None
     file_url: str | None = None
     submitted_at: datetime | None

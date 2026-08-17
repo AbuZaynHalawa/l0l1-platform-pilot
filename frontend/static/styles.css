@@ -628,6 +628,20 @@
      columns out of view. */
   .fp-deliv-name { max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
   .fp-hint { padding: 14px 18px 0; }
+  /* Item [multi-SME]: roster-only, multi-value picker used for the Focal
+     Point / SME columns -- chips for what's picked, a typeahead input
+     below that only ever offers real roster matches (no free text). */
+  .roster-picker { white-space: normal; min-width: 200px; position: relative; }
+  .roster-picker-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
+  .roster-picker-chip { display: inline-flex; align-items: center; gap: 5px; background: var(--accent-soft); color: var(--purple-2); border-radius: 20px; padding: 3px 8px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .roster-picker-chip-x { cursor: pointer; opacity: .7; font-size: 9px; }
+  .roster-picker-chip-x:hover { opacity: 1; }
+  .roster-picker-input-wrap { position: relative; }
+  .roster-picker-input { width: 100%; border: 1px solid var(--line); background: var(--surface-sunken); border-radius: 8px; padding: 6px 9px; font-size: 12px; color: var(--ink-900); font-family: inherit; }
+  .roster-picker-input:focus { background: var(--surface); border-color: var(--accent-line); outline: none; }
+  .roster-picker-dropdown { position: absolute; top: calc(100% + 2px); left: 0; right: 0; z-index: 10; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow-2); max-height: 180px; overflow-y: auto; }
+  .roster-picker-option { padding: 7px 10px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+  .roster-picker-option:hover { background: var(--surface-sunken); }
   .fp-add-row { display: flex; gap: 8px; align-items: center; padding: 14px 18px; border-top: 1px solid var(--line); flex-wrap: wrap; }
   .fp-add-row input, .fp-add-row select { border: 1px solid var(--line); background: var(--surface-sunken); border-radius: 8px; padding: 8px 12px; font-size: 12.5px; color: var(--ink-900); font-family: inherit; }
   .fp-add-row input { flex: 1; min-width: 160px; }

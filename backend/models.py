@@ -208,7 +208,7 @@ class DeliverableDefinition(Base):
     milestone_name = Column(String, nullable=True)
     kpi_relevant = Column(Boolean, default=True)
     default_owner_email = Column(String, nullable=True)
-    default_sme_email = Column(String, nullable=True)
+    default_sme_email = Column(String, nullable=True)  # legacy single value, superseded by default_sme_emails below
     active = Column(Boolean, default=True)
     # Per-deliverable focal contact (item 75) — overrides the department's
     # own focal_point_name/email for notifications about this specific item.
@@ -216,7 +216,16 @@ class DeliverableDefinition(Base):
     # Tendering Department items ignore this (see rules.deliverable_focal) —
     # their focal is always whichever Bid Manager is running that project.
     focal_point_name = Column(String, nullable=True)
-    focal_point_email = Column(String, nullable=True)
+    focal_point_email = Column(String, nullable=True)  # legacy single value, superseded by focal_point_emails below
+    # Item [multi-SME]: any number of roster members can be the focal point
+    # or the SME on a catalog item -- for SME specifically, any one of them
+    # can approve/reject a submission of it, not just a single fixed person.
+    # list[str], JSON so SQLite and Postgres both store it natively. The
+    # legacy singular columns above are kept (not dropped -- this codebase's
+    # migration helpers only ever add) and used as a one-time seed source /
+    # fallback for rows created before this existed.
+    focal_point_emails = Column(JSON, nullable=True)
+    default_sme_emails = Column(JSON, nullable=True)
 
     department = relationship("Department", back_populates="deliverable_definitions")
 
@@ -231,12 +240,18 @@ class DeliverableSubmission(Base):
     status = Column(Enum(SubmissionStatus), default=SubmissionStatus.NO_PROGRESS)
     applicability = Column(String, default="applicable")  # applicable | not_required | pending (L0 BM triage)
     owner_email = Column(String, nullable=True)
-    sme_email = Column(String, nullable=True)
+    sme_email = Column(String, nullable=True)  # legacy single value, superseded by sme_emails below
+    sme_emails = Column(JSON, nullable=True)  # list[str] snapshotted from the definition's default_sme_emails at creation
     file_name = Column(String, nullable=True)
     file_ref = Column(String, nullable=True)  # storage provider's identifier for the uploaded file
     submitted_at = Column(DateTime, nullable=True)
     review_comment = Column(Text, nullable=True)
     reviewed_at = Column(DateTime, nullable=True)
+    # Item [multi-SME]: which of the (possibly several) assigned SMEs
+    # actually made this call -- needed now that sme_emails can hold more
+    # than one person, so the SME leaderboard can credit the one who really
+    # acted instead of splitting/duplicating credit across everyone assigned.
+    reviewed_by_email = Column(String, nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     # Items 115/116: True for a handful of Tendering items auto-approved at
     # creation from data already on the project's own form (Announcement

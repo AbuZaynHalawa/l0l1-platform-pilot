@@ -23,8 +23,8 @@
     var email = actingEmail().trim().toLowerCase();
     if (!email) return false;
     var owner = (d.owner_email || "").trim().toLowerCase();
-    var sme = (d.sme_email || "").trim().toLowerCase();
-    return (!!owner && email === owner) || (!!sme && email === sme);
+    var smes = (d.sme_emails || []).map(function (e) { return (e || "").trim().toLowerCase(); });
+    return (!!owner && email === owner) || smes.indexOf(email) !== -1;
   }
 
   function el(tag, cls, html) {
@@ -1069,7 +1069,7 @@
     var d = await api("/api/deliverables/" + submissionId + qs);
     document.getElementById("delivModalEyebrow").textContent = d.est_no + " – " + deptLabel(d.department, d.department_number);
     document.getElementById("delivModalTitle").textContent = d.item_no + " · " + d.name;
-    var authorized = isAssigned({ owner_email: d.owner_email, sme_email: d.sme_email });
+    var authorized = isAssigned({ owner_email: d.owner_email, sme_emails: d.sme_emails });
     var body = document.getElementById("delivModalBody");
     body.innerHTML = "";
 
@@ -1078,7 +1078,7 @@
     // a catalog default in Focal Points instead, so every new project
     // picks it up automatically rather than being patched one project at
     // a time from this popup.
-    [["Owner", d.owner_email || "&#8213;"], ["SME", d.sme_email || "&#8213;"],
+    [["Owner", d.owner_email || "&#8213;"], ["SME", (d.sme_emails && d.sme_emails.length) ? d.sme_emails.join(", ") : "&#8213;"],
      ["Due Date", fmtDate(d.due_date)],
      ["Status", statusPillsHtml(d)]]
       .forEach(function (m) {
@@ -2396,8 +2396,73 @@
     return loadSystemGroup();
   }
 
+  // Item [multi-SME]: roster-only, multi-value picker -- chips for each
+  // already-picked email plus a typeahead input that only ever offers real
+  // L0-L1 Group members (filtered by role when one's given), never free
+  // text. Returns {getValues} so the caller's Save button can read the
+  // current selection without keeping its own state.
+  var _rosterCache = null;
+  async function _getRoster() {
+    if (!_rosterCache) _rosterCache = await api("/api/departments/users");
+    return _rosterCache;
+  }
+  function renderRosterPicker(container, selected, rosterPool, placeholder) {
+    container.innerHTML = "";
+    container.className = "roster-picker";
+    var current = (selected || []).slice();
+    var chips = el("div", "roster-picker-chips");
+    function renderChips() {
+      chips.innerHTML = "";
+      current.forEach(function (email) {
+        var chip = el("span", "roster-picker-chip", "");
+        chip.appendChild(document.createTextNode(email));
+        var x = el("span", "roster-picker-chip-x", "&#10005;");
+        x.addEventListener("click", function () {
+          current = current.filter(function (e) { return e !== email; });
+          renderChips();
+        });
+        chip.appendChild(x);
+        chips.appendChild(chip);
+      });
+    }
+    renderChips();
+    var input = el("input", "roster-picker-input"); input.type = "text"; input.placeholder = placeholder;
+    var dropdown = el("div", "roster-picker-dropdown"); dropdown.hidden = true;
+    function showMatches() {
+      var term = input.value.trim().toLowerCase();
+      dropdown.innerHTML = "";
+      if (!term) { dropdown.hidden = true; return; }
+      var matches = rosterPool.filter(function (u) {
+        if (current.indexOf(u.email) !== -1) return false;
+        return u.email.toLowerCase().indexOf(term) === 0 || (u.name || "").toLowerCase().indexOf(term) === 0;
+      }).slice(0, 8);
+      if (!matches.length) { dropdown.hidden = true; return; }
+      matches.forEach(function (u) {
+        var opt = el("div", "roster-picker-option", (u.name ? u.name + " " : "") + "&#8211; " + u.email);
+        opt.addEventListener("mousedown", function (e) {
+          e.preventDefault();
+          current.push(u.email);
+          renderChips();
+          input.value = "";
+          dropdown.hidden = true;
+        });
+        dropdown.appendChild(opt);
+      });
+      dropdown.hidden = false;
+    }
+    input.addEventListener("input", showMatches);
+    input.addEventListener("focus", showMatches);
+    input.addEventListener("blur", function () { setTimeout(function () { dropdown.hidden = true; }, 150); });
+    var inputWrap = el("div", "roster-picker-input-wrap");
+    inputWrap.appendChild(input); inputWrap.appendChild(dropdown);
+    container.appendChild(chips); container.appendChild(inputWrap);
+    return { getValues: function () { return current.slice(); } };
+  }
+
   async function loadFocalDeliverables(stage) {
     var rows = await api("/api/departments/deliverable-focal?stage=" + stage);
+    var roster = await _getRoster();
+    var smeRoster = roster.filter(function (u) { return u.role === "SME"; });
     var tbody = document.getElementById("focalPointsBody");
     tbody.innerHTML = "";
     var lastDept = null;
@@ -2420,25 +2485,25 @@
       // Tendering (unlike focal point name/email, which Tendering always
       // routes to that project's own Bid Manager instead) -- no per-project
       // popup edit anymore, this catalog default is the one place for it.
-      var smeInput = el("input"); smeInput.type = "text";
-      smeInput.value = d.default_sme_email || ""; smeInput.placeholder = "sme@algihaz.com";
+      // Item [multi-SME]: both pickers are roster-only and multi-value --
+      // any of the picked SMEs can approve/reject a submission of this item.
+      var smeCell = el("td");
+      var smePicker = renderRosterPicker(smeCell, d.default_sme_emails, smeRoster, "Add an SME&#8230;");
+      tr.appendChild(smeCell);
+      var focalPicker = null;
       if (d.is_tendering_bm) {
         var noteCell = el("td", "muted", "Defaults to the project's Bid Manager");
         tr.appendChild(noteCell);
       } else {
-        var emailInput = el("input"); emailInput.type = "text";
-        emailInput.value = d.focal_point_email || ""; emailInput.placeholder = d.department_focal_email || "email@algihaz.com";
-        var tdEmail = el("td"); tdEmail.appendChild(emailInput);
-        tr.appendChild(tdEmail);
+        var focalCell = el("td");
+        focalPicker = renderRosterPicker(focalCell, d.focal_point_emails, roster,
+          d.department_focal_email ? "Defaults to " + d.department_focal_email : "Add a focal point&#8230;");
+        tr.appendChild(focalCell);
       }
-      var tdSme = el("td"); tdSme.appendChild(smeInput);
-      tr.appendChild(tdSme);
       var saveBtn = el("button", "btn", "Save");
       saveBtn.addEventListener("click", async function () {
-        var body = { default_sme_email: smeInput.value.trim() };
-        if (!d.is_tendering_bm) {
-          body.focal_point_email = emailInput.value.trim();
-        }
+        var body = { default_sme_emails: smePicker.getValues() };
+        if (focalPicker) body.focal_point_emails = focalPicker.getValues();
         try {
           await api("/api/departments/deliverable-focal/" + d.id, {
             method: "PATCH", headers: { "Content-Type": "application/json" },
@@ -3238,11 +3303,12 @@
     var all = await api("/api/deliverables");
     var counts = {};
     all.forEach(function (d) {
-      var email = CURRENT_ROLE === "Owner" ? d.owner_email : d.sme_email;
-      if (!email) return;
-      if (!counts[email]) counts[email] = { due: 0, pendingReview: 0 };
-      if (d.deadline_status === "due") counts[email].due++;
-      if (d.status === "pending_review") counts[email].pendingReview++;
+      var emails = CURRENT_ROLE === "Owner" ? (d.owner_email ? [d.owner_email] : []) : (d.sme_emails || []);
+      emails.forEach(function (email) {
+        if (!counts[email]) counts[email] = { due: 0, pendingReview: 0 };
+        if (d.deadline_status === "due") counts[email].due++;
+        if (d.status === "pending_review") counts[email].pendingReview++;
+      });
     });
     var emails = Object.keys(counts).sort();
     quickPick.innerHTML = '<option value="">Quick pick&#8230;</option>';

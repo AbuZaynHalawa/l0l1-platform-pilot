@@ -65,9 +65,10 @@ def list_deliverable_focal(stage: str, db: Session = Depends(get_db)):
         {
             "id": d.id, "item_no": d.item_no, "name": d.name,
             "department": d.department.name, "department_number": d.department.number,
-            "focal_point_name": d.focal_point_name, "focal_point_email": d.focal_point_email,
+            "focal_point_name": d.focal_point_name,
+            "focal_point_emails": d.focal_point_emails or ([d.focal_point_email] if d.focal_point_email else []),
             "department_focal_name": d.department.focal_point_name, "department_focal_email": d.department.focal_point_email,
-            "default_sme_email": d.default_sme_email,
+            "default_sme_emails": d.default_sme_emails or ([d.default_sme_email] if d.default_sme_email else []),
             "is_tendering_bm": d.department.name == "Tendering Department",
         }
         for d in defs
@@ -76,12 +77,28 @@ def list_deliverable_focal(stage: str, db: Session = Depends(get_db)):
 
 class DeliverableFocalUpdate(BaseModel):
     focal_point_name: str | None = None
-    focal_point_email: str | None = None
-    # Item 134 rework: the SME assigned to new submissions of this
-    # deliverable is set here (catalog default), not per-project — moved
-    # off the deliverable popup, which only ever affected one project's
-    # already-created submission at a time.
-    default_sme_email: str | None = None
+    # Item [multi-SME]: both fields are now roster-only, multi-value picks
+    # from the L0-L1 Group -- free text is no longer accepted here, every
+    # email must match a real roster member (and, for SME, one with the SME
+    # role) so the picker's suggestions are always exactly what's allowed.
+    focal_point_emails: list[str] = []
+    default_sme_emails: list[str] = []
+
+
+def _validate_roster_emails(db: Session, emails: list[str], require_role: str | None = None) -> list[str]:
+    cleaned = [e.strip() for e in emails if e and e.strip()]
+    if not cleaned:
+        return []
+    roster = {u.email.strip().lower(): u for u in db.query(models.User).all()}
+    resolved = []
+    for e in cleaned:
+        u = roster.get(e.lower())
+        if not u:
+            raise HTTPException(400, f"{e} isn't in the L0-L1 Group roster (Focal Points &#8594; L0-L1 Group)")
+        if require_role and u.role != require_role:
+            raise HTTPException(400, f"{e} is a {u.role}, not a {require_role}")
+        resolved.append(u.email)
+    return resolved
 
 
 @router.patch("/deliverable-focal/{definition_id}")
@@ -94,12 +111,12 @@ def update_deliverable_focal(definition_id: int, payload: DeliverableFocalUpdate
         # Bid Manager — its name/email fields aren't editable here, but its
         # SME still is (see below, unconditional).
         d.focal_point_name = (payload.focal_point_name or "").strip() or None
-        d.focal_point_email = (payload.focal_point_email or "").strip() or None
-    d.default_sme_email = (payload.default_sme_email or "").strip() or None
+        d.focal_point_emails = _validate_roster_emails(db, payload.focal_point_emails) or None
+    d.default_sme_emails = _validate_roster_emails(db, payload.default_sme_emails, require_role="SME") or None
     db.commit()
     return {
-        "id": d.id, "focal_point_name": d.focal_point_name, "focal_point_email": d.focal_point_email,
-        "default_sme_email": d.default_sme_email,
+        "id": d.id, "focal_point_name": d.focal_point_name, "focal_point_emails": d.focal_point_emails or [],
+        "default_sme_emails": d.default_sme_emails or [],
     }
 
 

@@ -55,6 +55,10 @@ ensure_index("documents", "ix_documents_submission_id", "submission_id")
 ensure_index("followers", "ix_followers_submission_id", "submission_id")
 ensure_index("reassignment_requests", "ix_reassign_submission_id", "submission_id")
 ensure_index("performance_snapshots", "ix_perf_snap_dept_stage_month", "department_id, stage, month")
+ensure_column("deliverable_definitions", "focal_point_emails", "JSON")
+ensure_column("deliverable_definitions", "default_sme_emails", "JSON")
+ensure_column("deliverable_submissions", "sme_emails", "JSON")
+ensure_column("deliverable_submissions", "reviewed_by_email", "VARCHAR")
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -1394,6 +1398,28 @@ def run():
         if remapped:
             db.commit()
             print(f"Item 143 (2nd revision): remapped {remapped} submission(s) onto the new Progress-only status model.")
+
+        # Item [multi-SME]: one-time backfill from the legacy singular
+        # focal_point_email/default_sme_email/sme_email columns into their
+        # new list-valued counterparts, for any row that predates this
+        # feature. Only fires when the new column is still empty, so it
+        # never overwrites something an admin has already set through the
+        # new multi-picker UI, and is safe to re-run every deploy.
+        backfilled = 0
+        for d in db.query(models.DeliverableDefinition).all():
+            if not d.focal_point_emails and d.focal_point_email:
+                d.focal_point_emails = [d.focal_point_email]
+                backfilled += 1
+            if not d.default_sme_emails and d.default_sme_email:
+                d.default_sme_emails = [d.default_sme_email]
+                backfilled += 1
+        for s in db.query(models.DeliverableSubmission).all():
+            if not s.sme_emails and s.sme_email:
+                s.sme_emails = [s.sme_email]
+                backfilled += 1
+        if backfilled:
+            db.commit()
+            print(f"Item [multi-SME]: backfilled {backfilled} legacy single-value focal/SME field(s) into their list form.")
 
         print(f"Seed complete: {len(dept_map)} departments, {len(L0_ITEMS)} L0 items, {len(L1_ITEMS)} L1 items.")
     finally:

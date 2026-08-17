@@ -91,10 +91,11 @@ def _instantiate_deliverables(db: Session, project: models.Project):
             if field:
                 auto_done_date = getattr(project, field, None)
 
+        sme_emails = d.default_sme_emails or ([d.default_sme_email] if d.default_sme_email else [])
         if auto_done_date:
             sub = models.DeliverableSubmission(
                 project_id=project.id, deliverable_definition_id=d.id,
-                owner_email=d.default_owner_email, sme_email=d.default_sme_email,
+                owner_email=d.default_owner_email, sme_emails=sme_emails,
                 applicability="applicable", status=models.SubmissionStatus.APPROVED,
                 auto_completed=True, due_date=auto_done_date,
                 submitted_at=datetime.combine(auto_done_date, datetime.min.time()),
@@ -105,7 +106,7 @@ def _instantiate_deliverables(db: Session, project: models.Project):
         else:
             sub = models.DeliverableSubmission(
                 project_id=project.id, deliverable_definition_id=d.id,
-                owner_email=d.default_owner_email, sme_email=d.default_sme_email,
+                owner_email=d.default_owner_email, sme_emails=sme_emails,
                 applicability="pending" if needs_triage else "applicable",
             )
         db.add(sub)
@@ -594,7 +595,7 @@ def get_deliverables(project_id: int, department: str | None = None, db: Session
             department=s.definition.department.name, due_date=s.due_date, status=s.status.value,
             deadline_status=deadline_key, deadline_days=deadline_days, auto_completed=s.auto_completed,
             owner_email=s.owner_email or s.definition.default_owner_email,
-            sme_email=s.sme_email or s.definition.default_sme_email,
+            sme_emails=rules.resolve_smes(s),
             file_name=s.file_name, file_url=_storage.file_url(s.file_ref) if s.file_ref else None,
             submitted_at=s.submitted_at, review_comment=s.review_comment,
             completion_note=rules.mark_complete_note(s),

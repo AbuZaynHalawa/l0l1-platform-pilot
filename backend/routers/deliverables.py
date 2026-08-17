@@ -58,8 +58,8 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
             continue
         if scope_to_mine:
             owner = (s.owner_email or s.definition.default_owner_email or "").strip().lower()
-            sme = (s.sme_email or s.definition.default_sme_email or "").strip().lower()
-            if not my_email or (my_email != owner and my_email != sme):
+            smes = {e.strip().lower() for e in rules.resolve_smes(s) if e}
+            if not my_email or (my_email != owner and my_email not in smes):
                 continue
         deadline_key, deadline_days = rules.deadline_status(s)
         out.append({
@@ -70,7 +70,7 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
             "deadline_status": deadline_key, "deadline_days": deadline_days, "auto_completed": s.auto_completed,
             "owner": s.owner_email or s.definition.default_owner_email or "Unassigned",
             "owner_email": s.owner_email or s.definition.default_owner_email,
-            "sme_email": s.sme_email or s.definition.default_sme_email,
+            "sme_emails": rules.resolve_smes(s),
             "is_milestone": s.definition.is_milestone, "milestone_code": s.definition.milestone_code,
             "file_name": s.file_name, "file_url": _storage.file_url(s.file_ref) if s.file_ref else None,
             "review_comment": s.review_comment, "completion_note": rules.mark_complete_note(s),
@@ -137,8 +137,7 @@ async def upload_deliverable(submission_id: int, file: UploadFile = File(...),
 
     announcements.followers_notified(db, sub.project, _follower_emails(db, sub.id),
                                       sub.definition.item_no, sub.definition.name, "uploaded", submission_id=sub.id)
-    sme_email = sub.sme_email or sub.definition.default_sme_email
-    announcements.document_added(db, sub.project, sme_email, sub.definition.item_no, sub.definition.name,
+    announcements.document_added(db, sub.project, rules.resolve_smes(sub), sub.definition.item_no, sub.definition.name,
                                   file.filename, submission_id=sub.id)
 
     return {"status": "ok", "file_ref": file_ref}
@@ -168,7 +167,8 @@ def list_documents(submission_id: int, db: Session = Depends(get_db)):
     return [_document_out(d) for d in documents]
 
 
-def _finalize_approval(db: Session, sub: "models.DeliverableSubmission", comment: str | None, actor_name: str) -> None:
+def _finalize_approval(db: Session, sub: "models.DeliverableSubmission", comment: str | None, actor_name: str,
+                        actor_email: str | None = None) -> None:
     """Item 143: the one place a submission actually becomes Completed
     (status stays the APPROVED enum value — only its display label changed
     to "Completed" — so every existing predecessor/due-date/KPI/Gantt check
@@ -181,6 +181,7 @@ def _finalize_approval(db: Session, sub: "models.DeliverableSubmission", comment
     sub.status = models.SubmissionStatus.APPROVED
     sub.review_comment = comment
     sub.reviewed_at = datetime.utcnow()
+    sub.reviewed_by_email = (actor_email or "").strip() or None
 
     # Client-dependent items (Contract Signing, LOA, etc.) have no computable
     # due_date until they actually happen — completion IS that event, so
@@ -250,11 +251,11 @@ def mark_complete(submission_id: int, payload: schemas.MarkCompleteRequest, db: 
         raise HTTPException(400, "Deliverable has already been marked complete")
 
     owner_email = sub.owner_email or sub.definition.default_owner_email
-    sme_email = sub.sme_email or sub.definition.default_sme_email
+    sme_emails = rules.resolve_smes(sub)
     is_owner = rules.can_act(payload.actor_role, payload.actor_email, owner_email)
-    is_sme = rules.can_act(payload.actor_role, payload.actor_email, sme_email)
+    is_sme = rules.can_act(payload.actor_role, payload.actor_email, sme_emails)
     if not (is_owner or is_sme):
-        raise HTTPException(403, f"Only {owner_email or 'the assigned owner'} or {sme_email or 'the assigned SME'} can complete this deliverable")
+        raise HTTPException(403, f"Only {owner_email or 'the assigned owner'} or {', '.join(sme_emails) or 'the assigned SME'} can complete this deliverable")
 
     comment = payload.comment.strip()
     if not comment:
@@ -263,7 +264,7 @@ def mark_complete(submission_id: int, payload: schemas.MarkCompleteRequest, db: 
     # SME wins ties (someone assigned as both owner and SME on the same
     # item) — their own Mark Completed is always the stronger, final action.
     if is_sme:
-        _finalize_approval(db, sub, comment, payload.actor_name)
+        _finalize_approval(db, sub, comment, payload.actor_name, actor_email=payload.actor_email)
         return {"status": "ok", "completed": True}
 
     sub.submitted_at = sub.submitted_at or datetime.utcnow()
@@ -272,11 +273,11 @@ def mark_complete(submission_id: int, payload: schemas.MarkCompleteRequest, db: 
                                    actor_name=payload.actor_name, note=comment))
     db.commit()
 
-    if sme_email:
-        announcements.sme_review_requested(db, sub.project, sme_email, sub.definition.item_no, sub.definition.name,
+    if sme_emails:
+        announcements.sme_review_requested(db, sub.project, sme_emails, sub.definition.item_no, sub.definition.name,
                                             submission_id=sub.id, owner_email=owner_email)
         db.add(models.WorkflowHistory(submission_id=sub.id, action="review_requested",
-                                       actor_name="system", note=f"Sent to {sme_email}"))
+                                       actor_name="system", note=f"Sent to {', '.join(sme_emails)}"))
         db.commit()
     announcements.followers_notified(db, sub.project, _follower_emails(db, sub.id),
                                       sub.definition.item_no, sub.definition.name, "marked completed")
@@ -303,9 +304,9 @@ async def review_deliverable(submission_id: int, approved: bool = Form(...), com
     if sub.status != models.SubmissionStatus.PENDING_REVIEW:
         raise HTTPException(400, "Deliverable is not awaiting completion confirmation")
 
-    assigned_sme = sub.sme_email or sub.definition.default_sme_email
-    if not rules.can_act(actor_role, actor_email, assigned_sme):
-        raise HTTPException(403, f"Only {assigned_sme or 'the assigned SME'} or an Admin can review this deliverable")
+    assigned_smes = rules.resolve_smes(sub)
+    if not rules.can_act(actor_role, actor_email, assigned_smes):
+        raise HTTPException(403, f"Only {', '.join(assigned_smes) or 'the assigned SME'} or an Admin can review this deliverable")
 
     if file is not None and file.filename:
         content = await file.read()
@@ -315,12 +316,13 @@ async def review_deliverable(submission_id: int, approved: bool = Form(...), com
                                 uploaded_by=reviewer_name))
 
     if approved:
-        _finalize_approval(db, sub, comment or None, reviewer_name)
+        _finalize_approval(db, sub, comment or None, reviewer_name, actor_email=actor_email)
         return {"status": "ok"}
 
     sub.status = models.SubmissionStatus.REJECTED
     sub.review_comment = comment or None
     sub.reviewed_at = datetime.utcnow()
+    sub.reviewed_by_email = (actor_email or "").strip() or None
     db.add(models.WorkflowHistory(submission_id=sub.id, action="rejected", actor_name=reviewer_name, note=comment or None))
     db.commit()
 
@@ -577,7 +579,7 @@ def get_deliverable_detail(submission_id: int, actor_email: str | None = None, d
         "due_date": sub.due_date, "status": sub.status.value,
         "deadline_status": deadline_key, "deadline_days": deadline_days, "auto_completed": sub.auto_completed,
         "owner_email": sub.owner_email or sub.definition.default_owner_email,
-        "sme_email": sub.sme_email or sub.definition.default_sme_email,
+        "sme_emails": rules.resolve_smes(sub),
         "file_name": sub.file_name, "file_url": _storage.file_url(sub.file_ref) if sub.file_ref else None,
         "submitted_at": sub.submitted_at, "review_comment": sub.review_comment, "reviewed_at": sub.reviewed_at,
         "completion_note": rules.mark_complete_note(sub), "is_milestone": sub.definition.is_milestone,
