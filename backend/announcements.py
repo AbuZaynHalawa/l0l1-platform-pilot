@@ -104,8 +104,9 @@ def due_date_request(db: Session, project: models.Project, sme_emails: list[str]
     have a record it went out.
     """
     label = "Extension" if kind == "extension" else "Hold"
+    article = "an" if kind == "extension" else "a"
     title = f"{label} Requested &#8211; SME Action Needed"
-    body = (f"{item_no} {item_name} on {project.est_no}: a {label.lower()} was requested &#8211; "
+    body = (f"{item_no} {item_name} on {project.est_no}: {article} {label.lower()} was requested &#8211; "
             f"&quot;{reason}&quot;. Awaiting your decision.")
     ann_type = models.AnnouncementType.EXTENSION_REQUEST if kind == "extension" else models.AnnouncementType.HOLD_REQUEST
     recipients = sorted({e for e in (list(sme_emails) + list(owner_emails)) if e})
@@ -144,8 +145,9 @@ def due_date_request_escalated(db: Session, project: models.Project, recipients:
     of assignment). Fires once per request -- see DueDateRequest.escalated_at.
     """
     label = "Extension" if kind == "extension" else "Hold"
+    article = "an" if kind == "extension" else "a"
     title = f"Still Pending &#8211; {label} Request Needs a Decision"
-    body = (f"{item_no} {item_name} on {project.est_no}: a {label.lower()} request has been waiting "
+    body = (f"{item_no} {item_name} on {project.est_no}: {article} {label.lower()} request has been waiting "
             f"{days_pending} days with no decision. Please review it.")
     ann_type = models.AnnouncementType.EXTENSION_REQUEST if kind == "extension" else models.AnnouncementType.HOLD_REQUEST
     return _create(db, type=ann_type, title=title, body=body, recipients=sorted({e for e in recipients if e}),
