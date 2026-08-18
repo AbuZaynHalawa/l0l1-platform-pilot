@@ -1362,24 +1362,33 @@
         "(a milestone-linked date, for instance, might not).</div>",
     },
     {
-      eyebrow: "Requests & Reminders",
-      title: "Extensions & Holds",
+      eyebrow: "How It Works",
+      title: "Owner & SME — Submit, Review, Approve",
       body:
-        '<p class="tour-step-text">An Owner who genuinely can\'t hit a due date doesn\'t have to just run ' +
-        "late &#8212; they can request an <b>Extension</b> (move the due date) or a <b>Hold</b> " +
-        "(pause lateness entirely, for missing data or a technical blocker) straight from the " +
-        "deliverable's own popup. Either request goes to the assigned SME or an Admin to " +
-        "approve or reject.</p>" +
+        '<p class="tour-step-text">Every deliverable has an <b>Owner</b> (does the work) and one or more ' +
+        "<b>SME</b>s (reviews it) &#8212; assigned by default from the catalog, or reassigned to " +
+        "someone else via an Admin-approved request. The cycle between them is the same for every " +
+        "single item on the platform:</p>" +
+        '<div class="mock-fs">' +
+        milestoneMock([
+          ["1", "Owner Submits", true], ["2", "SME Reviews", false, true],
+          ["3", "Approved", false],
+        ]) +
+        "</div>" +
         '<ul class="tour-list">' +
-        "<li>An approved <b>Extension</b> moves the due date and locks it &#8212; the normal " +
-        "recompute formula won't silently overwrite it again</li>" +
-        "<li>An approved <b>Hold</b> freezes the item as <b>On Hold</b> until the Owner clicks " +
-        "<b>Resume</b>; the due date then shifts forward by exactly the time it spent paused, so " +
-        "lateness already accrued before the hold isn't erased &#8212; just paused, not forgiven</li>" +
+        "<li>The Owner submits by <b>uploading a file</b>, or by <b>Mark Completed</b> with just a " +
+        "comment when there's genuinely no document to attach</li>" +
+        "<li>That moves it to <b>Pending SME Review</b> &#8212; the assigned SME(s) get notified, with " +
+        "a day to act before it's flagged as slow to review</li>" +
+        "<li>The SME <b>Approves</b> it (Completed, credited under Calculation Criteria) or " +
+        "<b>Rejects</b> it with a comment explaining why</li>" +
+        "<li>A rejection sends it right back to the Owner &#8212; fixing it and resubmitting starts " +
+        "the same review cycle over again</li>" +
         "</ul>" +
-        '<div class="tour-callout">&#9203; Both requests, and their decisions, show up as a pill right on ' +
-        "the deliverable &#8212; \"Pending Extension Approval\" / \"Pending On Hold Approval\" &#8212; " +
-        "so nobody has to dig into a modal to notice one's waiting.</div>",
+        '<div class="tour-callout">&#128203; If an SME marks their own item Completed directly, it skips ' +
+        "the review step entirely &#8212; there's no reviewing yourself. Every step, on every item, is " +
+        "recorded in a full activity log, and anyone (not just the Owner/SME) can <b>Follow</b> an " +
+        "item to get notified of updates.</div>",
     },
     {
       eyebrow: "Requests & Reminders",
@@ -1391,8 +1400,10 @@
         "<li>Owners get a heads-up <b>1 day before</b> something's due</li>" +
         "<li>Overdue items escalate at <b>2, 7, and 14 days late</b></li>" +
         "<li>Several items due the same day are batched into <b>one email per Owner</b>, not one per item</li>" +
-        "<li>A pending Extension/Hold request nobody's decided on after <b>3 days</b> nudges the SME " +
-        "again, plus every Admin</li>" +
+        "<li>An Owner who can't hit a date can request an <b>Extension</b> (move it) or a <b>Hold</b> " +
+        "(pause lateness for missing data/a technical blocker) instead of just running late &#8212; " +
+        "either goes to the SME or an Admin to decide, and if nobody's decided within <b>3 days</b> it " +
+        "nudges the SME again, plus every Admin</li>" +
         "</ul>" +
         '<p class="tour-step-text">Every reminder links straight to the exact item, and lives in its own ' +
         '<b>Reminders</b> tab &#8212; kept separate from Announcements so day-to-day news and ' +
