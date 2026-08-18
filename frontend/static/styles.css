@@ -5,9 +5,14 @@
     /* L0's identity color, wherever L0 vs L1 needs to read at a glance
        (project cards, badges, Est numbers, section titles) -- kept
        separate from --purple-1/2, which stay the app's generic brand
-       accent (buttons, nav, focus ring) used regardless of stage. */
-    --l0-1: #e8710a;
-    --l0-2: #b85608;
+       accent (buttons, nav, focus ring) used regardless of stage.
+       A muted burnt-orange/terracotta rather than a bright orange --
+       bright orange sits too close to --crit's red (#e74c3c) at a
+       glance (e.g. an L0 Est number next to a red "Late" pill); the
+       lower saturation and darker value keep it reading as clearly its
+       own color instead of a shade of red. */
+    --l0-1: #cc6a1e;
+    --l0-2: #9c4a0a;
     --good: #27ae60;      --good-bg: #d4edda;
     --crit: #e74c3c;      --crit-bg: #f8d7da;
     --warn: #f39c12;      --warn-bg: #fff3cd;
@@ -656,15 +661,15 @@
   .chip.active .cnum { background: rgba(255,255,255,.25); color: #fff; }
   /* L0/L1 stage toggles (matrix, gantt, focal points, etc.) get their real
      identity color when active instead of both turning the same purple --
-     a soft tinted glow under each (matching the app's other gradient
+     a visible tinted glow under each (matching the app's other gradient
      chips/buttons) instead of a flat, shadowless block of color. */
   .chip.active[data-stage="L0"] {
-    background: linear-gradient(135deg, var(--l0-1), var(--l0-2));
-    box-shadow: 0 3px 10px rgba(232, 113, 10, .35);
+    background: linear-gradient(135deg, #d9812e 0%, var(--l0-2) 100%);
+    box-shadow: 0 5px 14px rgba(204, 106, 30, .5);
   }
   .chip.active[data-stage="L1"] {
-    background: linear-gradient(135deg, #20b976, #0e8f57);
-    box-shadow: 0 3px 10px rgba(32, 185, 118, .35);
+    background: linear-gradient(135deg, #27c586 0%, #0e8f57 100%);
+    box-shadow: 0 5px 14px rgba(32, 185, 118, .5);
   }
   .aq-row { display: flex; align-items: center; gap: 14px; padding: 13px 18px; border-bottom: 1px solid var(--line); }
   .aq-row.flash { animation: annFlash 1.8s ease; }

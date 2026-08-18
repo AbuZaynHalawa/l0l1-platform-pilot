@@ -2541,7 +2541,7 @@
       '<div class="pc2-label">YTD Trend' + (lv.ytd ? " (vs " + lv.ytd.month + ")" : "") + "</div>" +
       perfYtd(lv) +
       '<div class="pc2-label">Yearly Trend (2026)</div>' +
-      buildTrendChartHtml([{ label: d.name, color: levelKey === "l1" ? "#1f9d5c" : "#e8710a", points: lv.history }], 70);
+      buildTrendChartHtml([{ label: d.name, color: levelKey === "l1" ? "#1f9d5c" : "#cc6a1e", points: lv.history }], 70);
     return html;
   }
   function perfTrackedDepts() {
