@@ -416,7 +416,13 @@ L1_ITEMS = [
     ("1.6", "Contract Signing", "tendering", "client_dependent", None, 0, "after", "M6"),
 
     ("2.1", "Submission of Cost Center request to Cost Control Department", "tbupbu", "predecessor", "1.2", 1, "after", None),
-    ("2.2", "Creating PRs for long-lead items through the system", "tbupbu", "predecessor", "5.3", 2, "after", None),
+    # Item [predecessor renumber]: was "5.3" -- that was Cost Control's
+    # temporary-budget item before it got renamed to 6.1 (to stop colliding
+    # with Planning's own, unrelated 5.3). This reference was never updated
+    # when that rename happened, so it silently started resolving against
+    # Planning's 5.3 instead (same number, wrong item, no error) rather than
+    # the budget item it was always meant to depend on.
+    ("2.2", "Creating PRs for long-lead items through the system", "tbupbu", "predecessor", "6.1", 2, "after", None),
     ("2.3", "Assignment of Temporary Project Manager & Project Engineer", "tbupbu", "predecessor", "1.1", 5, "after", None),
     ("2.4", "Internal Kick off Meeting (to be called by Project Manager)", "tbupbu", "predecessor", "2.3", 5, "after", None),
     ("2.5", "Draft Master Project Execution Plan ready to be submitted", "tbupbu", "predecessor", "1.2", 25, "after", None),
@@ -439,7 +445,7 @@ L1_ITEMS = [
     # own copy of 2.1-2.12 per business unit instead of one combined
     # "TBU / PBU" folder applying to every project regardless of BU.
     ("2.1", "Submission of Cost Center request to Cost Control Department", "tbu", "predecessor", "1.2", 1, "after", None),
-    ("2.2", "Creating PRs for long-lead items through the system", "tbu", "predecessor", "5.3", 2, "after", None),
+    ("2.2", "Creating PRs for long-lead items through the system", "tbu", "predecessor", "6.1", 2, "after", None),
     ("2.3", "Assignment of Temporary Project Manager & Project Engineer", "tbu", "predecessor", "1.1", 5, "after", None),
     ("2.4", "Internal Kick off Meeting (to be called by Project Manager)", "tbu", "predecessor", "2.3", 5, "after", None),
     ("2.5", "Draft Master Project Execution Plan ready to be submitted", "tbu", "predecessor", "1.2", 25, "after", None),
@@ -452,7 +458,7 @@ L1_ITEMS = [
     ("2.12", "Provide Confirmation on the Proposal recommendation for working schedule", "tbu", "predecessor", "5.3", 3, "after", None),
 
     ("2.1", "Submission of Cost Center request to Cost Control Department", "pbu", "predecessor", "1.2", 1, "after", None),
-    ("2.2", "Creating PRs for long-lead items through the system", "pbu", "predecessor", "5.3", 2, "after", None),
+    ("2.2", "Creating PRs for long-lead items through the system", "pbu", "predecessor", "6.1", 2, "after", None),
     ("2.3", "Assignment of Temporary Project Manager & Project Engineer", "pbu", "predecessor", "1.1", 5, "after", None),
     ("2.4", "Internal Kick off Meeting (to be called by Project Manager)", "pbu", "predecessor", "2.3", 5, "after", None),
     ("2.5", "Draft Master Project Execution Plan ready to be submitted", "pbu", "predecessor", "1.2", 25, "after", None),
@@ -466,7 +472,7 @@ L1_ITEMS = [
     ("2.16", "Provide general layout of Temporary facilities, laydown and storage", "pbu", "predecessor", "1.2", 7, "after", None),
 
     ("2.1", "Submission of Cost Center request to Cost Control Department", "dbu", "predecessor", "1.2", 1, "after", None),
-    ("2.2", "Creating PRs for long-lead items through the system", "dbu", "predecessor", "5.3", 2, "after", None),
+    ("2.2", "Creating PRs for long-lead items through the system", "dbu", "predecessor", "6.1", 2, "after", None),
     ("2.3", "Assignment of Temporary Project Manager & Project Engineer", "dbu", "predecessor", "1.1", 5, "after", None),
     ("2.4", "Internal Kick off Meeting (to be called by Project Manager)", "dbu", "predecessor", "2.3", 5, "after", None),
     ("2.5", "Draft Master Project Execution Plan ready to be submitted", "dbu", "predecessor", "1.2", 25, "after", None),
