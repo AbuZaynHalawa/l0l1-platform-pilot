@@ -1194,8 +1194,14 @@
   // calls milestoneMock() immediately at load time -- a plain `var` below
   // TOUR_STEPS would still be hoisted, but its assignment wouldn't have run
   // yet, so milestoneMock would see it as undefined the first time.
-  var FS_CHECK_SVG = '<svg width="1.3em" height="1.3em" viewBox="0 0 16 16" fill="none" stroke="currentColor" ' +
-    'stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.3 3.3L13 4"/></svg>';
+  // Item [checkmark still boxy]: a *stroked* path (round caps + round join)
+  // was the culprit -- at the small rendered size the thick rounded ends
+  // and the joint blob together into something that reads as a chunky
+  // square rather than a crisp check. Switched to a *filled* checkmark
+  // shape (a single solid polygon, no stroke-width/cap/join at all to go
+  // wrong) -- the standard Material check glyph, guaranteed crisp at any size.
+  var FS_CHECK_SVG = '<svg width="1.1em" height="1.1em" viewBox="0 0 24 24" fill="currentColor">' +
+    '<path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>';
 
   /* ================= ITEM 131: INTERACTIVE SYSTEM INTRODUCTION WALKTHROUGH =================
      Portal "screens" below are illustrative recreations built from the app's
@@ -1429,6 +1435,13 @@
       body:
         '<p class="tour-step-text">The general program news feed, not the action-oriented one covered on ' +
         "the last slide. Every one of these is logged automatically as it happens:</p>" +
+        '<div class="mock-window"><div class="mock-titlebar"><div class="mock-dot-3"></div>' +
+        '<div class="mock-dot-3"></div><div class="mock-dot-3"></div><span>Announcements</span></div>' +
+        '<div class="mock-ann-list" style="margin:12px;">' +
+        announcementRowMock("&#127942;", "M3 Reached &#8211; Handing Over", "Est-1553 milestone M3 has been reached.") +
+        announcementRowMock("&#9989;", "Deliverable Approved", "6.1 Prepare Temporary Project Budget was reviewed and approved.") +
+        announcementRowMock("&#128276;", "New L1 Stage Commenced", "Est-1553 has entered L1. Deliverables for M1 &amp; M2 attached.") +
+        "</div></div>" +
         '<ul class="tour-list">' +
         "<li>A new L0 tender announced, or a project entering L1</li>" +
         "<li>A milestone reached, or the Bid Submission Date extended</li>" +
@@ -1533,6 +1546,22 @@
       body:
         '<p class="tour-step-text">The Admin triage hub for everything that needs a nudge or a decision, in ' +
         "one place:</p>" +
+        '<div class="mock-window"><div class="mock-titlebar"><div class="mock-dot-3"></div>' +
+        '<div class="mock-dot-3"></div><div class="mock-dot-3"></div><span>Follow Up</span></div>' +
+        '<div class="fu-stats" style="padding:12px 14px;">' +
+        '<div class="fu-stat critical"><span class="fu-stat-num">12</span><span class="fu-stat-lbl">Critical</span></div>' +
+        '<div class="fu-stat"><span class="fu-stat-num">36</span><span class="fu-stat-lbl">Overdue Total</span></div>' +
+        '<div class="fu-stat"><span class="fu-stat-num">4</span><span class="fu-stat-lbl">Depts Affected</span></div>' +
+        "</div>" +
+        '<details class="fu-dept-group" open><summary><span class="fu-dept-name">Engineering Department</span>' +
+        '<span class="fu-dept-tags"><span class="fu-dept-count has-critical">5 overdue</span></span></summary>' +
+        '<div class="fu-row"><div class="fu-row-main"><div class="fu-row-title">4.3 &middot; Site Investigation Requirements</div>' +
+        '<div class="fu-row-sub"><span>Est-1553</span><span class="sep">&middot;</span><span>Owner: A.Rahman</span></div></div>' +
+        '<div class="fu-row-side"><span class="fu-overdue-badge critical">18 days overdue</span></div></div>' +
+        "</details>" +
+        '<details class="fu-dept-group"><summary><span class="fu-dept-name">Supply Chain</span>' +
+        '<span class="fu-dept-tags"><span class="fu-dept-count">3 overdue</span></span></summary></details>' +
+        "</div>" +
         '<ul class="tour-list">' +
         "<li>Pending <b>Due-Date Requests</b> (Extensions &amp; Holds) awaiting a decision</li>" +
         "<li>Pending <b>Reassignment Requests</b> &#8212; an Owner asking to hand an item to someone else</li>" +
@@ -1550,6 +1579,12 @@
         '<p class="tour-step-text">A question about a specific tender, project or deliverable doesn\'t have ' +
         "to go through email or chat &#8212; raise it straight to the Admins from inside the portal, " +
         "and track it in your own <b>My Requests</b> list.</p>" +
+        '<div class="mock-window"><div class="mock-titlebar"><div class="mock-dot-3"></div>' +
+        '<div class="mock-dot-3"></div><div class="mock-dot-3"></div><span>Open Questions</span></div>' +
+        '<div class="mock-deliv-list" style="margin:12px;">' +
+        deliverableMock("Est-1553", "Why is item 5.3 still showing as pending?", "warn", "Open") +
+        deliverableMock("Est-1620", "Can we get the KB link for the BSD extension rules?", "good", "Resolved") +
+        "</div></div>" +
         '<p class="tour-step-text">Admins see every open thread in one place under <b>Open Questions</b>, ' +
         "reply (optionally pulling in a saved Knowledge Base answer instead of retyping the same " +
         "explanation), and mark it resolved &#8212; you get notified the moment they do.</p>",
@@ -1611,6 +1646,10 @@
       '<div class="rank-name">' + name + '</div>' +
       '<div class="rank-bar-track"><div class="rank-bar-fill" style="width:' + pct + '%;"></div></div>' +
       '<div class="rank-val">' + pct + '%</div></div>';
+  }
+  function announcementRowMock(icon, title, body) {
+    return '<div class="mock-ann-row"><div class="mock-ann-ic">' + icon + '</div>' +
+      '<div><div class="mock-ann-title">' + title + '</div><div class="mock-ann-body">' + body + "</div></div></div>";
   }
 
   var tourStep = 0;
