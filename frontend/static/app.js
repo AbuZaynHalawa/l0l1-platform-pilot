@@ -243,14 +243,40 @@
   // Item [announcement recipients]: the "To:" line used to list every
   // recipient email verbatim -- fine at a handful of test users, unreadable
   // once the roster is hundreds of real people. Show the audience group
-  // instead (same audience metadata already driving the type filter/legend
-  // above), not the literal address list.
-  var _ROLE_PLURAL = { Owner: "Owners", SME: "SMEs" };
-  function annAudienceTag(a) {
+  // instead of the literal address list.
+  var _ROLE_PLURAL = { Owner: "Owners", SME: "SMEs", Admin: "Admins" };
+  // Item [audience tag bug]: this used to read the per-*type* static list
+  // in ANN_TYPE_META (e.g. "deadline" -> ["Owner", "SME"]) regardless of who
+  // actually got the email -- accurate back when each type had one fixed
+  // audience, but DEADLINE is now a shared bucket for several flows with
+  // different real audiences (the due-soon/overdue batch is Owner-only, BM
+  // Triage is the Bid Manager, reassignment-requested is Admin-only...), so
+  // a single static per-type guess started mislabeling most of them (an
+  // Owner-only overdue reminder showing "To: Owners & SMEs"). This now
+  // derives the tag from the announcement's actual `recipients` emails via
+  // a real email->role lookup, falling back to the static per-type label
+  // only when recipients is empty/unresolvable.
+  function annAudienceTag(a, roleMap) {
     var meta = ANN_TYPE_META.find(function (t) { return t.value === a.type; });
+    if (meta && meta.audience === "all") return "All Users";
+    var emails = (a.recipients || "").split(",").map(function (s) { return s.trim().toLowerCase(); }).filter(Boolean);
+    if (emails.length && roleMap) {
+      var roles = {};
+      emails.forEach(function (e) { var r = roleMap[e]; if (r) roles[r] = true; });
+      var roleNames = Object.keys(roles);
+      if (roleNames.length) return roleNames.map(function (r) { return _ROLE_PLURAL[r] || r; }).join(" &amp; ");
+    }
+    if (emails.length) return emails.length + " recipient" + (emails.length === 1 ? "" : "s");
     if (!meta) return "&#8213;";
-    if (meta.audience === "all") return "All Users";
     return meta.audience.map(function (r) { return _ROLE_PLURAL[r] || r; }).join(" &amp; ");
+  }
+  var _emailRoleMap = null;
+  async function _getEmailRoleMap() {
+    if (_emailRoleMap) return _emailRoleMap;
+    var users = await _getRoster();
+    _emailRoleMap = {};
+    users.forEach(function (u) { if (u.email) _emailRoleMap[u.email.trim().toLowerCase()] = u.role; });
+    return _emailRoleMap;
   }
   function buildAnnouncementFilterUI() {
     var visible = ANN_TYPE_META.filter(function (t) {
@@ -321,10 +347,15 @@
   // Item 158: Viewer has no upload/review/create actions at all, so a work
   // queue of assigned items has nothing for them to do with it.
   function canSeeAssigned() { return CURRENT_ROLE !== "Viewer"; }
+  // Item [reminders tab]: same reasoning as Assigned Deliverables -- a
+  // Viewer has no deliverable of their own to be reminded about, so a due-
+  // soon/overdue nudge queue is meaningless for that role.
+  function canSeeReminders() { return CURRENT_ROLE !== "Viewer"; }
   function switchView(name) {
     if (ADMIN_ONLY_VIEWS.indexOf(name) !== -1 && !can("create")) name = "dashboard";
     if (name === "bmtriage" && !canSeeBmTriage()) name = "dashboard";
     if (name === "assigned" && !canSeeAssigned()) name = "dashboard";
+    if (name === "reminders" && !canSeeReminders()) name = "dashboard";
     document.querySelectorAll(".view").forEach(function (v) { v.hidden = true; });
     document.getElementById("view-" + name).hidden = false;
     document.querySelectorAll(".nav-item").forEach(function (n) { n.classList.toggle("active", n.dataset.view === name); });
@@ -1096,6 +1127,23 @@
       var unread = lastSeen ? anns.filter(function (a) { return new Date(a.created_at) > new Date(lastSeen); }).length : anns.length;
       document.getElementById("announcementsBadge").textContent = unread || "";
     } catch (e) {}
+
+    // Reminders badge -- same unseen-since-localStorage-timestamp pattern
+    // as Announcements above, its own key since the two tabs are read
+    // independently. Skipped for Viewer, matching the nav item itself being
+    // hidden for that role (canSeeReminders()).
+    if (canSeeReminders()) {
+      try {
+        var remQs = "?limit=500&category=reminders";
+        if (CURRENT_ROLE !== "Admin") remQs += "&actor_role=" + encodeURIComponent(CURRENT_ROLE) + "&actor_email=" + encodeURIComponent(passiveIdentity());
+        var rems = await api("/api/announcements" + remQs);
+        var remLastSeen = localStorage.getItem("remLastSeenAt");
+        var remUnread = remLastSeen ? rems.filter(function (a) { return new Date(a.created_at) > new Date(remLastSeen); }).length : rems.length;
+        document.getElementById("remindersBadge").textContent = remUnread || "";
+      } catch (e) {}
+    } else {
+      document.getElementById("remindersBadge").textContent = "";
+    }
 
     // L0/L1 "new" projects -- no per-viewer seen-tracking precedent exists
     // anywhere in this app for projects (unlike Announcements above), so
@@ -4141,6 +4189,7 @@
       qs += "&actor_role=" + encodeURIComponent(CURRENT_ROLE) + "&actor_email=" + encodeURIComponent(passiveIdentity());
     }
     announcementsAll = await api("/api/announcements" + qs);
+    await _getEmailRoleMap();
     renderAnnouncements();
     // Item [nav badges]: opening this view marks everything currently
     // loaded as seen -- no read-tracking exists anywhere in the backend
@@ -4162,7 +4211,7 @@
     var when = new Date(a.created_at).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
     main.appendChild(el("div", "ann-top", '<span class="ann-title">' + a.title + '</span><span class="ann-time">' + when + '</span>'));
     main.appendChild(el("div", "ann-body", a.body));
-    main.appendChild(el("div", "ann-meta", "To: <b>" + annAudienceTag(a) + "</b> &middot; " + a.email_status));
+    main.appendChild(el("div", "ann-meta", "To: <b>" + annAudienceTag(a, _emailRoleMap) + "</b> &middot; " + a.email_status));
     row.appendChild(main);
     if (a.submission_id || a.project_id) {
       row.style.cursor = "pointer";
@@ -4197,7 +4246,10 @@
       qs += "&actor_role=" + encodeURIComponent(CURRENT_ROLE) + "&actor_email=" + encodeURIComponent(passiveIdentity());
     }
     remindersAll = await api("/api/announcements" + qs);
+    await _getEmailRoleMap();
     renderReminders();
+    localStorage.setItem("remLastSeenAt", new Date().toISOString());
+    document.getElementById("remindersBadge").textContent = "";
   }
   function renderReminders() {
     var from = document.getElementById("remFromDate").value;
@@ -4460,12 +4512,15 @@
     await _refreshCanSeeBmTriage();
     document.getElementById("bmTriageNavItem").hidden = !canSeeBmTriage();
     document.getElementById("assignedNavItem").hidden = !canSeeAssigned();
+    document.getElementById("remindersNavItem").hidden = !canSeeReminders();
     populateActingEmailQuickPick();
     if (!showAdmin && ADMIN_ONLY_VIEWS.some(function (v) { return !document.getElementById("view-" + v).hidden; })) switchView("dashboard");
     if (!canSeeBmTriage() && !document.getElementById("view-bmtriage").hidden) switchView("dashboard");
     if (!canSeeAssigned() && !document.getElementById("view-assigned").hidden) switchView("dashboard");
+    if (!canSeeReminders() && !document.getElementById("view-reminders").hidden) switchView("dashboard");
     if (currentProjectId && !document.getElementById("view-detail").hidden) openDetail(currentProjectId);
     if (!document.getElementById("view-announcements").hidden) loadAnnouncements();
+    if (!document.getElementById("view-reminders").hidden) loadReminders();
     checkBmTriageDeadline();
     refreshNavBadges();
   });
@@ -4484,6 +4539,7 @@
   });
   document.getElementById("actingEmail").addEventListener("change", async function () {
     if (!document.getElementById("view-announcements").hidden) loadAnnouncements();
+    if (!document.getElementById("view-reminders").hidden) loadReminders();
     // Item 183: "My Items" reads the acting-as-email identity live, so
     // switching who you're acting as should refresh the Dashboard's scoped
     // view immediately rather than showing stale data until the next visit.

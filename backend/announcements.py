@@ -350,3 +350,38 @@ def project_closed(db: Session, project: models.Project, recipients: list[str]) 
             f"<br><br>{_project_link(project.id)}")
     return _create(db, type=models.AnnouncementType.CLOSED, title=title, body=body,
                     recipients=recipients, project=project)
+
+
+def reassignment_requested(db: Session, project: models.Project, admin_emails: list[str],
+                            item_no: str, item_name: str, from_email: str | None, to_email: str,
+                            reason: str | None, submission_id: int | None = None) -> models.Announcement:
+    """Item [follow-up notifications]: the reassignment-request flow had no
+    email/in-app notification at all, unlike the due-date-request flow it
+    was modeled on -- this brings it to parity, DEADLINE-typed like every
+    other Follow Up tab notification so it lands in the Reminders tab.
+    """
+    title = "Reassignment Requested &#8211; Admin Action Needed"
+    reason_part = f' &#8211; &quot;{reason}&quot;' if reason else ""
+    body = (f"{_b(item_no)} {item_name} on {_b(project.est_no)}: {from_email or 'the current owner'} requested "
+            f"reassignment to {_b(to_email)}{reason_part}. Awaiting your decision.")
+    if submission_id is not None:
+        body += f"<br><br>{_deliverable_link(submission_id, 'Decide now')}"
+    return _create(db, type=models.AnnouncementType.DEADLINE, title=title, body=body,
+                    recipients=sorted({e for e in admin_emails if e}), project=project,
+                    submission_id=submission_id, greeting="Admin")
+
+
+def reassignment_decision(db: Session, project: models.Project, requester_emails: list[str],
+                           item_no: str, item_name: str, approved: bool, to_email: str,
+                           submission_id: int | None = None) -> models.Announcement:
+    if approved:
+        title = "Reassignment Approved"
+        body = f"{_b(item_no)} {item_name} on {_b(project.est_no)}: reassignment to {_b(to_email)} was {_hl('approved', 'good')}."
+    else:
+        title = "Reassignment Rejected"
+        body = f"{_b(item_no)} {item_name} on {_b(project.est_no)}: the request to reassign to {_b(to_email)} was {_hl('rejected', 'crit')}."
+    if submission_id is not None:
+        body += f"<br><br>{_deliverable_link(submission_id)}"
+    return _create(db, type=models.AnnouncementType.DEADLINE, title=title, body=body,
+                    recipients=sorted({e for e in requester_emails if e}), project=project,
+                    submission_id=submission_id, greeting="Owner")

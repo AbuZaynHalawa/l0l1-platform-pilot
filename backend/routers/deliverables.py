@@ -461,6 +461,10 @@ def request_reassignment(submission_id: int, payload: schemas.ReassignRequestCre
     )
     db.add(req)
     db.commit()
+    db.refresh(req)
+    announcements.reassignment_requested(db, sub.project, rules.admin_emails(db), sub.definition.item_no,
+                                          sub.definition.name, req.from_email, to_email, payload.reason,
+                                          submission_id=submission_id)
     return {"status": "ok", "id": req.id}
 
 
@@ -501,6 +505,10 @@ def decide_reassignment(request_id: int, decision: schemas.ReassignmentDecision,
         req.submission.owner_emails = [req.to_email]
         req.submission.owner_email = req.to_email
     db.commit()
+    requester_emails = [e.strip() for e in (req.from_email or "").split(",") if e.strip()]
+    announcements.reassignment_decision(db, req.submission.project, requester_emails,
+                                         req.submission.definition.item_no, req.submission.definition.name,
+                                         decision.approved, req.to_email, submission_id=req.submission_id)
     return {"status": "ok"}
 
 

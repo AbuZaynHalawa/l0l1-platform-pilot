@@ -23,19 +23,19 @@
     <nav class="nav">
       <button class="nav-item" data-view="journey"><span class="ic">&#128337;</span> L0/L1 Walkthrough</button>
       <button class="nav-item active" data-view="dashboard"><span class="ic">&#9673;</span> Dashboard</button>
-      <button class="nav-item" id="assignedNavItem" data-view="assigned"><span class="ic">&#128203;</span> Assigned Deliverables <span class="nav-badge" id="assignedBadge"></span></button>
-      <button class="nav-item" id="announcementsNavItem" data-view="announcements"><span class="ic">&#128276;</span> Announcements <span class="nav-badge" id="announcementsBadge"></span></button>
-      <button class="nav-item" id="remindersNavItem" data-view="reminders"><span class="ic">&#9203;</span> Reminders</button>
       <button class="nav-item" id="l0NavItem" data-view="l0"><span class="ic">&#128196;</span> L0 Tenders <span class="nav-badge" id="l0Badge"></span></button>
       <button class="nav-item" id="l1NavItem" data-view="l1"><span class="ic">&#128274;</span> L1 Projects <span class="nav-badge" id="l1Badge"></span></button>
       <button class="nav-item" data-view="gantt"><span class="ic">&#128198;</span> Timeline</button>
-      <button class="nav-item" data-view="performance"><span class="ic">&#128200;</span> Performance</button>
-      <button class="nav-item" data-view="support"><span class="ic">&#128172;</span> Q/A - Ask the Team</button>
+      <button class="nav-item" id="assignedNavItem" data-view="assigned"><span class="ic">&#128203;</span> Assigned Deliverables <span class="nav-badge" id="assignedBadge"></span></button>
+      <button class="nav-item" id="announcementsNavItem" data-view="announcements"><span class="ic">&#128276;</span> Announcements <span class="nav-badge" id="announcementsBadge"></span></button>
+      <button class="nav-item" id="remindersNavItem" data-view="reminders"><span class="ic">&#9203;</span> Reminders <span class="nav-badge" id="remindersBadge"></span></button>
       <!-- Item 110: visible to Admins always, and to a Bid Manager acting
            as themselves (their own email entered) -- scoped server-side
            to just their own tenders in that case, so it lives in the main
            nav rather than the admin-only group. -->
       <button class="nav-item" id="bmTriageNavItem" data-view="bmtriage"><span class="ic">&#9989;</span> BM Triage Status <span class="nav-badge" id="bmTriageBadge"></span></button>
+      <button class="nav-item" data-view="performance"><span class="ic">&#128200;</span> Performance</button>
+      <button class="nav-item" data-view="support"><span class="ic">&#128172;</span> Q/A - Ask the Team</button>
     </nav>
 
     <div class="nav-group-label" id="adminGroupLabel">Admin</div>
