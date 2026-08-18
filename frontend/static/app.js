@@ -370,13 +370,34 @@
     // child stat inside one of two parent "Status" cards -- clicking a
     // child still jumps straight to Assigned Deliverables pre-filtered,
     // same as the old flat tiles did (item 121).
+    // Item [dashboard redesign 2]: only the card's own header stays
+    // colorful (tag + count) -- the body underneath lists the 3 newest
+    // tenders/projects for that stage in the card's plain surface color,
+    // with just the Est No taking the stage's identity color.
     var projectRow = el("div", "dash-project-row");
-    [["L0", mine ? "My Active L0 Tenders" : "Active L0 Tenders", d.active_l0],
-     ["L1", mine ? "My Active L1 Projects" : "Active L1 Projects", d.active_l1]]
+    [["L0", mine ? "My Active L0 Tenders" : "Active L0 Tenders", d.active_l0, d.recent_l0],
+     ["L1", mine ? "My Active L1 Projects" : "Active L1 Projects", d.active_l1, d.recent_l1]]
       .forEach(function (s) {
         var card = el("div", "card dash-project-card " + s[0].toLowerCase());
-        card.innerHTML = '<div class="dpc-tag">' + s[0] + '</div><div class="dpc-value">' + s[2] +
-          '</div><div class="dpc-label">' + s[1] + "</div>";
+        var head = el("div", "dpc-head");
+        head.innerHTML = '<div class="dpc-tag">' + s[0] + '</div><div><div class="dpc-value">' + s[2] +
+          '</div><div class="dpc-label">' + s[1] + "</div></div>";
+        card.appendChild(head);
+        var body = el("div", "dpc-body");
+        var recent = s[3] || [];
+        if (!recent.length) {
+          body.appendChild(el("div", "dpc-empty", "No " + s[0] + " projects yet."));
+        } else {
+          recent.forEach(function (p) {
+            var row = el("div", "dpc-recent-row");
+            row.innerHTML = '<span class="dpc-recent-est">' + p.est_no + '</span>' +
+              '<span class="dpc-recent-name">' + p.name + '</span>' +
+              '<span class="dpc-recent-date">' + fmtDate(p.announcement_date) + "</span>";
+            row.addEventListener("click", function () { openDetail(p.id); });
+            body.appendChild(row);
+          });
+        }
+        card.appendChild(body);
         projectRow.appendChild(card);
       });
     stats.appendChild(projectRow);
@@ -399,14 +420,14 @@
       return card;
     }
     var statusRow = el("div", "dash-status-row");
-    statusRow.appendChild(statusCard("Deadline Status", [
+    statusRow.appendChild(statusCard("Deliverables Deadline Status", [
       [mine ? "My Not Due" : "Not Due", d.not_due, ["deadline", "not_due"], ""],
       [mine ? "My Due" : "Due", d.overdue, ["deadline", "due"], "crit"],
       ["Early", d.early, null, "good"],
       ["On Time", d.on_time, null, "good"],
       ["Late", d.late, null, "crit"],
     ]));
-    statusRow.appendChild(statusCard("Progress Status", [
+    statusRow.appendChild(statusCard("Deliverables Progress Status", [
       ["No Progress Yet", d.no_progress, ["progress", "no_progress"], ""],
       ["In Progress", d.in_progress, ["progress", "in_progress"], "warn"],
       [mine ? "My Pending SME Review" : "Pending SME Review", d.pending_review, ["progress", "pending_review"], "warn"],
@@ -414,6 +435,49 @@
       ["Rejected", d.rejected, ["progress", "rejected"], "crit"],
     ]));
     stats.appendChild(statusRow);
+
+    // Item [dashboard redesign 2]: Newest Milestones -- the most recently
+    // reached M-codes across every project, portfolio-wide.
+    var milestonesList = document.getElementById("milestonesList");
+    milestonesList.innerHTML = "";
+    if (!d.recent_milestones || !d.recent_milestones.length) {
+      milestonesList.appendChild(el("div", "empty-state", "No milestones reached yet."));
+    } else {
+      d.recent_milestones.forEach(function (m) {
+        var row = el("div", "milestone-row");
+        row.innerHTML = '<span class="milestone-code-badge">' + (m.milestone_code || "M") + '</span>' +
+          '<span class="milestone-body"><span class="milestone-name">' + m.name + '</span>' +
+          '<div class="milestone-meta">' + m.est_no + " &#8211; " + m.project_name + "</div></span>" +
+          '<span class="milestone-date">' + fmtDate(m.reviewed_at ? m.reviewed_at.slice(0, 10) : null) + "</span>";
+        row.addEventListener("click", function () { openDetail(m.project_id); });
+        milestonesList.appendChild(row);
+      });
+    }
+
+    // Item [dashboard redesign 2]: Top 3 Departments, L0 and L1 ranked
+    // separately (same Calculation-Criteria percentage as the Performance
+    // tab), side by side in one card.
+    var topDeptsBody = document.getElementById("topDeptsBody");
+    topDeptsBody.innerHTML = "";
+    var deptsCols = el("div", "top-depts-cols");
+    [["L0", d.top_depts_l0], ["L1", d.top_depts_l1]].forEach(function (s) {
+      var col = el("div", "top-depts-col");
+      col.appendChild(el("div", "top-depts-col-head", s[0] + " Departments"));
+      var rows = s[1] || [];
+      if (!rows.length) {
+        col.appendChild(el("div", "dpc-empty", "No data yet."));
+      } else {
+        rows.forEach(function (r, i) {
+          var row = el("div", "top-dept-row");
+          row.innerHTML = '<span class="top-dept-rank">#' + (i + 1) + '</span>' +
+            '<span class="top-dept-name">' + deptLabel(r.department, r.department_number) + '</span>' +
+            '<span class="top-dept-pct">' + r.pct.toFixed(1) + "%</span>";
+          col.appendChild(row);
+        });
+      }
+      deptsCols.appendChild(col);
+    });
+    topDeptsBody.appendChild(deptsCols);
 
     var achievers = await api("/api/dashboard/top-achievers");
     renderAchievers("topOwners", achievers.owners.slice(0, 3), "owner");

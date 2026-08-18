@@ -187,18 +187,40 @@
   .stat-tile .delta.up { color: var(--good); }
   .stat-tile .delta.crit { color: var(--crit); }
 
-  .dash-project-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
-  .dash-project-card { padding: 22px 26px; display: flex; align-items: center; gap: 18px; border: none; }
-  .dash-project-card.l0 { background: linear-gradient(135deg, var(--purple-1) 0%, var(--purple-2) 100%); }
-  .dash-project-card.l1 { background: linear-gradient(135deg, #1f9d5c 0%, #146c3e 100%); }
-  .dash-project-card .dpc-tag {
-    width: 52px; height: 52px; border-radius: 13px; display: flex; align-items: center; justify-content: center;
-    font-size: 17px; font-weight: 800; flex-shrink: 0; background: rgba(255,255,255,.2); color: #fff;
-  }
-  .dash-project-card .dpc-value { font-size: 44px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; color: #fff; }
-  .dash-project-card .dpc-label { font-size: 13px; color: rgba(255,255,255,.85); font-weight: 700; margin-top: 4px; }
+  /* Item [dashboard redesign 2]: every 2-column dashboard section shares
+     this one grid (same columns, same gap) so their card edges line up
+     all the way down the page -- this is what fixes the corner
+     misalignment between the status cards and the row below them. */
+  .dash-row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
+  .dash-row > * { min-width: 0; }
+  @media (max-width: 980px) { .dash-row { grid-template-columns: 1fr; } }
 
-  .dash-status-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .dash-project-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; margin-bottom: 18px; }
+  .dash-project-row > * { min-width: 0; }
+  .dash-project-card { padding: 0; border: none; overflow: hidden; display: flex; flex-direction: column; }
+  .dash-project-card .dpc-head { padding: 16px 22px; display: flex; align-items: center; gap: 14px; }
+  .dash-project-card.l0 .dpc-head { background: linear-gradient(135deg, var(--purple-1) 0%, var(--purple-2) 100%); }
+  .dash-project-card.l1 .dpc-head { background: linear-gradient(135deg, #1f9d5c 0%, #146c3e 100%); }
+  .dash-project-card .dpc-tag {
+    width: 44px; height: 44px; border-radius: 11px; display: flex; align-items: center; justify-content: center;
+    font-size: 22px; font-weight: 800; flex-shrink: 0; background: rgba(255,255,255,.22); color: #fff;
+  }
+  .dash-project-card .dpc-value { font-size: 30px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; color: #fff; }
+  .dash-project-card .dpc-label { font-size: 12.5px; color: rgba(255,255,255,.85); font-weight: 700; margin-top: 3px; }
+  .dash-project-card .dpc-body { padding: 6px 10px 8px; flex: 1; }
+  .dpc-recent-row {
+    display: flex; align-items: baseline; gap: 10px; padding: 8px 12px; border-radius: 8px; cursor: pointer;
+  }
+  .dpc-recent-row:hover { background: var(--surface-sunken); }
+  .dpc-recent-est { font-weight: 800; font-size: 12.5px; flex-shrink: 0; }
+  .dash-project-card.l0 .dpc-recent-est { color: var(--purple-1); }
+  .dash-project-card.l1 .dpc-recent-est { color: #1f9d5c; }
+  .dpc-recent-name { font-size: 12.5px; color: var(--ink-700); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; }
+  .dpc-recent-date { font-size: 11px; color: var(--ink-500); flex-shrink: 0; white-space: nowrap; }
+  .dpc-empty { padding: 10px 12px; font-size: 12px; color: var(--ink-500); }
+
+  .dash-status-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; margin-bottom: 18px; }
+  .dash-status-row > * { min-width: 0; }
   .dash-status-card { padding: 16px 20px 18px; }
   .dash-status-card .dsc-head { font-size: 12.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-500); margin-bottom: 12px; }
   .dash-status-card .dsc-children { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 10px; }
@@ -213,6 +235,41 @@
   .dsc-child.warn .dsc-child-val { color: var(--warn); }
   .dsc-child.good .dsc-child-val { color: var(--good); }
   @media (max-width: 980px) { .dash-project-row, .dash-status-row { grid-template-columns: 1fr; } }
+
+  /* Concerns -- now a plain card matching every other dashboard section,
+     with just a warning-colored icon/heading instead of a distinct
+     colored banner strip. */
+  .concerns-card { margin-bottom: 18px; }
+  .concerns-title-row { color: var(--crit); }
+  .concerns-card ul { margin: 0; padding: 0 20px 4px; list-style: none; }
+  .concerns-card li { position: relative; padding: 7px 0 7px 18px; font-size: 13px; color: var(--ink-700); line-height: 1.5; border-bottom: 1px solid var(--line); }
+  .concerns-card li:last-child { border-bottom: none; }
+  .concerns-card li::before { content: "\26A0"; position: absolute; left: 0; color: var(--crit); font-size: 11px; }
+  .concerns-card b { font-weight: 700; }
+
+  /* Newest Milestones */
+  .milestone-row { display: flex; align-items: center; gap: 12px; padding: 10px 20px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .milestone-row:last-child { border-bottom: none; }
+  .milestone-row:hover { background: var(--surface-sunken); }
+  .milestone-code-badge {
+    width: 34px; height: 34px; border-radius: 9px; background: var(--accent-soft); color: var(--purple-1);
+    display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; flex-shrink: 0;
+  }
+  .milestone-body { min-width: 0; flex: 1; }
+  .milestone-name { font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .milestone-meta { font-size: 11px; color: var(--ink-500); margin-top: 2px; }
+  .milestone-date { font-size: 11px; color: var(--ink-500); flex-shrink: 0; white-space: nowrap; }
+
+  /* Top Departments */
+  .top-depts-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+  .top-depts-col { padding: 14px 18px; }
+  .top-depts-col:first-child { border-right: 1px solid var(--line); }
+  .top-depts-col-head { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-500); margin-bottom: 10px; }
+  .top-dept-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+  .top-dept-rank { font-size: 11px; font-weight: 800; color: var(--ink-300); width: 16px; flex-shrink: 0; }
+  .top-dept-name { font-size: 12.5px; color: var(--ink-700); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .top-dept-pct { font-size: 12.5px; font-weight: 800; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+  @media (max-width: 980px) { .top-depts-cols { grid-template-columns: 1fr; } .top-depts-col:first-child { border-right: none; border-bottom: 1px solid var(--line); } }
 
   .pipeline-card { padding: 22px 24px 18px; margin-bottom: 22px; }
   .pipeline-card h3 { font-size: 14px; margin-bottom: 2px; }
@@ -486,13 +543,6 @@
   .bd-row .bn { color: var(--ink-500); margin-right: 6px; font-weight: 700; }
 
   .footnote { color: var(--ink-500); font-size: 11.5px; margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--line); }
-
-  /* ---------- concerns banner ---------- */
-  .concerns-banner { background: var(--concern-bg); border: 1.5px solid var(--concern-border); border-left: 5px solid var(--crit); border-radius: 10px; padding: 14px 18px 16px; margin-bottom: 22px; }
-  .concerns-title { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--concern-text); margin-bottom: 8px; }
-  .concerns-banner ul { margin: 0; padding-left: 20px; color: var(--concern-text); font-size: 13px; line-height: 1.7; }
-  .concerns-banner li::marker { color: var(--crit); }
-  .concerns-banner b { font-weight: 700; }
 
   /* ---------- announcements ---------- */
   .ann-type-key { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; font-size: 12px; color: var(--ink-500); }
@@ -775,7 +825,7 @@
   .journey-event-sub b { color: var(--ink-700); font-weight: 700; text-transform: none; }
 
   /* ---------- top achievers ---------- */
-  .achievers-row { margin-bottom: 18px; margin-top: 18px; align-items: stretch; }
+  .achievers-row { align-items: stretch; }
   .achievers-row > .card { display: flex; flex-direction: column; }
   .achievers-row > .card > #digestList { flex: 1; overflow-y: auto; }
   .achievers-stack { display: flex; flex-direction: column; gap: 18px; }

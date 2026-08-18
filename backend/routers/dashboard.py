@@ -8,6 +8,12 @@ from ..database import get_db
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
+# Item [dashboard redesign 2]: shared with get_performance's own department
+# loop below -- the legacy plain "Operation Units" department has real L0
+# data (so has_data alone wouldn't hide it) but Yasser wants it excluded
+# from performance tracking everywhere, not just the Performance tab.
+_PERF_EXCLUDED_DEPTS = {"Operation Units"}
+
 
 @router.get("")
 def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db)):
@@ -111,11 +117,64 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
     if unassigned:
         concerns.append(f"No focal point contact set for: <b>{', '.join(unassigned)}</b>.")
 
+    # Item [dashboard redesign 2]: newest 3 tenders/projects per stage, for
+    # the L0/L1 headline cards -- org-wide (not scoped to focus_email), a
+    # portfolio awareness feed rather than "my work."
+    def _recent_projects(stage_enum):
+        rows = (
+            db.query(models.Project)
+            .filter(models.Project.stage == stage_enum)
+            .order_by(models.Project.created_at.desc())
+            .limit(3)
+            .all()
+        )
+        return [{"id": p.id, "est_no": p.est_no, "name": p.name, "announcement_date": p.announcement_date} for p in rows]
+
+    recent_l0 = _recent_projects(models.Stage.L0)
+    recent_l1 = _recent_projects(models.Stage.L1)
+
+    # Newest Milestones: the 5 most recently reached M-codes across every
+    # project, org-wide.
+    recent_milestones = []
+    milestone_subs = (
+        db.query(models.DeliverableSubmission)
+        .join(models.DeliverableDefinition)
+        .filter(models.DeliverableDefinition.is_milestone.is_(True), models.DeliverableSubmission.status == models.SubmissionStatus.APPROVED)
+        .order_by(models.DeliverableSubmission.reviewed_at.desc())
+        .limit(5)
+        .all()
+    )
+    for s in milestone_subs:
+        recent_milestones.append({
+            "milestone_code": s.definition.milestone_code, "name": s.definition.name,
+            "est_no": s.project.est_no, "project_name": s.project.name, "project_id": s.project_id,
+            "reviewed_at": s.reviewed_at,
+        })
+
+    # Top 3 Departments per stage, by the same Calculation-Criteria
+    # percentage the Performance tab uses -- drawn from stat_subs so this
+    # scopes with "My Items" too, same as Concerns above.
+    top_depts_l0, top_depts_l1 = [], []
+    for dept in db.query(models.Department).order_by(models.Department.number).all():
+        if dept.name in _PERF_EXCLUDED_DEPTS:
+            continue
+        d_subs = _kpi_cohort([s for s in stat_subs if s.definition.department_id == dept.id])
+        l0_pct = _level_stats(d_subs, models.Stage.L0)["percentage"]
+        l1_pct = _level_stats(d_subs, models.Stage.L1)["percentage"]
+        if l0_pct is not None:
+            top_depts_l0.append({"department": dept.name, "department_number": dept.number, "pct": l0_pct})
+        if l1_pct is not None:
+            top_depts_l1.append({"department": dept.name, "department_number": dept.number, "pct": l1_pct})
+    top_depts_l0 = sorted(top_depts_l0, key=lambda r: -r["pct"])[:3]
+    top_depts_l1 = sorted(top_depts_l1, key=lambda r: -r["pct"])[:3]
+
     return {
         "active_l0": l0_count, "active_l1": l1_count, "signed": signed_count,
         "overdue": overdue, "pending_review": pending_review, "not_due": not_due,
         "early": early, "on_time": on_time, "late": late,
         "no_progress": no_progress, "in_progress": in_progress, "approved": approved, "rejected": rejected,
+        "recent_l0": recent_l0, "recent_l1": recent_l1, "recent_milestones": recent_milestones,
+        "top_depts_l0": top_depts_l0, "top_depts_l1": top_depts_l1,
         "departments": dept_rows, "concerns": concerns,
     }
 
@@ -565,13 +624,6 @@ def get_performance(db: Session = Depends(get_db)):
         rules.recompute_project_due_dates(db, p)
     db.commit()
     all_subs = db.query(models.DeliverableSubmission).all()
-
-    # Item [performance history]: "Operation Units" (plain) is a legacy
-    # general grouping predating the TBU/PBU/DBU/BBU split -- it has real
-    # tracked deliverables of its own (so has_data alone wouldn't hide it),
-    # but Yasser wants performance tracked only through the four specific
-    # splits, not the general bucket too.
-    _PERF_EXCLUDED_DEPTS = {"Operation Units"}
 
     departments = []
     for dept in db.query(models.Department).order_by(models.Department.number).all():

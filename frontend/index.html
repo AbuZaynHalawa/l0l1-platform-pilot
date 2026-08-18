@@ -99,14 +99,30 @@
         </div>
       </div>
 
-      <div class="concerns-banner" id="concernsBanner" hidden>
-        <div class="concerns-title">&#9888; Concerns</div>
+      <!-- Item [dashboard redesign 2]: headline numbers come first, then
+           exceptions/awareness (Concerns, Milestones, Top Departments), then
+           activity/achievers, then the full detail matrix -- every 2-column
+           row below shares the same .dash-row grid so card edges line up
+           all the way down the page instead of drifting per-section. -->
+      <div class="stat-row" id="statRow"></div>
+
+      <div class="card concerns-card" id="concernsBanner" hidden>
+        <div class="section-title concerns-title-row">&#9888; Concerns</div>
         <ul id="concernsList"></ul>
       </div>
 
-      <div class="stat-row" id="statRow"></div>
+      <div class="dash-row" id="milestonesDeptsRow">
+        <div class="card">
+          <div class="section-title">Newest Milestones</div>
+          <div id="milestonesList"></div>
+        </div>
+        <div class="card">
+          <div class="section-title">Top Departments</div>
+          <div id="topDeptsBody"></div>
+        </div>
+      </div>
 
-      <div class="split achievers-row">
+      <div class="dash-row achievers-row">
         <div class="card">
           <div class="section-title">Latest announcements <span class="cnt">real-time log</span></div>
           <div id="digestList"></div>
