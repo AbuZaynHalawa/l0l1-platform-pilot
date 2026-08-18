@@ -124,7 +124,9 @@
 
   .main { display: flex; flex-direction: column; min-width: 0; }
   .topbar { display: flex; align-items: center; gap: 14px; padding: 14px 26px; border-bottom: 1px solid var(--line); background: var(--surface); position: sticky; top: 0; z-index: 5; }
-  .topbar-title { font-size: 21px; font-weight: 800; color: var(--ink-900); white-space: nowrap; text-wrap: balance; }
+  .topbar-title { display: flex; flex-direction: column; line-height: 1.25; white-space: nowrap; }
+  .topbar-title b { font-size: 18px; font-weight: 800; color: var(--ink-900); letter-spacing: .01em; }
+  .topbar-title span { font-size: 11px; font-weight: 700; color: var(--ink-500); text-transform: uppercase; letter-spacing: .06em; }
   .search-wrap { position: relative; flex: 1; max-width: 400px; }
   .search-wrap input { width: 100%; padding: 8px 12px 8px 32px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface-sunken); color: var(--ink-900); font-size: 13.5px; }
   .search-wrap input:focus { background: var(--surface); border-color: var(--accent-line); }

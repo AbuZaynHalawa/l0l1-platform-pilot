@@ -17,8 +17,6 @@
   <aside class="rail" id="rail">
     <div class="brand">
       <div class="brand-badge"><img src="/static/logo.png" alt="Algihaz Contracting" /></div>
-      <!-- Items 35/36: the Platform-vs-Portal word choice, finally applied. -->
-      <div class="brand-text"><b>INTEGRATED PROGRAM (L0/L1) PLATFORM</b><span>Tendering and Early Project Stages</span></div>
     </div>
 
     <div class="nav-group-label">Workspace</div>
@@ -60,13 +58,14 @@
 
   <div class="main">
     <div class="topbar">
-      <!-- Item [dashboard header move]: the dashboard's own greeting used to
-           live under the topbar as a normal scrollable view-head -- now it
-           sits in the sticky topbar itself, right next to the sidebar logo,
-           so it's always visible without scrolling. Only shown on the
-           Dashboard view (switchView toggles it), since the topbar is
-           shared across every page. -->
-      <div class="topbar-title" id="topbarTitle" hidden>Good morning &#8212; here&#8217;s where things stand</div>
+      <!-- Item [app title move]: the app's own name used to sit stacked
+           under the logo image inside the narrow sidebar at ~11px text --
+           now it's a big, persistent masthead in the sticky topbar, right
+           next to the logo, on every page. -->
+      <div class="topbar-title">
+        <b>INTEGRATED PROGRAM (L0/L1) PLATFORM</b>
+        <span>Tendering and Early Project Stages</span>
+      </div>
       <div class="search-wrap">
         <span class="sic">&#128269;</span>
         <input id="globalSearch" type="text" placeholder="Search by Est No or project name&#8230;" />
@@ -91,6 +90,14 @@
 
     <!-- DASHBOARD -->
     <section class="view" id="view-dashboard" hidden>
+      <div class="view-head">
+        <div>
+          <div class="eyebrow">Overview</div>
+          <h1>Good morning — here's where things stand</h1>
+          <p class="sub">Across L0 and L1, updated as departments submit.</p>
+        </div>
+      </div>
+
       <div class="dash-focus">
         <div class="subtab-row" id="dashFocusToggle">
           <button class="chip active" data-focus="all">All</button>

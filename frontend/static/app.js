@@ -303,9 +303,6 @@
     document.querySelectorAll(".view").forEach(function (v) { v.hidden = true; });
     document.getElementById("view-" + name).hidden = false;
     document.querySelectorAll(".nav-item").forEach(function (n) { n.classList.toggle("active", n.dataset.view === name); });
-    // Item [dashboard header move]: the big topbar title only makes sense
-    // on the Dashboard -- every other view keeps its own in-content heading.
-    document.getElementById("topbarTitle").hidden = name !== "dashboard";
     // Item 99: a plain nav view is remembered in the URL so a refresh comes
     // back here instead of bouncing to the Dashboard. "detail" and "triage"
     // aren't nav views — they get their own hash from openDetail/openTriage.
@@ -4257,7 +4254,6 @@
     // That means the dashboard-landing case now has to unhide itself
     // explicitly instead of relying on already being visible by default.
     document.getElementById("view-dashboard").hidden = false;
-    document.getElementById("topbarTitle").hidden = false;
     loadDashboard();
     // A shared deliverable link (item 76) opens straight to that item's
     // popup, on top of the dashboard it's actually landing on.
