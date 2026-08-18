@@ -352,16 +352,18 @@
     var d = await api("/api/dashboard" + qs);
 
     // Item [dashboard stage split]: Concerns is now one card per stage,
-    // living in that stage's own column further down.
+    // living in that stage's own column further down. Item [empty concerns]:
+    // the card always stays visible (title + "No concerns") instead of
+    // disappearing entirely when there's nothing to flag -- a vanished card
+    // on one side while the other stage still has one looked like a layout
+    // bug, and broke the visual rhythm of the column below it.
     [["L0", d.concerns_l0], ["L1", d.concerns_l1]].forEach(function (s) {
-      var banner = document.getElementById("concerns" + s[0] + "Card");
       var list = document.getElementById("concerns" + s[0] + "List");
       list.innerHTML = "";
       if (s[1] && s[1].length) {
-        banner.hidden = false;
         s[1].forEach(function (c) { list.appendChild(el("li", "", c)); });
       } else {
-        banner.hidden = true;
+        list.appendChild(el("div", "empty-state", "No concerns."));
       }
     });
 
