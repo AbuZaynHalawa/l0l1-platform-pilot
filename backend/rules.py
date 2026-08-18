@@ -271,6 +271,24 @@ def document_counts(db: Session, submission_ids: list[int]) -> dict[int, int]:
     return counts
 
 
+def pending_due_date_request_kinds(db: Session, submission_ids: list[int]) -> dict[int, str]:
+    """Item [due-date pending pill]: {submission_id: "extension"|"hold"} for
+    every submission in the batch with an outstanding DueDateRequest, one
+    query for a whole list view instead of N+1. _create_due_date_request
+    already guarantees at most one pending request per submission, so this
+    is a plain dict, not a list.
+    """
+    if not submission_ids:
+        return {}
+    rows = (
+        db.query(models.DueDateRequest.submission_id, models.DueDateRequest.kind)
+        .filter(models.DueDateRequest.submission_id.in_(submission_ids),
+                models.DueDateRequest.status == "pending")
+        .all()
+    )
+    return {sub_id: kind for sub_id, kind in rows}
+
+
 def mark_complete_note(submission: "models.DeliverableSubmission") -> str | None:
     """The owner's completion comment when a deliverable was submitted via
     Mark Completed instead of a file upload — the most recent 'submitted'

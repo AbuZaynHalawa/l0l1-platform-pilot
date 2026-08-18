@@ -127,6 +127,10 @@ class SubmissionOut(BaseModel):
     # Item [early bonus]: the real Calculation Criteria point value earned,
     # set only once the deliverable is actually Completed.
     points_earned: float | None = None
+    # Item [due-date pending pill]: "extension" | "hold" | None -- an
+    # outstanding, not-yet-decided DueDateRequest, so the list view can show
+    # a "Pending ... Approval" pill instead of the normal Due/Not Due one.
+    pending_due_date_request_kind: str | None = None
 
     class Config:
         from_attributes = True

@@ -595,6 +595,7 @@ def get_deliverables(project_id: int, department: str | None = None, db: Session
     subs = q.all()
     subs.sort(key=lambda s: (s.definition.department.number or 0, rules.item_sort_key(s.definition.item_no)))
     doc_counts = rules.document_counts(db, [s.id for s in subs])
+    pending_kinds = rules.pending_due_date_request_kinds(db, [s.id for s in subs])
     out = []
     for s in subs:
         deadline_key, deadline_days = rules.deadline_status(s)
@@ -615,6 +616,7 @@ def get_deliverables(project_id: int, department: str | None = None, db: Session
             doc_total=doc_counts.get(s.id, 0),
             awaiting_note=rules.awaiting_milestone_note(db, s),
             points_earned=points_earned,
+            pending_due_date_request_kind=pending_kinds.get(s.id),
         ))
     db.commit()
 

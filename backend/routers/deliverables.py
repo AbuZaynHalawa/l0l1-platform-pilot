@@ -52,6 +52,7 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
     scope_to_mine = bool(actor_role) and actor_role != "Admin"
     my_email = (actor_email or "").strip().lower()
     doc_counts = rules.document_counts(db, [s.id for s in subs])
+    pending_kinds = rules.pending_due_date_request_kinds(db, [s.id for s in subs])
     out = []
     for s in subs:
         if status and s.status.value != status:
@@ -99,6 +100,7 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
                 rules.kpi_points(s.due_date, s.submitted_at.date() if s.submitted_at else None)
                 if s.status == models.SubmissionStatus.APPROVED else None
             ),
+            "pending_due_date_request_kind": pending_kinds.get(s.id),
         })
     return out
 

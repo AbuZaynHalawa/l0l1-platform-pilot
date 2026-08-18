@@ -71,7 +71,20 @@
   // a day count) and Progress (No Progress Yet / In Progress / Pending SME
   // Review / Completed / Rejected). Not Required and Pending Triage sit
   // outside both axes, so they render as a single pill on their own.
+  // Item [due-date pending pill]: an outstanding extension/hold request
+  // takes over the Deadline pill (instead of showing the normal Due/Not Due
+  // it would otherwise read) so it's visible while just browsing a list,
+  // not only inside the deliverable's own modal. on_hold still wins if both
+  // are somehow true, since deadline_status() already checks that first.
+  function pendingDueDateRequestKind(d) {
+    return d.pending_due_date_request_kind || (d.pending_due_date_request && d.pending_due_date_request.kind) || null;
+  }
   function deadlinePillHtml(d) {
+    var pendingKind = pendingDueDateRequestKind(d);
+    if (pendingKind && d.deadline_status !== "on_hold") {
+      var label = pendingKind === "extension" ? "Pending Extension Approval" : "Pending On Hold Approval";
+      return '<span class="pill warn"><span class="dot"></span>' + label + "</span>";
+    }
     var meta = DEADLINE_META[d.deadline_status] || ["neutral", d.deadline_status];
     var text = meta[1];
     if (d.deadline_days !== null && d.deadline_days !== undefined) {
@@ -98,6 +111,11 @@
   function deadlineStatusCellHtml(d) {
     if (d.status === "not_required" || d.status === "pending_triage") {
       return '<span class="aqt-status neutral">&#8213;</span>';
+    }
+    var pendingKind = pendingDueDateRequestKind(d);
+    if (pendingKind && d.deadline_status !== "on_hold") {
+      var label = pendingKind === "extension" ? "Pending Extension Approval" : "Pending On Hold Approval";
+      return '<span class="aqt-status warn"><span class="dot"></span>' + label + "</span>";
     }
     var meta = DEADLINE_META[d.deadline_status] || ["neutral", d.deadline_status];
     var text = meta[1];
@@ -1090,6 +1108,21 @@
       document.getElementById("l0Badge").textContent = projects.filter(function (p) { return p.stage === "L0" && isNew(p); }).length || "";
       document.getElementById("l1Badge").textContent = projects.filter(function (p) { return p.stage === "L1" && isNew(p); }).length || "";
     } catch (e) {}
+
+    // Follow Up is Admin-only server-side and its nav item is hidden for
+    // every other role -- same skip-the-fetch pattern as Open Questions
+    // above. Badge sums both request queues that actually live on that
+    // page, so a pending extension/hold request an SME hasn't acted on yet
+    // still surfaces to Admin as a fallback.
+    if (CURRENT_ROLE === "Admin") {
+      try {
+        var reassigns = await api("/api/deliverables/reassignment-requests?status=pending");
+        var dueDateReqs = await api("/api/deliverables/due-date-requests?status=pending");
+        document.getElementById("followupBadge").textContent = (reassigns.length + dueDateReqs.length) || "";
+      } catch (e) {}
+    } else {
+      document.getElementById("followupBadge").textContent = "";
+    }
   }
 
   /* ================= DELIVERABLE DETAIL MODAL ================= */
