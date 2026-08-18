@@ -410,11 +410,37 @@
 
   .full-stepper { padding: 24px 26px; margin-bottom: 22px; }
   .fs-row { display: grid; grid-template-columns: repeat(6, 1fr); position: relative; }
-  .fs-row::before { content: ""; position: absolute; top: 17px; left: 4%; right: 4%; height: 3px; border-radius: 2px; background: var(--line); }
+  .fs-row::before { content: ""; position: absolute; top: 19px; left: 4%; right: 4%; height: 4px; border-radius: 2px; background: var(--line); }
+  /* Item [milestone stepper redesign]: a second line, drawn on top of the
+     flat grey one, fills with the brand gradient up to the last-reached
+     milestone -- set via --fs-progress (a %) on #dStepper/.mock-fs in JS,
+     so the line itself shows real progress instead of just the dots. */
+  .fs-row::after {
+    content: ""; position: absolute; top: 19px; left: 4%; height: 4px; border-radius: 2px;
+    background: linear-gradient(90deg, var(--purple-1), var(--purple-2));
+    width: var(--fs-progress, 0%); transition: width .5s ease;
+  }
   .fs-step { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; }
-  .fs-dot { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--surface); border: 3px solid var(--line); color: var(--ink-500); font-weight: 700; font-size: 12px; z-index: 1; }
-  .fs-step.done .fs-dot { background: linear-gradient(135deg, var(--purple-1), var(--purple-2)); border-color: transparent; color: #fff; }
-  .fs-step.current .fs-dot { border-color: var(--crit); color: var(--crit); background: var(--crit-bg); }
+  .fs-dot {
+    width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    background: var(--surface); border: 3px solid var(--line); color: var(--ink-500); font-weight: 800; font-size: 13px;
+    z-index: 1; box-shadow: 0 2px 6px rgba(20,25,50,.07); transition: transform .15s ease;
+  }
+  .fs-step.done .fs-dot {
+    background: linear-gradient(135deg, var(--purple-1), var(--purple-2)); border-color: transparent; color: #fff;
+    box-shadow: 0 3px 12px rgba(102,126,234,.4);
+  }
+  .fs-step.current .fs-dot {
+    border-color: var(--crit); color: var(--crit);
+    background: radial-gradient(circle at 35% 30%, var(--crit-bg), var(--surface) 75%);
+    box-shadow: 0 0 0 5px var(--crit-bg), 0 3px 10px rgba(231,76,60,.25);
+    animation: fsPulse 2.2s ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce) { .fs-step.current .fs-dot { animation: none; } }
+  @keyframes fsPulse {
+    0%, 100% { box-shadow: 0 0 0 5px var(--crit-bg), 0 3px 10px rgba(231,76,60,.25); }
+    50% { box-shadow: 0 0 0 8px var(--crit-bg), 0 3px 15px rgba(231,76,60,.35); }
+  }
   .fs-label { font-weight: 700; font-size: 12px; }
   .fs-date { font-size: 11px; color: var(--ink-500); }
 

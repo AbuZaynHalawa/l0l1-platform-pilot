@@ -1302,6 +1302,35 @@
         "</div>",
     },
     {
+      eyebrow: "How It Works",
+      title: "Owner & SME — Submit, Review, Approve",
+      body:
+        '<p class="tour-step-text">Every deliverable has an <b>Owner</b> (does the work) and one or more ' +
+        "<b>SME</b>s (reviews it) &#8212; assigned by default from the catalog, or reassigned to " +
+        "someone else via an Admin-approved request. The cycle between them is the same for every " +
+        "single item on the platform:</p>" +
+        '<div class="mock-fs">' +
+        milestoneMock([
+          ["1", "Owner Submits", true], ["2", "SME Reviews", false, true],
+          ["3", "Approved", false],
+        ]) +
+        "</div>" +
+        '<ul class="tour-list">' +
+        "<li>The Owner submits by <b>uploading a file</b>, or by <b>Mark Completed</b> with just a " +
+        "comment when there's genuinely no document to attach</li>" +
+        "<li>That moves it to <b>Pending SME Review</b> &#8212; the assigned SME(s) get notified, with " +
+        "a day to act before it's flagged as slow to review</li>" +
+        "<li>The SME <b>Approves</b> it (Completed, credited under Calculation Criteria) or " +
+        "<b>Rejects</b> it with a comment explaining why</li>" +
+        "<li>A rejection sends it right back to the Owner &#8212; fixing it and resubmitting starts " +
+        "the same review cycle over again</li>" +
+        "</ul>" +
+        '<div class="tour-callout">&#128203; If an SME marks their own item Completed directly, it skips ' +
+        "the review step entirely &#8212; there's no reviewing yourself. Every step, on every item, is " +
+        "recorded in a full activity log, and anyone (not just the Owner/SME) can <b>Follow</b> an " +
+        "item to get notified of updates.</div>",
+    },
+    {
       eyebrow: "Tracking & Scoring",
       title: "Two Independent Status Axes",
       body:
@@ -1360,35 +1389,6 @@
         '<div class="tour-callout">&#9881; An Admin can turn individual catalog items on or off for scoring ' +
         "via <b>Manage Tracking</b> &#8212; not every item should count toward the same on-time-rate " +
         "(a milestone-linked date, for instance, might not).</div>",
-    },
-    {
-      eyebrow: "How It Works",
-      title: "Owner & SME — Submit, Review, Approve",
-      body:
-        '<p class="tour-step-text">Every deliverable has an <b>Owner</b> (does the work) and one or more ' +
-        "<b>SME</b>s (reviews it) &#8212; assigned by default from the catalog, or reassigned to " +
-        "someone else via an Admin-approved request. The cycle between them is the same for every " +
-        "single item on the platform:</p>" +
-        '<div class="mock-fs">' +
-        milestoneMock([
-          ["1", "Owner Submits", true], ["2", "SME Reviews", false, true],
-          ["3", "Approved", false],
-        ]) +
-        "</div>" +
-        '<ul class="tour-list">' +
-        "<li>The Owner submits by <b>uploading a file</b>, or by <b>Mark Completed</b> with just a " +
-        "comment when there's genuinely no document to attach</li>" +
-        "<li>That moves it to <b>Pending SME Review</b> &#8212; the assigned SME(s) get notified, with " +
-        "a day to act before it's flagged as slow to review</li>" +
-        "<li>The SME <b>Approves</b> it (Completed, credited under Calculation Criteria) or " +
-        "<b>Rejects</b> it with a comment explaining why</li>" +
-        "<li>A rejection sends it right back to the Owner &#8212; fixing it and resubmitting starts " +
-        "the same review cycle over again</li>" +
-        "</ul>" +
-        '<div class="tour-callout">&#128203; If an SME marks their own item Completed directly, it skips ' +
-        "the review step entirely &#8212; there's no reviewing yourself. Every step, on every item, is " +
-        "recorded in a full activity log, and anyone (not just the Owner/SME) can <b>Follow</b> an " +
-        "item to get notified of updates.</div>",
     },
     {
       eyebrow: "Requests & Reminders",
@@ -2253,6 +2253,14 @@
       stepper.innerHTML = "";
       var lastDoneIdx = -1;
       ms.forEach(function (m, i) { if (m.reached) lastDoneIdx = i; });
+      // Item [milestone stepper redesign]: the connecting line's filled
+      // portion reaches exactly to the last-reached dot's own center, not
+      // just some fraction of the row -- same center-of-column math as the
+      // dots themselves (col i's center sits at (i+.5)/count of the row),
+      // translated into the ::before/::after line's own coordinate space
+      // (which starts 4% in from the row edge, per .fs-row::before).
+      var progressPct = lastDoneIdx >= 0 ? Math.max(0, ((lastDoneIdx + 0.5) / ms.length) * 100 - 4) : 0;
+      stepper.style.setProperty("--fs-progress", progressPct + "%");
       ms.forEach(function (m, i) {
         var cls = "fs-step" + (m.reached ? " done" : (i === lastDoneIdx + 1 ? " current" : ""));
         var step = el("div", cls);
