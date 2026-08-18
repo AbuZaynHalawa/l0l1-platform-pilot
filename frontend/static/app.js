@@ -1284,10 +1284,11 @@
     },
     {
       eyebrow: "How It Works · L1",
-      title: "Execution Stage",
+      title: "Early Execution Stage / Post-Bid Stage",
       body:
-        '<p class="tour-step-text">Once a tender is awarded, an L1 project starts from the same scope: ' +
-        "<b>L1 Announcement (M1)</b>, an <b>Early Mobilization Plan (M2)</b>, then full " +
+        '<p class="tour-step-text">Once we receive a notification from the client that Algihaz is L1, the ' +
+        "tender enters a new stage called <b>L1 Stage</b>, which goes through several milestones as " +
+        "follows: <b>L1 Announcement (M1)</b>, an <b>Early Mobilization Plan (M2)</b>, then full " +
         "<b>Commercial &amp; Technical Handover (M3)</b> from the tendering team to the project " +
         "team. <b>Post-Bid Clarification (M4)</b> runs until the <b>LOA is received (M5)</b>, and " +
         "the project formally begins execution at <b>Contract Signing (M6)</b> &#8212; the moment " +
