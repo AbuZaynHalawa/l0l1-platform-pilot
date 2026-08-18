@@ -1199,9 +1199,14 @@
   // and the joint blob together into something that reads as a chunky
   // square rather than a crisp check. Switched to a *filled* checkmark
   // shape (a single solid polygon, no stroke-width/cap/join at all to go
-  // wrong) -- the standard Material check glyph, guaranteed crisp at any size.
-  var FS_CHECK_SVG = '<svg width="1.1em" height="1.1em" viewBox="0 0 24 24" fill="currentColor">' +
-    '<path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>';
+  // wrong) -- but the Material check glyph turned out to have the same
+  // problem one level up: it's a stocky, near-square silhouette by design
+  // (built to fill a square icon grid solidly), so at ~14px it still read
+  // as a blob/box rather than a tick. Swapped for a thinner, more
+  // elongated checkmark (FontAwesome's, tall aspect ratio) whose silhouette
+  // doesn't approximate a square at any render size.
+  var FS_CHECK_SVG = '<svg width="0.95em" height="1.1em" viewBox="0 0 448 512" fill="currentColor">' +
+    '<path d="M438.6 105.4c12.5 12.5 12.5 32.8 0 45.3l-256 256c-12.5 12.5-32.8 12.5-45.3 0l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0L160 338.7 393.4 105.4c12.5-12.5 32.8-12.5 45.3 0z"/></svg>';
 
   /* ================= ITEM 131: INTERACTIVE SYSTEM INTRODUCTION WALKTHROUGH =================
      Portal "screens" below are illustrative recreations built from the app's
