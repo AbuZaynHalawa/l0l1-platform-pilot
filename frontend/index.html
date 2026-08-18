@@ -25,6 +25,7 @@
       <button class="nav-item active" data-view="dashboard"><span class="ic">&#9673;</span> Dashboard</button>
       <button class="nav-item" id="assignedNavItem" data-view="assigned"><span class="ic">&#128203;</span> Assigned Deliverables <span class="nav-badge" id="assignedBadge"></span></button>
       <button class="nav-item" id="announcementsNavItem" data-view="announcements"><span class="ic">&#128276;</span> Announcements <span class="nav-badge" id="announcementsBadge"></span></button>
+      <button class="nav-item" id="remindersNavItem" data-view="reminders"><span class="ic">&#9203;</span> Reminders</button>
       <button class="nav-item" id="l0NavItem" data-view="l0"><span class="ic">&#128196;</span> L0 Tenders <span class="nav-badge" id="l0Badge"></span></button>
       <button class="nav-item" id="l1NavItem" data-view="l1"><span class="ic">&#128274;</span> L1 Projects <span class="nav-badge" id="l1Badge"></span></button>
       <button class="nav-item" data-view="gantt"><span class="ic">&#128198;</span> Timeline</button>
@@ -233,6 +234,23 @@
         <button class="btn" id="annClearFilters">Clear</button>
       </div>
       <div class="card table-card"><div id="announcementsList"></div></div>
+    </section>
+
+    <!-- REMINDERS -->
+    <section class="view" id="view-reminders" hidden>
+      <div class="view-head">
+        <div>
+          <div class="eyebrow">Notifications</div>
+          <h1>Reminders</h1>
+          <p class="sub">Due-soon and overdue nudges, Send Reminder, BM Triage nudges, and Followed Item updates &#8211; kept separate from general program news.</p>
+        </div>
+      </div>
+      <div class="gantt-filter-row">
+        <input type="date" id="remFromDate" title="From date" />
+        <input type="date" id="remToDate" title="To date" />
+        <button class="btn" id="remClearFilters">Clear</button>
+      </div>
+      <div class="card table-card"><div id="remindersList"></div></div>
     </section>
 
     <!-- L0 TABLE -->

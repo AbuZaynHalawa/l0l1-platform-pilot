@@ -279,7 +279,7 @@
 
   /* ================= VIEW SWITCHING ================= */
   var LOADERS = {
-    dashboard: loadDashboard, assigned: loadAssigned, announcements: loadAnnouncements,
+    dashboard: loadDashboard, assigned: loadAssigned, announcements: loadAnnouncements, reminders: loadReminders,
     l0: function () { loadProjectsTable("L0"); }, l1: function () { loadProjectsTable("L1"); },
     performance: loadPerformance, reports: loadReports, create: loadCreateOptions, gantt: loadGantt,
     journey: loadJourney, scores: loadScores, focalpoints: loadFocalPoints, followup: loadFollowUp,
@@ -4136,7 +4136,7 @@
   });
   async function loadAnnouncements() {
     buildAnnouncementFilterUI();
-    var qs = "?limit=500";
+    var qs = "?limit=500&category=news";
     if (CURRENT_ROLE !== "Admin") {
       qs += "&actor_role=" + encodeURIComponent(CURRENT_ROLE) + "&actor_email=" + encodeURIComponent(passiveIdentity());
     }
@@ -4149,6 +4149,29 @@
     // myEmail cache.
     localStorage.setItem("annLastSeenAt", new Date().toISOString());
     document.getElementById("announcementsBadge").textContent = "";
+  }
+  // Item [reminders tab]: the row markup is identical between Announcements
+  // and Reminders (same fields, same click-through) -- only the source
+  // array and the container differ, so this is shared rather than
+  // duplicated between renderAnnouncements() and renderReminders().
+  function annRowEl(a) {
+    var meta = annIcon(a);
+    var row = el("div", "ann-row");
+    row.appendChild(el("div", "ann-ic " + meta[1], meta[0]));
+    var main = el("div", "ann-main");
+    var when = new Date(a.created_at).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+    main.appendChild(el("div", "ann-top", '<span class="ann-title">' + a.title + '</span><span class="ann-time">' + when + '</span>'));
+    main.appendChild(el("div", "ann-body", a.body));
+    main.appendChild(el("div", "ann-meta", "To: <b>" + annAudienceTag(a) + "</b> &middot; " + a.email_status));
+    row.appendChild(main);
+    if (a.submission_id || a.project_id) {
+      row.style.cursor = "pointer";
+      row.addEventListener("click", function () {
+        if (a.submission_id) openDelivModal(a.submission_id);
+        else openDetail(a.project_id);
+      });
+    }
+    return row;
   }
   function renderAnnouncements() {
     var type = document.getElementById("annTypeFilter").value;
@@ -4164,26 +4187,39 @@
     var wrap = document.getElementById("announcementsList");
     wrap.innerHTML = "";
     if (!list.length) { wrap.appendChild(el("div", "empty-state", "No announcements match this filter.")); return; }
-    list.forEach(function (a) {
-      var meta = annIcon(a);
-      var row = el("div", "ann-row");
-      row.appendChild(el("div", "ann-ic " + meta[1], meta[0]));
-      var main = el("div", "ann-main");
-      var when = new Date(a.created_at).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
-      main.appendChild(el("div", "ann-top", '<span class="ann-title">' + a.title + '</span><span class="ann-time">' + when + '</span>'));
-      main.appendChild(el("div", "ann-body", a.body));
-      main.appendChild(el("div", "ann-meta", "To: <b>" + annAudienceTag(a) + "</b> &middot; " + a.email_status));
-      row.appendChild(main);
-      if (a.submission_id || a.project_id) {
-        row.style.cursor = "pointer";
-        row.addEventListener("click", function () {
-          if (a.submission_id) openDelivModal(a.submission_id);
-          else openDetail(a.project_id);
-        });
-      }
-      wrap.appendChild(row);
-    });
+    list.forEach(function (a) { wrap.appendChild(annRowEl(a)); });
   }
+
+  var remindersAll = [];
+  async function loadReminders() {
+    var qs = "?limit=500&category=reminders";
+    if (CURRENT_ROLE !== "Admin") {
+      qs += "&actor_role=" + encodeURIComponent(CURRENT_ROLE) + "&actor_email=" + encodeURIComponent(passiveIdentity());
+    }
+    remindersAll = await api("/api/announcements" + qs);
+    renderReminders();
+  }
+  function renderReminders() {
+    var from = document.getElementById("remFromDate").value;
+    var to = document.getElementById("remToDate").value;
+    var list = remindersAll.filter(function (a) {
+      var day = a.created_at.slice(0, 10);
+      if (from && day < from) return false;
+      if (to && day > to) return false;
+      return true;
+    });
+    var wrap = document.getElementById("remindersList");
+    wrap.innerHTML = "";
+    if (!list.length) { wrap.appendChild(el("div", "empty-state", "No reminders match this filter.")); return; }
+    list.forEach(function (a) { wrap.appendChild(annRowEl(a)); });
+  }
+  document.getElementById("remFromDate").addEventListener("change", renderReminders);
+  document.getElementById("remToDate").addEventListener("change", renderReminders);
+  document.getElementById("remClearFilters").addEventListener("click", function () {
+    document.getElementById("remFromDate").value = "";
+    document.getElementById("remToDate").value = "";
+    renderReminders();
+  });
 
   /* ================= CREATE PROJECT ================= */
   var createOptionsLoaded = false;

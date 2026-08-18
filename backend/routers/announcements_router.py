@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
@@ -28,8 +28,22 @@ _ALWAYS_VISIBLE_TYPES = {
 
 @router.get("", response_model=list[schemas.AnnouncementOut])
 def list_announcements(limit: int = 50, actor_role: str | None = None, actor_email: str | None = None,
-                        mine: bool = False, stage: str | None = None, db: Session = Depends(get_db)):
+                        mine: bool = False, stage: str | None = None, category: str = "news",
+                        db: Session = Depends(get_db)):
+    """Item [reminders tab]: `category` splits one shared table into two
+    tabs the same way `kind` already splits DueDateRequest instead of two
+    near-duplicate tables -- "news" (the default, everything except
+    DEADLINE) is the Announcements tab; "reminders" (DEADLINE only) is the
+    separate Reminders tab. DEADLINE covers the nightly due-soon/overdue
+    nudge, the manual Send Reminder action, the BM Triage nudge, and
+    Followed Item Updates -- all of them read as "a reminder", not general
+    program news, which is exactly why they were cluttering Announcements.
+    """
     q = db.query(models.Announcement).order_by(models.Announcement.created_at.desc())
+    if category == "reminders":
+        q = q.filter(models.Announcement.type == models.AnnouncementType.DEADLINE)
+    else:
+        q = q.filter(models.Announcement.type != models.AnnouncementType.DEADLINE)
     if stage:
         # Item [dashboard stage split]: the Dashboard's Latest Announcements
         # feed is now one per stage -- an announcement with no project (rare)
@@ -63,3 +77,17 @@ def list_announcements(limit: int = 50, actor_role: str | None = None, actor_ema
             if email in [r.strip().lower() for r in (a.recipients or "").split(",")]
         ]
     return items
+
+
+@router.delete("/reminders")
+def clear_reminders(actor_role: str = "Admin", db: Session = Depends(get_db)):
+    """Item [reminders tab]: one-time (or occasional) cleanup of every
+    DEADLINE-type row -- the Reminders tab was previously mixed into
+    Announcements, so this clears out that backlog rather than leaving it
+    to resurface the moment the two views split.
+    """
+    if actor_role != "Admin":
+        raise HTTPException(403, "Only an Admin can clear reminders")
+    deleted = db.query(models.Announcement).filter(models.Announcement.type == models.AnnouncementType.DEADLINE).delete()
+    db.commit()
+    return {"deleted": deleted}

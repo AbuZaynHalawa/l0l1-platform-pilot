@@ -70,11 +70,17 @@ def _create(db: Session, *, type: models.AnnouncementType, title: str, body: str
     every recipient holds that exact role. Defaults to "Team" for the
     portal-wide broadcasts that have no one primary role.
     """
-    greeting_html = f'<p style="margin:0 0 14px;">Dear {greeting},</p>'
-    full_body = greeting_html + body + _signature_html()
-    status = _mail.send_mail(recipients, title, full_body) if recipients else "simulated"
+    # Item [in-app vs email]: the logo/sign-off is an email-only convention
+    # (it's what makes a plain-HTML message read as coming from the
+    # platform in an inbox) -- the in-app Announcements/Reminders tabs
+    # already sit inside the branded app chrome, so repeating it there is
+    # just noise. display_body is what's stored and shown in-app; the
+    # signature is appended only to what actually gets mailed.
+    display_body = f'<p style="margin:0 0 14px;">Dear {greeting},</p>' + body
+    email_body = display_body + _signature_html()
+    status = _mail.send_mail(recipients, title, email_body) if recipients else "simulated"
     ann = models.Announcement(
-        type=type, title=title, body=full_body,
+        type=type, title=title, body=display_body,
         recipients=", ".join(recipients) if recipients else "",
         project_id=project.id if project else None,
         submission_id=submission_id,
