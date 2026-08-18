@@ -1708,9 +1708,6 @@
   }
   document.getElementById("tourStartBtn").addEventListener("click", function () { openTour(false); });
   document.getElementById("tourClose").addEventListener("click", closeTour);
-  document.getElementById("tourOverlay").addEventListener("click", function (e) {
-    if (e.target.id === "tourOverlay" && !tourLocked) closeTour();
-  });
   document.getElementById("tourPrev").addEventListener("click", function () {
     if (tourStep > 0) { tourStep--; renderTourStep(); }
   });
