@@ -192,7 +192,13 @@
           <p class="sub">Every deliverable across every project, in one queue.</p>
         </div>
       </div>
-      <div class="subtab-row" id="assignedStageToggle">
+      <!-- Item [pill chip fix]: this used to be a .subtab-row (the
+           underline-tab style used for Ask a Question/Knowledge Base), which
+           reset chips to border-radius:0 -- the L0/L1 identity gradient then
+           rendered as a squared block instead of a rounded pill. .filter-chips
+           gives it the same rounded pill treatment as the Deadline/Progress
+           chip rows right below it. -->
+      <div class="filter-chips" id="assignedStageToggle">
         <button class="chip active" data-stage="">All</button>
         <button class="chip" data-stage="L0">L0 Tenders</button>
         <button class="chip" data-stage="L1">L1 Projects</button>
@@ -276,7 +282,7 @@
           <p class="sub">Every active deliverable, pooled across projects and sorted by due date.</p>
         </div>
       </div>
-      <div class="subtab-row" id="ganttStageToggle">
+      <div class="filter-chips" id="ganttStageToggle">
         <button class="chip active" data-stage="L0">L0 Tenders</button>
         <button class="chip" data-stage="L1">L1 Projects</button>
       </div>
