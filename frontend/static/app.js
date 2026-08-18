@@ -1213,6 +1213,17 @@
         '<p class="tour-step-text">Rolled out in stages since <b>Aug 2024</b>, official operation launched ' +
         "<b>Dec 2024</b>, now running <b>343 L0 tenders</b> and <b>45 L1 projects</b> through it, with " +
         "International L0/L1 Development and a New L1 Model both already underway.</p>" +
+        '<div class="tt-layout">' +
+        '<div class="tt-steps">' +
+        '<div class="tt-step">Developed new Procedure along with a defined scheme</div>' +
+        '<div class="tt-step">Engaged key departments for input and collaboration</div>' +
+        '<div class="tt-step">Obtained Management Approvals</div>' +
+        '<div class="tt-step pilot">Ran a pilot for testing' +
+        '<div class="tt-step-aside"><span class="tt-aside-dot"></span>NAJRAN BSP L1 Stage</div></div>' +
+        '<div class="tt-step">Conducted Introduction meetings and explained the process and objectives</div>' +
+        '<div class="tt-step">Received and Evaluated Quality of deliverables</div>' +
+        '<div class="tt-step">Tracked departments\' response proposed timeline</div>' +
+        "</div>" +
         '<div class="tour-timeline">' +
         '<div class="tt-axis">' +
         '<span style="left:0%;">Aug 24</span>' +
@@ -1224,12 +1235,12 @@
         '<span style="left:100%;" class="today">Today</span>' +
         "</div>" +
         '<div class="tt-track">' +
-        '<div class="tt-callout-tag" style="left:9%;">Analyzed depts.\' willingness to adapt</div>' +
-        '<div class="tt-bar row0 orange" style="left:0%;width:18%;">Standard L0/L1 Development</div>' +
-        '<div class="tt-bar row1 grey" style="left:3%;width:13%;">Pilot &#8211; NAJRAN BSP (L1)</div>' +
+        '<div class="tt-callout-tag" style="left:9%;" title="Analyzed departments\' willingness to adapt the new system">Analyzed depts.\' willingness</div>' +
+        '<div class="tt-bar row0 orange" style="left:0%;width:18%;" title="Standard L0/L1 Development">Standard L0/L1 Development</div>' +
+        '<div class="tt-bar row1 green" style="left:3%;width:13%;" title="Pilot &#8211; NAJRAN BSP (L1 Stage)">Pilot &#8211; NAJRAN BSP (L1)</div>' +
         '<div class="tt-marker" style="left:18%;"><div class="tt-dot"></div><div class="tt-lbl">Official Operation Launched</div></div>' +
-        '<div class="tt-bar row0 blue" style="left:40%;width:15%;">International L0/L1 Development</div>' +
-        '<div class="tt-bar row0 orange" style="left:75%;width:13%;">New L1 Model Development</div>' +
+        '<div class="tt-bar row0 orange" style="left:40%;width:15%;" title="International L0/L1 Development">International L0/L1 Development</div>' +
+        '<div class="tt-bar row0 green" style="left:75%;width:13%;" title="New L1 Model Development">New L1 Model Development</div>' +
         "</div>" +
         '<div class="tt-detail-grid">' +
         '<div class="tt-detail orange"><b>Standard L0/L1 Development</b><ul>' +
@@ -1238,7 +1249,7 @@
         "<li>Shared folder set up with a tree matching the deliverables</li>" +
         "<li>Follow-up framework implemented to address delays or lack of response</li>" +
         "</ul></div>" +
-        '<div class="tt-detail blue"><b>International L0/L1 Development</b><ul>' +
+        '<div class="tt-detail orange"><b>International L0/L1 Development</b><ul>' +
         "<li>Initiated development of the International Projects System</li>" +
         "<li>Prepared a new version of the L0/L1 stages for international projects</li>" +
         "<li>Introduced a new stage &#8212; &quot;L-Pre Stage&quot;</li>" +
@@ -1250,17 +1261,18 @@
         '<div class="tt-stat">343&times;<span>L0 Projects</span></div>' +
         '<div class="tt-stat dark">45&times;<span>L1 Projects</span></div>' +
         "</div>" +
+        "</div>" +
         "</div>",
     },
     {
       eyebrow: "How It Works · L0",
       title: "Tendering Stage",
       body:
-        '<p class="tour-step-text">A tender opens at <b>Announcement (M1)</b>. Site visit, pre-bid meeting, ' +
+        '<p class="tour-step-text">A tender opens at <b>L0 Announcement (M1)</b>. Site visit, pre-bid meeting, ' +
         "and pre-bid clarification deadlines get announced, and every department (Operations, " +
         "Supply Chain, Engineering, Planning/Cost Control, Contract, HR, Finance, SHEQ, IT, Risk, " +
-        "Fleet/FM) prepares its own risk register, execution plan and schedule in parallel. The " +
-        "<b>Project Schedule (M3)</b> anchors most department due dates. Technical offers circulate " +
+        "Fleet/FM) prepares its own deliverables in parallel with predefined, agreed-upon due dates. " +
+        "The <b>Project Schedule (M3)</b> anchors most department due dates. Technical offers circulate " +
         "once RFQs return (<b>M4</b>), and the tender closes with the <b>Proposal Submitted to " +
         "client (M5)</b>, timed to the Bid Submission Date.</p>" +
         '<div class="mock-fs">' +

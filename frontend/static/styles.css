@@ -485,7 +485,11 @@
 
   /* Item 131 — interactive System Introduction walkthrough */
   .tour-fallback { display: flex; align-items: center; justify-content: center; min-height: 60vh; }
-  .tour-card { max-width: 780px; }
+  /* Item [timeline enlarge]: was 780px -- too cramped once the combined
+     implementation-timeline slide grew a second column (the vertical
+     rollout-steps flowchart). 960px matches the app's existing
+     .modal-card.wide convention rather than inventing a new breakpoint. */
+  .tour-card { max-width: 960px; }
   .tour-body { min-height: 360px; }
   .tour-step-eyebrow { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); margin-bottom: 4px; }
   .tour-step-title { font-size: 18px; font-weight: 700; margin-bottom: 10px; }
@@ -500,6 +504,30 @@
   .tour-dot.done { background: var(--purple-2); }
   .tour-nav { display: flex; gap: 8px; }
   .tour-nav .btn[disabled] { opacity: .4; cursor: default; pointer-events: none; }
+
+  /* ---------- tour: vertical rollout-steps flowchart (implementation timeline slide) ---------- */
+  .tt-layout { display: grid; grid-template-columns: 210px 1fr; gap: 20px; align-items: start; }
+  .tt-steps { display: flex; flex-direction: column; align-items: center; }
+  .tt-step {
+    position: relative; background: var(--surface-sunken); border: 1px solid var(--line); border-radius: 8px;
+    padding: 7px 10px; font-size: 9.5px; font-weight: 600; color: var(--ink-700); text-align: center;
+    width: 100%; margin-bottom: 22px;
+  }
+  .tt-step:last-child { margin-bottom: 0; }
+  .tt-step::after {
+    content: "\2193"; position: absolute; bottom: -19px; left: 50%; transform: translateX(-50%);
+    color: var(--ink-300); font-size: 13px; font-weight: 700; line-height: 1;
+  }
+  .tt-step:last-child::after { content: none; }
+  .tt-step.pilot { background: var(--surface); border-color: var(--l1-1, #1f9d5c); }
+  .tt-step-aside {
+    display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 4px;
+    font-size: 8.5px; font-weight: 700; color: var(--ink-900);
+  }
+  .tt-step-aside .tt-aside-dot { width: 6px; height: 6px; border-radius: 50%; background: #1f9d5c; flex: none; }
+  @media (max-width: 760px) {
+    .tt-layout { grid-template-columns: 1fr; }
+  }
 
   /* Illustrative in-modal mockups of the real screens — built from the same
      visual language (pill/fs-step/folder-row/gantt-row) as the live app so
@@ -545,18 +573,31 @@
   .tt-axis span.today { color: var(--crit); }
   .tt-axis span:first-child { transform: translateX(0); }
   .tt-axis span:last-child { transform: translateX(-100%); }
-  .tt-track { position: relative; height: 92px; margin-bottom: 8px; }
+  /* Item [timeline overlap fix]: margin-top gives the callout tag (which
+     pokes up -20px relative to the track) somewhere to go that isn't the
+     axis row above it -- it was overlapping the "Aug 24" label before. */
+  .tt-track { position: relative; height: 104px; margin-top: 22px; margin-bottom: 8px; }
   .tt-bar {
-    position: absolute; height: 26px; border-radius: 7px; color: #fff; font-size: 9.5px; font-weight: 700;
-    display: flex; align-items: center; padding: 0 8px; line-height: 1.15; overflow: hidden; white-space: nowrap;
-    text-overflow: ellipsis; box-shadow: 0 1px 2px rgba(20,25,50,.15);
+    position: absolute; border-radius: 7px; color: #fff; font-size: 9.5px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; text-align: center; padding: 3px 6px;
+    line-height: 1.2; box-shadow: 0 1px 2px rgba(20,25,50,.15);
   }
-  .tt-bar.row0 { top: 4px; }
-  .tt-bar.row1 { top: 38px; height: 20px; font-size: 9px; font-weight: 600; opacity: .92; }
+  /* Item [timeline overlap fix]: bar labels wrap onto up to two lines
+     instead of a single nowrap+ellipsis line -- several of these bars are
+     too narrow at any reasonable modal width to fit their full label on
+     one line, and ellipsis was clipping them into nonsense ("Standard
+     L0/L1 Developer" instead of "Development"). Wrapping is robust
+     regardless of exact rendered width; the full name is also always
+     available as a hover tooltip via the title attribute. */
+  .tt-bar.row0 { top: 4px; height: 34px; }
+  .tt-bar.row1 { top: 44px; height: 22px; font-size: 8.5px; font-weight: 600; opacity: .92; }
   .tt-bar.orange { background: linear-gradient(135deg, var(--l0-1), var(--l0-2)); }
-  .tt-bar.blue { background: linear-gradient(135deg, var(--purple-1), var(--purple-2)); }
+  /* Item [L0/L1 identity colors]: no invented third color for this chart --
+     orange marks general/both-stage program work (same identity color as
+     L0 elsewhere in the app), green marks work that's specifically L1. */
+  .tt-bar.green { background: linear-gradient(135deg, #1f9d5c, #146c3e); }
   .tt-bar.grey { background: var(--ink-300); color: var(--ink-900); }
-  .tt-marker { position: absolute; top: 66px; transform: translateX(-50%); text-align: center; width: 120px; }
+  .tt-marker { position: absolute; top: 74px; transform: translateX(-50%); text-align: center; width: 130px; }
   .tt-marker .tt-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--crit); margin: 0 auto 3px; box-shadow: 0 0 0 3px var(--crit-bg); }
   .tt-marker .tt-lbl { font-size: 9px; font-weight: 700; color: var(--ink-700); line-height: 1.25; }
   .tt-callout-tag {
