@@ -124,6 +124,7 @@
 
   .main { display: flex; flex-direction: column; min-width: 0; }
   .topbar { display: flex; align-items: center; gap: 14px; padding: 14px 26px; border-bottom: 1px solid var(--line); background: var(--surface); position: sticky; top: 0; z-index: 5; }
+  .topbar-title { font-size: 21px; font-weight: 800; color: var(--ink-900); white-space: nowrap; text-wrap: balance; }
   .search-wrap { position: relative; flex: 1; max-width: 400px; }
   .search-wrap input { width: 100%; padding: 8px 12px 8px 32px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface-sunken); color: var(--ink-900); font-size: 13.5px; }
   .search-wrap input:focus { background: var(--surface); border-color: var(--accent-line); }
@@ -208,6 +209,7 @@
   .dash-project-card .dpc-value { font-size: 30px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; color: #fff; }
   .dash-project-card .dpc-label { font-size: 12.5px; color: rgba(255,255,255,.85); font-weight: 700; margin-top: 3px; }
   .dash-project-card .dpc-body { padding: 6px 10px 8px; flex: 1; }
+  .dpc-body-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-500); padding: 6px 12px 2px; }
   .dpc-recent-row {
     display: flex; align-items: baseline; gap: 10px; padding: 8px 12px; border-radius: 8px; cursor: pointer;
   }
@@ -236,10 +238,17 @@
   .dsc-child.good .dsc-child-val { color: var(--good); }
   @media (max-width: 980px) { .dash-project-row, .dash-status-row { grid-template-columns: 1fr; } }
 
-  /* Concerns -- now a plain card matching every other dashboard section,
-     with just a warning-colored icon/heading instead of a distinct
-     colored banner strip. */
-  .concerns-card { margin-bottom: 18px; }
+  /* Item [dashboard stage split]: everything L0-specific stacks in one
+     column, everything L1-specific in the other -- each card below keeps
+     its normal margin-bottom, .dash-stage-col just lays them out in a
+     column instead of relying on .dash-row's own row-by-row spacing. */
+  .dash-stage-split { align-items: start; }
+  .dash-stage-col { display: flex; flex-direction: column; gap: 18px; }
+  .dash-stage-col > .card { margin-bottom: 0; }
+
+  /* Concerns -- a plain card matching every other dashboard section, with
+     just a warning-colored icon/heading instead of a distinct colored
+     banner strip. */
   .concerns-title-row { color: var(--crit); }
   .concerns-card ul { margin: 0; padding: 0 20px 4px; list-style: none; }
   .concerns-card li { position: relative; padding: 7px 0 7px 18px; font-size: 13px; color: var(--ink-700); line-height: 1.5; border-bottom: 1px solid var(--line); }
@@ -260,16 +269,14 @@
   .milestone-meta { font-size: 11px; color: var(--ink-500); margin-top: 2px; }
   .milestone-date { font-size: 11px; color: var(--ink-500); flex-shrink: 0; white-space: nowrap; }
 
-  /* Top Departments */
-  .top-depts-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
-  .top-depts-col { padding: 14px 18px; }
-  .top-depts-col:first-child { border-right: 1px solid var(--line); }
-  .top-depts-col-head { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-500); margin-bottom: 10px; }
-  .top-dept-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+  /* Top Departments -- one ranked list per stage card (no longer a
+     two-column split within a single shared card). */
+  .top-dept-row { display: flex; align-items: center; gap: 10px; padding: 8px 20px; border-bottom: 1px solid var(--line); }
+  .top-dept-row:last-child { border-bottom: none; }
   .top-dept-rank { font-size: 11px; font-weight: 800; color: var(--ink-300); width: 16px; flex-shrink: 0; }
   .top-dept-name { font-size: 12.5px; color: var(--ink-700); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .top-dept-pct { font-size: 12.5px; font-weight: 800; font-variant-numeric: tabular-nums; flex-shrink: 0; }
-  @media (max-width: 980px) { .top-depts-cols { grid-template-columns: 1fr; } .top-depts-col:first-child { border-right: none; border-bottom: 1px solid var(--line); } }
+  @media (max-width: 980px) { .dash-stage-split { grid-template-columns: 1fr; } }
 
   .pipeline-card { padding: 22px 24px 18px; margin-bottom: 22px; }
   .pipeline-card h3 { font-size: 14px; margin-bottom: 2px; }

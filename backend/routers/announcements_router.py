@@ -28,13 +28,14 @@ _ALWAYS_VISIBLE_TYPES = {
 
 @router.get("", response_model=list[schemas.AnnouncementOut])
 def list_announcements(limit: int = 50, actor_role: str | None = None, actor_email: str | None = None,
-                        mine: bool = False, db: Session = Depends(get_db)):
-    items = (
-        db.query(models.Announcement)
-        .order_by(models.Announcement.created_at.desc())
-        .limit(limit)
-        .all()
-    )
+                        mine: bool = False, stage: str | None = None, db: Session = Depends(get_db)):
+    q = db.query(models.Announcement).order_by(models.Announcement.created_at.desc())
+    if stage:
+        # Item [dashboard stage split]: the Dashboard's Latest Announcements
+        # feed is now one per stage -- an announcement with no project (rare)
+        # can't belong to either, so an inner join correctly drops it here.
+        q = q.join(models.Project, models.Announcement.project_id == models.Project.id).filter(models.Project.stage == stage)
+    items = q.limit(limit).all()
     if actor_role and actor_role != "Admin":
         email = (actor_email or "").strip().lower()
 

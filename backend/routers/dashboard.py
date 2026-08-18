@@ -107,19 +107,46 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
             "pct": pct,
         })
 
-    concerns = []
-    for row in dept_rows:
-        if row["pct"] is not None and row["pct"] < 80:
-            concerns.append(f"<b>{row['department']}</b> is at {row['pct']}% approved-on-time this pilot ({row['overdue']} overdue).")
-    if overdue:
-        concerns.append(f"<b>{overdue} deliverable(s)</b> are currently overdue across active projects.")
     unassigned = [d.name for d in db.query(models.Department).all() if not d.focal_point_email]
-    if unassigned:
-        concerns.append(f"No focal point contact set for: <b>{', '.join(unassigned)}</b>.")
 
-    # Item [dashboard redesign 2]: newest 3 tenders/projects per stage, for
-    # the L0/L1 headline cards -- org-wide (not scoped to focus_email), a
-    # portfolio awareness feed rather than "my work."
+    # Item [dashboard stage split]: the whole dashboard below the headline
+    # cards is now two parallel sections, one per stage -- Concerns, Top
+    # Departments and Newest Milestones each need their own L0 and L1
+    # version instead of one pooled list. Top Departments and Concerns
+    # share one per-department loop (both need the same per-stage
+    # percentage); it draws from stat_subs so "My Items" scopes these too,
+    # same as it already scoped the pooled versions.
+    overdue_l0 = sum(1 for s in stat_subs if s.definition.stage == models.Stage.L0 and rules.deadline_status(s)[0] == "due")
+    overdue_l1 = sum(1 for s in stat_subs if s.definition.stage == models.Stage.L1 and rules.deadline_status(s)[0] == "due")
+    top_depts_l0, top_depts_l1 = [], []
+    concerns_l0, concerns_l1 = [], []
+    for dept in db.query(models.Department).order_by(models.Department.number).all():
+        if dept.name in _PERF_EXCLUDED_DEPTS:
+            continue
+        d_subs = _kpi_cohort([s for s in stat_subs if s.definition.department_id == dept.id])
+        l0_pct = _level_stats(d_subs, models.Stage.L0)["percentage"]
+        l1_pct = _level_stats(d_subs, models.Stage.L1)["percentage"]
+        if l0_pct is not None:
+            top_depts_l0.append({"department": dept.name, "department_number": dept.number, "pct": l0_pct})
+            if l0_pct < 80:
+                concerns_l0.append(f"<b>{dept.name}</b> is at {l0_pct}% approved-on-time this pilot.")
+        if l1_pct is not None:
+            top_depts_l1.append({"department": dept.name, "department_number": dept.number, "pct": l1_pct})
+            if l1_pct < 80:
+                concerns_l1.append(f"<b>{dept.name}</b> is at {l1_pct}% approved-on-time this pilot.")
+    top_depts_l0 = sorted(top_depts_l0, key=lambda r: -r["pct"])[:3]
+    top_depts_l1 = sorted(top_depts_l1, key=lambda r: -r["pct"])[:3]
+    if overdue_l0:
+        concerns_l0.append(f"<b>{overdue_l0} deliverable(s)</b> are currently overdue across active L0 tenders.")
+    if overdue_l1:
+        concerns_l1.append(f"<b>{overdue_l1} deliverable(s)</b> are currently overdue across active L1 projects.")
+    if unassigned:
+        concerns_l0.append(f"No focal point contact set for: <b>{', '.join(unassigned)}</b>.")
+        concerns_l1.append(f"No focal point contact set for: <b>{', '.join(unassigned)}</b>.")
+
+    # Newest 3 tenders/projects per stage, for the L0/L1 headline cards --
+    # org-wide (not scoped to focus_email), a portfolio awareness feed
+    # rather than "my work."
     def _recent_projects(stage_enum):
         rows = (
             db.query(models.Project)
@@ -133,49 +160,40 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
     recent_l0 = _recent_projects(models.Stage.L0)
     recent_l1 = _recent_projects(models.Stage.L1)
 
-    # Newest Milestones: the 5 most recently reached M-codes across every
-    # project, org-wide.
-    recent_milestones = []
-    milestone_subs = (
-        db.query(models.DeliverableSubmission)
-        .join(models.DeliverableDefinition)
-        .filter(models.DeliverableDefinition.is_milestone.is_(True), models.DeliverableSubmission.status == models.SubmissionStatus.APPROVED)
-        .order_by(models.DeliverableSubmission.reviewed_at.desc())
-        .limit(5)
-        .all()
-    )
-    for s in milestone_subs:
-        recent_milestones.append({
+    # Newest Milestones per stage: the 5 most recently reached M-codes for
+    # that stage's own catalog, org-wide.
+    def _recent_milestones(stage_enum):
+        subs = (
+            db.query(models.DeliverableSubmission)
+            .join(models.DeliverableDefinition)
+            .filter(
+                models.DeliverableDefinition.is_milestone.is_(True),
+                models.DeliverableDefinition.stage == stage_enum,
+                models.DeliverableSubmission.status == models.SubmissionStatus.APPROVED,
+            )
+            .order_by(models.DeliverableSubmission.reviewed_at.desc())
+            .limit(5)
+            .all()
+        )
+        return [{
             "milestone_code": s.definition.milestone_code, "name": s.definition.name,
             "est_no": s.project.est_no, "project_name": s.project.name, "project_id": s.project_id,
             "reviewed_at": s.reviewed_at,
-        })
+        } for s in subs]
 
-    # Top 3 Departments per stage, by the same Calculation-Criteria
-    # percentage the Performance tab uses -- drawn from stat_subs so this
-    # scopes with "My Items" too, same as Concerns above.
-    top_depts_l0, top_depts_l1 = [], []
-    for dept in db.query(models.Department).order_by(models.Department.number).all():
-        if dept.name in _PERF_EXCLUDED_DEPTS:
-            continue
-        d_subs = _kpi_cohort([s for s in stat_subs if s.definition.department_id == dept.id])
-        l0_pct = _level_stats(d_subs, models.Stage.L0)["percentage"]
-        l1_pct = _level_stats(d_subs, models.Stage.L1)["percentage"]
-        if l0_pct is not None:
-            top_depts_l0.append({"department": dept.name, "department_number": dept.number, "pct": l0_pct})
-        if l1_pct is not None:
-            top_depts_l1.append({"department": dept.name, "department_number": dept.number, "pct": l1_pct})
-    top_depts_l0 = sorted(top_depts_l0, key=lambda r: -r["pct"])[:3]
-    top_depts_l1 = sorted(top_depts_l1, key=lambda r: -r["pct"])[:3]
+    recent_milestones_l0 = _recent_milestones(models.Stage.L0)
+    recent_milestones_l1 = _recent_milestones(models.Stage.L1)
 
     return {
         "active_l0": l0_count, "active_l1": l1_count, "signed": signed_count,
         "overdue": overdue, "pending_review": pending_review, "not_due": not_due,
         "early": early, "on_time": on_time, "late": late,
         "no_progress": no_progress, "in_progress": in_progress, "approved": approved, "rejected": rejected,
-        "recent_l0": recent_l0, "recent_l1": recent_l1, "recent_milestones": recent_milestones,
+        "recent_l0": recent_l0, "recent_l1": recent_l1,
+        "recent_milestones_l0": recent_milestones_l0, "recent_milestones_l1": recent_milestones_l1,
         "top_depts_l0": top_depts_l0, "top_depts_l1": top_depts_l1,
-        "departments": dept_rows, "concerns": concerns,
+        "concerns_l0": concerns_l0, "concerns_l1": concerns_l1,
+        "departments": dept_rows,
     }
 
 

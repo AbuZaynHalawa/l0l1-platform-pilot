@@ -60,6 +60,13 @@
 
   <div class="main">
     <div class="topbar">
+      <!-- Item [dashboard header move]: the dashboard's own greeting used to
+           live under the topbar as a normal scrollable view-head -- now it
+           sits in the sticky topbar itself, right next to the sidebar logo,
+           so it's always visible without scrolling. Only shown on the
+           Dashboard view (switchView toggles it), since the topbar is
+           shared across every page. -->
+      <div class="topbar-title" id="topbarTitle" hidden>Good morning &#8212; here&#8217;s where things stand</div>
       <div class="search-wrap">
         <span class="sic">&#128269;</span>
         <input id="globalSearch" type="text" placeholder="Search by Est No or project name&#8230;" />
@@ -84,14 +91,6 @@
 
     <!-- DASHBOARD -->
     <section class="view" id="view-dashboard" hidden>
-      <div class="view-head">
-        <div>
-          <div class="eyebrow">Overview</div>
-          <h1>Good morning — here's where things stand</h1>
-          <p class="sub">Across L0 and L1, updated as departments submit.</p>
-        </div>
-      </div>
-
       <div class="dash-focus">
         <div class="subtab-row" id="dashFocusToggle">
           <button class="chip active" data-focus="all">All</button>
@@ -99,43 +98,62 @@
         </div>
       </div>
 
-      <!-- Item [dashboard redesign 2]: headline numbers come first, then
-           exceptions/awareness (Concerns, Milestones, Top Departments), then
-           activity/achievers, then the full detail matrix -- every 2-column
-           row below shares the same .dash-row grid so card edges line up
-           all the way down the page instead of drifting per-section. -->
+      <!-- Item [dashboard stage split]: headline numbers first, then the
+           pooled Deadline/Progress status row, then two parallel columns --
+           everything L0-specific stacks under the L0 card, everything
+           L1-specific stacks under the L1 card. Top Achievers is the one
+           exception (its scores pool both stages), so it stays a single
+           shared row, right before the matrix. Every 2-column row shares
+           the same .dash-row grid so card edges line up down the page. -->
       <div class="stat-row" id="statRow"></div>
 
-      <div class="card concerns-card" id="concernsBanner" hidden>
-        <div class="section-title concerns-title-row">&#9888; Concerns</div>
-        <ul id="concernsList"></ul>
-      </div>
-
-      <div class="dash-row" id="milestonesDeptsRow">
-        <div class="card">
-          <div class="section-title">Newest Milestones</div>
-          <div id="milestonesList"></div>
+      <div class="dash-row dash-stage-split">
+        <div class="dash-stage-col" id="stageColL0">
+          <div class="card">
+            <div class="section-title">Top L0 Departments</div>
+            <div id="topDeptsL0"></div>
+          </div>
+          <div class="card">
+            <div class="section-title">Newest L0 Milestones</div>
+            <div id="milestonesL0"></div>
+          </div>
+          <div class="card concerns-card" id="concernsL0Card" hidden>
+            <div class="section-title concerns-title-row">&#9888; L0 Concerns</div>
+            <ul id="concernsL0List"></ul>
+          </div>
+          <div class="card">
+            <div class="section-title">Latest L0 Announcements</div>
+            <div id="digestL0List"></div>
+          </div>
         </div>
-        <div class="card">
-          <div class="section-title">Top Departments</div>
-          <div id="topDeptsBody"></div>
+        <div class="dash-stage-col" id="stageColL1">
+          <div class="card">
+            <div class="section-title">Top L1 Departments</div>
+            <div id="topDeptsL1"></div>
+          </div>
+          <div class="card">
+            <div class="section-title">Newest L1 Milestones</div>
+            <div id="milestonesL1"></div>
+          </div>
+          <div class="card concerns-card" id="concernsL1Card" hidden>
+            <div class="section-title concerns-title-row">&#9888; L1 Concerns</div>
+            <ul id="concernsL1List"></ul>
+          </div>
+          <div class="card">
+            <div class="section-title">Latest L1 Announcements</div>
+            <div id="digestL1List"></div>
+          </div>
         </div>
       </div>
 
       <div class="dash-row achievers-row">
         <div class="card">
-          <div class="section-title">Latest announcements <span class="cnt">real-time log</span></div>
-          <div id="digestList"></div>
+          <div class="section-title">Top Achievers &#8211; Owners</div>
+          <div class="card-pad"><div id="topOwners" class="achiever-list"></div></div>
         </div>
-        <div class="achievers-stack">
-          <div class="card">
-            <div class="section-title">Top Achievers &#8211; Owners</div>
-            <div class="card-pad"><div id="topOwners" class="achiever-list"></div></div>
-          </div>
-          <div class="card">
-            <div class="section-title">Top Achievers &#8211; SME</div>
-            <div class="card-pad"><div id="topSmes" class="achiever-list"></div></div>
-          </div>
+        <div class="card">
+          <div class="section-title">Top Achievers &#8211; SME</div>
+          <div class="card-pad"><div id="topSmes" class="achiever-list"></div></div>
         </div>
       </div>
 

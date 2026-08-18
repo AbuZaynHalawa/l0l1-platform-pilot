@@ -303,6 +303,9 @@
     document.querySelectorAll(".view").forEach(function (v) { v.hidden = true; });
     document.getElementById("view-" + name).hidden = false;
     document.querySelectorAll(".nav-item").forEach(function (n) { n.classList.toggle("active", n.dataset.view === name); });
+    // Item [dashboard header move]: the big topbar title only makes sense
+    // on the Dashboard -- every other view keeps its own in-content heading.
+    document.getElementById("topbarTitle").hidden = name !== "dashboard";
     // Item 99: a plain nav view is remembered in the URL so a refresh comes
     // back here instead of bouncing to the Dashboard. "detail" and "triage"
     // aren't nav views — they get their own hash from openDetail/openTriage.
@@ -351,15 +354,19 @@
     var qs = focusEmail ? "?focus_email=" + encodeURIComponent(focusEmail) : "";
     var d = await api("/api/dashboard" + qs);
 
-    var banner = document.getElementById("concernsBanner");
-    var list = document.getElementById("concernsList");
-    list.innerHTML = "";
-    if (d.concerns && d.concerns.length) {
-      banner.hidden = false;
-      d.concerns.forEach(function (c) { list.appendChild(el("li", "", c)); });
-    } else {
-      banner.hidden = true;
-    }
+    // Item [dashboard stage split]: Concerns is now one card per stage,
+    // living in that stage's own column further down.
+    [["L0", d.concerns_l0], ["L1", d.concerns_l1]].forEach(function (s) {
+      var banner = document.getElementById("concerns" + s[0] + "Card");
+      var list = document.getElementById("concerns" + s[0] + "List");
+      list.innerHTML = "";
+      if (s[1] && s[1].length) {
+        banner.hidden = false;
+        s[1].forEach(function (c) { list.appendChild(el("li", "", c)); });
+      } else {
+        banner.hidden = true;
+      }
+    });
 
     var stats = document.getElementById("statRow");
     stats.innerHTML = "";
@@ -375,8 +382,8 @@
     // tenders/projects for that stage in the card's plain surface color,
     // with just the Est No taking the stage's identity color.
     var projectRow = el("div", "dash-project-row");
-    [["L0", mine ? "My Active L0 Tenders" : "Active L0 Tenders", d.active_l0, d.recent_l0],
-     ["L1", mine ? "My Active L1 Projects" : "Active L1 Projects", d.active_l1, d.recent_l1]]
+    [["L0", mine ? "My Active L0 Tenders" : "Active L0 Tenders", d.active_l0, d.recent_l0, "Latest L0 Tenders"],
+     ["L1", mine ? "My Active L1 Projects" : "Active L1 Projects", d.active_l1, d.recent_l1, "Latest L1 Projects"]]
       .forEach(function (s) {
         var card = el("div", "card dash-project-card " + s[0].toLowerCase());
         var head = el("div", "dpc-head");
@@ -384,6 +391,7 @@
           '</div><div class="dpc-label">' + s[1] + "</div></div>";
         card.appendChild(head);
         var body = el("div", "dpc-body");
+        body.appendChild(el("div", "dpc-body-title", s[4]));
         var recent = s[3] || [];
         if (!recent.length) {
           body.appendChild(el("div", "dpc-empty", "No " + s[0] + " projects yet."));
@@ -423,9 +431,9 @@
     statusRow.appendChild(statusCard("Deliverables Deadline Status", [
       [mine ? "My Not Due" : "Not Due", d.not_due, ["deadline", "not_due"], ""],
       [mine ? "My Due" : "Due", d.overdue, ["deadline", "due"], "crit"],
-      ["Early", d.early, null, "good"],
-      ["On Time", d.on_time, null, "good"],
-      ["Late", d.late, null, "crit"],
+      ["Early", d.early, ["deadline", "early"], "good"],
+      ["On Time", d.on_time, ["deadline", "on_time"], "good"],
+      ["Late", d.late, ["deadline", "late"], "crit"],
     ]));
     statusRow.appendChild(statusCard("Deliverables Progress Status", [
       ["No Progress Yet", d.no_progress, ["progress", "no_progress"], ""],
@@ -436,92 +444,95 @@
     ]));
     stats.appendChild(statusRow);
 
-    // Item [dashboard redesign 2]: Newest Milestones -- the most recently
-    // reached M-codes across every project, portfolio-wide.
-    var milestonesList = document.getElementById("milestonesList");
-    milestonesList.innerHTML = "";
-    if (!d.recent_milestones || !d.recent_milestones.length) {
-      milestonesList.appendChild(el("div", "empty-state", "No milestones reached yet."));
-    } else {
-      d.recent_milestones.forEach(function (m) {
+    // Item [dashboard stage split]: Top Departments, Newest Milestones and
+    // Latest Announcements each render twice now, once into L0's column
+    // and once into L1's -- everything about one stage lives together
+    // under that stage's own headline card.
+    function renderStageMilestones(stage, milestones) {
+      var wrap = document.getElementById("milestones" + stage);
+      wrap.innerHTML = "";
+      if (!milestones || !milestones.length) {
+        wrap.appendChild(el("div", "empty-state", "No milestones reached yet."));
+        return;
+      }
+      milestones.forEach(function (m) {
         var row = el("div", "milestone-row");
         row.innerHTML = '<span class="milestone-code-badge">' + (m.milestone_code || "M") + '</span>' +
           '<span class="milestone-body"><span class="milestone-name">' + m.name + '</span>' +
           '<div class="milestone-meta">' + m.est_no + " &#8211; " + m.project_name + "</div></span>" +
           '<span class="milestone-date">' + fmtDate(m.reviewed_at ? m.reviewed_at.slice(0, 10) : null) + "</span>";
         row.addEventListener("click", function () { openDetail(m.project_id); });
-        milestonesList.appendChild(row);
+        wrap.appendChild(row);
       });
     }
+    renderStageMilestones("L0", d.recent_milestones_l0);
+    renderStageMilestones("L1", d.recent_milestones_l1);
 
-    // Item [dashboard redesign 2]: Top 3 Departments, L0 and L1 ranked
-    // separately (same Calculation-Criteria percentage as the Performance
-    // tab), side by side in one card.
-    var topDeptsBody = document.getElementById("topDeptsBody");
-    topDeptsBody.innerHTML = "";
-    var deptsCols = el("div", "top-depts-cols");
-    [["L0", d.top_depts_l0], ["L1", d.top_depts_l1]].forEach(function (s) {
-      var col = el("div", "top-depts-col");
-      col.appendChild(el("div", "top-depts-col-head", s[0] + " Departments"));
-      var rows = s[1] || [];
-      if (!rows.length) {
-        col.appendChild(el("div", "dpc-empty", "No data yet."));
-      } else {
-        rows.forEach(function (r, i) {
-          var row = el("div", "top-dept-row");
-          row.innerHTML = '<span class="top-dept-rank">#' + (i + 1) + '</span>' +
-            '<span class="top-dept-name">' + deptLabel(r.department, r.department_number) + '</span>' +
-            '<span class="top-dept-pct">' + r.pct.toFixed(1) + "%</span>";
-          col.appendChild(row);
-        });
+    function renderStageDepts(stage, rows) {
+      var wrap = document.getElementById("topDepts" + stage);
+      wrap.innerHTML = "";
+      if (!rows || !rows.length) {
+        wrap.appendChild(el("div", "empty-state", "No data yet."));
+        return;
       }
-      deptsCols.appendChild(col);
-    });
-    topDeptsBody.appendChild(deptsCols);
+      rows.forEach(function (r, i) {
+        var row = el("div", "top-dept-row");
+        row.innerHTML = '<span class="top-dept-rank">#' + (i + 1) + '</span>' +
+          '<span class="top-dept-name">' + deptLabel(r.department, r.department_number) + '</span>' +
+          '<span class="top-dept-pct">' + r.pct.toFixed(1) + "%</span>";
+        wrap.appendChild(row);
+      });
+    }
+    renderStageDepts("L0", d.top_depts_l0);
+    renderStageDepts("L1", d.top_depts_l1);
 
     var achievers = await api("/api/dashboard/top-achievers");
     renderAchievers("topOwners", achievers.owners.slice(0, 3), "owner");
     renderAchievers("topSmes", achievers.smes.slice(0, 3), "sme");
 
-    // Item [dashboard announcements scoping]: this mini feed was calling
-    // the endpoint with no actor_role/actor_email at all, which the backend
-    // treats as "show everything" -- the same private SME/Owner-only
-    // announcements the full Announcements page correctly hides from the
-    // wrong role were leaking onto every Dashboard regardless of who's
-    // looking. Same actor_role/actor_email pattern as loadAnnouncements().
-    var annsQs = "?limit=6";
-    if (CURRENT_ROLE !== "Admin") {
-      annsQs += "&actor_role=" + encodeURIComponent(CURRENT_ROLE) + "&actor_email=" + encodeURIComponent(passiveIdentity());
-    }
-    // Item 183: "My Items" narrows the feed to only announcements actually
-    // addressed to the focus email, on top of whatever role-visibility
-    // filtering already applied above -- an Admin toggling My Items gets
-    // this for the first time too, since the role branch above never runs
-    // for them.
-    if (focusEmail) annsQs += "&mine=true&actor_email=" + encodeURIComponent(focusEmail);
-    var anns = await api("/api/announcements" + annsQs);
-    var digest = document.getElementById("digestList");
-    digest.innerHTML = "";
-    if (!anns.length) digest.appendChild(el("div", "empty-state", "No announcements yet."));
-    anns.forEach(function (a) {
-      var meta = annIcon(a);
-      var row = el("div", "digest-row");
-      row.appendChild(el("div", "digest-ic", meta[0]));
-      var body = el("div", "digest-body");
-      body.appendChild(el("b", "", a.title));
-      body.appendChild(el("div", "sub", a.body.replace(/<[^>]+>/g, "")));
-      digest.appendChild(row);
-      row.appendChild(body);
-      if (a.submission_id || a.project_id) {
-        row.style.cursor = "pointer";
-        // Item 92: opens straight to the deliverable popup, like Assigned
-        // Deliverables does — no more redirecting to project detail first.
-        row.addEventListener("click", function () {
-          if (a.submission_id) openDelivModal(a.submission_id);
-          else openDetail(a.project_id);
-        });
+    // Item [dashboard announcements scoping]: this feed used to be called
+    // with no actor_role/actor_email at all, which the backend treats as
+    // "show everything" -- the same private SME/Owner-only announcements
+    // the full Announcements page correctly hides from the wrong role were
+    // leaking onto every Dashboard regardless of who's looking. Same
+    // actor_role/actor_email pattern as loadAnnouncements(), now also
+    // split per stage (item [dashboard stage split]).
+    async function loadStageAnnouncements(stage) {
+      var qs = "?limit=6&stage=" + stage;
+      if (CURRENT_ROLE !== "Admin") {
+        qs += "&actor_role=" + encodeURIComponent(CURRENT_ROLE) + "&actor_email=" + encodeURIComponent(passiveIdentity());
       }
-    });
+      // Item 183: "My Items" narrows the feed to only announcements
+      // actually addressed to the focus email, on top of whatever
+      // role-visibility filtering already applied above -- an Admin
+      // toggling My Items gets this for the first time too, since the
+      // role branch above never runs for them.
+      if (focusEmail) qs += "&mine=true&actor_email=" + encodeURIComponent(focusEmail);
+      var anns = await api("/api/announcements" + qs);
+      var digest = document.getElementById("digest" + stage + "List");
+      digest.innerHTML = "";
+      if (!anns.length) digest.appendChild(el("div", "empty-state", "No announcements yet."));
+      anns.forEach(function (a) {
+        var meta = annIcon(a);
+        var row = el("div", "digest-row");
+        row.appendChild(el("div", "digest-ic", meta[0]));
+        var body = el("div", "digest-body");
+        body.appendChild(el("b", "", a.title));
+        body.appendChild(el("div", "sub", a.body.replace(/<[^>]+>/g, "")));
+        digest.appendChild(row);
+        row.appendChild(body);
+        if (a.submission_id || a.project_id) {
+          row.style.cursor = "pointer";
+          // Item 92: opens straight to the deliverable popup, like Assigned
+          // Deliverables does — no more redirecting to project detail first.
+          row.addEventListener("click", function () {
+            if (a.submission_id) openDelivModal(a.submission_id);
+            else openDetail(a.project_id);
+          });
+        }
+      });
+    }
+    await Promise.all([loadStageAnnouncements("L0"), loadStageAnnouncements("L1")]);
 
     matrixFocusEmail = focusEmail;
     await loadMatrix();
@@ -656,7 +667,10 @@
   var assignedProgressFilter = "";
   var assignedEstFilter = "";
   var assignedStage = "";
-  var DEADLINE_FILTERS = [["", "All"], ["not_due", "Not Due"], ["due", "Due"]];
+  var DEADLINE_FILTERS = [
+    ["", "All"], ["not_due", "Not Due"], ["due", "Due"],
+    ["early", "Early"], ["on_time", "On Time"], ["late", "Late"],
+  ];
   var PROGRESS_FILTERS = [
     ["", "All"], ["no_progress", "No Progress Yet"], ["in_progress", "In Progress"],
     ["pending_review", "Pending SME Review"], ["approved", "Completed"], ["rejected", "Rejected"],
@@ -4243,6 +4257,7 @@
     // That means the dashboard-landing case now has to unhide itself
     // explicitly instead of relying on already being visible by default.
     document.getElementById("view-dashboard").hidden = false;
+    document.getElementById("topbarTitle").hidden = false;
     loadDashboard();
     // A shared deliverable link (item 76) opens straight to that item's
     // popup, on top of the dashboard it's actually landing on.
