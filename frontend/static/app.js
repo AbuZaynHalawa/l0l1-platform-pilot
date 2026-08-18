@@ -1183,6 +1183,20 @@
   });
   function closeDelivModal() { document.getElementById("delivModalOverlay").hidden = true; }
 
+  // Item [checkmark tofu fix]: the Unicode check mark character (U+2713)
+  // was rendering as a fallback "tofu" box in the bold .fs-dot font weight
+  // instead of an actual check -- not every font/weight combination ships
+  // a glyph for it. An inline SVG stroke path renders identically
+  // everywhere, no font glyph lookup involved. Sized in `em` (not a fixed
+  // px) so it scales with .fs-dot's own font-size, which is what already
+  // differs between the real 40px stepper and the tour's 26px mock version.
+  // Declared here, before TOUR_STEPS, because TOUR_STEPS's array literal
+  // calls milestoneMock() immediately at load time -- a plain `var` below
+  // TOUR_STEPS would still be hoisted, but its assignment wouldn't have run
+  // yet, so milestoneMock would see it as undefined the first time.
+  var FS_CHECK_SVG = '<svg width="1.3em" height="1.3em" viewBox="0 0 16 16" fill="none" stroke="currentColor" ' +
+    'stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.3 3.3L13 4"/></svg>';
+
   /* ================= ITEM 131: INTERACTIVE SYSTEM INTRODUCTION WALKTHROUGH =================
      Portal "screens" below are illustrative recreations built from the app's
      own CSS (pill/fs-step/folder-row/gantt-row look-alikes), not literal
@@ -1577,7 +1591,7 @@
       var code = s[0], label = s[1], done = s[2], current = s[3];
       var cls = "fs-step" + (done ? " done" : current ? " current" : "");
       return '<div class="' + cls + '" style="flex:1;"><div class="fs-dot" style="width:26px;height:26px;font-size:9px;">' +
-        (done ? "&#10003;" : code) + '</div><div class="fs-label">' + label + "</div></div>";
+        (done ? FS_CHECK_SVG : code) + '</div><div class="fs-label">' + label + "</div></div>";
     }).join("");
   }
   // Item [walkthrough expansion]: a real-pill legend row for slides
@@ -2264,7 +2278,7 @@
       ms.forEach(function (m, i) {
         var cls = "fs-step" + (m.reached ? " done" : (i === lastDoneIdx + 1 ? " current" : ""));
         var step = el("div", cls);
-        step.appendChild(el("div", "fs-dot", m.reached ? "&#10003;" : m.code));
+        step.appendChild(el("div", "fs-dot", m.reached ? FS_CHECK_SVG : m.code));
         var label = el("div", "fs-label", m.code + " &middot; " + (L1_MILESTONE_LABELS[m.code] || m.name));
         step.appendChild(label);
         step.appendChild(el("div", "fs-date", m.reached ? fmtDate(m.actual_date) : "&#8213;"));
