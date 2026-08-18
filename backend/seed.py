@@ -62,7 +62,22 @@ ensure_column("deliverable_submissions", "reviewed_by_email", "VARCHAR")
 ensure_column("deliverable_definitions", "default_owner_emails", "JSON")
 ensure_column("deliverable_submissions", "owner_emails", "JSON")
 
+# Due-date extension/hold requests (item [due-date requests]).
+ensure_column("deliverable_submissions", "on_hold", "BOOLEAN")
+ensure_column("deliverable_submissions", "on_hold_since", "TIMESTAMP")
+ensure_column("deliverable_submissions", "hold_reason", "TEXT")
+ensure_column("deliverable_submissions", "due_date_locked", "BOOLEAN")
+ensure_enum_value("announcements", "type", "EXTENSION_REQUEST")
+ensure_enum_value("announcements", "type", "EXTENSION_DECISION")
+ensure_enum_value("announcements", "type", "HOLD_REQUEST")
+ensure_enum_value("announcements", "type", "HOLD_DECISION")
+
 models.Base.metadata.create_all(bind=engine)
+
+# due_date_requests is a brand-new table -- create_all above just made it,
+# so its index can only be added after that point (unlike the
+# reassignment_requests index above, which predates this table's existence).
+ensure_index("due_date_requests", "ix_due_date_requests_submission_id", "submission_id")
 
 TEST_EMAIL = "test-focal@example.com"  # single placeholder until real contacts are provided
 

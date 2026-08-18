@@ -180,6 +180,7 @@
   var DEADLINE_META = {
     not_due: ["neutral", "Not Due"], due: ["crit", "Due"],
     on_time: ["good", "On Time"], early: ["good", "Early"], late: ["crit", "Late"],
+    on_hold: ["warn", "On Hold"],
   };
   // Item 143 (2nd revision): the Dashboard matrix collapses everything down
   // to just these three buckets (rules.deadline_bucket() on the backend).
@@ -195,6 +196,8 @@
     sme_decision: ["&#9989;", "sme-decision"], unlock: ["&#128275;", "unlock"], deadline: ["&#8987;", "deadline"], closed: ["&#127937;", "closed"],
     milestone: ["&#127919;", "milestone"], bsd_extended: ["&#128197;", "bsd-extended"],
     doc_added: ["&#128206;", "doc-added"], deliverable_approved: ["&#9989;", "deliverable-approved"],
+    extension_request: ["&#8987;", "extension-request"], extension_decision: ["&#128197;", "extension-decision"],
+    hold_request: ["&#9208;", "hold-request"], hold_decision: ["&#9208;", "hold-decision"],
   };
   // Item 165: single source of truth for the Announcements type filter and
   // its legend -- audience: "all" means every role sees it as a filter
@@ -214,6 +217,10 @@
     { value: "sme_request", label: "SME Review Request", sw: "var(--warn)", audience: ["Owner", "SME"] },
     { value: "sme_decision", label: "SME Decision &#8211; Rejected", sw: "var(--good)", audience: ["Owner"] },
     { value: "deadline", label: "Deadline / Reminder", sw: "var(--warn)", audience: ["Owner", "SME"] },
+    { value: "extension_request", label: "Extension Requested", sw: "var(--warn)", audience: ["Owner", "SME"] },
+    { value: "extension_decision", label: "Extension Decision", sw: "var(--good)", audience: ["Owner"] },
+    { value: "hold_request", label: "Hold Requested", sw: "var(--warn)", audience: ["Owner", "SME"] },
+    { value: "hold_decision", label: "Hold Decision", sw: "var(--good)", audience: ["Owner"] },
   ];
   // Item [announcement recipients]: the "To:" line used to list every
   // recipient email verbatim -- fine at a handful of test users, unreadable
@@ -1039,6 +1046,52 @@
   }
   setInterval(checkBmTriageDeadline, 5 * 60 * 1000);
 
+  // Item [nav badges]: pending-count badge on 5 sidebar nav items, same
+  // .nav-badge/.textContent pattern assignedBadge already uses (loadAssigned,
+  // above). Unlike that one, these need to populate on a fresh load too, not
+  // just when their own view is visited -- called from INIT below and from
+  // both the role-select and acting-email change handlers.
+  async function refreshNavBadges() {
+    try {
+      var bmQs = "actor_role=" + encodeURIComponent(CURRENT_ROLE);
+      if (CURRENT_ROLE !== "Admin") bmQs += "&actor_email=" + encodeURIComponent(actingEmail());
+      var bmRows = await api("/api/projects/bm-triage-status?" + bmQs);
+      document.getElementById("bmTriageBadge").textContent = bmRows.filter(function (r) { return r.status !== "done"; }).length || "";
+    } catch (e) { /* not scoped to a real BM yet -- leave blank rather than error */ }
+
+    // Open Questions is Admin-only server-side (403 otherwise) and the nav
+    // item itself is hidden for every other role -- skip the fetch entirely.
+    if (CURRENT_ROLE === "Admin") {
+      try {
+        var tickets = await api("/api/support?actor_role=Admin");
+        document.getElementById("ticketsBadge").textContent = tickets.filter(function (t) { return t.status === "open"; }).length || "";
+      } catch (e) {}
+    } else {
+      document.getElementById("ticketsBadge").textContent = "";
+    }
+
+    try {
+      var annQs = "?limit=500";
+      if (CURRENT_ROLE !== "Admin") annQs += "&actor_role=" + encodeURIComponent(CURRENT_ROLE) + "&actor_email=" + encodeURIComponent(passiveIdentity());
+      var anns = await api("/api/announcements" + annQs);
+      var lastSeen = localStorage.getItem("annLastSeenAt");
+      var unread = lastSeen ? anns.filter(function (a) { return new Date(a.created_at) > new Date(lastSeen); }).length : anns.length;
+      document.getElementById("announcementsBadge").textContent = unread || "";
+    } catch (e) {}
+
+    // L0/L1 "new" projects -- no per-viewer seen-tracking precedent exists
+    // anywhere in this app for projects (unlike Announcements above), so
+    // this is a global count, same for every viewer: created in the last
+    // 3 days.
+    try {
+      var projects = await api("/api/projects");
+      var cutoff = Date.now() - 3 * 24 * 60 * 60 * 1000;
+      var isNew = function (p) { return p.created_at && new Date(p.created_at).getTime() >= cutoff; };
+      document.getElementById("l0Badge").textContent = projects.filter(function (p) { return p.stage === "L0" && isNew(p); }).length || "";
+      document.getElementById("l1Badge").textContent = projects.filter(function (p) { return p.stage === "L1" && isNew(p); }).length || "";
+    } catch (e) {}
+  }
+
   /* ================= DELIVERABLE DETAIL MODAL ================= */
   document.getElementById("delivModalClose").addEventListener("click", closeDelivModal);
   document.getElementById("delivModalOverlay").addEventListener("click", function (e) {
@@ -1380,6 +1433,76 @@
       actionsRow.appendChild(reassignBtn);
     }
 
+    // Item [due-date requests]: Owner (or Admin) can ask for more time or
+    // flag a blocker, subject to SME/Admin approval -- only while there's
+    // no request already pending and the item isn't already on hold.
+    var canRequestDueDateChange = (d.status === "no_progress" || d.status === "in_progress" || d.status === "rejected")
+      && !d.pending_due_date_request && !d.on_hold;
+    if (authorized && canRequestDueDateChange && can("upload")) {
+      var itemLabel = d.item_no + " &middot; " + d.name;
+      var extendBtn2 = el("button", "btn", "Request Extension");
+      extendBtn2.addEventListener("click", function () { openDueDateRequestModal(d.id, "extension", itemLabel, refreshModal); });
+      var holdBtn = el("button", "btn", "Put On Hold");
+      holdBtn.addEventListener("click", function () { openDueDateRequestModal(d.id, "hold", itemLabel, refreshModal); });
+      actionsRow.appendChild(extendBtn2); actionsRow.appendChild(holdBtn);
+    }
+
+    // Assigned SME or Admin decides a pending extension/hold request --
+    // same can("review") gate Confirm Completion/Send Back uses above,
+    // matching the backend's rules.can_act(..., resolve_smes(sub)) (Admin
+    // passes automatically).
+    if (authorized && d.pending_due_date_request && can("review")) {
+      var req = d.pending_due_date_request;
+      var label = req.kind === "extension" ? "Extension" : "Hold";
+      var approveBtn = el("button", "btn primary", "Approve " + label);
+      approveBtn.addEventListener("click", async function () {
+        try {
+          await api("/api/deliverables/due-date-requests/" + req.id + "/decide", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ approved: true, comment: "", actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
+          });
+        } catch (err) {
+          showToast("Could not approve &#8211; " + apiErrorDetail(err), true);
+          return;
+        }
+        showToast(label + " approved");
+        refreshModal();
+      });
+      var rejectBtn = el("button", "btn ghost-crit", "Reject " + label);
+      rejectBtn.addEventListener("click", async function () {
+        var comment = prompt("Reason for rejecting (optional):", "") || "";
+        try {
+          await api("/api/deliverables/due-date-requests/" + req.id + "/decide", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ approved: false, comment: comment, actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
+          });
+        } catch (err) {
+          showToast("Could not reject &#8211; " + apiErrorDetail(err), true);
+          return;
+        }
+        showToast(label + " rejected");
+        refreshModal();
+      });
+      actionsRow.appendChild(approveBtn); actionsRow.appendChild(rejectBtn);
+    }
+
+    // Owner (or Admin) ends an active hold.
+    if (authorized && d.on_hold && can("upload")) {
+      var resumeBtn = el("button", "btn primary", "Resume");
+      resumeBtn.addEventListener("click", async function () {
+        try {
+          await api("/api/deliverables/" + d.id + "/resume?actor_role=" + encodeURIComponent(CURRENT_ROLE) +
+            "&actor_email=" + encodeURIComponent(actingEmail()), { method: "POST" });
+        } catch (err) {
+          showToast("Could not resume &#8211; " + apiErrorDetail(err), true);
+          return;
+        }
+        showToast(d.item_no + " resumed");
+        refreshModal();
+      });
+      actionsRow.appendChild(resumeBtn);
+    }
+
     // Item 143 (2nd revision): the SME's confirm/reject on a completion
     // claim -- the only place a whole-deliverable Approve/Reject exists,
     // reached only via Mark Completed now.
@@ -1420,7 +1543,15 @@
 
     // Item 143 (2nd revision): workflow nudges -- a reminder to close out
     // once documents are in, or while waiting on the SME's confirmation.
-    if (authorized && d.status === "in_progress") {
+    if (authorized && d.on_hold) {
+      body.appendChild(el("div", "modal-hint", "On hold" + (d.hold_reason ? " &#8211; " + d.hold_reason : "") + "."));
+    } else if (authorized && d.pending_due_date_request) {
+      var pr = d.pending_due_date_request;
+      body.appendChild(el("div", "modal-hint",
+        (pr.kind === "extension" ? "Extension" : "Hold") + " requested" +
+        (pr.kind === "extension" && pr.requested_due_date ? " (new date: " + fmtDate(pr.requested_due_date) + ")" : "") +
+        " &#8211; awaiting SME/Admin decision. &#8220;" + pr.reason + "&#8221;"));
+    } else if (authorized && d.status === "in_progress") {
       body.appendChild(el("div", "modal-hint", "Mark Completed if no more documents are needed."));
     } else if (authorized && d.status === "pending_review") {
       body.appendChild(el("div", "modal-hint", "Awaiting SME confirmation."));
@@ -1496,6 +1627,53 @@
 
     document.getElementById("delivModalOverlay").hidden = false;
   }
+
+  // Item [due-date requests]: Owner's Request Extension / Put On Hold form --
+  // a proper small modal (date + reason) rather than the raw prompt()
+  // dialogs the older Reassign button still uses, reusing the same
+  // .modal-card/.modal-body shell as the checklist-edit modal.
+  function openDueDateRequestModal(submissionId, kind, itemLabel, onDone) {
+    var isExtension = kind === "extension";
+    document.getElementById("dueDateRequestEyebrow").textContent = itemLabel;
+    document.getElementById("dueDateRequestTitle").textContent = isExtension ? "Request Extension" : "Put On Hold";
+    document.getElementById("dueDateRequestDateField").style.display = isExtension ? "" : "none";
+    document.getElementById("dueDateRequestDate").value = "";
+    var reasonLabel = document.getElementById("dueDateRequestReasonLabel");
+    reasonLabel.innerHTML = (isExtension ? "Reason" : "Reason (missing data / technical issue)") + ' <span class="req">*</span>';
+    var reasonInput = document.getElementById("dueDateRequestReason");
+    reasonInput.value = "";
+    var submitBtn = document.getElementById("dueDateRequestSubmit");
+    var newSubmitBtn = submitBtn.cloneNode(true); // drop any listener from a previous open
+    submitBtn.parentNode.replaceChild(newSubmitBtn, submitBtn);
+    newSubmitBtn.addEventListener("click", async function () {
+      var reason = reasonInput.value.trim();
+      if (!reason) { showToast("A reason is required", true); return; }
+      var dateVal = document.getElementById("dueDateRequestDate").value;
+      if (isExtension && !dateVal) { showToast("A requested due date is required", true); return; }
+      try {
+        await api("/api/deliverables/" + submissionId + "/" + kind + "-request", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            reason: reason, requested_due_date: isExtension ? dateVal : null,
+            actor_name: CURRENT_ROLE, actor_role: CURRENT_ROLE, actor_email: actingEmail(),
+          }),
+        });
+      } catch (err) {
+        showToast("Could not submit request &#8211; " + apiErrorDetail(err), true);
+        return;
+      }
+      document.getElementById("dueDateRequestOverlay").hidden = true;
+      showToast((isExtension ? "Extension" : "Hold") + " requested &#8211; pending SME/Admin approval");
+      if (onDone) onDone();
+    });
+    document.getElementById("dueDateRequestOverlay").hidden = false;
+  }
+  document.getElementById("dueDateRequestClose").addEventListener("click", function () {
+    document.getElementById("dueDateRequestOverlay").hidden = true;
+  });
+  document.getElementById("dueDateRequestCancel").addEventListener("click", function () {
+    document.getElementById("dueDateRequestOverlay").hidden = true;
+  });
 
   /* ================= PROJECT DETAIL ================= */
   var currentProjectId = null, currentProjectStage = "L0", currentProjectTerminal = false, currentDeptOpen = null;
@@ -2969,6 +3147,8 @@
     approved: "&#9989;", rejected: "&#10060;", unlocked: "&#128275;",
     document_added: "&#128206;", document_approved: "&#9989;", document_rejected: "&#10060;",
     reopened: "&#128257;", auto_done: "&#9989;",
+    extension_requested: "&#8987;", extension_approved: "&#9989;", extension_rejected: "&#10060;",
+    hold_requested: "&#9208;", hold_approved: "&#9989;", hold_rejected: "&#10060;", resumed: "&#9654;",
   };
   async function renderActivityTimeline(projectId, timelineId) {
     var wrap = document.getElementById(timelineId);
@@ -3379,6 +3559,51 @@
 
   /* ================= FOLLOW UP (admin) ================= */
   async function loadFollowUp() {
+    // Item [due-date requests]: same .aq-row list pattern as Reassignment
+    // Requests right below it, covering both extension and hold kinds.
+    var ddReqs = await api("/api/deliverables/due-date-requests?status=pending");
+    var ddWrap = document.getElementById("dueDateReqList");
+    document.getElementById("dueDateReqCount").textContent = ddReqs.length || "";
+    ddWrap.innerHTML = "";
+    if (!ddReqs.length) {
+      ddWrap.appendChild(el("div", "empty-state", "No pending extension/hold requests."));
+    } else {
+      ddReqs.forEach(function (r) {
+        var row = el("div", "aq-row");
+        var main = el("div", "aq-main");
+        var kindLabel = r.kind === "extension" ? "Extension" : "Hold";
+        main.appendChild(el("div", "aq-title", kindLabel + " &middot; " + r.item_no + " &middot; " + r.name));
+        main.appendChild(el("div", "aq-sub",
+          '<span>' + r.est_no + '</span><span class="sep">&middot;</span>' +
+          '<span>' + r.requested_by_email + '</span>' +
+          (r.kind === "extension" ? '<span class="sep">&middot;</span><span>' + fmtDate(r.current_due_date) + ' &#8594; ' + fmtDate(r.requested_due_date) + '</span>' : "") +
+          '<span class="sep">&middot;</span><span>' + r.reason + '</span>'));
+        row.appendChild(main);
+        var actions = el("div", "deliv-actions");
+        var appr = el("button", "btn primary", "Approve");
+        appr.addEventListener("click", async function () {
+          await api("/api/deliverables/due-date-requests/" + r.id + "/decide", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ approved: true, comment: "", actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
+          });
+          showToast(kindLabel + " approved");
+          loadFollowUp();
+        });
+        var rej = el("button", "btn ghost-crit", "Reject");
+        rej.addEventListener("click", async function () {
+          await api("/api/deliverables/due-date-requests/" + r.id + "/decide", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ approved: false, comment: "", actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
+          });
+          showToast(kindLabel + " rejected");
+          loadFollowUp();
+        });
+        actions.appendChild(appr); actions.appendChild(rej);
+        row.appendChild(actions);
+        ddWrap.appendChild(row);
+      });
+    }
+
     var reqs = await api("/api/deliverables/reassignment-requests?status=pending");
     var reassignWrap = document.getElementById("reassignList");
     document.getElementById("reassignCount").textContent = reqs.length || "";
@@ -3884,6 +4109,13 @@
     }
     announcementsAll = await api("/api/announcements" + qs);
     renderAnnouncements();
+    // Item [nav badges]: opening this view marks everything currently
+    // loaded as seen -- no read-tracking exists anywhere in the backend
+    // (no real login to hang a per-user table off of), so this is a
+    // per-browser localStorage timestamp, same trust level as the existing
+    // myEmail cache.
+    localStorage.setItem("annLastSeenAt", new Date().toISOString());
+    document.getElementById("announcementsBadge").textContent = "";
   }
   function renderAnnouncements() {
     var type = document.getElementById("annTypeFilter").value;
@@ -4166,6 +4398,7 @@
     if (currentProjectId && !document.getElementById("view-detail").hidden) openDetail(currentProjectId);
     if (!document.getElementById("view-announcements").hidden) loadAnnouncements();
     checkBmTriageDeadline();
+    refreshNavBadges();
   });
   // Item [BM triage viewer bug]: on a page refresh, some browsers restore a
   // <select>'s prior value from before the reload without firing "change" --
@@ -4190,6 +4423,7 @@
     await _refreshCanSeeBmTriage();
     document.getElementById("bmTriageNavItem").hidden = !canSeeBmTriage();
     if (!canSeeBmTriage() && !document.getElementById("view-bmtriage").hidden) switchView("dashboard");
+    refreshNavBadges();
   });
   document.getElementById("themeToggle").addEventListener("click", function () {
     var root = document.documentElement;
@@ -4224,6 +4458,11 @@
     if (event.persisted) location.reload();
   });
   document.getElementById("todayLabel").textContent = new Date().toLocaleDateString("en-GB", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
+  // Item [nav badges]: piggybacking only on the role/acting-email change
+  // handlers isn't enough -- CURRENT_ROLE starts hardcoded to "Admin" and
+  // neither handler fires on a fresh load, so badges would stay empty
+  // until the user manually touched role or acting-email.
+  refreshNavBadges();
 
   // Item 120: loadDashboard() used to always fire immediately, then a
   // project/view restore (below) would hide it again a moment later once

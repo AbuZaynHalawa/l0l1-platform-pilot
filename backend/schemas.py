@@ -81,6 +81,7 @@ class ProjectOut(BaseModel):
     pre_bid_deadline: date | None
     l0_source_id: int | None
     pending_triage_count: int = 0
+    created_at: datetime | None = None  # item [nav badges]: L0/L1 "new project" counts read this
 
     class Config:
         from_attributes = True
@@ -151,6 +152,21 @@ class ReassignRequestCreate(BaseModel):
 class ReassignmentDecision(BaseModel):
     approved: bool
     actor_role: str = "Admin"
+
+
+class DueDateRequestCreate(BaseModel):
+    reason: str
+    requested_due_date: date | None = None  # extension only
+    actor_name: str = "Owner"
+    actor_role: str = "Owner"
+    actor_email: str = ""
+
+
+class DueDateRequestDecision(BaseModel):
+    approved: bool
+    comment: str = ""
+    actor_role: str = "Admin"
+    actor_email: str = ""
 
 
 class BulkRemindRequest(BaseModel):

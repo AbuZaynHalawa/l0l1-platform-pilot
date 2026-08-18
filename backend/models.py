@@ -81,6 +81,13 @@ class AnnouncementType(str, enum.Enum):
     BSD_EXTENDED = "bsd_extended"
     DOC_ADDED = "doc_added"
     DELIVERABLE_APPROVED = "deliverable_approved"
+    # Due-date extension / on-hold requests: private per-item feedback, same
+    # visibility shape as SME_REQUEST/SME_DECISION (request -> SME/Admin;
+    # decision -> the requesting Owner).
+    EXTENSION_REQUEST = "extension_request"
+    EXTENSION_DECISION = "extension_decision"
+    HOLD_REQUEST = "hold_request"
+    HOLD_DECISION = "hold_decision"
 
 
 class Department(Base):
@@ -266,6 +273,18 @@ class DeliverableSubmission(Base):
     # a real approval), this flag is what actually excludes them from
     # Assigned Deliverables / the project detail list / Gantt / performance.
     auto_completed = Column(Boolean, default=False)
+    # Due-date extension / hold requests (Owner-initiated, SME/Admin
+    # approves via DueDateRequest below). While on_hold, deadline_status()
+    # reports "on_hold" instead of due/late and recompute_project_due_dates
+    # freezes due_date entirely -- see rules.py.
+    on_hold = Column(Boolean, default=False)
+    on_hold_since = Column(DateTime, nullable=True)
+    hold_reason = Column(Text, nullable=True)
+    # Set once an extension is approved, or a hold is resumed (due_date
+    # shifted forward by the held duration) -- tells
+    # recompute_project_due_dates to stop overwriting due_date from the
+    # anchor formula, the same way it already skips APPROVED rows.
+    due_date_locked = Column(Boolean, default=False)
 
     project = relationship("Project", back_populates="submissions", foreign_keys=[project_id])
     definition = relationship("DeliverableDefinition")
@@ -329,6 +348,30 @@ class ReassignmentRequest(Base):
     status = Column(String, default="pending")  # pending | approved | rejected
     requested_at = Column(DateTime, default=datetime.utcnow)
     decided_at = Column(DateTime, nullable=True)
+
+    submission = relationship("DeliverableSubmission")
+
+
+class DueDateRequest(Base):
+    """Owner-initiated request against one deliverable's due date, subject to
+    SME/Admin approval -- either an "extension" (move due_date to
+    requested_due_date) or a "hold" (pause lateness entirely until resumed).
+    One table with a kind discriminator rather than two near-duplicate
+    tables, matching how DeliverableSubmission.applicability is already a
+    string discriminator rather than a separate table per state.
+    """
+    __tablename__ = "due_date_requests"
+    id = Column(Integer, primary_key=True)
+    submission_id = Column(Integer, ForeignKey("deliverable_submissions.id"), nullable=False)
+    kind = Column(String, nullable=False)  # extension | hold
+    requested_by_email = Column(String, nullable=False)
+    reason = Column(Text, nullable=False)
+    requested_due_date = Column(Date, nullable=True)  # extension only
+    status = Column(String, default="pending")  # pending | approved | rejected
+    requested_at = Column(DateTime, default=datetime.utcnow)
+    decided_at = Column(DateTime, nullable=True)
+    decided_by_email = Column(String, nullable=True)
+    decision_comment = Column(Text, nullable=True)
 
     submission = relationship("DeliverableSubmission")
 

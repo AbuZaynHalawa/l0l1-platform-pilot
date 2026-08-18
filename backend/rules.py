@@ -577,6 +577,7 @@ def refresh_status(submission: models.DeliverableSubmission) -> None:
 def deadline_status(submission: "models.DeliverableSubmission") -> tuple[str, int | None]:
     """Item 143 (2nd revision): Deadline standing, the axis independent of
     Progress — computed live, never stored. Returns (key, days):
+      "on_hold"  — an approved hold request is active.                days=None
       "not_due"  — due_date is unset or still in the future.        days=None
       "due"      — due_date has passed and it's not yet Completed.  days negative, grows every day it stays open.
       "on_time"  — Completed exactly on its due_date.                days=None
@@ -588,7 +589,15 @@ def deadline_status(submission: "models.DeliverableSubmission") -> tuple[str, in
     Not Required / Pending Triage deliverables have no due_date and no
     completion — callers should check for those statuses first and skip
     this entirely rather than render "Not Due" for them.
+    Item [due-date requests]: on_hold is checked first, before every other
+    branch -- this is the single source of truth every caller that derives
+    overdue/late counts from this function (dashboard tallies, department
+    scores, owner rankings, the matrix) already routes through, so an
+    on-hold item stops counting as due/late everywhere for free, with no
+    other call site needing its own on_hold check.
     """
+    if submission.on_hold:
+        return ("on_hold", None)
     if submission.status == models.SubmissionStatus.APPROVED and submission.reviewed_at and submission.due_date:
         completed = submission.reviewed_at.date()
         delta = (submission.due_date - completed).days
@@ -615,6 +624,10 @@ def deadline_bucket(submission: "models.DeliverableSubmission") -> str:
     if submission.status == models.SubmissionStatus.APPROVED:
         return "completed"
     key, _ = deadline_status(submission)
+    # Item [due-date requests]: v1 folds on_hold into "not_due" here (the
+    # matrix's 3-state collapse) rather than adding a 4th bucket/color --
+    # it's already correctly excluded from "due", which is what matters for
+    # not showing a paused item as red/overdue.
     return "due" if key == "due" else "not_due"
 
 
@@ -666,6 +679,13 @@ def recompute_project_due_dates(db: Session, project: models.Project, force: boo
             # predecessor-chained items get a real anchor instead of staying
             # unresolvable forever. Recomputing it would wipe that back to None.
             if s.status == models.SubmissionStatus.APPROVED:
+                continue
+            # Item [due-date requests]: on_hold freezes due_date entirely
+            # (resumed later with an explicit forward shift, see the
+            # /resume endpoint); due_date_locked marks a due_date that's
+            # been manually set (an approved extension, or a just-resumed
+            # hold) and must not be overwritten by the anchor formula below.
+            if s.on_hold or s.due_date_locked:
                 continue
             if s.applicability == "not_required":
                 if s.due_date is not None or s.status != models.SubmissionStatus.NOT_REQUIRED:

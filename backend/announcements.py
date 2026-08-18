@@ -95,6 +95,45 @@ def sme_decision(db: Session, project: models.Project, owner_emails: list[str], 
                     project=project, submission_id=submission_id)
 
 
+def due_date_request(db: Session, project: models.Project, sme_emails: list[str], owner_emails: list[str],
+                      item_no: str, item_name: str, kind: str, reason: str,
+                      submission_id: int | None = None) -> models.Announcement:
+    """Item [due-date requests]: an Owner asked for an extension or a hold on
+    one deliverable -- notify the assigned SME(s) (who can decide) and, per
+    the sme_review_requested precedent, the requesting Owner(s) too so they
+    have a record it went out.
+    """
+    label = "Extension" if kind == "extension" else "Hold"
+    title = f"{label} Requested &#8211; SME Action Needed"
+    body = (f"{item_no} {item_name} on {project.est_no}: a {label.lower()} was requested &#8211; "
+            f"&quot;{reason}&quot;. Awaiting your decision.")
+    ann_type = models.AnnouncementType.EXTENSION_REQUEST if kind == "extension" else models.AnnouncementType.HOLD_REQUEST
+    recipients = sorted({e for e in (list(sme_emails) + list(owner_emails)) if e})
+    return _create(db, type=ann_type, title=title, body=body,
+                    recipients=recipients, project=project, submission_id=submission_id)
+
+
+def due_date_decision(db: Session, project: models.Project, owner_emails: list[str], item_no: str, item_name: str,
+                       kind: str, approved: bool, comment: str | None = None,
+                       submission_id: int | None = None) -> models.Announcement:
+    """Item [due-date requests]: notify the requesting Owner(s) of the
+    SME/Admin's decision -- private feedback either way (unlike a normal
+    approval, this isn't general program news), same treatment sme_decision
+    gives a rejection.
+    """
+    label = "Extension" if kind == "extension" else "Hold"
+    if approved:
+        title = f"{label} Approved"
+        body = f"{item_no} {item_name} on {project.est_no}: your {label.lower()} request was approved."
+    else:
+        title = f"{label} Rejected"
+        note = comment or "No reason given."
+        body = f"{item_no} {item_name} on {project.est_no}: your {label.lower()} request was rejected: &quot;{note}&quot;"
+    ann_type = models.AnnouncementType.EXTENSION_DECISION if kind == "extension" else models.AnnouncementType.HOLD_DECISION
+    return _create(db, type=ann_type, title=title, body=body, recipients=sorted({e for e in owner_emails if e}),
+                    project=project, submission_id=submission_id)
+
+
 def cross_department_unlock(db: Session, project: models.Project, newly_active_owner_emails: list[str],
                              trigger_item: str, unlocked_item_no: str, unlocked_item_name: str,
                              submission_id: int | None = None) -> models.Announcement:

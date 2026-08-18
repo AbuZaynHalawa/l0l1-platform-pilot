@@ -1,4 +1,4 @@
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 
@@ -502,6 +502,159 @@ def decide_reassignment(request_id: int, decision: schemas.ReassignmentDecision,
     return {"status": "ok"}
 
 
+def _create_due_date_request(submission_id: int, payload: schemas.DueDateRequestCreate, kind: str, db: Session):
+    sub = db.get(models.DeliverableSubmission, submission_id)
+    if not sub:
+        raise HTTPException(404, "Deliverable not found")
+    if sub.status in (models.SubmissionStatus.PENDING_REVIEW, models.SubmissionStatus.APPROVED):
+        raise HTTPException(400, "This deliverable is already pending review or completed")
+    owner_emails = rules.resolve_owners(sub)
+    if not rules.can_act(payload.actor_role, payload.actor_email, owner_emails):
+        raise HTTPException(403, f"Only {', '.join(owner_emails) or 'the assigned owner'} can request this")
+    # Item [due-date requests]: only one outstanding request (either kind) at
+    # a time -- a gap the reassignment-request flow this is modeled on
+    # doesn't itself guard against, not worth repeating here.
+    existing = (
+        db.query(models.DueDateRequest)
+        .filter(models.DueDateRequest.submission_id == submission_id, models.DueDateRequest.status == "pending")
+        .first()
+    )
+    if existing:
+        raise HTTPException(400, "A due-date request is already pending on this deliverable")
+    reason = payload.reason.strip()
+    if not reason:
+        raise HTTPException(400, "A reason is required")
+    if kind == "extension" and not payload.requested_due_date:
+        raise HTTPException(400, "A requested due date is required for an extension")
+
+    req = models.DueDateRequest(
+        submission_id=submission_id, kind=kind,
+        requested_by_email=(payload.actor_email or ", ".join(owner_emails)).strip(),
+        reason=reason, requested_due_date=payload.requested_due_date if kind == "extension" else None,
+    )
+    db.add(req)
+    db.add(models.WorkflowHistory(submission_id=sub.id, action=f"{kind}_requested",
+                                   actor_name=payload.actor_name, note=reason))
+    db.commit()
+    db.refresh(req)
+
+    sme_emails = rules.resolve_smes(sub)
+    announcements.due_date_request(db, sub.project, sme_emails, owner_emails, sub.definition.item_no,
+                                    sub.definition.name, kind, reason, submission_id=sub.id)
+    return {"status": "ok", "id": req.id}
+
+
+@router.post("/{submission_id}/extension-request")
+def request_extension(submission_id: int, payload: schemas.DueDateRequestCreate, db: Session = Depends(get_db)):
+    """Owner-initiated request to move a deliverable's due date, subject to
+    SME/Admin approval via /due-date-requests/{id}/decide."""
+    return _create_due_date_request(submission_id, payload, "extension", db)
+
+
+@router.post("/{submission_id}/hold-request")
+def request_hold(submission_id: int, payload: schemas.DueDateRequestCreate, db: Session = Depends(get_db)):
+    """Owner-initiated request to pause a deliverable (missing data /
+    technical issue) so lateness stops accruing, subject to SME/Admin
+    approval via /due-date-requests/{id}/decide."""
+    return _create_due_date_request(submission_id, payload, "hold", db)
+
+
+@router.get("/due-date-requests")
+def list_due_date_requests(status: str = "pending", db: Session = Depends(get_db)):
+    q = db.query(models.DueDateRequest)
+    if status:
+        q = q.filter(models.DueDateRequest.status == status)
+    reqs = q.order_by(models.DueDateRequest.requested_at.desc()).all()
+    return [
+        {
+            "id": r.id, "submission_id": r.submission_id, "kind": r.kind,
+            "est_no": r.submission.project.est_no, "item_no": r.submission.definition.item_no,
+            "name": r.submission.definition.name,
+            "requested_by_email": r.requested_by_email, "reason": r.reason,
+            "requested_due_date": r.requested_due_date, "current_due_date": r.submission.due_date,
+            "status": r.status, "requested_at": r.requested_at,
+        }
+        for r in reqs
+    ]
+
+
+@router.post("/due-date-requests/{request_id}/decide")
+def decide_due_date_request(request_id: int, decision: schemas.DueDateRequestDecision, db: Session = Depends(get_db)):
+    """Assigned SME or Admin -- same rules.can_act(..., resolve_smes(sub))
+    gate /review already uses, so Admin passes for free and doesn't need a
+    separate "or Admin" branch."""
+    req = db.get(models.DueDateRequest, request_id)
+    if not req:
+        raise HTTPException(404, "Due-date request not found")
+    if req.status != "pending":
+        raise HTTPException(400, "This request has already been decided")
+    sub = req.submission
+    if not rules.can_act(decision.actor_role, decision.actor_email, rules.resolve_smes(sub)):
+        raise HTTPException(403, "Only the assigned SME or an Admin can decide this request")
+
+    req.status = "approved" if decision.approved else "rejected"
+    req.decided_at = datetime.utcnow()
+    req.decided_by_email = decision.actor_email
+    req.decision_comment = decision.comment
+
+    if decision.approved:
+        if req.kind == "extension":
+            sub.due_date = req.requested_due_date
+            sub.due_date_locked = True
+        else:
+            sub.on_hold = True
+            sub.on_hold_since = datetime.utcnow()
+            sub.hold_reason = req.reason
+        db.add(models.WorkflowHistory(submission_id=sub.id, action=f"{req.kind}_approved",
+                                       actor_name=decision.actor_role, note=decision.comment or None))
+    else:
+        db.add(models.WorkflowHistory(submission_id=sub.id, action=f"{req.kind}_rejected",
+                                       actor_name=decision.actor_role, note=decision.comment or None))
+    db.commit()
+
+    if decision.approved:
+        rules.recompute_project_due_dates(db, sub.project, force=True)
+        db.commit()
+
+    announcements.due_date_decision(db, sub.project, rules.resolve_owners(sub), sub.definition.item_no,
+                                     sub.definition.name, req.kind, decision.approved,
+                                     comment=decision.comment, submission_id=sub.id)
+    return {"status": "ok"}
+
+
+@router.post("/{submission_id}/resume")
+def resume_deliverable(submission_id: int, actor_role: str = "Viewer", actor_email: str = "", db: Session = Depends(get_db)):
+    """Ends an active hold -- Owner or Admin. Shifts due_date forward by
+    exactly the days spent on hold (so pre-existing lateness is preserved,
+    not erased or inflated -- see plan notes) and locks it against the next
+    recompute_project_due_dates(force=True) this endpoint fires below."""
+    sub = db.get(models.DeliverableSubmission, submission_id)
+    if not sub:
+        raise HTTPException(404, "Deliverable not found")
+    if not sub.on_hold:
+        raise HTTPException(400, "This deliverable is not on hold")
+    assigned_owners = rules.resolve_owners(sub)
+    if not rules.can_act(actor_role, actor_email, assigned_owners):
+        raise HTTPException(403, f"Only {', '.join(assigned_owners) or 'the assigned owner'} or an Admin can resume this deliverable")
+
+    days_on_hold = (datetime.utcnow().date() - sub.on_hold_since.date()).days if sub.on_hold_since else 0
+    if sub.due_date is not None and days_on_hold > 0:
+        sub.due_date = sub.due_date + timedelta(days=days_on_hold)
+    sub.due_date_locked = True
+    sub.on_hold = False
+    sub.on_hold_since = None
+    db.add(models.WorkflowHistory(submission_id=sub.id, action="resumed", actor_name=actor_role,
+                                   note=f"Resumed after {days_on_hold} day(s) on hold" + (f" -- {sub.hold_reason}" if sub.hold_reason else "")))
+    db.commit()
+
+    rules.recompute_project_due_dates(db, sub.project, force=True)
+    db.commit()
+
+    announcements.followers_notified(db, sub.project, _follower_emails(db, sub.id), sub.definition.item_no,
+                                      sub.definition.name, "resumed from hold", submission_id=sub.id)
+    return {"status": "ok"}
+
+
 @router.get("/follow-up")
 def get_follow_up(department: str | None = None, project_id: int | None = None, db: Session = Depends(get_db)):
     """Every currently due/overdue deliverable, for the admin Follow Up page."""
@@ -613,12 +766,26 @@ def get_deliverable_detail(submission_id: int, actor_email: str | None = None, d
         rules.kpi_points(sub.due_date, sub.submitted_at.date() if sub.submitted_at else None)
         if sub.status == models.SubmissionStatus.APPROVED else None
     )
+    # Item [due-date requests]: the modal needs both the current hold state
+    # and any pending extension/hold request to decide which action buttons
+    # (Request Extension/Hold, Approve/Reject, Resume) to show.
+    pending_request = (
+        db.query(models.DueDateRequest)
+        .filter(models.DueDateRequest.submission_id == submission_id, models.DueDateRequest.status == "pending")
+        .first()
+    )
     return {
         "id": sub.id, "item_no": sub.definition.item_no, "name": rules.display_name(sub.definition, sub.project),
         "department": sub.definition.department.name, "department_number": sub.definition.department.number,
         "est_no": sub.project.est_no, "project_id": sub.project_id, "project_name": sub.project.name,
         "due_date": sub.due_date, "status": sub.status.value,
         "deadline_status": deadline_key, "deadline_days": deadline_days, "auto_completed": sub.auto_completed,
+        "on_hold": sub.on_hold, "hold_reason": sub.hold_reason,
+        "pending_due_date_request": {
+            "id": pending_request.id, "kind": pending_request.kind, "reason": pending_request.reason,
+            "requested_due_date": pending_request.requested_due_date,
+            "requested_by_email": pending_request.requested_by_email,
+        } if pending_request else None,
         "awaiting_note": rules.awaiting_milestone_note(db, sub), "points_earned": points_earned,
         "owner_emails": rules.resolve_owners(sub),
         "sme_emails": rules.resolve_smes(sub),

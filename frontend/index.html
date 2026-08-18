@@ -24,9 +24,9 @@
       <button class="nav-item" data-view="journey"><span class="ic">&#128337;</span> L0/L1 Walkthrough</button>
       <button class="nav-item active" data-view="dashboard"><span class="ic">&#9673;</span> Dashboard</button>
       <button class="nav-item" id="assignedNavItem" data-view="assigned"><span class="ic">&#128203;</span> Assigned Deliverables <span class="nav-badge" id="assignedBadge"></span></button>
-      <button class="nav-item" data-view="announcements"><span class="ic">&#128276;</span> Announcements</button>
-      <button class="nav-item" data-view="l0"><span class="ic">&#128196;</span> L0 Tenders</button>
-      <button class="nav-item" data-view="l1"><span class="ic">&#128274;</span> L1 Projects</button>
+      <button class="nav-item" id="announcementsNavItem" data-view="announcements"><span class="ic">&#128276;</span> Announcements <span class="nav-badge" id="announcementsBadge"></span></button>
+      <button class="nav-item" id="l0NavItem" data-view="l0"><span class="ic">&#128196;</span> L0 Tenders <span class="nav-badge" id="l0Badge"></span></button>
+      <button class="nav-item" id="l1NavItem" data-view="l1"><span class="ic">&#128274;</span> L1 Projects <span class="nav-badge" id="l1Badge"></span></button>
       <button class="nav-item" data-view="gantt"><span class="ic">&#128198;</span> Timeline</button>
       <button class="nav-item" data-view="performance"><span class="ic">&#128200;</span> Performance</button>
       <button class="nav-item" data-view="support"><span class="ic">&#128172;</span> Q/A - Ask the Team</button>
@@ -34,7 +34,7 @@
            as themselves (their own email entered) -- scoped server-side
            to just their own tenders in that case, so it lives in the main
            nav rather than the admin-only group. -->
-      <button class="nav-item" id="bmTriageNavItem" data-view="bmtriage"><span class="ic">&#9989;</span> BM Triage Status</button>
+      <button class="nav-item" id="bmTriageNavItem" data-view="bmtriage"><span class="ic">&#9989;</span> BM Triage Status <span class="nav-badge" id="bmTriageBadge"></span></button>
     </nav>
 
     <div class="nav-group-label" id="adminGroupLabel">Admin</div>
@@ -47,7 +47,7 @@
       <!-- Item 151: every Ask the Team thread, in one dedicated admin view --
            the asker-facing "Ask a Question" tab keeps its own My Requests
            list, but replying/resolving as an admin now lives here instead. -->
-      <button class="nav-item" data-view="tickets"><span class="ic">&#127915;</span> Open Questions</button>
+      <button class="nav-item" id="ticketsNavItem" data-view="tickets"><span class="ic">&#127915;</span> Open Questions <span class="nav-badge" id="ticketsBadge"></span></button>
     </nav>
 
     <div class="rail-foot">
@@ -505,6 +505,13 @@
 
       <div class="card table-card" style="margin-bottom:18px;">
         <div class="section-title">
+          <span>Due-Date Requests <span class="cnt" id="dueDateReqCount"></span></span>
+        </div>
+        <div id="dueDateReqList"></div>
+      </div>
+
+      <div class="card table-card" style="margin-bottom:18px;">
+        <div class="section-title">
           <span>Reassignment Requests <span class="cnt" id="reassignCount"></span></span>
         </div>
         <div id="reassignList"></div>
@@ -848,6 +855,35 @@
       <button class="modal-close" id="delivModalClose">&#10005;</button>
     </div>
     <div class="modal-body" id="delivModalBody"></div>
+  </div>
+</div>
+
+<!-- Item [due-date requests]: Owner's Request Extension / Put On Hold form --
+     adapts its fields based on which the Owner clicked (date input shown
+     only for an extension). -->
+<div class="modal-overlay" id="dueDateRequestOverlay" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <div class="eyebrow" id="dueDateRequestEyebrow"></div>
+        <h2 id="dueDateRequestTitle"></h2>
+      </div>
+      <button class="modal-close" id="dueDateRequestClose">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <div class="field" id="dueDateRequestDateField">
+        <label>Requested Due Date <span class="req">*</span></label>
+        <input type="date" id="dueDateRequestDate" />
+      </div>
+      <div class="field" style="margin-top:14px;">
+        <label id="dueDateRequestReasonLabel">Reason <span class="req">*</span></label>
+        <textarea id="dueDateRequestReason" rows="4" placeholder="Why do you need this?"></textarea>
+      </div>
+      <div class="modal-actions-row" style="margin-top:20px;">
+        <button class="btn" id="dueDateRequestCancel">Cancel</button>
+        <button class="btn primary" id="dueDateRequestSubmit">Submit Request</button>
+      </div>
+    </div>
   </div>
 </div>
 
