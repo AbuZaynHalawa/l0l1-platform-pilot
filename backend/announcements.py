@@ -152,17 +152,23 @@ def due_date_request_escalated(db: Session, project: models.Project, recipients:
                     project=project, submission_id=submission_id)
 
 
-def due_soon_reminder(db: Session, project: models.Project, owner_emails: list[str],
-                       item_no: str, item_name: str, due_date, submission_id: int | None = None) -> models.Announcement:
-    """Item [due-soon nudge]: the nightly check's heads-up for a deliverable
-    due tomorrow, on the same DEADLINE announcement type the existing manual
-    "Send reminder" action uses (reminder_sent above) -- distinct copy since
-    that one reads as "this is already due", not "due tomorrow".
+def due_soon_reminders_batch(db: Session, owner_email: str, offset_days: int,
+                              items: list[dict]) -> models.Announcement:
+    """Item [due-soon nudge]: one consolidated email per Owner per threshold,
+    not one per deliverable -- an Owner with 6 items due the same day gets a
+    single email listing all 6, not 6 separate ones. `items` all share the
+    same due date (the scheduler only batches same-day, same-threshold
+    items): [{"est_no", "item_no", "name"}, ...]. Spans potentially several
+    projects, so this isn't tied to one project/submission_id the way a
+    single-item announcement is -- the detail lives in the body instead.
     """
-    title = f"Due Tomorrow &#8211; {item_no}"
-    body = f"{item_no} {item_name} on {project.est_no} is due tomorrow ({due_date.isoformat()})."
-    return _create(db, type=models.AnnouncementType.DEADLINE, title=title, body=body,
-                    recipients=sorted({e for e in owner_emails if e}), project=project, submission_id=submission_id)
+    when = "tomorrow" if offset_days == 1 else f"in {offset_days} days"
+    title = "Due Tomorrow" if offset_days == 1 else f"Due in {offset_days} Days"
+    if len(items) > 1:
+        title += f" &#8211; {len(items)} Deliverables"
+    lines = "".join(f"&#8226; {it['item_no']} {it['name']} ({it['est_no']})<br>" for it in items)
+    body = f"The following deliverable(s) are due {when}:<br>{lines}"
+    return _create(db, type=models.AnnouncementType.DEADLINE, title=title, body=body, recipients=[owner_email])
 
 
 def cross_department_unlock(db: Session, project: models.Project, newly_active_owner_emails: list[str],

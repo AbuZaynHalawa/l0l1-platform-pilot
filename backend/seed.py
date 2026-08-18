@@ -73,6 +73,7 @@ ensure_enum_value("announcements", "type", "HOLD_REQUEST")
 ensure_enum_value("announcements", "type", "HOLD_DECISION")
 # Nightly checks (item [due-soon nudge] / [request escalation]).
 ensure_column("deliverable_submissions", "due_soon_reminded_for_date", "DATE")
+ensure_column("deliverable_submissions", "due_soon_reminded_offsets", "JSON")
 
 models.Base.metadata.create_all(bind=engine)
 

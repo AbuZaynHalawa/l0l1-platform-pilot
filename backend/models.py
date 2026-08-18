@@ -285,12 +285,16 @@ class DeliverableSubmission(Base):
     # recompute_project_due_dates to stop overwriting due_date from the
     # anchor formula, the same way it already skips APPROVED rows.
     due_date_locked = Column(Boolean, default=False)
-    # Item [due-soon nudge]: the due_date this submission was last reminded
-    # about (the "due tomorrow" nightly check), not a plain sent/not-sent
-    # flag -- comparing against the *current* due_date means an extension
-    # or a hold-resume that shifts due_date automatically makes it eligible
-    # again, with nothing else to reset by hand.
+    # Item [due-soon nudge]: which day-thresholds (14/7/2/1 days out) have
+    # already fired a reminder for the *current* due_date -- paired with
+    # due_soon_reminded_for_date so an extension or a hold-resume shifting
+    # due_date makes every threshold eligible again automatically (the pair
+    # no longer matches the new due_date), with nothing else to reset by
+    # hand. due_soon_reminded_for_date alone (without the offsets list)
+    # could only ever represent "reminded or not", not which of the four
+    # thresholds already fired.
     due_soon_reminded_for_date = Column(Date, nullable=True)
+    due_soon_reminded_offsets = Column(JSON, nullable=True)
 
     project = relationship("Project", back_populates="submissions", foreign_keys=[project_id])
     definition = relationship("DeliverableDefinition")

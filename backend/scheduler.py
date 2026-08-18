@@ -21,6 +21,9 @@ logger = logging.getLogger(__name__)
 
 CHECK_INTERVAL_SECONDS = 3600
 ESCALATE_AFTER_DAYS = 3
+# Item [due-soon nudge]: how far ahead an Owner gets warned, each threshold
+# firing its own separate nudge as the due date gets closer.
+DUE_SOON_OFFSETS = [14, 7, 2, 1]
 # Statuses where the Owner still has a real action to take -- a completed,
 # rejected-and-not-yet-reworked... no: REJECTED *is* an owner action state
 # (they need to resubmit), only PENDING_REVIEW (already submitted, waiting
@@ -30,26 +33,41 @@ _DUE_SOON_ELIGIBLE = {models.SubmissionStatus.NO_PROGRESS, models.SubmissionStat
 
 
 def _run_due_soon_check(db: Session) -> None:
-    tomorrow = date.today() + timedelta(days=1)
-    subs = (
-        db.query(models.DeliverableSubmission)
-        .join(models.Project)
-        .filter(models.Project.status == models.ProjectStatus.IN_PROGRESS,
-                models.DeliverableSubmission.due_date == tomorrow,
-                models.DeliverableSubmission.status.in_(_DUE_SOON_ELIGIBLE),
-                models.DeliverableSubmission.auto_completed.isnot(True),
-                models.DeliverableSubmission.on_hold.isnot(True))
-        .all()
-    )
-    for s in subs:
-        if s.due_soon_reminded_for_date == s.due_date:
-            continue
-        owner_emails = rules.resolve_owners(s)
-        if owner_emails:
-            announcements.due_soon_reminder(db, s.project, owner_emails, s.definition.item_no,
-                                             s.definition.name, s.due_date, submission_id=s.id)
-        s.due_soon_reminded_for_date = s.due_date
-        db.commit()
+    for offset in DUE_SOON_OFFSETS:
+        target = date.today() + timedelta(days=offset)
+        subs = (
+            db.query(models.DeliverableSubmission)
+            .join(models.Project)
+            .filter(models.Project.status == models.ProjectStatus.IN_PROGRESS,
+                    models.DeliverableSubmission.due_date == target,
+                    models.DeliverableSubmission.status.in_(_DUE_SOON_ELIGIBLE),
+                    models.DeliverableSubmission.auto_completed.isnot(True),
+                    models.DeliverableSubmission.on_hold.isnot(True))
+            .all()
+        )
+        # Item [batched nudges]: group by Owner instead of firing one
+        # announcement per submission, so an Owner with several items due
+        # the same day (all sharing this offset's target date, since the
+        # query already filters on one exact due_date) gets a single email
+        # listing all of them.
+        by_owner: dict[str, list[dict]] = {}
+        touched = False
+        for s in subs:
+            already = set(s.due_soon_reminded_offsets or []) if s.due_soon_reminded_for_date == s.due_date else set()
+            if offset in already:
+                continue
+            for owner_email in rules.resolve_owners(s):
+                by_owner.setdefault(owner_email, []).append({
+                    "est_no": s.project.est_no, "item_no": s.definition.item_no, "name": s.definition.name,
+                })
+            already.add(offset)
+            s.due_soon_reminded_for_date = s.due_date
+            s.due_soon_reminded_offsets = sorted(already)
+            touched = True
+        for owner_email, items in by_owner.items():
+            announcements.due_soon_reminders_batch(db, owner_email, offset, items)
+        if touched:
+            db.commit()
 
 
 def _run_escalation_check(db: Session) -> None:
