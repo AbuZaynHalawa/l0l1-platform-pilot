@@ -982,13 +982,19 @@
   .fu-dept-group:last-child { border-bottom: none; }
   .fu-dept-group summary {
     padding: 13px 18px; font-size: 13px; font-weight: 700; cursor: pointer; list-style: none;
-    display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--surface-sunken);
+    display: flex; align-items: center; gap: 10px; background: var(--surface-sunken);
   }
   .fu-dept-group summary::-webkit-details-marker { display: none; }
   .fu-dept-group summary::after { content: "+"; color: var(--ink-500); font-weight: 700; flex: none; }
   .fu-dept-group[open] summary::after { content: "\2212"; }
   .fu-dept-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .fu-dept-tags { display: flex; gap: 6px; align-items: center; flex: none; }
+  /* Item [badge alignment fix]: summary has three flex children (name, tags,
+     the +/- ::after marker) -- space-between on the row was spacing all
+     three apart evenly, so the badge's position drifted with each
+     department name's length instead of sitting in a fixed column.
+     margin-left:auto on tags pushes it (and the marker right after it)
+     into a single flush-right group, independent of name width. */
+  .fu-dept-tags { display: flex; gap: 6px; align-items: center; flex: none; margin-left: auto; }
   .fu-dept-count { font-size: 11px; font-weight: 700; color: var(--ink-500); background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 2px 9px; }
   .fu-dept-count.has-critical { color: var(--crit); border-color: var(--crit-bg); background: var(--crit-bg); }
   .fu-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 18px; border-top: 1px solid var(--line); }
