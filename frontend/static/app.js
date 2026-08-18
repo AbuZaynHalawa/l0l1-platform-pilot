@@ -3729,10 +3729,20 @@
       });
     }
 
+    // Item [follow-up redesign]: was one flat, unsorted, ungrouped list --
+    // confusing once more than a handful of items are overdue at once. Now
+    // grouped by Department (collapsed accordion, so the page opens calm
+    // instead of a wall of rows), each row leads with a colored days-overdue
+    // badge instead of a generic status pill, and a Severity filter +
+    // Critical/15+-day threshold surfaces what actually needs attention
+    // first. days_overdue itself now comes pre-computed from the backend.
+    var FU_CRITICAL_DAYS = 15;
     var items = await api("/api/deliverables/follow-up");
     var deptSel = document.getElementById("fuDeptFilter");
     var estSel = document.getElementById("fuEstFilter");
     var focalSel = document.getElementById("fuFocalFilter");
+    var severitySel = document.getElementById("fuSeverityFilter");
+    var sortSel = document.getElementById("fuSortBy");
     var seenDepts = {}, seenEsts = {}, seenFocals = {};
     items.forEach(function (d) { seenDepts[d.department] = true; seenEsts[d.est_no] = true; if (d.focal) seenFocals[d.focal] = true; });
     deptSel.innerHTML = '<option value="">All Departments</option>';
@@ -3742,29 +3752,84 @@
     focalSel.innerHTML = '<option value="">All Focal Points</option>';
     Object.keys(seenFocals).sort().forEach(function (n) { var o = el("option", "", n); o.value = n; focalSel.appendChild(o); });
 
+    function fuSeverity(d) { return d.days_overdue >= FU_CRITICAL_DAYS ? "critical" : "overdue"; }
+
     function renderFollowUpList() {
-      var dept = deptSel.value, estNo = estSel.value, focal = focalSel.value;
+      var dept = deptSel.value, estNo = estSel.value, focal = focalSel.value, severity = severitySel.value;
       var filtered = items.filter(function (d) {
-        return (!dept || d.department === dept) && (!estNo || d.est_no === estNo) && (!focal || d.focal === focal);
+        return (!dept || d.department === dept) && (!estNo || d.est_no === estNo) &&
+          (!focal || d.focal === focal) && (!severity || fuSeverity(d) === severity);
       });
+
+      var statsWrap = document.getElementById("fuStats");
+      statsWrap.innerHTML = "";
+      var criticalCount = items.filter(function (d) { return fuSeverity(d) === "critical"; }).length;
+      var deptCount = Object.keys(items.reduce(function (acc, d) { acc[d.department] = true; return acc; }, {})).length;
+      [
+        ["Overdue Total", items.length, false],
+        ["Critical &#8211; 15+ Days", criticalCount, true],
+        ["Departments Affected", deptCount, false],
+      ].forEach(function (s) {
+        statsWrap.appendChild(el("div", "fu-stat" + (s[2] ? " critical" : ""),
+          '<span class="fu-stat-num">' + s[1] + '</span><span class="fu-stat-lbl">' + s[0] + '</span>'));
+      });
+
       var wrap = document.getElementById("followUpList");
       wrap.innerHTML = "";
       if (!filtered.length) { wrap.appendChild(el("div", "empty-state", "Nothing due or overdue right now.")); return; }
-      filtered.forEach(function (d) {
-        var sm = STATUS_META[d.status] || ["neutral", d.status];
-        var row = el("div", "aq-row");
-        var main = el("div", "aq-main");
-        main.appendChild(el("div", "aq-title", d.item_no + " &middot; " + d.name));
-        main.appendChild(el("div", "aq-sub",
-          '<span>' + d.est_no + ' &#8211; ' + d.project_name + '</span><span class="sep">&middot;</span>' +
-          '<span>' + deptLabel(d.department, null) + '</span><span class="sep">&middot;</span>' +
-          '<span>Owner: ' + d.owner + '</span><span class="sep">&middot;</span>' +
-          '<span>Focal: ' + d.focal + '</span><span class="sep">&middot;</span>' +
-          '<span>Due ' + fmtDate(d.due_date) + '</span>'));
-        row.appendChild(main);
-        row.appendChild(el("span", "pill " + sm[0], '<span class="dot"></span>' + sm[1]));
-        wrap.appendChild(row);
+
+      var byDept = {};
+      filtered.forEach(function (d) { (byDept[d.department] = byDept[d.department] || []).push(d); });
+      var deptNames = Object.keys(byDept);
+      deptNames.forEach(function (n) { byDept[n].sort(function (a, b) { return b.days_overdue - a.days_overdue; }); });
+      if (sortSel.value === "dept") {
+        deptNames.sort();
+      } else {
+        deptNames.sort(function (a, b) { return byDept[b][0].days_overdue - byDept[a][0].days_overdue; });
+      }
+
+      deptNames.forEach(function (deptName) {
+        var rows = byDept[deptName];
+        var hasCritical = rows.some(function (d) { return fuSeverity(d) === "critical"; });
+        var group = document.createElement("details");
+        group.className = "fu-dept-group";
+        var summary = document.createElement("summary");
+        summary.appendChild(el("span", "fu-dept-name", deptLabel(deptName, null)));
+        summary.appendChild(el("span", "fu-dept-tags",
+          '<span class="fu-dept-count' + (hasCritical ? " has-critical" : "") + '">' + rows.length + ' overdue</span>'));
+        group.appendChild(summary);
+        rows.forEach(function (d) {
+          var sev = fuSeverity(d);
+          var row = el("div", "fu-row");
+          var main = el("div", "fu-row-main");
+          main.appendChild(el("div", "fu-row-title", d.item_no + " &middot; " + d.name));
+          main.appendChild(el("div", "fu-row-sub",
+            '<span>' + d.est_no + ' &#8211; ' + d.project_name + '</span><span class="sep">&middot;</span>' +
+            '<span>Owner: ' + d.owner + '</span><span class="sep">&middot;</span>' +
+            '<span>Focal: ' + d.focal + '</span><span class="sep">&middot;</span>' +
+            '<span>Due ' + fmtDate(d.due_date) + '</span>'));
+          row.appendChild(main);
+          var side = el("div", "fu-row-side");
+          side.appendChild(el("span", "fu-overdue-badge " + sev, d.days_overdue + " day" + (d.days_overdue === 1 ? "" : "s") + " overdue"));
+          var remindBtn = el("button", "btn", "Remind");
+          remindBtn.addEventListener("click", async function () {
+            var res = await api("/api/deliverables/bulk-remind", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                submission_ids: [d.id], actor_role: CURRENT_ROLE,
+                message: document.getElementById("fuMessage").value.trim() || null,
+                cc_manager: document.getElementById("fuCcManager").checked,
+              }),
+            });
+            showToast(res.sent ? "Reminder sent to " + d.owner : "Could not send &#8211; no assigned owner");
+          });
+          side.appendChild(remindBtn);
+          row.appendChild(side);
+          group.appendChild(row);
+        });
+        wrap.appendChild(group);
       });
+
       document.getElementById("fuRemindAll").onclick = async function () {
         var ids = filtered.map(function (d) { return d.id; });
         if (!ids.length) return;
@@ -3782,6 +3847,8 @@
     deptSel.onchange = renderFollowUpList;
     estSel.onchange = renderFollowUpList;
     focalSel.onchange = renderFollowUpList;
+    severitySel.onchange = renderFollowUpList;
+    sortSel.onchange = renderFollowUpList;
     renderFollowUpList();
     // Item [badge auto-refresh]: every Approve/Reject above reloads this
     // page via loadFollowUp(), so refreshing badges here (rather than at

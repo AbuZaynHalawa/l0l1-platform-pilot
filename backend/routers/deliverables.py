@@ -677,6 +677,11 @@ def get_follow_up(department: str | None = None, project_id: int | None = None, 
     # resolved (Approved/Not Required/Pending Triage are the resolved/
     # exempt end states; anything else — No Progress, In Progress, Pending
     # Review, Rejected — is still genuinely overdue if its date has passed).
+    # Item [follow-up redesign]: on_hold wasn't excluded here even though
+    # every other overdue/late count in the app treats it as the single
+    # source of truth for "stop counting this as due" (deadline_status()'s
+    # very first check) -- a paused item was still surfacing here demanding
+    # a reminder, the one real bug fix bundled with this page's redesign.
     q = (
         db.query(models.DeliverableSubmission)
         .join(models.DeliverableDefinition)
@@ -689,6 +694,7 @@ def get_follow_up(department: str | None = None, project_id: int | None = None, 
                 models.SubmissionStatus.APPROVED, models.SubmissionStatus.NOT_REQUIRED,
                 models.SubmissionStatus.PENDING_TRIAGE,
             ]),
+            models.DeliverableSubmission.on_hold.isnot(True),
         )
     )
     if department:
@@ -696,16 +702,23 @@ def get_follow_up(department: str | None = None, project_id: int | None = None, 
     if project_id:
         q = q.filter(models.DeliverableSubmission.project_id == project_id)
     subs = q.all()
-    return [
+    today = date.today()
+    items = [
         {
             "id": s.id, "est_no": s.project.est_no, "project_name": s.project.name, "project_id": s.project_id,
             "department": s.definition.department.name, "item_no": s.definition.item_no,
             "name": rules.display_name(s.definition, s.project), "due_date": s.due_date, "status": s.status.value,
+            "days_overdue": (today - s.due_date).days,
             "owner": ", ".join(rules.resolve_owners(s)) or "Unassigned",
             "focal": rules.deliverable_focal(s.definition, s.project) or "Unassigned",
         }
         for s in subs
     ]
+    # Item [follow-up redesign]: most-overdue-first by default -- the whole
+    # point of a triage list is surfacing what needs attention soonest, not
+    # whatever order the query happened to return.
+    items.sort(key=lambda d: d["days_overdue"], reverse=True)
+    return items
 
 
 @router.post("/bulk-remind")

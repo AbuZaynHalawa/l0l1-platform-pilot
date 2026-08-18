@@ -920,6 +920,34 @@
   .history-dept[open] summary::after { content: "\2212"; }
   .history-dept ul { margin: 0 18px 16px 36px; padding: 0; list-style: disc; font-size: 12.5px; color: var(--ink-700); line-height: 1.85; }
 
+  /* ---------- Follow Up: overdue-triage stats + grouped accordion ---------- */
+  .fu-stats { display: flex; gap: 22px; flex-wrap: wrap; padding: 16px 18px; border-bottom: 1px solid var(--line); }
+  .fu-stat { display: flex; flex-direction: column; gap: 2px; }
+  .fu-stat .fu-stat-num { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--ink-900); }
+  .fu-stat.critical .fu-stat-num { color: var(--crit); }
+  .fu-stat .fu-stat-lbl { font-size: 11px; font-weight: 600; color: var(--ink-500); text-transform: uppercase; letter-spacing: .03em; }
+  .fu-dept-group { border-bottom: 1px solid var(--line); }
+  .fu-dept-group:last-child { border-bottom: none; }
+  .fu-dept-group summary {
+    padding: 13px 18px; font-size: 13px; font-weight: 700; cursor: pointer; list-style: none;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--surface-sunken);
+  }
+  .fu-dept-group summary::-webkit-details-marker { display: none; }
+  .fu-dept-group summary::after { content: "+"; color: var(--ink-500); font-weight: 700; flex: none; }
+  .fu-dept-group[open] summary::after { content: "\2212"; }
+  .fu-dept-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fu-dept-tags { display: flex; gap: 6px; align-items: center; flex: none; }
+  .fu-dept-count { font-size: 11px; font-weight: 700; color: var(--ink-500); background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 2px 9px; }
+  .fu-dept-count.has-critical { color: var(--crit); border-color: var(--crit-bg); background: var(--crit-bg); }
+  .fu-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 18px; border-top: 1px solid var(--line); }
+  .fu-row-main { min-width: 0; }
+  .fu-row-title { font-size: 13px; font-weight: 700; color: var(--ink-900); }
+  .fu-row-sub { font-size: 11.5px; color: var(--ink-500); margin-top: 2px; display: flex; flex-wrap: wrap; gap: 4px 8px; }
+  .fu-row-side { display: flex; align-items: center; gap: 10px; flex: none; }
+  .fu-overdue-badge { font-size: 11.5px; font-weight: 700; border-radius: 20px; padding: 4px 11px; white-space: nowrap; }
+  .fu-overdue-badge.critical { color: var(--crit); background: var(--crit-bg); }
+  .fu-overdue-badge.overdue { color: var(--warn); background: var(--warn-bg); }
+
   /* ---------- reports / graphs ---------- */
   .report-actions { display: flex; gap: 10px; margin-bottom: 18px; }
   .rank-row { display: grid; grid-template-columns: 26px 170px 1fr 70px 90px; align-items: center; gap: 12px; padding: 10px 18px; border-bottom: 1px solid var(--line); }

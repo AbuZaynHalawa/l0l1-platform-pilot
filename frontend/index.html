@@ -538,11 +538,21 @@
       <div class="card table-card">
         <div class="section-title">
           <span>Due &amp; Overdue Deliverables</span>
-          <div style="display:flex;gap:10px;flex-wrap:wrap;">
-            <select id="fuDeptFilter"><option value="">All Departments</option></select>
-            <select id="fuEstFilter"><option value="">All Est Numbers</option></select>
-            <select id="fuFocalFilter"><option value="">All Focal Points</option></select>
-          </div>
+        </div>
+        <div class="fu-stats" id="fuStats"></div>
+        <div class="fp-add-row" style="border-bottom:1px solid var(--line);">
+          <select id="fuDeptFilter"><option value="">All Departments</option></select>
+          <select id="fuEstFilter"><option value="">All Est Numbers</option></select>
+          <select id="fuFocalFilter"><option value="">All Focal Points</option></select>
+          <select id="fuSeverityFilter">
+            <option value="">Any Severity</option>
+            <option value="critical">Critical &#8211; 15+ days</option>
+            <option value="overdue">Overdue &#8211; 1&#8211;14 days</option>
+          </select>
+          <select id="fuSortBy">
+            <option value="overdue">Sort Departments: Most Overdue First</option>
+            <option value="dept">Sort Departments: A&#8211;Z</option>
+          </select>
         </div>
         <div class="fp-add-row">
           <input type="text" id="fuMessage" placeholder="Custom reminder message (optional &#8211; leave blank for the standard one)" />
