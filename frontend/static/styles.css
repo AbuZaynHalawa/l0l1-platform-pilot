@@ -13,7 +13,7 @@
        own color instead of a shade of red. */
     --l0-1: #cc6a1e;
     --l0-2: #9c4a0a;
-    --good: #27ae60;      --good-bg: #d4edda;
+    --good: #27ae60;      --good-bg: #d4edda;      --good-2: #1e8449;
     --crit: #e74c3c;      --crit-bg: #f8d7da;
     --warn: #f39c12;      --warn-bg: #fff3cd;
     --neutral: #95a5a6;   --neutral-bg: #eef0f5;
@@ -44,7 +44,7 @@
       --card-border: rgba(255,255,255,0.14);
       --concern-bg: #3a1f22; --concern-border: #7a3630; --concern-text: #f1a69f;
       --accent-soft: #262f52; --accent-line: #3b4a8f;
-      --good: #2ecc71; --good-bg: #163a27; --crit: #ec7063; --crit-bg: #3a1f22; --warn: #f5b041; --warn-bg: #3a2c14;
+      --good: #2ecc71; --good-bg: #163a27; --good-2: #1e7e42; --crit: #ec7063; --crit-bg: #3a1f22; --warn: #f5b041; --warn-bg: #3a2c14;
       --neutral: #8b96ad; --neutral-bg: #232d4d;
       --shadow-1: 0 4px 15px rgba(0,0,0,0.35); --shadow-2: 0 10px 26px rgba(0,0,0,0.45);
     }
@@ -56,7 +56,7 @@
     --card-border: rgba(255,255,255,0.14);
     --concern-bg: #3a1f22; --concern-border: #7a3630; --concern-text: #f1a69f;
     --accent-soft: #262f52; --accent-line: #3b4a8f;
-    --good: #2ecc71; --good-bg: #163a27; --crit: #ec7063; --crit-bg: #3a1f22; --warn: #f5b041; --warn-bg: #3a2c14;
+    --good: #2ecc71; --good-bg: #163a27; --good-2: #1e7e42; --crit: #ec7063; --crit-bg: #3a1f22; --warn: #f5b041; --warn-bg: #3a2c14;
     --neutral: #8b96ad; --neutral-bg: #232d4d;
     --shadow-1: 0 4px 15px rgba(0,0,0,0.35); --shadow-2: 0 10px 26px rgba(0,0,0,0.45);
   }
@@ -67,7 +67,7 @@
     --card-border: rgba(44,62,80,0.12);
     --concern-bg: #fdecea; --concern-border: #f5b7b1; --concern-text: #8b291c;
     --accent-soft: #eef0fb; --accent-line: #d7dcf5;
-    --good: #27ae60; --good-bg: #d4edda; --crit: #e74c3c; --crit-bg: #f8d7da; --warn: #f39c12; --warn-bg: #fff3cd;
+    --good: #27ae60; --good-bg: #d4edda; --good-2: #1e8449; --crit: #e74c3c; --crit-bg: #f8d7da; --warn: #f39c12; --warn-bg: #fff3cd;
     --neutral: #95a5a6; --neutral-bg: #eef0f5;
     --shadow-1: 0 4px 15px rgba(44,62,80,0.07); --shadow-2: 0 8px 22px rgba(44,62,80,0.12);
   }
@@ -417,7 +417,7 @@
      so the line itself shows real progress instead of just the dots. */
   .fs-row::after {
     content: ""; position: absolute; top: 19px; left: 4%; height: 4px; border-radius: 2px;
-    background: linear-gradient(90deg, var(--purple-1), var(--purple-2));
+    background: linear-gradient(90deg, var(--good), var(--good-2));
     width: var(--fs-progress, 0%); transition: width .5s ease;
   }
   .fs-step { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; }
@@ -427,8 +427,8 @@
     z-index: 1; box-shadow: 0 2px 6px rgba(20,25,50,.07); transition: transform .15s ease;
   }
   .fs-step.done .fs-dot {
-    background: linear-gradient(135deg, var(--purple-1), var(--purple-2)); border-color: transparent; color: #fff;
-    box-shadow: 0 3px 12px rgba(102,126,234,.4);
+    background: linear-gradient(135deg, var(--good), var(--good-2)); border-color: transparent; color: #fff;
+    box-shadow: 0 3px 12px rgba(39,174,96,.4);
   }
   .fs-step.current .fs-dot {
     border-color: var(--crit); color: var(--crit);
@@ -610,6 +610,29 @@
   }
   .tour-callout { display: flex; gap: 8px; align-items: flex-start; background: var(--accent-soft); border-radius: 9px; padding: 10px 12px; font-size: 12px; color: var(--ink-700); margin-top: 12px; }
   .tour-callout b { color: var(--ink-900); }
+
+  .tour-flow-strip { display: flex; align-items: center; gap: 10px; margin: 2px 0 16px; }
+  .tour-flow-arrow { color: var(--ink-300); font-size: 16px; font-weight: 700; }
+
+  .tour-dot-ic { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; }
+  .tour-dot-ic.good { background: var(--good); }
+  .tour-dot-ic.warn { background: var(--warn); }
+  .tour-dot-ic.crit { background: var(--crit); }
+
+  .mock-stat.tone-good .value { color: var(--good); }
+  .mock-stat.tone-warn .value { color: var(--warn); }
+  .mock-stat.tone-crit .value { color: var(--crit); }
+  .mock-stat.tone-neutral .value { color: var(--ink-700); }
+
+  .tour-feature-list { display: flex; flex-direction: column; gap: 12px; margin: 14px 0; }
+  .tour-feature-row { display: flex; gap: 12px; align-items: flex-start; }
+  .tour-feature-ic { width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex: none; }
+  .tour-feature-ic.accent { background: var(--accent-soft); color: var(--purple-1); }
+  .tour-feature-ic.good { background: var(--good-bg); color: var(--good); }
+  .tour-feature-ic.warn { background: var(--warn-bg); color: var(--warn); }
+  .tour-feature-ic.crit { background: var(--crit-bg); color: var(--crit); }
+  .tour-feature-row b { font-size: 12.5px; color: var(--ink-900); }
+  .tour-feature-desc { font-size: 11.5px; color: var(--ink-500); margin-top: 2px; }
 
   /* ---------- tour: implementation timeline chart ---------- */
   .tour-timeline { margin-bottom: 16px; }

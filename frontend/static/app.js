@@ -1214,6 +1214,11 @@
       eyebrow: "Welcome",
       title: "What L0/L1 Actually Is",
       body:
+        '<div class="tour-flow-strip">' +
+        '<span class="stage-badge l0">&#128196; L0 &middot; Tendering</span>' +
+        '<span class="tour-flow-arrow">&#8594;</span>' +
+        '<span class="stage-badge l1">&#128294; L1 &middot; Early Execution</span>' +
+        "</div>" +
         '<p class="tour-step-text">The <b>L0/L1 System</b> is Algihaz\'s control framework for managing the ' +
         "full tender-to-early-execution lifecycle, from tender announcement at <b>L0</b>, through " +
         "lowest-price notification, and into the early project execution stage at <b>L1</b>.</p>" +
@@ -1380,13 +1385,13 @@
         "how it landed against its due date &#8212; this is what feeds the Performance and Top " +
         "Achievers rankings.</p>" +
         '<table class="tour-table"><thead><tr><th>Timing</th><th>Points</th></tr></thead><tbody>' +
-        "<tr><td><b>Early</b></td><td>1.1 pts &#8211; a 10% bonus</td></tr>" +
-        "<tr><td><b>On Time</b></td><td>1.0 pts</td></tr>" +
-        "<tr><td><b>1&#8211;7 days late</b></td><td>0.9 pts</td></tr>" +
-        "<tr><td><b>8&#8211;14 days late</b></td><td>0.8 pts</td></tr>" +
-        "<tr><td><b>15&#8211;21 days late</b></td><td>0.7 pts</td></tr>" +
-        "<tr><td><b>22&#8211;28 days late</b></td><td>0.6 pts</td></tr>" +
-        "<tr><td><b>Not submitted in time</b></td><td>0 pts</td></tr>" +
+        tourPtsRow("good", "Early", "1.1 pts &#8211; a 10% bonus") +
+        tourPtsRow("good", "On Time", "1.0 pts") +
+        tourPtsRow("warn", "1&#8211;7 days late", "0.9 pts") +
+        tourPtsRow("warn", "8&#8211;14 days late", "0.8 pts") +
+        tourPtsRow("crit", "15&#8211;21 days late", "0.7 pts") +
+        tourPtsRow("crit", "22&#8211;28 days late", "0.6 pts") +
+        tourPtsRow("crit", "Not submitted in time", "0 pts") +
         "</tbody></table>" +
         '<div class="tour-callout">&#128202; The exact point value earned shows right on the deliverable ' +
         "once it's Completed &#8212; in its own row and inside its detail popup, not just buried in a " +
@@ -1416,15 +1421,12 @@
       body:
         '<p class="tour-step-text">A nightly check runs automatically, no one has to remember to send ' +
         "anything:</p>" +
-        '<ul class="tour-list">' +
-        "<li>Owners get a heads-up <b>1 day before</b> something's due</li>" +
-        "<li>Overdue items escalate at <b>2, 7, and 14 days late</b></li>" +
-        "<li>Several items due the same day are batched into <b>one email per Owner</b>, not one per item</li>" +
-        "<li>An Owner who can't hit a date can request an <b>Extension</b> (move it) or a <b>Hold</b> " +
-        "(pause lateness for missing data/a technical blocker) instead of just running late &#8212; " +
-        "either goes to the SME or an Admin to decide, and if nobody's decided within <b>3 days</b> it " +
-        "nudges the SME again, plus every Admin</li>" +
-        "</ul>" +
+        '<div class="tour-feature-list">' +
+        featureRowMock("&#9200;", "accent", "1 Day Before It's Due", "Owners get a heads-up nudge before the deadline hits.") +
+        featureRowMock("&#128293;", "crit", "Escalating When Overdue", "Reminders repeat at <b>2, 7, and 14 days</b> late.") +
+        featureRowMock("&#128231;", "good", "Batched, Not Spammed", "Several items due the same day become <b>one email per Owner</b>, not one per item.") +
+        featureRowMock("&#129309;", "warn", "Extension or Hold", "Can't hit a date? Request an <b>Extension</b> (move it) or a <b>Hold</b> (pause lateness for missing data/a blocker) &#8212; goes to the SME or an Admin to decide, and nudges again after <b>3 days</b> if nobody has.") +
+        "</div>" +
         '<p class="tour-step-text">Every reminder links straight to the exact item, and lives in its own ' +
         '<b>Reminders</b> tab &#8212; kept separate from Announcements so day-to-day news and ' +
         "\"you need to act on this\" nudges don't get mixed together.</p>",
@@ -1483,13 +1485,13 @@
         '<div class="mock-body">' +
         '<div class="mock-stat-row-label">Deliverables Deadline Status</div>' +
         '<div class="mock-stat-row">' +
-        statMock("Not Due", "508") + statMock("Due", "36") + statMock("Early", "6") +
-        statMock("On Time", "0") + statMock("Late", "5") +
+        statMock("Not Due", "508", "neutral") + statMock("Due", "36", "warn") + statMock("Early", "6", "good") +
+        statMock("On Time", "0", "good") + statMock("Late", "5", "crit") +
         "</div>" +
         '<div class="mock-stat-row-label">Deliverables Progress Status</div>' +
         '<div class="mock-stat-row">' +
-        statMock("No Progress Yet", "285") + statMock("In Progress", "0") + statMock("Pending SME Review", "0") +
-        statMock("Completed", "11") + statMock("Rejected", "2") +
+        statMock("No Progress Yet", "285", "neutral") + statMock("In Progress", "0", "warn") + statMock("Pending SME Review", "0", "warn") +
+        statMock("Completed", "11", "good") + statMock("Rejected", "2", "crit") +
         "</div>" +
         '<div class="tour-callout">&#128072; Click any of these tiles on the real Dashboard to jump ' +
         "straight to that filtered slice of Assigned Deliverables.</div>" +
@@ -1594,23 +1596,31 @@
       title: "Finding Your Way Around",
       body:
         '<p class="tour-step-text">Quick reference for the rest of the nav:</p>' +
-        '<ul class="tour-list">' +
-        "<li><b>L0 Tenders / L1 Projects / Timeline</b> &#8212; the full project lists and the pooled Gantt view</li>" +
-        "<li><b>Assigned Deliverables</b> &#8212; every deliverable assigned to you, filterable by L0/L1 and status</li>" +
-        "<li><b>Announcements</b> &#8212; general program news, filterable by type and date</li>" +
-        "<li><b>Reminders</b> &#8212; everything that needs your action: due-soon/overdue nudges, request updates</li>" +
-        "<li><b>BM Triage Status</b> &#8212; every active tender's applicable/not-required progress</li>" +
-        "<li><b>Performance</b> &#8212; on-time-rate tracking by department, feeding Top Achievers</li>" +
-        "<li><b>Q/A &#8211; Ask the Team</b> &#8212; raise a question, track your own requests</li>" +
-        "<li><i>Admin only:</i> <b>Reports, Top Achievers, Focal Points, Follow Up, Open Questions</b></li>" +
-        "</ul>" +
+        '<div class="tour-feature-list">' +
+        featureRowMock("&#128194;", "accent", "L0 Tenders / L1 Projects / Timeline", "The full project lists and the pooled Gantt view.") +
+        featureRowMock("&#128203;", "accent", "Assigned Deliverables", "Every deliverable assigned to you, filterable by L0/L1 and status.") +
+        featureRowMock("&#128276;", "good", "Announcements", "General program news, filterable by type and date.") +
+        featureRowMock("&#9200;", "warn", "Reminders", "Everything that needs your action: due-soon/overdue nudges, request updates.") +
+        featureRowMock("&#9989;", "good", "BM Triage Status", "Every active tender's applicable/not-required progress.") +
+        featureRowMock("&#128200;", "accent", "Performance", "On-time-rate tracking by department, feeding Top Achievers.") +
+        featureRowMock("&#128172;", "accent", "Q/A &#8211; Ask the Team", "Raise a question, track your own requests.") +
+        featureRowMock("&#128736;", "crit", "Admin Only", "Reports, Top Achievers, Focal Points, Follow Up, Open Questions.") +
+        "</div>" +
         '<div class="tour-callout">&#127881; That\'s the full picture &#8212; close this and start ' +
         "exploring. You can reopen this walkthrough anytime from the nav.</div>",
     },
   ];
 
-  function statMock(label, value) {
-    return '<div class="mock-stat"><div class="label">' + label + '</div><div class="value">' + value + "</div></div>";
+  function statMock(label, value, tone) {
+    return '<div class="mock-stat' + (tone ? " tone-" + tone : "") + '"><div class="label">' + label +
+      '</div><div class="value">' + value + "</div></div>";
+  }
+  function tourPtsRow(tone, timing, pts) {
+    return '<tr><td><span class="tour-dot-ic ' + tone + '"></span><b>' + timing + "</b></td><td>" + pts + "</td></tr>";
+  }
+  function featureRowMock(icon, tone, label, desc) {
+    return '<div class="tour-feature-row"><div class="tour-feature-ic ' + tone + '">' + icon + "</div>" +
+      "<div><b>" + label + '</b><div class="tour-feature-desc">' + desc + "</div></div></div>";
   }
   function deliverableMock(itemNo, name, tone, statusLabel) {
     return '<div class="mock-deliv-row"><span><b>' + itemNo + "</b> &middot; " + name + '</span>' +
