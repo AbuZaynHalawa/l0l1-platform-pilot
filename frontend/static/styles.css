@@ -582,9 +582,9 @@
   .mock-ann-ic { width: 26px; height: 26px; border-radius: 50%; background: var(--accent-soft); flex: none; display: flex; align-items: center; justify-content: center; font-size: 12px; }
   .mock-ann-title { font-size: 11px; font-weight: 700; color: var(--ink-900); }
   .mock-ann-body { font-size: 10px; color: var(--ink-500); margin-top: 1px; }
-  .mock-fs { display: flex; justify-content: space-between; padding: 6px 4px 0; margin: 20px 0; position: relative; }
-  .mock-fs::before { content: ""; position: absolute; top: 22px; left: 24px; right: 24px; height: 2px; background: var(--line); }
-  .mock-fs .fs-label { font-size: 9.5px; margin-top: 2px; }
+  .mock-fs { display: flex; justify-content: space-between; padding: 8px 4px 0; margin: 20px 0; position: relative; }
+  .mock-fs::before { content: ""; position: absolute; top: 26px; left: 30px; right: 30px; height: 2px; background: var(--line); }
+  .mock-fs .fs-label { font-size: 11.5px; margin-top: 4px; font-weight: 700; }
   .mock-gantt-row { display: flex; align-items: center; gap: 8px; padding: 6px 12px; font-size: 10.5px; border-bottom: 1px solid var(--line); }
   .mock-gantt-row:last-child { border-bottom: none; }
   .mock-gantt-row .mock-gantt-label { width: 96px; flex-shrink: 0; color: var(--ink-700); }

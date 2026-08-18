@@ -1640,7 +1640,7 @@
     return steps.map(function (s) {
       var code = s[0], label = s[1], done = s[2], current = s[3];
       var cls = "fs-step" + (done ? " done" : current ? " current" : "");
-      return '<div class="' + cls + '" style="flex:1;"><div class="fs-dot" style="width:26px;height:26px;font-size:9px;">' +
+      return '<div class="' + cls + '" style="flex:1;"><div class="fs-dot" style="width:36px;height:36px;font-size:12px;">' +
         (done ? FS_CHECK_SVG : code) + '</div><div class="fs-label">' + label + "</div></div>";
     }).join("");
   }
