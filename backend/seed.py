@@ -426,7 +426,7 @@ L1_ITEMS = [
     # when that rename happened, so it silently started resolving against
     # Planning's 5.3 instead (same number, wrong item, no error) rather than
     # the budget item it was always meant to depend on.
-    ("2.2", "Creating PRs for long-lead items through the system", "tbupbu", "predecessor", "6.1", 2, "after", None),
+    ("2.2", "Creating PRs for long-lead items through the system", "tbupbu", "predecessor", "4.5", 2, "after", None),
     ("2.3", "Assignment of Temporary Project Manager & Project Engineer", "tbupbu", "predecessor", "1.1", 5, "after", None),
     ("2.4", "Internal Kick off Meeting (to be called by Project Manager)", "tbupbu", "predecessor", "2.3", 5, "after", None),
     ("2.5", "Draft Master Project Execution Plan ready to be submitted", "tbupbu", "predecessor", "1.2", 25, "after", None),
@@ -435,7 +435,7 @@ L1_ITEMS = [
     # (renamed 5.3 -> 6.1), not Planning's unrelated same-numbered 5.3.
     ("2.6", "Create PRs for Early Activities (Soil Investigation, Topography)", "tbupbu", "predecessor", "6.1", 2, "after", None),
     ("2.7", "Create PR for Design Firm/Consultant", "tbupbu", "predecessor", "4.4", 2, "after", None),
-    ("2.8", "Start Activities for Geotechnical Investigation (in house or vendor)", "tbupbu", "predecessor", "3.11", 7, "after", None),
+    ("2.8", "Start Activities for Geotechnical Investigation (in house or vendor)", "tbupbu", "predecessor", "1.5", 7, "after", None),
     ("2.9", "Start Activities for Topography and Site Investigation", "tbupbu", "predecessor", "1.2", 25, "after", None),
     ("2.10", "Provide list of project permits (Governmental, Local Authority)", "tbupbu", "predecessor", "1.2", 15, "after", None),
     ("2.11", "Preparation of Subcontracting Strategy for (OHTL/UGC) projects", "tbupbu", "predecessor", "1.2", 5, "after", None),
@@ -452,26 +452,26 @@ L1_ITEMS = [
     # own copy of 2.1-2.12 per business unit instead of one combined
     # "TBU / PBU" folder applying to every project regardless of BU.
     ("2.1", "Submission of Cost Center request to Cost Control Department", "tbu", "predecessor", "1.2", 1, "after", None),
-    ("2.2", "Creating PRs for long-lead items through the system", "tbu", "predecessor", "6.1", 2, "after", None),
+    ("2.2", "Creating PRs for long-lead items through the system", "tbu", "predecessor", "4.5", 2, "after", None),
     ("2.3", "Assignment of Temporary Project Manager & Project Engineer", "tbu", "predecessor", "1.1", 5, "after", None),
     ("2.4", "Internal Kick off Meeting (to be called by Project Manager)", "tbu", "predecessor", "2.3", 5, "after", None),
     ("2.5", "Draft Master Project Execution Plan ready to be submitted", "tbu", "predecessor", "1.2", 25, "after", None),
     ("2.6", "Create PRs for Early Activities (Soil Investigation, Topography)", "tbu", "predecessor", "6.1", 2, "after", None),
     ("2.7", "Create PR for Design Firm/Consultant", "tbu", "predecessor", "4.4", 2, "after", None),
-    ("2.8", "Start Activities for Geotechnical Investigation (in house or vendor)", "tbu", "predecessor", "3.11", 7, "after", None),
+    ("2.8", "Start Activities for Geotechnical Investigation (in house or vendor)", "tbu", "predecessor", "1.5", 7, "after", None),
     ("2.9", "Start Activities for Topography and Site Investigation", "tbu", "predecessor", "1.2", 25, "after", None),
     ("2.10", "Provide list of project permits (Governmental, Local Authority)", "tbu", "predecessor", "1.2", 15, "after", None),
     ("2.11", "Preparation of Subcontracting Strategy for (OHTL/UGC) projects", "tbu", "predecessor", "1.2", 5, "after", None),
     ("2.12", "Provide Confirmation on the Proposal recommendation for working schedule", "tbu", "predecessor", "5.3", 3, "after", None),
 
     ("2.1", "Submission of Cost Center request to Cost Control Department", "pbu", "predecessor", "1.2", 1, "after", None),
-    ("2.2", "Creating PRs for long-lead items through the system", "pbu", "predecessor", "6.1", 2, "after", None),
+    ("2.2", "Creating PRs for long-lead items through the system", "pbu", "predecessor", "4.5", 2, "after", None),
     ("2.3", "Assignment of Temporary Project Manager & Project Engineer", "pbu", "predecessor", "1.1", 5, "after", None),
     ("2.4", "Internal Kick off Meeting (to be called by Project Manager)", "pbu", "predecessor", "2.3", 5, "after", None),
     ("2.5", "Draft Master Project Execution Plan ready to be submitted", "pbu", "predecessor", "1.2", 25, "after", None),
     ("2.6", "Create PRs for Early Activities (Soil Investigation, Topography)", "pbu", "predecessor", "6.1", 2, "after", None),
     ("2.7", "Create PR for Design Firm/Consultant", "pbu", "predecessor", "4.4", 2, "after", None),
-    ("2.8", "Start Activities for Geotechnical Investigation (in house or vendor)", "pbu", "predecessor", "3.11", 7, "after", None),
+    ("2.8", "Start Activities for Geotechnical Investigation (in house or vendor)", "pbu", "predecessor", "1.5", 7, "after", None),
     ("2.9", "Start Activities for Topography and Site Investigation", "pbu", "predecessor", "1.2", 25, "after", None),
     ("2.10", "Provide list of project permits (Governmental, Local Authority)", "pbu", "predecessor", "1.2", 15, "after", None),
     ("2.11", "Preparation of Subcontracting Strategy for (OHTL/UGC) projects", "pbu", "predecessor", "1.2", 5, "after", None),
@@ -479,13 +479,13 @@ L1_ITEMS = [
     ("2.16", "Provide general layout of Temporary facilities, laydown and storage", "pbu", "predecessor", "1.2", 7, "after", None),
 
     ("2.1", "Submission of Cost Center request to Cost Control Department", "dbu", "predecessor", "1.2", 1, "after", None),
-    ("2.2", "Creating PRs for long-lead items through the system", "dbu", "predecessor", "6.1", 2, "after", None),
+    ("2.2", "Creating PRs for long-lead items through the system", "dbu", "predecessor", "4.5", 2, "after", None),
     ("2.3", "Assignment of Temporary Project Manager & Project Engineer", "dbu", "predecessor", "1.1", 5, "after", None),
     ("2.4", "Internal Kick off Meeting (to be called by Project Manager)", "dbu", "predecessor", "2.3", 5, "after", None),
     ("2.5", "Draft Master Project Execution Plan ready to be submitted", "dbu", "predecessor", "1.2", 25, "after", None),
     ("2.6", "Create PRs for Early Activities (Soil Investigation, Topography)", "dbu", "predecessor", "6.1", 2, "after", None),
     ("2.7", "Create PR for Design Firm/Consultant", "dbu", "predecessor", "4.4", 2, "after", None),
-    ("2.8", "Start Activities for Geotechnical Investigation (in house or vendor)", "dbu", "predecessor", "3.11", 7, "after", None),
+    ("2.8", "Start Activities for Geotechnical Investigation (in house or vendor)", "dbu", "predecessor", "1.5", 7, "after", None),
     ("2.9", "Start Activities for Topography and Site Investigation", "dbu", "predecessor", "1.2", 25, "after", None),
     ("2.10", "Provide list of project permits (Governmental, Local Authority)", "dbu", "predecessor", "1.2", 15, "after", None),
     ("2.11", "Preparation of Subcontracting Strategy for (OHTL/UGC) projects", "dbu", "predecessor", "1.2", 5, "after", None),
@@ -494,7 +494,7 @@ L1_ITEMS = [
     ("2.16", "Provide general layout of Temporary facilities, laydown and storage", "bbu", "predecessor", "1.2", 7, "after", None),
 
     ("3.1", "Issue RFQ to vendors including technical SOW, contractual and commercial baselines", "supply", "predecessor", "4.5", 7, "after", None),
-    ("3.2", "Allowable time for negotiating commercial and technical terms", "supply", "predecessor", "2.2", 10, "after", None),
+    ("3.2", "Allowable time for negotiating commercial and technical terms", "supply", "predecessor", "1.3", 10, "after", None),
     ("3.3", "Award Approval on System (Buyer -> SCM -> Cost Control -> Operation)", "supply", "predecessor", "1.6", 5, "after", None),
     ("3.4", "Top Management approval of awarding, if required as per Authority Matrix", "supply", "predecessor", "3.3", 5, "after", None),
     ("3.5", "PO Approval on Oracle following Award Approval", "supply", "predecessor", "3.4", 3, "after", None),
@@ -509,7 +509,7 @@ L1_ITEMS = [
     ("4.1", "Provide SC scope for Early Activities", "eng", "predecessor", "1.1", 9, "after", None),
     ("4.2", "Update the initial Design and Quantities including site layout", "eng", "predecessor", "2.9", 10, "after", None),
     ("4.3", "Provide brief SOW for Design Firm as per PTS for core project", "eng", "predecessor", "1.1", 2, "after", None),
-    ("4.4", "Review and evaluate Design Firm Technical Offers and Finalize selection", "eng", "predecessor", "3.9", 4, "after", None),
+    ("4.4", "Review and evaluate Design Firm Technical Offers and Finalize selection", "eng", "predecessor", "3.9", 5, "after", None),
     ("4.5", "Review Vendors technical offers received from Tendering & Procurement", "eng", "predecessor", "1.2", 10, "after", None),
     ("4.6", "Review Vendors technical offers received from Supply Chain", "eng", "predecessor", "3.2", 5, "after", None),
     ("4.7", "Verify site layout after approach Site for Preliminary investigation", "eng", "predecessor", "2.9", 5, "after", None),
@@ -528,7 +528,7 @@ L1_ITEMS = [
     ("5.3", "Provide Proposal recommendation for working schedule for time schedule driven items", "planning", "predecessor", "5.1", 3, "after", None),
     ("5.4", "Update Planning Risk Register including lesson learned", "planning", "predecessor", "5.2", 3, "after", None),
 
-    ("7.1", "Update Contracts Risk Register and Contract Liabilities", "contract", "client_dependent", None, 1, "after", None),
+    ("7.1", "Update Contracts Risk Register and Contract Liabilities", "contract", "predecessor", "1.5", 1, "after", None),
 
     ("8.1", "Provide Workforce Availability Plan with Hiring dates", "hr", "predecessor", "1.2", 15, "after", None),
 
@@ -558,7 +558,7 @@ L1_ITEMS = [
     ("12.4", "Provide Environmental management plan", "hsse", "predecessor", "1.2", 20, "after", None),
     ("12.5", "Provide Waste management plan", "hsse", "predecessor", "1.2", 20, "after", None),
 
-    ("14.1", "Verify and update Project Risk register", "risk", "predecessor", "5.4", 15, "after", None),
+    ("14.1", "Verify and update Project Risk register", "risk", "predecessor", "5.4", 1, "after", None),
 
     ("15.1", "Provide Updated information on Equipment availability, location", "fleet", "predecessor", "1.6", 7, "after", None),
 
@@ -1247,6 +1247,23 @@ def run():
                 default_owner_email=TEST_EMAIL, default_sme_email=TEST_EMAIL,
             ))
 
+        # Excel-formula replication (8 hardcoded L1 Start/Finish formulas):
+        # snapshot these definitions' anchor fields before upsert() overwrites
+        # them in place, so we can tell afterward whether this run actually
+        # changed anything and needs to force a same-day recompute on
+        # existing projects (recompute_project_due_dates otherwise skips a
+        # project already computed today, per its own once-a-day gate).
+        # Naturally idempotent: a no-op on every run after the first, once
+        # the DB already matches L1_ITEMS.
+        _due_fix_items = ["2.2", "2.8", "3.2", "4.4", "7.1", "14.1"]
+        _due_fix_before = {
+            (d.item_no, d.department_id): (d.anchor_type, d.predecessor_item_no, d.offset_days)
+            for d in db.query(models.DeliverableDefinition)
+            .filter(models.DeliverableDefinition.stage == models.Stage.L1,
+                    models.DeliverableDefinition.item_no.in_(_due_fix_items))
+            .all()
+        }
+
         for item_no, name, dkey, anchor, pred, offset, direction, dtype, ms in L0_ITEMS:
             dept = dept_map[L0_DEPT[dkey]]
             upsert("L0", item_no, name, L0_SHORT_NAMES.get(item_no, name), dept.id, anchor, pred, offset, direction, dtype, bool(ms), ms)
@@ -1256,6 +1273,23 @@ def run():
             upsert("L1", item_no, name, L1_SHORT_NAMES.get(item_no, name), dept.id, anchor, pred, offset, direction, "date_driven", bool(ms), ms)
 
         db.commit()
+
+        _due_fix_changed_def_ids = [
+            d.id for d in db.query(models.DeliverableDefinition)
+            .filter(models.DeliverableDefinition.stage == models.Stage.L1,
+                    models.DeliverableDefinition.item_no.in_(_due_fix_items))
+            .all()
+            if _due_fix_before.get((d.item_no, d.department_id)) != (d.anchor_type, d.predecessor_item_no, d.offset_days)
+        ]
+        if _due_fix_changed_def_ids:
+            affected_projects = {
+                s.project for s in db.query(models.DeliverableSubmission)
+                .filter(models.DeliverableSubmission.deliverable_definition_id.in_(_due_fix_changed_def_ids))
+                .all()
+            }
+            for proj in affected_projects:
+                rules.recompute_project_due_dates(db, proj, force=True)
+            db.commit()
 
         # Backfill (item 69): the old flat "Operation Units" department's
         # items 2.1-2.12 are superseded by the new TBU/PBU/DBU/BBU
