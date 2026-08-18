@@ -1341,8 +1341,8 @@
         "</ul>" +
         '<div class="tour-callout">&#128203; If an SME marks their own item Completed directly, it skips ' +
         "the review step entirely &#8212; there's no reviewing yourself. Every step, on every item, is " +
-        "recorded in a full activity log, and anyone (not just the Owner/SME) can <b>Follow</b> an " +
-        "item to get notified of updates.</div>",
+        "recorded in a full activity log, and anyone (not just the Owner/SME) can follow an item to " +
+        "get notified of updates.</div>",
     },
     {
       eyebrow: "Tracking & Scoring",
