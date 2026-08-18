@@ -364,8 +364,9 @@ def get_matrix(stage: str, focus_email: str | None = None, db: Session = Depends
     the live equivalent of the old Control Sheet's L0/L1 Tracking Sheets, scoped
     to currently in-progress projects instead of every tender ever tracked.
     Item 183: `focus_email` narrows the columns to only projects the caller
-    owns or reviews at least one deliverable on -- same "My Items" concept
-    the Dashboard stat cards already use, not a separate filter.
+    owns or reviews at least one deliverable on, AND the rows to only the
+    specific deliverable items they're actually assigned -- same "My Items"
+    concept the Dashboard stat cards already use, not a separate filter.
     """
     projects = (
         db.query(models.Project)
@@ -408,12 +409,18 @@ def get_matrix(stage: str, focus_email: str | None = None, db: Session = Depends
     focus = (focus_email or "").strip().lower()
     if focus:
         my_project_ids = set()
+        my_definition_ids = set()
         for s in subs:
             owners = {e.strip().lower() for e in rules.resolve_owners(s) if e}
             smes = {e.strip().lower() for e in rules.resolve_smes(s) if e}
             if focus in owners or focus in smes:
                 my_project_ids.add(s.project_id)
+                my_definition_ids.add(s.deliverable_definition_id)
         projects = [p for p in projects if p.id in my_project_ids]
+        # Item 183: rows narrow to the specific deliverables actually
+        # assigned to this person, not every catalog item for the
+        # departments/projects they happen to touch.
+        defs = [d for d in defs if d.id in my_definition_ids]
 
     sub_map = {(s.project_id, s.deliverable_definition_id): s for s in subs}
 
