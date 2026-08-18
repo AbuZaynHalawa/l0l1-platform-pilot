@@ -285,6 +285,12 @@ class DeliverableSubmission(Base):
     # recompute_project_due_dates to stop overwriting due_date from the
     # anchor formula, the same way it already skips APPROVED rows.
     due_date_locked = Column(Boolean, default=False)
+    # Item [due-soon nudge]: the due_date this submission was last reminded
+    # about (the "due tomorrow" nightly check), not a plain sent/not-sent
+    # flag -- comparing against the *current* due_date means an extension
+    # or a hold-resume that shifts due_date automatically makes it eligible
+    # again, with nothing else to reset by hand.
+    due_soon_reminded_for_date = Column(Date, nullable=True)
 
     project = relationship("Project", back_populates="submissions", foreign_keys=[project_id])
     definition = relationship("DeliverableDefinition")
@@ -372,6 +378,11 @@ class DueDateRequest(Base):
     decided_at = Column(DateTime, nullable=True)
     decided_by_email = Column(String, nullable=True)
     decision_comment = Column(Text, nullable=True)
+    # Item [request escalation]: set once the nightly check flags this
+    # request as still pending after 3 days -- a one-shot marker, not a
+    # counter, so the escalation nudge fires exactly once per request (per
+    # the pilot's "for now only once" answer) rather than repeating daily.
+    escalated_at = Column(DateTime, nullable=True)
 
     submission = relationship("DeliverableSubmission")
 

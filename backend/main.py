@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -6,10 +7,18 @@ from fastapi.responses import FileResponse, HTMLResponse
 from .database import engine
 from . import models
 from .routers import projects, deliverables, announcements_router, dashboard, departments, milestones, gantt, support
+from .scheduler import scheduler_loop
 
 models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Algihaz L0/L1 Platform (Pilot)")
+
+
+@app.on_event("startup")
+async def _start_scheduler():
+    # Item [due-soon nudge] / [request escalation]: an in-process background
+    # loop, not a host-specific cron job -- see scheduler.py's docstring.
+    asyncio.create_task(scheduler_loop())
 
 app.include_router(projects.router)
 app.include_router(deliverables.router)

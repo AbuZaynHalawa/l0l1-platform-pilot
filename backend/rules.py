@@ -234,6 +234,14 @@ def system_group_emails(db: Session) -> set[str]:
     return {u.email for u in db.query(models.User).all() if u.email}
 
 
+def admin_emails(db: Session) -> set[str]:
+    """Everyone with the Admin role in the system roster -- the escalation
+    nudge's fallback recipient, since Admin can decide any due-date request
+    regardless of which SME it's actually assigned to.
+    """
+    return {u.email for u in db.query(models.User).filter(models.User.role == "Admin").all() if u.email}
+
+
 def deliverable_focal(definition: "models.DeliverableDefinition", project: "models.Project | None" = None) -> str | None:
     """Display string (comma-joined) of who to notify about this specific
     deliverable — see resolve_focal_emails() for the real recipient list.

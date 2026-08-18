@@ -71,6 +71,8 @@ ensure_enum_value("announcements", "type", "EXTENSION_REQUEST")
 ensure_enum_value("announcements", "type", "EXTENSION_DECISION")
 ensure_enum_value("announcements", "type", "HOLD_REQUEST")
 ensure_enum_value("announcements", "type", "HOLD_DECISION")
+# Nightly checks (item [due-soon nudge] / [request escalation]).
+ensure_column("deliverable_submissions", "due_soon_reminded_for_date", "DATE")
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -78,6 +80,7 @@ models.Base.metadata.create_all(bind=engine)
 # so its index can only be added after that point (unlike the
 # reassignment_requests index above, which predates this table's existence).
 ensure_index("due_date_requests", "ix_due_date_requests_submission_id", "submission_id")
+ensure_column("due_date_requests", "escalated_at", "TIMESTAMP")
 
 TEST_EMAIL = "test-focal@example.com"  # single placeholder until real contacts are provided
 

@@ -134,6 +134,37 @@ def due_date_decision(db: Session, project: models.Project, owner_emails: list[s
                     project=project, submission_id=submission_id)
 
 
+def due_date_request_escalated(db: Session, project: models.Project, recipients: list[str],
+                                item_no: str, item_name: str, kind: str, days_pending: int,
+                                submission_id: int | None = None) -> models.Announcement:
+    """Item [request escalation]: the nightly check's nudge for a due-date
+    request nobody has decided on after 3 days -- same SME(s) as the
+    original ask, plus every Admin as a fallback (an SME might have missed
+    the first notification entirely; Admin can decide any item regardless
+    of assignment). Fires once per request -- see DueDateRequest.escalated_at.
+    """
+    label = "Extension" if kind == "extension" else "Hold"
+    title = f"Still Pending &#8211; {label} Request Needs a Decision"
+    body = (f"{item_no} {item_name} on {project.est_no}: a {label.lower()} request has been waiting "
+            f"{days_pending} days with no decision. Please review it.")
+    ann_type = models.AnnouncementType.EXTENSION_REQUEST if kind == "extension" else models.AnnouncementType.HOLD_REQUEST
+    return _create(db, type=ann_type, title=title, body=body, recipients=sorted({e for e in recipients if e}),
+                    project=project, submission_id=submission_id)
+
+
+def due_soon_reminder(db: Session, project: models.Project, owner_emails: list[str],
+                       item_no: str, item_name: str, due_date, submission_id: int | None = None) -> models.Announcement:
+    """Item [due-soon nudge]: the nightly check's heads-up for a deliverable
+    due tomorrow, on the same DEADLINE announcement type the existing manual
+    "Send reminder" action uses (reminder_sent above) -- distinct copy since
+    that one reads as "this is already due", not "due tomorrow".
+    """
+    title = f"Due Tomorrow &#8211; {item_no}"
+    body = f"{item_no} {item_name} on {project.est_no} is due tomorrow ({due_date.isoformat()})."
+    return _create(db, type=models.AnnouncementType.DEADLINE, title=title, body=body,
+                    recipients=sorted({e for e in owner_emails if e}), project=project, submission_id=submission_id)
+
+
 def cross_department_unlock(db: Session, project: models.Project, newly_active_owner_emails: list[str],
                              trigger_item: str, unlocked_item_no: str, unlocked_item_name: str,
                              submission_id: int | None = None) -> models.Announcement:
