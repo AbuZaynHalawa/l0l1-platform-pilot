@@ -122,10 +122,13 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
     # Item [dashboard stage split]: the whole dashboard below the headline
     # cards is now two parallel sections, one per stage -- Concerns, Top
     # Departments and Newest Milestones each need their own L0 and L1
-    # version instead of one pooled list. Top Departments and Concerns
-    # share one per-department loop (both need the same per-stage
-    # percentage); it draws from stat_subs so "My Items" scopes these too,
-    # same as it already scoped the pooled versions.
+    # version instead of one pooled list.
+    # Item [My Items scoping v2]: Top Departments always stays org-wide
+    # (org_subs, not stat_subs) -- it's a portfolio ranking, not "my work",
+    # so My Items shouldn't narrow it. Concerns keeps scoping to stat_subs
+    # as before, since "my concerns" is meant to narrow to the focus
+    # person's own cohort.
+    org_subs = [s for s in all_subs if not s.auto_completed]
     overdue_l0 = sum(1 for s in stat_subs if s.definition.stage == models.Stage.L0 and rules.deadline_status(s)[0] == "due")
     overdue_l1 = sum(1 for s in stat_subs if s.definition.stage == models.Stage.L1 and rules.deadline_status(s)[0] == "due")
     top_depts_l0, top_depts_l1 = [], []
@@ -133,17 +136,21 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
     for dept in db.query(models.Department).order_by(models.Department.number).all():
         if dept.name in _PERF_EXCLUDED_DEPTS:
             continue
-        d_subs = _kpi_cohort([s for s in stat_subs if s.definition.department_id == dept.id])
-        l0_pct = _level_stats(d_subs, models.Stage.L0)["percentage"]
-        l1_pct = _level_stats(d_subs, models.Stage.L1)["percentage"]
-        if l0_pct is not None:
-            top_depts_l0.append({"department": dept.name, "department_number": dept.number, "pct": l0_pct})
-            if l0_pct < 80:
-                concerns_l0.append(f"<b>{dept.name}</b> is at {l0_pct}% approved-on-time this pilot.")
-        if l1_pct is not None:
-            top_depts_l1.append({"department": dept.name, "department_number": dept.number, "pct": l1_pct})
-            if l1_pct < 80:
-                concerns_l1.append(f"<b>{dept.name}</b> is at {l1_pct}% approved-on-time this pilot.")
+        focus_d_subs = _kpi_cohort([s for s in stat_subs if s.definition.department_id == dept.id])
+        l0_pct_focus = _level_stats(focus_d_subs, models.Stage.L0)["percentage"]
+        l1_pct_focus = _level_stats(focus_d_subs, models.Stage.L1)["percentage"]
+        if l0_pct_focus is not None and l0_pct_focus < 80:
+            concerns_l0.append(f"<b>{dept.name}</b> is at {l0_pct_focus}% approved-on-time this pilot.")
+        if l1_pct_focus is not None and l1_pct_focus < 80:
+            concerns_l1.append(f"<b>{dept.name}</b> is at {l1_pct_focus}% approved-on-time this pilot.")
+
+        org_d_subs = _kpi_cohort([s for s in org_subs if s.definition.department_id == dept.id])
+        l0_pct_org = _level_stats(org_d_subs, models.Stage.L0)["percentage"]
+        l1_pct_org = _level_stats(org_d_subs, models.Stage.L1)["percentage"]
+        if l0_pct_org is not None:
+            top_depts_l0.append({"department": dept.name, "department_number": dept.number, "pct": l0_pct_org})
+        if l1_pct_org is not None:
+            top_depts_l1.append({"department": dept.name, "department_number": dept.number, "pct": l1_pct_org})
     top_depts_l0 = sorted(top_depts_l0, key=lambda r: -r["pct"])[:3]
     top_depts_l1 = sorted(top_depts_l1, key=lambda r: -r["pct"])[:3]
     if overdue_l0:
@@ -155,25 +162,27 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
         concerns_l1.append(f"No focal point contact set for: <b>{', '.join(unassigned)}</b>.")
 
     # Newest 3 tenders/projects per stage, for the L0/L1 headline cards --
-    # org-wide (not scoped to focus_email), a portfolio awareness feed
-    # rather than "my work."
+    # scoped to focus_email when "My Items" is on (item [My Items scoping
+    # v2]), via the same project-id membership stat_subs already gives us.
+    focus_project_ids = {s.project_id for s in stat_subs} if focus else None
+
     def _recent_projects(stage_enum):
-        rows = (
-            db.query(models.Project)
-            .filter(models.Project.stage == stage_enum)
-            .order_by(models.Project.created_at.desc())
-            .limit(3)
-            .all()
-        )
+        q = db.query(models.Project).filter(models.Project.stage == stage_enum)
+        if focus_project_ids is not None:
+            if not focus_project_ids:
+                return []
+            q = q.filter(models.Project.id.in_(focus_project_ids))
+        rows = q.order_by(models.Project.created_at.desc()).limit(3).all()
         return [{"id": p.id, "est_no": p.est_no, "name": p.name, "announcement_date": p.announcement_date} for p in rows]
 
     recent_l0 = _recent_projects(models.Stage.L0)
     recent_l1 = _recent_projects(models.Stage.L1)
 
     # Newest Milestones per stage: the 5 most recently reached M-codes for
-    # that stage's own catalog, org-wide.
+    # that stage's own catalog -- scoped to focus_email when "My Items" is
+    # on (item [My Items scoping v2]), same as the project cards above.
     def _recent_milestones(stage_enum):
-        subs = (
+        q = (
             db.query(models.DeliverableSubmission)
             .join(models.DeliverableDefinition)
             .filter(
@@ -182,9 +191,15 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
                 models.DeliverableSubmission.status == models.SubmissionStatus.APPROVED,
             )
             .order_by(models.DeliverableSubmission.reviewed_at.desc())
-            .limit(5)
-            .all()
         )
+        if focus:
+            subs = [
+                s for s in q.all()
+                if focus in {e.strip().lower() for e in rules.resolve_owners(s) if e}
+                or focus in {e.strip().lower() for e in rules.resolve_smes(s) if e}
+            ][:5]
+        else:
+            subs = q.limit(5).all()
         return [{
             "milestone_code": s.definition.milestone_code, "name": s.definition.name,
             "est_no": s.project.est_no, "project_name": s.project.name, "project_id": s.project_id,
