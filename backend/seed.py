@@ -426,7 +426,10 @@ L1_ITEMS = [
     ("2.3", "Assignment of Temporary Project Manager & Project Engineer", "tbupbu", "predecessor", "1.1", 5, "after", None),
     ("2.4", "Internal Kick off Meeting (to be called by Project Manager)", "tbupbu", "predecessor", "2.3", 5, "after", None),
     ("2.5", "Draft Master Project Execution Plan ready to be submitted", "tbupbu", "predecessor", "1.2", 25, "after", None),
-    ("2.6", "Create PRs for Early Activities (Soil Investigation, Topography)", "tbupbu", "predecessor", "5.3", 2, "after", None),
+    # Item [predecessor renumber]: same stale-5.3 bug as 2.2 above -- this is
+    # a PR-creation item too, so it depends on Cost Control's budget item
+    # (renamed 5.3 -> 6.1), not Planning's unrelated same-numbered 5.3.
+    ("2.6", "Create PRs for Early Activities (Soil Investigation, Topography)", "tbupbu", "predecessor", "6.1", 2, "after", None),
     ("2.7", "Create PR for Design Firm/Consultant", "tbupbu", "predecessor", "4.4", 2, "after", None),
     ("2.8", "Start Activities for Geotechnical Investigation (in house or vendor)", "tbupbu", "predecessor", "3.11", 7, "after", None),
     ("2.9", "Start Activities for Topography and Site Investigation", "tbupbu", "predecessor", "1.2", 25, "after", None),
@@ -435,7 +438,7 @@ L1_ITEMS = [
     ("2.12", "Provide Confirmation on the Proposal recommendation for working schedule", "tbupbu", "predecessor", "5.3", 3, "after", None),
 
     ("2.13", "Submission of Cost Center request to Cost Control Department", "bbu", "predecessor", "1.2", 1, "after", None),
-    ("2.14", "Creating PRs for MEP consultancy items through system", "bbu", "predecessor", "5.3", 2, "after", None),
+    ("2.14", "Creating PRs for MEP consultancy items through system", "bbu", "predecessor", "6.1", 2, "after", None),
     ("2.15", "BBU input for Draft Project Execution Plan", "bbu", "predecessor", "1.2", 20, "after", None),
     ("2.16", "Provide general layout of Temporary facilities, laydown and storage", "bbupbu", "predecessor", "1.2", 7, "after", None),
     ("2.17", "Prepare/Update Subcontracting Strategy / Model", "bbu", "predecessor", "1.2", 5, "after", None),
@@ -449,7 +452,7 @@ L1_ITEMS = [
     ("2.3", "Assignment of Temporary Project Manager & Project Engineer", "tbu", "predecessor", "1.1", 5, "after", None),
     ("2.4", "Internal Kick off Meeting (to be called by Project Manager)", "tbu", "predecessor", "2.3", 5, "after", None),
     ("2.5", "Draft Master Project Execution Plan ready to be submitted", "tbu", "predecessor", "1.2", 25, "after", None),
-    ("2.6", "Create PRs for Early Activities (Soil Investigation, Topography)", "tbu", "predecessor", "5.3", 2, "after", None),
+    ("2.6", "Create PRs for Early Activities (Soil Investigation, Topography)", "tbu", "predecessor", "6.1", 2, "after", None),
     ("2.7", "Create PR for Design Firm/Consultant", "tbu", "predecessor", "4.4", 2, "after", None),
     ("2.8", "Start Activities for Geotechnical Investigation (in house or vendor)", "tbu", "predecessor", "3.11", 7, "after", None),
     ("2.9", "Start Activities for Topography and Site Investigation", "tbu", "predecessor", "1.2", 25, "after", None),
@@ -462,7 +465,7 @@ L1_ITEMS = [
     ("2.3", "Assignment of Temporary Project Manager & Project Engineer", "pbu", "predecessor", "1.1", 5, "after", None),
     ("2.4", "Internal Kick off Meeting (to be called by Project Manager)", "pbu", "predecessor", "2.3", 5, "after", None),
     ("2.5", "Draft Master Project Execution Plan ready to be submitted", "pbu", "predecessor", "1.2", 25, "after", None),
-    ("2.6", "Create PRs for Early Activities (Soil Investigation, Topography)", "pbu", "predecessor", "5.3", 2, "after", None),
+    ("2.6", "Create PRs for Early Activities (Soil Investigation, Topography)", "pbu", "predecessor", "6.1", 2, "after", None),
     ("2.7", "Create PR for Design Firm/Consultant", "pbu", "predecessor", "4.4", 2, "after", None),
     ("2.8", "Start Activities for Geotechnical Investigation (in house or vendor)", "pbu", "predecessor", "3.11", 7, "after", None),
     ("2.9", "Start Activities for Topography and Site Investigation", "pbu", "predecessor", "1.2", 25, "after", None),
@@ -476,7 +479,7 @@ L1_ITEMS = [
     ("2.3", "Assignment of Temporary Project Manager & Project Engineer", "dbu", "predecessor", "1.1", 5, "after", None),
     ("2.4", "Internal Kick off Meeting (to be called by Project Manager)", "dbu", "predecessor", "2.3", 5, "after", None),
     ("2.5", "Draft Master Project Execution Plan ready to be submitted", "dbu", "predecessor", "1.2", 25, "after", None),
-    ("2.6", "Create PRs for Early Activities (Soil Investigation, Topography)", "dbu", "predecessor", "5.3", 2, "after", None),
+    ("2.6", "Create PRs for Early Activities (Soil Investigation, Topography)", "dbu", "predecessor", "6.1", 2, "after", None),
     ("2.7", "Create PR for Design Firm/Consultant", "dbu", "predecessor", "4.4", 2, "after", None),
     ("2.8", "Start Activities for Geotechnical Investigation (in house or vendor)", "dbu", "predecessor", "3.11", 7, "after", None),
     ("2.9", "Start Activities for Topography and Site Investigation", "dbu", "predecessor", "1.2", 25, "after", None),
