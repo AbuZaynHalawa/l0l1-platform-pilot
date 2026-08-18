@@ -773,7 +773,7 @@
       row.dataset.sid = String(d.id);
       row.addEventListener("click", function () { openDelivModal(d.id); });
 
-      row.appendChild(el("div", "aqt-cell aqt-ellipsis aqt-est", d.est_no));
+      row.appendChild(el("div", "aqt-cell aqt-ellipsis aqt-est " + (d.stage || "").toLowerCase(), d.est_no));
 
       var nameCell = el("div", "aqt-cell aqt-ellipsis aqt-name",
         d.item_no + " &middot; " + d.name + '<span class="aqt-proj"> &#8211; ' + d.project_name + "</span>");
@@ -873,13 +873,14 @@
       var p = list[i];
       var tr2 = el("tr");
       var statusPill = '<span class="pill ' + (PROJECT_STATUS_CLASS[p.status] || "neutral") + '"><span class="dot"></span>' + p.status + '</span>';
+      var estClass = "est-no " + stage.toLowerCase();
       if (stage === "L0") {
-        tr2.innerHTML = '<td class="est-no">' + p.est_no + '</td><td><span class="proj-name">' + p.name + '</span></td>' +
+        tr2.innerHTML = '<td class="' + estClass + '">' + p.est_no + '</td><td><span class="proj-name">' + p.name + '</span></td>' +
           '<td>' + (p.rfx_number || "&#8213;") + '</td><td>' + joinList(p.region) + '</td><td>' + joinList(p.scope) + '</td><td>' + (p.bid_manager || "&#8213;") + '</td>' +
           '<td class="num">' + fmtDate(p.bsd) + '</td><td>' + statusPill + '</td>';
       } else {
         var mini = '<div class="mini-stepper" data-pid="' + p.id + '">&#8230;</div>';
-        tr2.innerHTML = '<td class="est-no">' + p.est_no + '</td><td><span class="proj-name">' + p.name + '</span></td>' +
+        tr2.innerHTML = '<td class="' + estClass + '">' + p.est_no + '</td><td><span class="proj-name">' + p.name + '</span></td>' +
           '<td>' + mini + '</td><td>' + (p.bid_manager || "&#8213;") + '</td><td>' + (p.project_manager || "&#8213;") + '</td><td>' + statusPill + '</td>';
       }
       tr2.addEventListener("click", function (pid) { return function () { openDetail(pid); }; }(p.id));
@@ -2540,7 +2541,7 @@
       '<div class="pc2-label">YTD Trend' + (lv.ytd ? " (vs " + lv.ytd.month + ")" : "") + "</div>" +
       perfYtd(lv) +
       '<div class="pc2-label">Yearly Trend (2026)</div>' +
-      buildTrendChartHtml([{ label: d.name, color: levelKey === "l1" ? "#1f9d5c" : "#667eea", points: lv.history }], 70);
+      buildTrendChartHtml([{ label: d.name, color: levelKey === "l1" ? "#1f9d5c" : "#e8710a", points: lv.history }], 70);
     return html;
   }
   function perfTrackedDepts() {
