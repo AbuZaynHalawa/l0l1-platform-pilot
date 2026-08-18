@@ -43,6 +43,16 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
             if focus in {e.strip().lower() for e in rules.resolve_owners(s) if e}
             or focus in {e.strip().lower() for e in rules.resolve_smes(s) if e}
         ]
+    # Item [dashboard/assigned parity]: auto-completed items (1.1-1.5,
+    # milestones auto-approved from the project's own fields) were never
+    # real tracked work -- Assigned Deliverables excludes them entirely
+    # (see list_all_deliverables), and so does every other cohort on this
+    # page (_kpi_cohort, the department loops below). The stat cards were
+    # the one place still counting them, which silently inflated Approved
+    # and On Time by however many auto-completed items existed (these
+    # always land exactly on their due date, so they all fall into On
+    # Time specifically) and made the two pages disagree on the same numbers.
+    stat_subs = [s for s in stat_subs if not s.auto_completed]
 
     # Item 143 (2nd revision): "overdue"/"not_due" are now live Deadline
     # computations, not stored statuses — see rules.deadline_status().
