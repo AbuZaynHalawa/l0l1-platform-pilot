@@ -21,26 +21,31 @@ logger = logging.getLogger(__name__)
 
 CHECK_INTERVAL_SECONDS = 3600
 ESCALATE_AFTER_DAYS = 3
-# Item [due-soon nudge]: how far ahead an Owner gets warned, each threshold
-# firing its own separate nudge as the due date gets closer.
-DUE_SOON_OFFSETS = [14, 7, 2, 1]
+# Item [deadline reminders]: negative = days *before* due (a proactive
+# nudge -- just "1 day before" per the pilot's answer), positive = days
+# *after* due (an escalating overdue reminder at 2/7/14 days late). Both
+# kinds share one offsets list and one target-date formula (target =
+# today - offset: offset=-1 -> tomorrow, offset=2 -> 2 days ago), and one
+# batching/dedup mechanism below -- they only differ in the message copy
+# (see announcements.deadline_reminders_batch).
+REMINDER_OFFSETS = [-1, 2, 7, 14]
 # Statuses where the Owner still has a real action to take -- a completed,
 # rejected-and-not-yet-reworked... no: REJECTED *is* an owner action state
 # (they need to resubmit), only PENDING_REVIEW (already submitted, waiting
 # on someone else) and the terminal/no-due-date statuses are excluded.
-_DUE_SOON_ELIGIBLE = {models.SubmissionStatus.NO_PROGRESS, models.SubmissionStatus.IN_PROGRESS,
+_REMINDER_ELIGIBLE = {models.SubmissionStatus.NO_PROGRESS, models.SubmissionStatus.IN_PROGRESS,
                       models.SubmissionStatus.REJECTED}
 
 
-def _run_due_soon_check(db: Session) -> None:
-    for offset in DUE_SOON_OFFSETS:
-        target = date.today() + timedelta(days=offset)
+def _run_deadline_reminder_check(db: Session) -> None:
+    for offset in REMINDER_OFFSETS:
+        target = date.today() - timedelta(days=offset)
         subs = (
             db.query(models.DeliverableSubmission)
             .join(models.Project)
             .filter(models.Project.status == models.ProjectStatus.IN_PROGRESS,
                     models.DeliverableSubmission.due_date == target,
-                    models.DeliverableSubmission.status.in_(_DUE_SOON_ELIGIBLE),
+                    models.DeliverableSubmission.status.in_(_REMINDER_ELIGIBLE),
                     models.DeliverableSubmission.auto_completed.isnot(True),
                     models.DeliverableSubmission.on_hold.isnot(True))
             .all()
@@ -59,13 +64,14 @@ def _run_due_soon_check(db: Session) -> None:
             for owner_email in rules.resolve_owners(s):
                 by_owner.setdefault(owner_email, []).append({
                     "est_no": s.project.est_no, "item_no": s.definition.item_no, "name": s.definition.name,
+                    "submission_id": s.id,
                 })
             already.add(offset)
             s.due_soon_reminded_for_date = s.due_date
             s.due_soon_reminded_offsets = sorted(already)
             touched = True
         for owner_email, items in by_owner.items():
-            announcements.due_soon_reminders_batch(db, owner_email, offset, items)
+            announcements.deadline_reminders_batch(db, owner_email, offset, items)
         if touched:
             db.commit()
 
@@ -96,7 +102,7 @@ def _run_escalation_check(db: Session) -> None:
 def run_daily_checks() -> None:
     db = SessionLocal()
     try:
-        _run_due_soon_check(db)
+        _run_deadline_reminder_check(db)
         _run_escalation_check(db)
     except Exception:
         logger.exception("Scheduled reminder check failed")
