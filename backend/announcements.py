@@ -62,22 +62,26 @@ def _signature_html() -> str:
 
 def _create(db: Session, *, type: models.AnnouncementType, title: str, body: str,
             recipients: list[str], project: models.Project | None = None,
-            submission_id: int | None = None, greeting: str = "Team") -> models.Announcement:
+            submission_id: int | None = None, greeting: str = "Team",
+            link_html: str | None = None) -> models.Announcement:
     """`greeting` names the role this message is actually addressed to (SME,
     Owner, Bid Manager...), not a per-recipient lookup -- a single call can
     still go to a mixed list (e.g. SME(s) + the requesting Owner together),
     so this is the primary audience the copy is written for, not a promise
     every recipient holds that exact role. Defaults to "Team" for the
     portal-wide broadcasts that have no one primary role.
+
+    `link_html` (a _deliverable_link()/_project_link() call) is email-only:
+    the in-app Announcements/Reminders row is already clickable and jumps to
+    the right place, so repeating "Open in the platform" there is dead
+    weight -- it's appended only to what actually gets mailed, same
+    reasoning as the logo/sign-off below.
     """
-    # Item [in-app vs email]: the logo/sign-off is an email-only convention
-    # (it's what makes a plain-HTML message read as coming from the
-    # platform in an inbox) -- the in-app Announcements/Reminders tabs
-    # already sit inside the branded app chrome, so repeating it there is
-    # just noise. display_body is what's stored and shown in-app; the
-    # signature is appended only to what actually gets mailed.
+    # Item [in-app vs email]: display_body is what's stored and shown
+    # in-app; the link and the logo/sign-off are appended only to what
+    # actually gets mailed.
     display_body = f'<p style="margin:0 0 14px;">Dear {greeting},</p>' + body
-    email_body = display_body + _signature_html()
+    email_body = display_body + (f"<br><br>{link_html}" if link_html else "") + _signature_html()
     status = _mail.send_mail(recipients, title, email_body) if recipients else "simulated"
     ann = models.Announcement(
         type=type, title=title, body=display_body,
@@ -101,17 +105,17 @@ def project_created(db: Session, project: models.Project, recipients: list[str])
         title = "New L0 Tender Announced"
         body = (f"{_b(project.est_no)} &#8211; {project.name}. Deliverables list and due dates attached, "
                 f"shared folder provisioned automatically.")
-    body += f"<br><br>{_project_link(project.id)}"
     return _create(db, type=models.AnnouncementType.BROADCAST, title=title, body=body,
-                    recipients=recipients, project=project, greeting="Team")
+                    recipients=recipients, project=project, greeting="Team",
+                    link_html=_project_link(project.id))
 
 
 def owner_assigned(db: Session, project: models.Project, owner_email: str, dept_name: str, count: int) -> models.Announcement:
     title = "Deliverables Assigned to You"
-    body = (f"{_b(count)} deliverable(s) on {_b(project.est_no)} are due, with due dates in your folder.<br><br>"
-            f"{_project_link(project.id, 'View your deliverables')}")
+    body = f"{_b(count)} deliverable(s) on {_b(project.est_no)} are due, with due dates in your folder."
     return _create(db, type=models.AnnouncementType.OWNER, title=title, body=body,
-                    recipients=[owner_email], project=project, greeting="Owner")
+                    recipients=[owner_email], project=project, greeting="Owner",
+                    link_html=_project_link(project.id, "View your deliverables"))
 
 
 def sme_review_requested(db: Session, project: models.Project, sme_emails: list[str], item_no: str, item_name: str,
@@ -124,11 +128,11 @@ def sme_review_requested(db: Session, project: models.Project, sme_emails: list[
     title = "Review Requested &#8211; SME Action Needed"
     body = (f"{_b(item_no)} {item_name} was submitted on {_b(project.est_no)} and is now awaiting your review. "
             f"{_hl('You have 1 day to review and submit feedback.', 'warn')}")
-    if submission_id is not None:
-        body += f"<br><br>{_deliverable_link(submission_id, 'Review it now')}"
     recipients = sorted({e for e in (list(sme_emails) + list(owner_emails or [])) if e})
+    link_html = _deliverable_link(submission_id, "Review it now") if submission_id is not None else None
     return _create(db, type=models.AnnouncementType.SME_REQUEST, title=title, body=body,
-                    recipients=recipients, project=project, submission_id=submission_id, greeting="SME")
+                    recipients=recipients, project=project, submission_id=submission_id, greeting="SME",
+                    link_html=link_html)
 
 
 def document_added(db: Session, project: models.Project, sme_emails: list[str], item_no: str, item_name: str,
@@ -139,11 +143,10 @@ def document_added(db: Session, project: models.Project, sme_emails: list[str], 
     """
     title = "Document Added &#8211; New Supporting File"
     body = f"{file_name} was added to {_b(item_no)} {item_name} on {_b(project.est_no)}."
-    if submission_id is not None:
-        body += f"<br><br>{_deliverable_link(submission_id)}"
+    link_html = _deliverable_link(submission_id) if submission_id is not None else None
     return _create(db, type=models.AnnouncementType.DOC_ADDED, title=title, body=body,
                     recipients=sorted({e for e in sme_emails if e}), project=project, submission_id=submission_id,
-                    greeting="SME")
+                    greeting="SME", link_html=link_html)
 
 
 def sme_decision(db: Session, project: models.Project, owner_emails: list[str], item_no: str, item_name: str,
@@ -162,11 +165,11 @@ def sme_decision(db: Session, project: models.Project, owner_emails: list[str], 
         note = comment or "Please review and resubmit with updated supporting documents."
         body = f"{_b(item_no)} {item_name} on {_b(project.est_no)} was {_hl('rejected', 'crit')}: &quot;{note}&quot;"
         ann_type = models.AnnouncementType.SME_DECISION
+    link_html = None
     if submission_id is not None:
-        label = "View it" if approved else "Resubmit it"
-        body += f"<br><br>{_deliverable_link(submission_id, label)}"
+        link_html = _deliverable_link(submission_id, "View it" if approved else "Resubmit it")
     return _create(db, type=ann_type, title=title, body=body, recipients=sorted({e for e in owner_emails if e}),
-                    project=project, submission_id=submission_id, greeting="Owner")
+                    project=project, submission_id=submission_id, greeting="Owner", link_html=link_html)
 
 
 def due_date_request(db: Session, project: models.Project, sme_emails: list[str], owner_emails: list[str],
@@ -182,12 +185,12 @@ def due_date_request(db: Session, project: models.Project, sme_emails: list[str]
     title = f"{label} Requested &#8211; SME Action Needed"
     body = (f"{_b(item_no)} {item_name} on {_b(project.est_no)}: {article} {_hl(label.lower(), 'warn')} was "
             f"requested &#8211; &quot;{reason}&quot;. Awaiting your decision.")
-    if submission_id is not None:
-        body += f"<br><br>{_deliverable_link(submission_id, 'Decide now')}"
+    link_html = _deliverable_link(submission_id, "Decide now") if submission_id is not None else None
     ann_type = models.AnnouncementType.EXTENSION_REQUEST if kind == "extension" else models.AnnouncementType.HOLD_REQUEST
     recipients = sorted({e for e in (list(sme_emails) + list(owner_emails)) if e})
     return _create(db, type=ann_type, title=title, body=body,
-                    recipients=recipients, project=project, submission_id=submission_id, greeting="SME")
+                    recipients=recipients, project=project, submission_id=submission_id, greeting="SME",
+                    link_html=link_html)
 
 
 def due_date_decision(db: Session, project: models.Project, owner_emails: list[str], item_no: str, item_name: str,
@@ -207,11 +210,10 @@ def due_date_decision(db: Session, project: models.Project, owner_emails: list[s
         note = comment or "No reason given."
         body = (f"{_b(item_no)} {item_name} on {_b(project.est_no)}: your {label.lower()} request was "
                 f"{_hl('rejected', 'crit')}: &quot;{note}&quot;")
-    if submission_id is not None:
-        body += f"<br><br>{_deliverable_link(submission_id)}"
+    link_html = _deliverable_link(submission_id) if submission_id is not None else None
     ann_type = models.AnnouncementType.EXTENSION_DECISION if kind == "extension" else models.AnnouncementType.HOLD_DECISION
     return _create(db, type=ann_type, title=title, body=body, recipients=sorted({e for e in owner_emails if e}),
-                    project=project, submission_id=submission_id, greeting="Owner")
+                    project=project, submission_id=submission_id, greeting="Owner", link_html=link_html)
 
 
 def due_date_request_escalated(db: Session, project: models.Project, recipients: list[str],
@@ -228,11 +230,10 @@ def due_date_request_escalated(db: Session, project: models.Project, recipients:
     title = f"Still Pending &#8211; {label} Request Needs a Decision"
     body = (f"{_b(item_no)} {item_name} on {_b(project.est_no)}: {article} {label.lower()} request has been "
             f"waiting {_hl(f'{days_pending} days', 'crit')} with no decision. Please review it.")
-    if submission_id is not None:
-        body += f"<br><br>{_deliverable_link(submission_id, 'Decide now')}"
+    link_html = _deliverable_link(submission_id, "Decide now") if submission_id is not None else None
     ann_type = models.AnnouncementType.EXTENSION_REQUEST if kind == "extension" else models.AnnouncementType.HOLD_REQUEST
     return _create(db, type=ann_type, title=title, body=body, recipients=sorted({e for e in recipients if e}),
-                    project=project, submission_id=submission_id, greeting="Team")
+                    project=project, submission_id=submission_id, greeting="Team", link_html=link_html)
 
 
 def deadline_reminders_batch(db: Session, owner_email: str, offset: int,
@@ -245,7 +246,10 @@ def deadline_reminders_batch(db: Session, owner_email: str, offset: int,
     [{"est_no", "item_no", "name", "submission_id"}, ...]. Spans potentially
     several projects, so this isn't tied to one project/submission_id the
     way a single-item announcement is -- each row links to its own
-    deliverable directly instead (item [deep links]).
+    deliverable directly instead (item [deep links]), inline in the body
+    since there's one link per item rather than one link for the whole
+    message -- these stay in-app too (not email-only via link_html) for
+    that reason.
 
     offset < 0: a proactive nudge, N days before due (only -1 in practice).
     offset > 0: an escalating overdue reminder, N days after due (2/7/14).
@@ -277,28 +281,26 @@ def cross_department_unlock(db: Session, project: models.Project, newly_active_o
     title = "Deliverable Unlocked &#8211; Predecessor Approved"
     body = (f"{_b(trigger_item)} being approved on {_b(project.est_no)} unlocks "
             f"{_b(unlocked_item_no)} {unlocked_item_name}.")
-    if submission_id is not None:
-        body += f"<br><br>{_deliverable_link(submission_id)}"
+    link_html = _deliverable_link(submission_id) if submission_id is not None else None
     return _create(db, type=models.AnnouncementType.UNLOCK, title=title, body=body,
                     recipients=sorted({e for e in newly_active_owner_emails if e}), project=project,
-                    submission_id=submission_id, greeting="Owner")
+                    submission_id=submission_id, greeting="Owner", link_html=link_html)
 
 
 def deadline_extended(db: Session, project: models.Project, recipients: list[str], old_date: str, new_date: str) -> models.Announcement:
     title = "Bid Submission Date Extended"
     body = (f"{_b(project.est_no)} &#8211; {project.name}: BSD moved from {old_date} to {_hl(new_date, 'warn')}. "
-            f"All dependent due dates recalculated automatically.<br><br>{_project_link(project.id)}")
+            f"All dependent due dates recalculated automatically.")
     return _create(db, type=models.AnnouncementType.BSD_EXTENDED, title=title, body=body,
-                    recipients=recipients, project=project)
+                    recipients=recipients, project=project, link_html=_project_link(project.id))
 
 
 def milestone_reached(db: Session, project: models.Project, recipients: list[str], code: str, name: str) -> models.Announcement:
     title = f"{code} Reached &#8211; {name}"
     body = (f"{_b(project.est_no)} &#8211; {project.name}: milestone {_hl(f'{code} ({name})', 'good')} has been "
-            f"reached. Please find the updated deliverables and due dates reflecting this on the project page."
-            f"<br><br>{_project_link(project.id)}")
+            f"reached. Please find the updated deliverables and due dates reflecting this on the project page.")
     return _create(db, type=models.AnnouncementType.MILESTONE, title=title, body=body,
-                    recipients=recipients, project=project)
+                    recipients=recipients, project=project, link_html=_project_link(project.id))
 
 
 def triage_reminder(db: Session, project: models.Project, bm_email: str, pending_count: int) -> models.Announcement:
@@ -308,10 +310,10 @@ def triage_reminder(db: Session, project: models.Project, bm_email: str, pending
     """
     title = f"Reminder &#8211; BM Triage still pending on {project.est_no}"
     body = (f"{_b(project.est_no)} &#8211; {project.name} still has "
-            f"{_hl(f'{pending_count} deliverable(s)', 'warn')} awaiting your applicable / not-required call."
-            f"<br><br>{_project_link(project.id, 'Triage them now')}")
+            f"{_hl(f'{pending_count} deliverable(s)', 'warn')} awaiting your applicable / not-required call.")
     return _create(db, type=models.AnnouncementType.DEADLINE, title=title, body=body,
-                    recipients=[bm_email], project=project, greeting="Bid Manager")
+                    recipients=[bm_email], project=project, greeting="Bid Manager",
+                    link_html=_project_link(project.id, "Triage them now"))
 
 
 def reminder_sent(db: Session, project: models.Project, owner_email: str, item_no: str, item_name: str,
@@ -323,11 +325,11 @@ def reminder_sent(db: Session, project: models.Project, owner_email: str, item_n
     else:
         due_str = due_date.isoformat() if due_date else "unspecified"
         body = f"{_b(item_no)} {item_name} on {_b(project.est_no)} is due ({_hl(due_str, 'warn')}). Please submit as soon as possible."
-    if submission_id is not None:
-        body += f"<br><br>{_deliverable_link(submission_id, 'Submit it now')}"
+    link_html = _deliverable_link(submission_id, "Submit it now") if submission_id is not None else None
     recipients = [owner_email] + [c for c in (cc or []) if c and c.lower() != owner_email.lower()]
     return _create(db, type=models.AnnouncementType.DEADLINE, title=title, body=body,
-                    recipients=recipients, project=project, submission_id=submission_id, greeting="Owner")
+                    recipients=recipients, project=project, submission_id=submission_id, greeting="Owner",
+                    link_html=link_html)
 
 
 def followers_notified(db: Session, project: models.Project, recipients: list[str],
@@ -337,19 +339,17 @@ def followers_notified(db: Session, project: models.Project, recipients: list[st
         return None
     title = f"Followed Item Update &#8211; {item_no}"
     body = f"{_b(item_no)} {item_name} on {_b(project.est_no)} was just {_b(event_label)}."
-    if submission_id is not None:
-        body += f"<br><br>{_deliverable_link(submission_id)}"
+    link_html = _deliverable_link(submission_id) if submission_id is not None else None
     return _create(db, type=models.AnnouncementType.DEADLINE, title=title, body=body,
-                    recipients=recipients, project=project, submission_id=submission_id)
+                    recipients=recipients, project=project, submission_id=submission_id, link_html=link_html)
 
 
 def project_closed(db: Session, project: models.Project, recipients: list[str]) -> models.Announcement:
     title = "Project Closed"
     reason = "Contract Signed" if project.stage == models.Stage.L1 else "Bid Submitted"
-    body = (f"{_b(project.est_no)} &#8211; {project.name} is now closed ({_hl(reason, 'good')})."
-            f"<br><br>{_project_link(project.id)}")
+    body = f"{_b(project.est_no)} &#8211; {project.name} is now closed ({_hl(reason, 'good')})."
     return _create(db, type=models.AnnouncementType.CLOSED, title=title, body=body,
-                    recipients=recipients, project=project)
+                    recipients=recipients, project=project, link_html=_project_link(project.id))
 
 
 def reassignment_requested(db: Session, project: models.Project, admin_emails: list[str],
@@ -364,11 +364,10 @@ def reassignment_requested(db: Session, project: models.Project, admin_emails: l
     reason_part = f' &#8211; &quot;{reason}&quot;' if reason else ""
     body = (f"{_b(item_no)} {item_name} on {_b(project.est_no)}: {from_email or 'the current owner'} requested "
             f"reassignment to {_b(to_email)}{reason_part}. Awaiting your decision.")
-    if submission_id is not None:
-        body += f"<br><br>{_deliverable_link(submission_id, 'Decide now')}"
+    link_html = _deliverable_link(submission_id, "Decide now") if submission_id is not None else None
     return _create(db, type=models.AnnouncementType.DEADLINE, title=title, body=body,
                     recipients=sorted({e for e in admin_emails if e}), project=project,
-                    submission_id=submission_id, greeting="Admin")
+                    submission_id=submission_id, greeting="Admin", link_html=link_html)
 
 
 def reassignment_decision(db: Session, project: models.Project, requester_emails: list[str],
@@ -380,8 +379,7 @@ def reassignment_decision(db: Session, project: models.Project, requester_emails
     else:
         title = "Reassignment Rejected"
         body = f"{_b(item_no)} {item_name} on {_b(project.est_no)}: the request to reassign to {_b(to_email)} was {_hl('rejected', 'crit')}."
-    if submission_id is not None:
-        body += f"<br><br>{_deliverable_link(submission_id)}"
+    link_html = _deliverable_link(submission_id) if submission_id is not None else None
     return _create(db, type=models.AnnouncementType.DEADLINE, title=title, body=body,
                     recipients=sorted({e for e in requester_emails if e}), project=project,
-                    submission_id=submission_id, greeting="Owner")
+                    submission_id=submission_id, greeting="Owner", link_html=link_html)

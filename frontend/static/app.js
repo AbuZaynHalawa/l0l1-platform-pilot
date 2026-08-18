@@ -1052,6 +1052,7 @@
         return;
       }
       showToast("Triage confirmed");
+      refreshNavBadges();
       openDetail(projectId);
     };
     switchView("triage");
@@ -1147,12 +1148,14 @@
 
     // L0/L1 "new" projects -- no per-viewer seen-tracking precedent exists
     // anywhere in this app for projects (unlike Announcements above), so
-    // this is a global count, same for every viewer: created in the last
-    // 3 days.
+    // this is a global count, same for every viewer: created today (local
+    // calendar day), not a rolling window -- toDateString() compares only
+    // the local Y/M/D, so this naturally resets at local midnight rather
+    // than needing an explicit timer.
     try {
       var projects = await api("/api/projects");
-      var cutoff = Date.now() - 3 * 24 * 60 * 60 * 1000;
-      var isNew = function (p) { return p.created_at && new Date(p.created_at).getTime() >= cutoff; };
+      var todayStr = new Date().toDateString();
+      var isNew = function (p) { return p.created_at && new Date(p.created_at).toDateString() === todayStr; };
       document.getElementById("l0Badge").textContent = projects.filter(function (p) { return p.stage === "L0" && isNew(p); }).length || "";
       document.getElementById("l1Badge").textContent = projects.filter(function (p) { return p.stage === "L1" && isNew(p); }).length || "";
     } catch (e) {}
@@ -3780,6 +3783,12 @@
     estSel.onchange = renderFollowUpList;
     focalSel.onchange = renderFollowUpList;
     renderFollowUpList();
+    // Item [badge auto-refresh]: every Approve/Reject above reloads this
+    // page via loadFollowUp(), so refreshing badges here (rather than at
+    // each of the 4 action call sites individually) covers all of them in
+    // one place -- the followupBadge count actually changes the moment a
+    // request is decided, not only after a manual page reload.
+    refreshNavBadges();
   }
 
   /* ================= BM TRIAGE STATUS (admin) ================= */
@@ -4048,6 +4057,7 @@
           }
           await api("/api/support/" + r.id + "/resolve?actor_role=" + CURRENT_ROLE, { method: "PATCH" });
           showToast("Marked resolved");
+          refreshNavBadges();
           opts.onReplied();
         });
         side.appendChild(resolveBtn);
