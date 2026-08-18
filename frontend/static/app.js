@@ -1194,40 +1194,63 @@
       eyebrow: "Welcome",
       title: "What L0/L1 Actually Is",
       body:
-        '<p class="tour-step-text">L0/L1 is Algihaz\'s control system for tracking every department\'s ' +
-        "deliverables through a tender (<b>L0</b>) and, once won, through project execution " +
-        "(<b>L1</b>) &#8212; who owns what, when it's due, and whether it's been reviewed and approved. " +
-        'This walkthrough covers where the system came from, how the two stages work, and ' +
-        "how to actually use this portal day to day. Nine short steps &#8212; use Next/Back or the dots below.</p>",
+        '<p class="tour-step-text">The <b>L0/L1 System</b> is Algihaz\'s control framework for managing the ' +
+        "full tender-to-early-execution lifecycle, from tender announcement at <b>L0</b>, through " +
+        "lowest-price notification, and into the early project execution stage at <b>L1</b>.</p>" +
+        '<p class="tour-step-text">Since its official launch in <b>December 2024</b>, the system has evolved ' +
+        "from a set of Excel-based tracking sheets into a structured, cross-functional framework for " +
+        "deliverable ownership, deadline control, stakeholder coordination, performance monitoring, and " +
+        "management visibility. The system is now also expanding to support international L0/L1 " +
+        "tenders.</p>" +
+        '<p class="tour-step-text">This walkthrough covers where the system came from, how the two stages ' +
+        "work, and how to actually use this portal day to day. Fifteen short steps &#8212; use Next/Back " +
+        "or the dots below.</p>",
     },
     {
       eyebrow: "The Story So Far",
-      title: "Standard L0/L1 Development",
+      title: "System Implementation Timeline",
       body:
-        '<p class="tour-step-text">Rolled out in stages over roughly a year and a half:</p>' +
-        '<ul class="tour-list">' +
-        "<li>Developed a new procedure along with a defined scheme</li>" +
-        "<li>Engaged key departments for input and collaboration</li>" +
-        "<li>Obtained management approvals</li>" +
-        "<li>Conducted introduction meetings explaining the process and objectives</li>" +
-        "<li>Received and evaluated the quality of early deliverables</li>" +
-        "<li>Tracked departments' response against the proposed timeline</li>" +
-        "<li><b>Ran a pilot</b> &#8211; NAJRAN BSP, L1 Stage</li>" +
-        "<li><b>Launched official operation</b> (Dec 2024)</li>" +
-        "</ul>",
-    },
-    {
-      eyebrow: "The Story So Far",
-      title: "Where It's Headed",
-      body:
-        '<p class="tour-step-text"><b>International L0/L1 Development</b> is running in parallel &#8212; ' +
-        "analyzing departments' willingness to adapt the new system, market analysis, service " +
-        "development, and business intelligence work, so the same control system extends beyond " +
-        "the standard rollout. Meanwhile a <b>New L1 Model</b> has been in active development " +
-        'since Sep 2025, feeding directly into what this portal runs today.</p>' +
-        '<div class="tour-callout">&#128161; This portal is a direct product of that rollout &#8212; ' +
-        "the department catalog, milestone structure and due-date rules all trace back to the " +
-        "procedure developed during Standard L0/L1 Development.</div>",
+        '<p class="tour-step-text">Rolled out in stages since <b>Aug 2024</b>, official operation launched ' +
+        "<b>Dec 2024</b>, now running <b>343 L0 tenders</b> and <b>45 L1 projects</b> through it, with " +
+        "International L0/L1 Development and a New L1 Model both already underway.</p>" +
+        '<div class="tour-timeline">' +
+        '<div class="tt-axis">' +
+        '<span style="left:0%;">Aug 24</span>' +
+        '<span style="left:18%;">Dec 24</span>' +
+        '<span style="left:40%;">May 25</span>' +
+        '<span style="left:55%;">Sep 25</span>' +
+        '<span style="left:75%;">Feb 26</span>' +
+        '<span style="left:88%;">Apr 26</span>' +
+        '<span style="left:100%;" class="today">Today</span>' +
+        "</div>" +
+        '<div class="tt-track">' +
+        '<div class="tt-callout-tag" style="left:9%;">Analyzed depts.\' willingness to adapt</div>' +
+        '<div class="tt-bar row0 orange" style="left:0%;width:18%;">Standard L0/L1 Development</div>' +
+        '<div class="tt-bar row1 grey" style="left:3%;width:13%;">Pilot &#8211; NAJRAN BSP (L1)</div>' +
+        '<div class="tt-marker" style="left:18%;"><div class="tt-dot"></div><div class="tt-lbl">Official Operation Launched</div></div>' +
+        '<div class="tt-bar row0 blue" style="left:40%;width:15%;">International L0/L1 Development</div>' +
+        '<div class="tt-bar row0 orange" style="left:75%;width:13%;">New L1 Model Development</div>' +
+        "</div>" +
+        '<div class="tt-detail-grid">' +
+        '<div class="tt-detail orange"><b>Standard L0/L1 Development</b><ul>' +
+        "<li>Recurring one-on-one meetings set up with all departments</li>" +
+        "<li>Shared workflow diagram of deliverables for departments</li>" +
+        "<li>Shared folder set up with a tree matching the deliverables</li>" +
+        "<li>Follow-up framework implemented to address delays or lack of response</li>" +
+        "</ul></div>" +
+        '<div class="tt-detail blue"><b>International L0/L1 Development</b><ul>' +
+        "<li>Initiated development of the International Projects System</li>" +
+        "<li>Prepared a new version of the L0/L1 stages for international projects</li>" +
+        "<li>Introduced a new stage &#8212; &quot;L-Pre Stage&quot;</li>" +
+        "<li>Conducted workshops with every involved department</li>" +
+        "<li>Gathering feedback and refining the final outputs</li>" +
+        "</ul></div>" +
+        "</div>" +
+        '<div class="tt-stats">' +
+        '<div class="tt-stat">343&times;<span>L0 Projects</span></div>' +
+        '<div class="tt-stat dark">45&times;<span>L1 Projects</span></div>' +
+        "</div>" +
+        "</div>",
     },
     {
       eyebrow: "How It Works · L0",
@@ -1264,6 +1287,103 @@
           ["M4", "Post-Bid", false], ["M5", "LOA", false], ["M6", "Signed", false],
         ]) +
         "</div>",
+    },
+    {
+      eyebrow: "Tracking & Scoring",
+      title: "Two Independent Status Axes",
+      body:
+        '<p class="tour-step-text">Every deliverable is tracked on <b>two separate axes</b>, not one merged ' +
+        "status. <b>Progress</b> is how far the work itself has gotten; <b>Deadline</b> is where it " +
+        "stands against its due date &#8212; a deliverable can be In Progress and also Due, or " +
+        "Completed and also Late, at the same time.</p>" +
+        '<div class="modal-section-title" style="margin:0 0 6px;">Progress</div>' +
+        pillLegendMock([
+          ["neutral", "No Progress Yet"], ["warn", "In Progress"], ["warn", "Pending SME Review"],
+          ["good", "Completed"], ["crit", "Rejected"],
+        ]) +
+        '<div class="modal-section-title">Deadline</div>' +
+        pillLegendMock([
+          ["neutral", "Not Due"], ["crit", "Due"], ["good", "On Time"], ["good", "Early"],
+          ["crit", "Late"], ["warn", "On Hold"],
+        ]) +
+        '<div class="tour-callout">&#128161; Not Required and Pending BM Triage sit outside both axes ' +
+        "entirely &#8212; there's nothing to track a deadline against until the item is even confirmed " +
+        "applicable.</div>",
+    },
+    {
+      eyebrow: "Tracking & Scoring",
+      title: "Calculation Criteria",
+      body:
+        '<p class="tour-step-text">Once a deliverable is Completed, it earns a point value based on exactly ' +
+        "how it landed against its due date &#8212; this is what feeds the Performance and Top " +
+        "Achievers rankings.</p>" +
+        '<table class="tour-table"><thead><tr><th>Timing</th><th>Points</th></tr></thead><tbody>' +
+        "<tr><td><b>Early</b></td><td>1.1 pts &#8211; a 10% bonus</td></tr>" +
+        "<tr><td><b>On Time</b></td><td>1.0 pts</td></tr>" +
+        "<tr><td><b>1&#8211;7 days late</b></td><td>0.9 pts</td></tr>" +
+        "<tr><td><b>8&#8211;14 days late</b></td><td>0.8 pts</td></tr>" +
+        "<tr><td><b>15&#8211;21 days late</b></td><td>0.7 pts</td></tr>" +
+        "<tr><td><b>22&#8211;28 days late</b></td><td>0.6 pts</td></tr>" +
+        "<tr><td><b>Not submitted in time</b></td><td>0 pts</td></tr>" +
+        "</tbody></table>" +
+        '<div class="tour-callout">&#128202; The exact point value earned shows right on the deliverable ' +
+        "once it's Completed &#8212; in its own row and inside its detail popup, not just buried in a " +
+        "report.</div>",
+    },
+    {
+      eyebrow: "Requests & Reminders",
+      title: "Extensions & Holds",
+      body:
+        '<p class="tour-step-text">An Owner who genuinely can\'t hit a due date doesn\'t have to just run ' +
+        "late &#8212; they can request an <b>Extension</b> (move the due date) or a <b>Hold</b> " +
+        "(pause lateness entirely, for missing data or a technical blocker) straight from the " +
+        "deliverable's own popup. Either request goes to the assigned SME or an Admin to " +
+        "approve or reject.</p>" +
+        '<ul class="tour-list">' +
+        "<li>An approved <b>Extension</b> moves the due date and locks it &#8212; the normal " +
+        "recompute formula won't silently overwrite it again</li>" +
+        "<li>An approved <b>Hold</b> freezes the item as <b>On Hold</b> until the Owner clicks " +
+        "<b>Resume</b>; the due date then shifts forward by exactly the time it spent paused, so " +
+        "lateness already accrued before the hold isn't erased &#8212; just paused, not forgiven</li>" +
+        "</ul>" +
+        '<div class="tour-callout">&#9203; Both requests, and their decisions, show up as a pill right on ' +
+        "the deliverable &#8212; \"Pending Extension Approval\" / \"Pending On Hold Approval\" &#8212; " +
+        "so nobody has to dig into a modal to notice one's waiting.</div>",
+    },
+    {
+      eyebrow: "Requests & Reminders",
+      title: "Automated Reminders",
+      body:
+        '<p class="tour-step-text">A nightly check runs automatically, no one has to remember to send ' +
+        "anything:</p>" +
+        '<ul class="tour-list">' +
+        "<li>Owners get a heads-up <b>1 day before</b> something's due</li>" +
+        "<li>Overdue items escalate at <b>2, 7, and 14 days late</b></li>" +
+        "<li>Several items due the same day are batched into <b>one email per Owner</b>, not one per item</li>" +
+        "<li>A pending Extension/Hold request nobody's decided on after <b>3 days</b> nudges the SME " +
+        "again, plus every Admin</li>" +
+        "</ul>" +
+        '<p class="tour-step-text">Every reminder links straight to the exact item, and lives in its own ' +
+        '<b>Reminders</b> tab &#8212; kept separate from Announcements so day-to-day news and ' +
+        "\"you need to act on this\" nudges don't get mixed together.</p>",
+    },
+    {
+      eyebrow: "Around the Portal",
+      title: "BM Triage",
+      body:
+        '<p class="tour-step-text">Not every catalog item applies to every tender. When a new L0 tender is ' +
+        "created, its <b>Bid Manager</b> gets a short list to mark <b>Applicable</b> or <b>Not " +
+        "Required</b> before real tracking starts &#8212; and has <b>24 hours</b> to do it, or the " +
+        "platform blocks further action with a reminder until it's done.</p>" +
+        '<div class="mock-window"><div class="mock-titlebar"><div class="mock-dot-3"></div>' +
+        '<div class="mock-dot-3"></div><div class="mock-dot-3"></div><span>BM Triage Status</span></div>' +
+        '<div class="mock-deliv-list" style="margin:12px;">' +
+        deliverableMock("Est-1782", "132kV Substation &#8211; Riyadh", "good", "Done") +
+        deliverableMock("Est-1801", "OHTL Corridor &#8211; Jazan", "warn", "Reminded") +
+        deliverableMock("Est-1804", "GIS Package &#8211; Dammam", "crit", "Pending") +
+        "</div></div>" +
+        '<div class="tour-callout">&#9989; Every active tender\'s triage progress shows in one place, so an ' +
+        "Admin can see at a glance who's still holding things up.</div>",
     },
     {
       eyebrow: "Around the Portal",
@@ -1314,15 +1434,46 @@
         '<p class="tour-step-text">A Gantt view across every active deliverable &#8212; pooled across all ' +
         "projects, or scoped to just one. Filter by department and status; click a bar to open " +
         "that deliverable directly. Milestones get a highlighted outline so they stand out from " +
-        "regular deliverables.</p>" +
+        "regular deliverables, and a live <b>Today</b> line shows exactly where the project stands " +
+        "right now.</p>" +
         '<div class="mock-window"><div class="mock-titlebar"><div class="mock-dot-3"></div>' +
         '<div class="mock-dot-3"></div><div class="mock-dot-3"></div><span>Timeline</span></div>' +
-        '<div class="mock-body" style="padding:10px 14px;">' +
+        '<div class="mock-body mock-gantt-wrap" style="padding:10px 14px;">' +
+        '<div class="mock-gantt-today" style="left:calc(96px + 8px + (100% - 104px) * .5);"></div>' +
         ganttRowMock("1.1 Announcement", 4, 10, "neutral", true) +
         ganttRowMock("1.7 Estimate Program", 8, 34, "crit", false) +
         ganttRowMock("2.4 Risk Register", 22, 26, "warn", false) +
+        ganttRowMock("3.5 PO Approval", 34, 20, "warn", false) +
         ganttRowMock("5.3 Project Schedule", 30, 40, "good", true) +
+        ganttRowMock("6.1 Temp. Budget", 48, 18, "neutral", false) +
         "</div></div>",
+    },
+    {
+      eyebrow: "Around the Portal · Admin",
+      title: "Follow Up",
+      body:
+        '<p class="tour-step-text">The Admin triage hub for everything that needs a nudge or a decision, in ' +
+        "one place:</p>" +
+        '<ul class="tour-list">' +
+        "<li>Pending <b>Due-Date Requests</b> (Extensions &amp; Holds) awaiting a decision</li>" +
+        "<li>Pending <b>Reassignment Requests</b> &#8212; an Owner asking to hand an item to someone else</li>" +
+        "<li>Every <b>overdue deliverable</b> across the whole portal, grouped by department, most " +
+        "overdue first, with a Critical (15+ days) severity filter</li>" +
+        "</ul>" +
+        '<div class="tour-callout">&#128276; Remind one stubborn item, or send to everyone currently shown ' +
+        "&#8212; both are one click, and each department's group stays collapsed until you open it so " +
+        "the page isn't a wall of rows.</div>",
+    },
+    {
+      eyebrow: "Around the Portal",
+      title: "Ask the Team",
+      body:
+        '<p class="tour-step-text">A question about a specific tender, project or deliverable doesn\'t have ' +
+        "to go through email or chat &#8212; raise it straight to the Admins from inside the portal, " +
+        "and track it in your own <b>My Requests</b> list.</p>" +
+        '<p class="tour-step-text">Admins see every open thread in one place under <b>Open Questions</b>, ' +
+        "reply (optionally pulling in a saved Knowledge Base answer instead of retyping the same " +
+        "explanation), and mark it resolved &#8212; you get notified the moment they do.</p>",
     },
     {
       eyebrow: "You're Ready",
@@ -1330,14 +1481,17 @@
       body:
         '<p class="tour-step-text">Quick reference for the rest of the nav:</p>' +
         '<ul class="tour-list">' +
+        "<li><b>L0 Tenders / L1 Projects / Timeline</b> &#8212; the full project lists and the pooled Gantt view</li>" +
         "<li><b>Assigned Deliverables</b> &#8212; every deliverable assigned to you, filterable by L0/L1 and status</li>" +
-        "<li><b>Announcements</b> &#8212; the full notification log, filterable by type and date</li>" +
-        "<li><b>L0 Tenders / L1 Projects</b> &#8212; the full list, each with its own Activity Trail tab</li>" +
-        "<li><b>Ask the Team</b> &#8212; a question about a tender, project or deliverable, straight to the admins</li>" +
-        "<li><b>Performance / Top Achievers</b> &#8212; on-time-rate tracking by department and by person</li>" +
+        "<li><b>Announcements</b> &#8212; general program news, filterable by type and date</li>" +
+        "<li><b>Reminders</b> &#8212; everything that needs your action: due-soon/overdue nudges, request updates</li>" +
+        "<li><b>BM Triage Status</b> &#8212; every active tender's applicable/not-required progress</li>" +
+        "<li><b>Performance</b> &#8212; on-time-rate tracking by department, feeding Top Achievers</li>" +
+        "<li><b>Q/A &#8211; Ask the Team</b> &#8212; raise a question, track your own requests</li>" +
+        "<li><i>Admin only:</i> <b>Reports, Top Achievers, Focal Points, Follow Up, Open Questions</b></li>" +
         "</ul>" +
         '<div class="tour-callout">&#127881; That\'s the full picture &#8212; close this and start ' +
-        "exploring, or scroll down for the same content laid out as a reference page.</div>",
+        "exploring. You can reopen this walkthrough anytime from the nav.</div>",
     },
   ];
 
@@ -1360,6 +1514,16 @@
       return '<div class="' + cls + '" style="flex:1;"><div class="fs-dot" style="width:26px;height:26px;font-size:9px;">' +
         (done ? "&#10003;" : code) + '</div><div class="fs-label">' + label + "</div></div>";
     }).join("");
+  }
+  // Item [walkthrough expansion]: a real-pill legend row for slides
+  // explaining a status vocabulary (Progress/Deadline) -- same .pill markup
+  // the live app renders, just laid out as a reference strip instead of on
+  // a live deliverable.
+  function pillLegendMock(items) {
+    return '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">' +
+      items.map(function (it) {
+        return '<span class="pill ' + it[0] + '"><span class="dot"></span>' + it[1] + "</span>";
+      }).join("") + "</div>";
   }
 
   var tourStep = 0;
