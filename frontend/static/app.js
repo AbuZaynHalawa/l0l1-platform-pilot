@@ -1203,7 +1203,7 @@
         "management visibility. The system is now also expanding to support international L0/L1 " +
         "tenders.</p>" +
         '<p class="tour-step-text">This walkthrough covers where the system came from, how the two stages ' +
-        "work, and how to actually use this portal day to day. Fifteen short steps &#8212; use Next/Back " +
+        "work, and how to actually use this portal day to day. Seventeen short steps &#8212; use Next/Back " +
         "or the dots below.</p>",
     },
     {
@@ -1344,6 +1344,24 @@
         "report.</div>",
     },
     {
+      eyebrow: "Tracking & Scoring",
+      title: "Performance & Top Achievers",
+      body:
+        '<p class="tour-step-text">Every Calculation Criteria point rolls up into <b>Performance</b> &#8212; ' +
+        "on-time-rate rankings by department and by person, split by L0/L1, with a trend chart of how " +
+        "each has moved over time. <b>Top Achievers</b> highlights the best-performing Owners and " +
+        "SMEs specifically.</p>" +
+        '<div class="mock-window"><div class="mock-titlebar"><div class="mock-dot-3"></div>' +
+        '<div class="mock-dot-3"></div><div class="mock-dot-3"></div><span>Performance</span></div>' +
+        rankRowMock(1, "Tendering Department", 92) +
+        rankRowMock(2, "Engineering Department", 81) +
+        rankRowMock(3, "Planning", 74) +
+        "</div>" +
+        '<div class="tour-callout">&#9881; An Admin can turn individual catalog items on or off for scoring ' +
+        "via <b>Manage Tracking</b> &#8212; not every item should count toward the same on-time-rate " +
+        "(a milestone-linked date, for instance, might not).</div>",
+    },
+    {
       eyebrow: "Requests & Reminders",
       title: "Extensions & Holds",
       body:
@@ -1382,6 +1400,23 @@
     },
     {
       eyebrow: "Around the Portal",
+      title: "Announcements",
+      body:
+        '<p class="tour-step-text">The general program news feed, not the action-oriented one covered on ' +
+        "the last slide. Every one of these is logged automatically as it happens:</p>" +
+        '<ul class="tour-list">' +
+        "<li>A new L0 tender announced, or a project entering L1</li>" +
+        "<li>A milestone reached, or the Bid Submission Date extended</li>" +
+        "<li>A document added, or a deliverable approved</li>" +
+        "<li>A cross-department unlock &#8212; a predecessor being approved just freed up someone " +
+        "else's item</li>" +
+        "</ul>" +
+        '<p class="tour-step-text">Org-wide items like these are visible to <b>everyone</b> regardless of ' +
+        "role; anything addressed to specific people (a rejection, an assignment) stays private to " +
+        "them and Admin. Filter by type or date to find something specific.</p>",
+    },
+    {
+      eyebrow: "Around the Portal",
       title: "BM Triage",
       body:
         '<p class="tour-step-text">Not every catalog item applies to every tender. When a new L0 tender is ' +
@@ -1408,9 +1443,15 @@
         '<div class="mock-window"><div class="mock-titlebar"><div class="mock-dot-3"></div>' +
         '<div class="mock-dot-3"></div><div class="mock-dot-3"></div><span>Dashboard</span></div>' +
         '<div class="mock-body">' +
+        '<div class="mock-stat-row-label">Deliverables Deadline Status</div>' +
         '<div class="mock-stat-row">' +
-        statMock("Not Due", "142") + statMock("Pending Review", "18") +
-        statMock("Due", "7") + statMock("Active Projects", "24") +
+        statMock("Not Due", "508") + statMock("Due", "36") + statMock("Early", "6") +
+        statMock("On Time", "0") + statMock("Late", "5") +
+        "</div>" +
+        '<div class="mock-stat-row-label">Deliverables Progress Status</div>' +
+        '<div class="mock-stat-row">' +
+        statMock("No Progress Yet", "285") + statMock("In Progress", "0") + statMock("Pending SME Review", "0") +
+        statMock("Completed", "11") + statMock("Rejected", "2") +
         "</div>" +
         '<div class="tour-callout">&#128072; Click any of these tiles on the real Dashboard to jump ' +
         "straight to that filtered slice of Assigned Deliverables.</div>" +
@@ -1537,6 +1578,14 @@
       items.map(function (it) {
         return '<span class="pill ' + it[0] + '"><span class="dot"></span>' + it[1] + "</span>";
       }).join("") + "</div>";
+  }
+  // Item [walkthrough expansion]: same .rank-row/.rank-bar-fill markup the
+  // real Reports/Top Achievers page renders, just fed illustrative numbers.
+  function rankRowMock(rank, name, pct) {
+    return '<div class="rank-row"><div class="rank-num">' + rank + '</div>' +
+      '<div class="rank-name">' + name + '</div>' +
+      '<div class="rank-bar-track"><div class="rank-bar-fill" style="width:' + pct + '%;"></div></div>' +
+      '<div class="rank-val">' + pct + '%</div></div>';
   }
 
   var tourStep = 0;

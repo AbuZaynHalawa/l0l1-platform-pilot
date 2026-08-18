@@ -537,7 +537,9 @@
   .mock-dot-3 { width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
   .mock-titlebar span { font-size: 10.5px; color: var(--ink-500); margin-left: 6px; font-weight: 600; }
   .mock-body { padding: 14px; background: var(--surface); }
-  .mock-stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+  .mock-stat-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+  .mock-stat-row-label { font-size: 9px; font-weight: 700; color: var(--ink-500); text-transform: uppercase; letter-spacing: .04em; margin: 0 0 6px; }
+  .mock-stat-row-label:not(:first-child) { margin-top: 4px; }
   .mock-stat { background: var(--surface-sunken); border-radius: 9px; padding: 9px 10px; }
   .mock-stat .label { font-size: 8.5px; color: var(--ink-500); text-transform: uppercase; letter-spacing: .04em; font-weight: 700; }
   .mock-stat .value { font-size: 18px; font-weight: 700; margin-top: 2px; }
@@ -555,7 +557,19 @@
   .mock-gantt-row:last-child { border-bottom: none; }
   .mock-gantt-row .mock-gantt-label { width: 96px; flex-shrink: 0; color: var(--ink-700); }
   .mock-gantt-track { flex: 1; height: 14px; background: var(--surface-sunken); border-radius: 4px; position: relative; }
+  /* Item [gantt bar colors fix]: .mock-gantt-bar never had a background
+     color for any tone -- bars were rendering fully transparent (visible
+     only as an empty grey track) since item 131 originally shipped this,
+     just unnoticed until the Today line made the empty tracks obvious by
+     comparison. .milestone gets a ring instead of a fill color change,
+     matching what the slide's own copy already claims ("a highlighted
+     outline so they stand out"). */
   .mock-gantt-bar { position: absolute; top: 1px; height: 12px; border-radius: 4px; }
+  .mock-gantt-bar.neutral { background: var(--ink-300); }
+  .mock-gantt-bar.crit { background: var(--crit); }
+  .mock-gantt-bar.warn { background: var(--warn); }
+  .mock-gantt-bar.good { background: var(--good); }
+  .mock-gantt-bar.milestone { box-shadow: 0 0 0 2px var(--purple-1); }
   .mock-gantt-wrap { position: relative; }
   .mock-gantt-today { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--crit); z-index: 1; }
   .mock-gantt-today::after {
