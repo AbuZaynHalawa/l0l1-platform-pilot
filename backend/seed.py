@@ -1338,6 +1338,57 @@ def run():
             db.commit()
             print(f"Removed old L1 '{old_name}' department entirely -- {removed_defs} definition(s), {len(sub_ids)} empty submission(s).")
 
+        # One-time cleanup (item 168 follow-up): before that fix,
+        # is_bu_applicable's lookup dict had the wrong keys (bare "TBU"
+        # instead of "Operation Units (TBU)") and silently matched nothing,
+        # so every L1 project got ALL FOUR Operation Units BU folders
+        # instantiated regardless of its own business_units -- e.g. a
+        # BBU/TBU-only project also got DBU and PBU items it was never
+        # supposed to have. The code path itself is already fixed (new
+        # projects only get their own BUs); this retroactively removes the
+        # leftover wrong-BU submissions from projects created before that
+        # fix, with the same zero-progress safety check as the TBU/PBU
+        # cleanup above.
+        _l1_op_bu_depts = {
+            "Operation Units (TBU)": "TBU", "Operation Units (PBU)": "PBU",
+            "Operation Units (DBU)": "DBU", "Operation Units (BBU)": "BBU",
+        }
+        bu_cleanup_total = 0
+        for proj in db.query(models.Project).filter_by(stage=models.Stage.L1).all():
+            bus = proj.business_units or []
+            if not bus or "TBA" in bus:
+                continue
+            wrong_subs = [
+                s for s in (
+                    db.query(models.DeliverableSubmission)
+                    .join(models.DeliverableDefinition)
+                    .join(models.Department)
+                    .filter(models.DeliverableSubmission.project_id == proj.id)
+                    .filter(models.Department.name.in_(_l1_op_bu_depts.keys()))
+                    .all()
+                )
+                if _l1_op_bu_depts[s.definition.department.name] not in bus
+            ]
+            if not wrong_subs:
+                continue
+            if any(s.status != models.SubmissionStatus.NO_PROGRESS or s.file_name for s in wrong_subs):
+                print(f"WARNING: {proj.est_no} has a wrong-BU submission with real progress -- skipped, left in place.")
+                continue
+            sub_ids = [s.id for s in wrong_subs]
+            db.query(models.WorkflowHistory).filter(models.WorkflowHistory.submission_id.in_(sub_ids)).delete(synchronize_session=False)
+            db.query(models.Document).filter(models.Document.submission_id.in_(sub_ids)).delete(synchronize_session=False)
+            db.query(models.Follower).filter(models.Follower.submission_id.in_(sub_ids)).delete(synchronize_session=False)
+            db.query(models.ReassignmentRequest).filter(models.ReassignmentRequest.submission_id.in_(sub_ids)).delete(synchronize_session=False)
+            db.query(models.DueDateRequest).filter(models.DueDateRequest.submission_id.in_(sub_ids)).delete(synchronize_session=False)
+            db.query(models.Announcement).filter(models.Announcement.submission_id.in_(sub_ids)).update(
+                {"submission_id": None}, synchronize_session=False)
+            db.query(models.DeliverableSubmission).filter(models.DeliverableSubmission.id.in_(sub_ids)).delete(synchronize_session=False)
+            db.commit()
+            bu_cleanup_total += len(sub_ids)
+            print(f"Removed {len(sub_ids)} wrong-BU submission(s) from {proj.est_no} (business_units={bus}).")
+        if bu_cleanup_total:
+            print(f"Total wrong-BU submissions removed across all L1 projects: {bu_cleanup_total}.")
+
         # Backfill: M6 (Contract Signing) already approved on some L1 project
         # before the auto-sign-on-approval logic existed, so contract_status
         # never got updated for it. Idempotent — a no-op once caught up.

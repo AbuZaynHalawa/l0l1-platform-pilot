@@ -948,11 +948,13 @@
   .gantt-axis-row.year span { font-size: 11px; font-weight: 800; color: var(--ink-700); padding: 3px 6px; }
   .gantt-axis-row.month span { font-size: 10.5px; font-weight: 700; color: var(--ink-500); padding: 2px 6px; }
   .gantt-axis-row.day span { font-size: 9.5px; font-weight: 600; color: var(--ink-300); padding: 2px 0; text-align: center; }
+  .gantt-axis-row.day span.weekend { background: var(--surface-sunken); color: var(--ink-500); border-radius: 3px; }
   .gantt-axis-row span { border-left: 1px solid var(--line); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; box-sizing: border-box; }
   .gantt-axis-row span:first-child { border-left: none; }
   .gantt-scroll { max-height: 560px; overflow: auto; position: relative; }
   .gantt-gridlines { position: absolute; top: 0; left: 418px; pointer-events: none; z-index: 5; }
   .gantt-gridline { position: absolute; top: 0; bottom: 0; width: 1px; }
+  .gantt-gridline.weekend-band { background: var(--ink-300); opacity: .12; }
   .gantt-gridline.week { background: var(--line); opacity: .6; }
   .gantt-gridline.month { background: var(--ink-300); opacity: .8; }
   .gantt-gridline.today { background: var(--crit); width: 2px; }

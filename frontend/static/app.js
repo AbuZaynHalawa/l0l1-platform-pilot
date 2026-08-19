@@ -679,6 +679,13 @@
   function deptLabel(name, number) {
     return (number ? number + ". " : "") + name;
   }
+  var _BU_ORDER = ["TBU", "PBU", "DBU", "BBU"];
+  function sortBusinessUnits(bus) {
+    return bus.slice().sort(function (a, b) {
+      var ai = _BU_ORDER.indexOf(a), bi = _BU_ORDER.indexOf(b);
+      return (ai === -1 ? _BU_ORDER.length : ai) - (bi === -1 ? _BU_ORDER.length : bi);
+    });
+  }
   function evalFromPct(pct) {
     if (pct === null) return { cls: "neutral", label: "No Data" };
     if (pct >= 95) return { cls: "good", label: "Excellent" };
@@ -2203,7 +2210,7 @@
 
     var meta = document.getElementById("dMeta");
     meta.innerHTML = "";
-    var buLabel = (p.business_units && p.business_units.length) ? p.business_units.join(" / ") : "&#8213;";
+    var buLabel = (p.business_units && p.business_units.length) ? sortBusinessUnits(p.business_units).join(" / ") : "&#8213;";
     var metaItems = p.stage === "L0"
       ? [["Bid Manager", p.bid_manager || "&#8213;", "bm"], ["RFX", p.rfx_number || "&#8213;", "rfx"], ["Region", joinList(p.region), "region"], ["Scope", joinList(p.scope), "scope"],
          ["Business Unit", buLabel, "bu"],
@@ -3196,10 +3203,14 @@
     monthRow.style.width = trackWidthPx + "px";
     axis.appendChild(monthRow);
 
-    // Day row
+    // Day row -- Friday/Saturday is this app's weekend everywhere else
+    // (rules.skip_weekend_forward etc.), so those columns get a highlight
+    // here too instead of reading identically to a working day.
     var dayRow = el("div", "gantt-axis-row day");
     for (var d = min; d < max; d += DAY) {
-      var dSeg = el("span", "", String(new Date(d).getDate()));
+      var dDate = new Date(d);
+      var isWeekend = dDate.getDay() === 5 || dDate.getDay() === 6; // Fri=5, Sat=6
+      var dSeg = el("span", isWeekend ? "weekend" : "", String(dDate.getDate()));
       dSeg.style.width = PX_PER_DAY + "px";
       dayRow.appendChild(dSeg);
     }
@@ -3210,6 +3221,18 @@
     var gridlines = el("div", "gantt-gridlines");
     gridlines.style.width = trackWidthPx + "px";
     gridlines.style.left = trackOffset + "px";
+    // Weekend bands (Friday/Saturday) -- full row height, so a weekend
+    // reads as a weekend all the way down through the bars, not just in
+    // the day-number row above.
+    for (var wd = min; wd < max; wd += DAY) {
+      var wdDate = new Date(wd);
+      if (wdDate.getDay() === 5 || wdDate.getDay() === 6) {
+        var wdBand = el("div", "gantt-gridline weekend-band");
+        wdBand.style.left = px(wd) + "px";
+        wdBand.style.width = PX_PER_DAY + "px";
+        gridlines.appendChild(wdBand);
+      }
+    }
     var monthCur = new Date(min); monthCur.setHours(0, 0, 0, 0); monthCur.setDate(1);
     monthCur = new Date(monthCur.getFullYear(), monthCur.getMonth() + 1, 1);
     while (monthCur.getTime() < max) {

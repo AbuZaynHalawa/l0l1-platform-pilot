@@ -40,6 +40,10 @@ _GANTT_WBS_CATEGORIES: dict[str, str] = {
     "4.1": "Early Activities", "2.6": "Early Activities", "2.14": "Early Activities", "3.11": "Early Activities",
     # Design Firm
     "4.3": "Design Firm", "3.9": "Design Firm", "4.4": "Design Firm", "2.7": "Design Firm",
+    # 3.10 wasn't in "Gantt chart WBS.xlsx" at all (fell into "Other" by
+    # default) -- issuing the Design Firm's own agreement/PO is clearly
+    # part of the same flow as the rest of this category.
+    "3.10": "Design Firm",
     # Long Lead Items
     "4.5": "Long Lead Items", "2.2": "Long Lead Items", "3.1": "Long Lead Items", "3.2": "Long Lead Items",
     "4.6": "Long Lead Items", "4.2": "Long Lead Items", "3.3": "Long Lead Items", "3.4": "Long Lead Items",
@@ -50,6 +54,10 @@ _GANTT_WBS_CATEGORIES: dict[str, str] = {
     "2.3": "Site Activities", "2.17": "Site Activities", "2.11": "Site Activities", "2.4": "Site Activities",
     "2.16": "Site Activities", "16.1": "Site Activities", "2.9": "Site Activities", "4.7": "Site Activities",
     "2.8": "Site Activities",
+    # 2.10 (permits) wasn't in the sheet either -- governmental/local
+    # authority permitting is site-work logistics, same theme as the rest
+    # of this category.
+    "2.10": "Site Activities",
     # Project Finance
     "10.1": "Project Finance", "9.1": "Project Finance", "9.2": "Project Finance",
     # Project Documents
@@ -59,6 +67,10 @@ _GANTT_WBS_CATEGORIES: dict[str, str] = {
     "2.5": "Project Documents", "4.8": "Project Documents", "5.1": "Project Documents",
     "5.3": "Project Documents", "2.12": "Project Documents", "5.2": "Project Documents",
     "5.4": "Project Documents", "14.1": "Project Documents",
+    # 12.2 (HSSE Staffing plan) wasn't in the sheet either -- its sibling
+    # 11.2 (Quality Staffing plan) already sits in this category, same item
+    # split across departments the same way Risk Register etc. are.
+    "12.2": "Project Documents",
     # Other Deliverables after Contract Signature
     "7.1": "Other Deliverables after Contract Signature", "15.1": "Other Deliverables after Contract Signature",
     "10.2": "Other Deliverables after Contract Signature", "9.3": "Other Deliverables after Contract Signature",
