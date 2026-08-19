@@ -969,11 +969,26 @@
     card.innerHTML = "";
     var state = {};
     var toggleButtons = []; // {id, appBtn, notBtn} — item 86's bulk action flips all of these
-    // Item 171: these two default to Not Required unless the BM explicitly
-    // flips them -- everything else still defaults to Applicable. A
-    // remembered pick (item 79) from this BM's own past triages always
-    // wins over either default.
-    var NOT_REQUIRED_BY_DEFAULT = { "5.4": true, "8.4": true };
+    // These items default to Not Required unless the BM explicitly flips
+    // them -- everything else still defaults to Applicable. A remembered
+    // pick (item 79) from this BM's own past triages always wins over
+    // either default. Item 171 originally hardcoded just 5.4/8.4; the rest
+    // come from "Default BM Triage.xlsx" (mapped from that sheet's old
+    // pre-department-split item numbering to each item's current item_no
+    // by matching description text, the same technique used for the L1
+    // Excel-formula work -- see seed.py's item 127 renumber comments for
+    // the department splits this crosses).
+    var NOT_REQUIRED_BY_DEFAULT = {
+      "1.1": true, "1.2": true, "1.3": true, "1.4": true, "1.5": true, "1.7": true,
+      "1.13": true, "1.14": true, "1.15": true, "1.18": true, "1.19": true, "1.20": true,
+      "3.4": true, "3.7": true, "3.8": true, "3.9": true,
+      "4.5": true,
+      "5.4": true, "5.5": true, "6.3": true,
+      "7.3": true, "7.4": true,
+      "8.2": true, "8.3": true, "8.4": true,
+      "10.3": true, "10.4": true,
+      "15.1": true, "15.2": true, "16.1": true,
+    };
     if (!pending.length) {
       card.appendChild(el("div", "deliv-row", '<span style="color:var(--ink-500);font-size:12.5px;">Nothing left to triage.</span>'));
     } else {
@@ -1032,10 +1047,10 @@
     var markAllBtn = document.getElementById("triageMarkAllNotRequired");
     markAllBtn.hidden = !(can("create") && pending.length);
     markAllBtn.onclick = function () {
-      if (!confirm("Mark all " + pending.length + " item(s) as Not Required?")) return;
+      if (!confirm("Mark all " + pending.length + " item(s) as Applicable?")) return;
       toggleButtons.forEach(function (t) {
-        state[t.id] = false;
-        t.notBtn.classList.add("active"); t.appBtn.classList.remove("active");
+        state[t.id] = true;
+        t.appBtn.classList.add("active"); t.notBtn.classList.remove("active");
       });
     };
     document.getElementById("triageConfirm").onclick = async function () {
@@ -1605,7 +1620,7 @@
         featureRowMock("&#128194;", "accent", "L0 Tenders / L1 Projects / Timeline", "The full project lists and the pooled Gantt view.") +
         featureRowMock("&#128203;", "accent", "Assigned Deliverables", "Every deliverable assigned to you, filterable by L0/L1 and status.") +
         featureRowMock("&#128276;", "good", "Announcements", "General program news, filterable by type and date.") +
-        featureRowMock("&#9200;", "warn", "Reminders", "Everything that needs your action: due-soon/overdue nudges, request updates.") +
+        featureRowMock("&#9203;", "warn", "Reminders", "Everything that needs your action: due-soon/overdue nudges, request updates.") +
         featureRowMock("&#9989;", "good", "BM Triage Status", "Every active tender's applicable/not-required progress.") +
         featureRowMock("&#128200;", "accent", "Performance", "On-time-rate tracking by department, feeding Top Achievers.") +
         featureRowMock("&#128172;", "accent", "Q/A &#8211; Ask the Team", "Raise a question, track your own requests.") +
@@ -1776,6 +1791,21 @@
     actionsRow.appendChild(shareBtn);
     actionsRow.appendChild(followButton({ id: d.id, following: d.following }));
 
+    // Item [closed-project bug]: this modal is a separate render path from
+    // the deliverables list row (renderDeliverables), which already hides
+    // every state-changing button once currentProjectTerminal is true --
+    // this one had no matching check at all, so an Owner could still
+    // upload against a closed project through the modal even though the
+    // list row correctly showed it as read-only. Gate on the project's own
+    // terminal flag from this deliverable's own API response (not the
+    // module-level currentProjectTerminal, which reflects whichever
+    // project openDetail last loaded and can be wrong here -- this modal
+    // is also reachable via a deep link or the Assigned Deliverables list,
+    // without openDetail ever having run for this item's own project).
+    if (d.project_terminal) {
+      actionsRow.appendChild(el("span", "locked-note", "&#128274; Project closed &#8212; read-only"));
+    } else {
+
     // Item 143 (2nd revision): Upload/Add Document stays available right up
     // until Mark Completed is clicked -- once Pending SME Review, uploads
     // close entirely until the SME confirms or sends it back (no more
@@ -1899,6 +1929,8 @@
       sendBackBtn.addEventListener("click", function () { review(d.id, false, refreshModal); });
       actionsRow.appendChild(confirmBtn); actionsRow.appendChild(sendBackBtn);
     }
+
+    } // !d.project_terminal
 
     var isOwnerOrAdmin = CURRENT_ROLE === "Admin" ||
       (actingEmail() && (d.owner_emails || []).map(function (e) { return (e || "").trim().toLowerCase(); }).indexOf(actingEmail().trim().toLowerCase()) !== -1);

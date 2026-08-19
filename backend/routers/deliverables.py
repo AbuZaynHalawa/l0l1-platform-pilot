@@ -130,6 +130,8 @@ async def upload_deliverable(submission_id: int, file: UploadFile = File(...),
     sub = db.get(models.DeliverableSubmission, submission_id)
     if not sub:
         raise HTTPException(404, "Deliverable not found")
+    if rules.is_project_terminal(sub.project):
+        raise HTTPException(400, "This project is closed — deliverables are read-only")
 
     assigned_owners = rules.resolve_owners(sub)
     if not rules.can_act(actor_role, actor_email, assigned_owners):
@@ -269,6 +271,8 @@ def mark_complete(submission_id: int, payload: schemas.MarkCompleteRequest, db: 
     sub = db.get(models.DeliverableSubmission, submission_id)
     if not sub:
         raise HTTPException(404, "Deliverable not found")
+    if rules.is_project_terminal(sub.project):
+        raise HTTPException(400, "This project is closed — deliverables are read-only")
     if sub.status in (models.SubmissionStatus.PENDING_REVIEW, models.SubmissionStatus.APPROVED):
         raise HTTPException(400, "Deliverable has already been marked complete")
 
@@ -329,6 +333,8 @@ async def review_deliverable(submission_id: int, approved: bool = Form(...), com
     sub = db.get(models.DeliverableSubmission, submission_id)
     if not sub:
         raise HTTPException(404, "Deliverable not found")
+    if rules.is_project_terminal(sub.project):
+        raise HTTPException(400, "This project is closed — deliverables are read-only")
     if sub.status != models.SubmissionStatus.PENDING_REVIEW:
         raise HTTPException(400, "Deliverable is not awaiting completion confirmation")
 
@@ -418,6 +424,8 @@ def mark_not_required(submission_id: int, actor_role: str = "Viewer", actor_emai
     sub = db.get(models.DeliverableSubmission, submission_id)
     if not sub:
         raise HTTPException(404, "Deliverable not found")
+    if rules.is_project_terminal(sub.project):
+        raise HTTPException(400, "This project is closed — deliverables are read-only")
     if sub.definition.is_milestone:
         raise HTTPException(400, "Milestones can't be marked Not Required")
     if sub.status in (
@@ -801,6 +809,7 @@ def get_deliverable_detail(submission_id: int, actor_email: str | None = None, d
         "id": sub.id, "item_no": sub.definition.item_no, "name": rules.display_name(sub.definition, sub.project),
         "department": sub.definition.department.name, "department_number": sub.definition.department.number,
         "est_no": sub.project.est_no, "project_id": sub.project_id, "project_name": sub.project.name,
+        "project_terminal": rules.is_project_terminal(sub.project),
         "due_date": sub.due_date, "status": sub.status.value,
         "deadline_status": deadline_key, "deadline_days": deadline_days, "auto_completed": sub.auto_completed,
         "on_hold": sub.on_hold, "hold_reason": sub.hold_reason,

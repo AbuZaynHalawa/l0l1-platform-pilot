@@ -85,6 +85,20 @@ L1_OPERATION_BU_DEPARTMENTS = {
 }
 
 
+def is_project_terminal(project: "models.Project") -> bool:
+    """A closed project (L0 Submitted/Cancelled, L1 Completed) is read-only
+    for every deliverable action -- upload, mark complete, review, mark not
+    required. Single source of truth for that check: the frontend list view
+    already gated on this same rule (as a duplicated JS condition), but the
+    endpoints themselves had no matching guard, so the *modal* action
+    buttons (a separate render path from the list row) rendered unchecked
+    and let an Owner upload against a closed project.
+    """
+    return (project.stage == models.Stage.L0 and project.status in
+            (models.ProjectStatus.SUBMITTED, models.ProjectStatus.CANCELLED)) or (
+            project.stage == models.Stage.L1 and project.status == models.ProjectStatus.COMPLETED)
+
+
 def can_act(actor_role: str, actor_email: str, assigned_email) -> bool:
     """Admins can always act. Otherwise the actor must be one of the specific
     people assigned (owner, or any one of possibly several SMEs) — not just
