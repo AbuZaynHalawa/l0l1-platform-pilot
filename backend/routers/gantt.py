@@ -196,7 +196,7 @@ def get_project_gantt(project_id: int, db: Session = Depends(get_db)):
             "start": start, "end": s.due_date, "status": s.status.value, "deadline_status": rules.deadline_status(s)[0],
             "is_milestone": d.is_milestone, "milestone_code": d.milestone_code, "category": _wbs_category(d),
         })
-    rows.sort(key=lambda r: (_category_sort_index(r["category"]), r["start"], rules.item_sort_key(r["item_no"])))
+    rows.sort(key=lambda r: (_category_sort_index(r["category"]), r["start"], r["end"], rules.item_sort_key(r["item_no"])))
     return rows
 
 
@@ -250,5 +250,5 @@ def get_stage_timeline(stage: str, db: Session = Depends(get_db)):
                 "start": start, "end": s.due_date, "status": s.status.value, "deadline_status": rules.deadline_status(s)[0],
                 "is_milestone": d.is_milestone, "milestone_code": d.milestone_code, "category": _wbs_category(d),
             })
-    rows.sort(key=lambda r: (_category_sort_index(r["category"]), r["start"], r["est_no"], rules.item_sort_key(r["item_no"])))
+    rows.sort(key=lambda r: (_category_sort_index(r["category"]), r["start"], r["end"], r["est_no"], rules.item_sort_key(r["item_no"])))
     return rows
