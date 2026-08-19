@@ -177,6 +177,50 @@ def is_bu_applicable(definition: models.DeliverableDefinition, project: models.P
         return "BBU" in bus
     return True
 
+
+# [PBU scope routing]: Engineering and Supply Chain each split into two
+# variants -- an original department and a "(PBU)" one -- gated by SCOPE
+# rather than business_units, and independently of each other:
+#   Engineering (PBU)  applies when scope includes any OHTL value.
+#   Procurement (PBU)  applies when scope includes any OHTL or UGC value.
+# Both a variant and its original can be active on the same project at once
+# (a mixed SS + OHTL project shows both Engineering variants, and both
+# Supply Chain variants) -- this mirrors the business-unit split above
+# (Operation Units (TBU)/(PBU)/etc. can likewise co-exist), just keyed off
+# scope instead of business_units. Shares SCOPE_OPTIONS with
+# compute_business_units above rather than a separate hardcoded list, so a
+# new scope option can't silently fall out of sync between the two.
+_ENG_PBU_TRIGGER_SCOPES = {s for s in models.SCOPE_OPTIONS if s.startswith("OHTL ")}
+_PROCUREMENT_PBU_TRIGGER_SCOPES = {s for s in models.SCOPE_OPTIONS if s.startswith(("OHTL ", "UGC "))}
+
+# department name -> ("pbu" | "not_pbu", trigger scopes for that department pair)
+_SCOPE_ROUTED_DEPARTMENTS = {
+    "Engineering Department": ("not_pbu", _ENG_PBU_TRIGGER_SCOPES),
+    "Engineering (PBU)": ("pbu", _ENG_PBU_TRIGGER_SCOPES),
+    "Supply Chain": ("not_pbu", _PROCUREMENT_PBU_TRIGGER_SCOPES),
+    "Procurement (PBU)": ("pbu", _PROCUREMENT_PBU_TRIGGER_SCOPES),
+}
+
+
+def is_scope_variant_applicable(definition: models.DeliverableDefinition, project: models.Project) -> bool:
+    """Companion to is_bu_applicable, for the Engineering/Supply Chain PBU
+    routing above. True (ungated) for every department outside that split.
+    Scope is required at project creation, so an empty scope here shouldn't
+    happen in practice -- defaults to the original (non-PBU) department
+    rather than hiding both variants, matching is_bu_applicable's own
+    "unknown shouldn't hide anything" stance.
+    """
+    routing = _SCOPE_ROUTED_DEPARTMENTS.get(definition.department.name)
+    if not routing:
+        return True
+    kind, trigger_scopes = routing
+    scope = project.scope or []
+    if not scope:
+        return kind == "not_pbu"
+    if kind == "pbu":
+        return any(s in trigger_scopes for s in scope)
+    return any(s not in trigger_scopes for s in scope)
+
 # L0: these three items' duration is 3 working days if the tender window
 # (BSD - announcement) is under 30 calendar days, else 7 — independent of
 # the PBU branch above, which (when it applies) overrides the anchor entirely.

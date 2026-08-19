@@ -101,6 +101,13 @@ DEPARTMENTS = [
     # below just points its own dept_key at these same names.
     "Tendering Department", "Operation Units", "Supply Chain", "Engineering Department",
     "Contract", "Human Resources", "IT Department",
+    # [PBU scope routing]: Engineering and Supply Chain each get a second,
+    # PBU-focal variant -- own copy of that department's items, gated by
+    # scope (OHTL for Engineering; OHTL or UGC for Supply Chain/Procurement)
+    # instead of business_units, via rules.is_scope_variant_applicable. Both
+    # a variant and its original can be active on the same project at once
+    # (mixed scope), same as the Operation Units BU split below.
+    "Procurement (PBU)", "Engineering (PBU)",
     # Items 127/141: "Financial Department" and "SHEQ Department" no longer
     # get created here -- each has been split across the shared
     # Treasury/Finance and Quality/HSSE departments below by the migration
@@ -181,8 +188,8 @@ DEPARTMENT_NUMBERS = {
     "Operation Units": 2, "BBU": 2,
     "Operation Units (TBU)": 2, "Operation Units (PBU)": 2, "Operation Units (DBU)": 2, "Operation Units (BBU)": 2,
     "TBU": 2, "PBU": 2, "DBU": 2,
-    "Supply Chain": 3,
-    "Engineering Department": 4,
+    "Supply Chain": 3, "Procurement (PBU)": 3,
+    "Engineering Department": 4, "Engineering (PBU)": 4,
     "Control Department": 5, "Planning": 5,
     "Cost Control": 6,
     "Contract": 7,
@@ -206,6 +213,9 @@ L0_DEPT = {
     "tendering": "Tendering Department", "operation": "Operation Units", "supply": "Supply Chain",
     "eng": "Engineering Department", "contract": "Contract",
     "hr": "Human Resources",
+    # [PBU scope routing]: own copy of Engineering/Supply Chain, gated by
+    # scope instead of business_units -- see rules.is_scope_variant_applicable.
+    "eng_pbu": "Engineering (PBU)", "supply_pbu": "Procurement (PBU)",
     "it": "IT Department", "risk": "Risk",
     # Items 128/129: L0 now shares the same Planning/Cost Control and
     # Fleet/FM departments L1 already uses, instead of its own combined
@@ -304,6 +314,19 @@ L0_ITEMS = [
     ("3.8", "Complete Internal Prequalification of Potential Vendors (where applicable)", "supply", None, None, 0, "after", "on_request", None),
     ("3.9", "Participate in negotiation rounds at bidding stage lead by tender team", "supply", None, None, 0, "after", "on_request", None),
 
+    # Procurement (PBU) -- own copy of Supply Chain's 3.1-3.9 (item [PBU
+    # scope routing]), applies to OHTL/UGC-scoped projects instead of the
+    # original Supply Chain department.
+    ("3.1", "Prepare Risk Register", "supply_pbu", "predecessor", "2.2", 1, "after", "date_driven", None),
+    ("3.2", "Highlight points require Pre-bid clarifications", "supply_pbu", "pre_bid", None, 3, "before", "date_driven", None),
+    ("3.3", "Provide list of approved and acknowledge suppliers", "supply_pbu", None, None, 0, "after", "library", None),
+    ("3.4", "Provide P.O.'s and Procurement Historical Data", "supply_pbu", None, None, 0, "after", "library", None),
+    ("3.5", "Review and Evaluate of Main Materials (Long lead items) and Subcontracting Strategy", "supply_pbu", "predecessor", "1.17", 2, "after", "date_driven", None),
+    ("3.6", "Prepare List of long lead items, key materials and items fall on critical path", "supply_pbu", "predecessor", "1.17", 2, "after", "date_driven", None),
+    ("3.7", "Support tendering with required logistics pricing and provide backup data", "supply_pbu", "predecessor", "1.17", 2, "after", "date_driven", None),
+    ("3.8", "Complete Internal Prequalification of Potential Vendors (where applicable)", "supply_pbu", None, None, 0, "after", "on_request", None),
+    ("3.9", "Participate in negotiation rounds at bidding stage lead by tender team", "supply_pbu", None, None, 0, "after", "on_request", None),
+
     ("4.1", "Prepare Risk Register", "eng", "predecessor", "2.2", 1, "after", "date_driven", None),
     ("4.2", "Highlight points require Pre-bid clarifications", "eng", "pre_bid", None, 3, "before", "date_driven", None),
     ("4.3", "Provide List of required Site Investigations, Studies or any Special Technical requirements", "eng", "predecessor", "1.1", 3, "after", "date_driven", None),
@@ -311,6 +334,17 @@ L0_ITEMS = [
     ("4.5", "Provide Studies of Value Engineering and Optimized design (wherever needed)", "eng", None, None, 0, "after", "on_request", None),
     ("4.6", "Review and evaluate technical offers received from Vendors", "eng", "predecessor", "1.17", 2, "after", "date_driven", None),
     ("4.7", "Support Technical Proposals with required design deliverables (if needed)", "eng", None, None, 0, "after", "on_request", None),
+
+    # Engineering (PBU) -- own copy of Engineering's 4.1-4.7 (item [PBU
+    # scope routing]), applies to OHTL-scoped projects instead of the
+    # original Engineering Department.
+    ("4.1", "Prepare Risk Register", "eng_pbu", "predecessor", "2.2", 1, "after", "date_driven", None),
+    ("4.2", "Highlight points require Pre-bid clarifications", "eng_pbu", "pre_bid", None, 3, "before", "date_driven", None),
+    ("4.3", "Provide List of required Site Investigations, Studies or any Special Technical requirements", "eng_pbu", "predecessor", "1.1", 3, "after", "date_driven", None),
+    ("4.4", "Generate Design & BOQ's for the relevant scope (detailed for OHTL)", "eng_pbu", "predecessor", "1.1", 10, "after", "date_driven", None),
+    ("4.5", "Provide Studies of Value Engineering and Optimized design (wherever needed)", "eng_pbu", None, None, 0, "after", "on_request", None),
+    ("4.6", "Review and evaluate technical offers received from Vendors", "eng_pbu", "predecessor", "1.17", 2, "after", "date_driven", None),
+    ("4.7", "Support Technical Proposals with required design deliverables (if needed)", "eng_pbu", None, None, 0, "after", "on_request", None),
 
     # Item 129: L0's old single "Control Department" splits into Planning
     # (5.1, 5.2, 5.3, 5.4, 5.5) and Cost Control (own copy of 5.1/5.2 plus
@@ -402,6 +436,9 @@ L1_DEPT = {
     "tendering": "Tendering Department",
     "supply": "Supply Chain", "eng": "Engineering Department", "planning": "Planning",
     "costctrl": "Cost Control", "contract": "Contract", "hr": "Human Resources",
+    # [PBU scope routing]: own copy of Engineering/Supply Chain, gated by
+    # scope instead of business_units -- see rules.is_scope_variant_applicable.
+    "eng_pbu": "Engineering (PBU)", "supply_pbu": "Procurement (PBU)",
     "treasury": "Treasury", "finance": "Finance", "quality": "Quality",
     "hsse": "HSSE", "risk": "Risk", "fleet": "Fleet", "fm": "FM",
     # Item 122 rework: reuse L0's own "Operation Units (X)" department rows
@@ -488,6 +525,22 @@ L1_ITEMS = [
     ("3.11", "Issue POs for Early Activities (Site Survey, Geotechnical Investigation)", "supply", "predecessor", "2.6", 8, "after", None),
     ("3.12", "Finalize prequalification of new vendors (if any)", "supply", "predecessor", "1.2", 21, "after", None),
 
+    # Procurement (PBU) -- own copy of Supply Chain's 3.1-3.12 (item [PBU
+    # scope routing]), applies to OHTL/UGC-scoped projects instead of the
+    # original Supply Chain department.
+    ("3.1", "Issue RFQ to vendors including technical SOW, contractual and commercial baselines", "supply_pbu", "predecessor", "4.5", 7, "after", None),
+    ("3.2", "Allowable time for negotiating commercial and technical terms", "supply_pbu", "predecessor", "1.3", 10, "after", None),
+    ("3.3", "Award Approval on System (Buyer -> SCM -> Cost Control -> Operation)", "supply_pbu", "predecessor", "1.6", 5, "after", None),
+    ("3.4", "Top Management approval of awarding, if required as per Authority Matrix", "supply_pbu", "predecessor", "3.3", 5, "after", None),
+    ("3.5", "PO Approval on Oracle following Award Approval", "supply_pbu", "predecessor", "3.4", 3, "after", None),
+    ("3.6", "Electronic Internal PO Signature (SCM Director and VP Technical)", "supply_pbu", "predecessor", "3.5", 2, "after", None),
+    ("3.7", "Electronic PO Signature by Vendor", "supply_pbu", "predecessor", "3.6", 2, "after", None),
+    ("3.8", "Finalize Subcontract Agreement for OHTL/UGC Projects", "supply_pbu", "predecessor", "1.6", 10, "after", None),
+    ("3.9", "Share Design Firm Technical Offers received from vendors with Engineering", "supply_pbu", "predecessor", "4.3", 5, "after", None),
+    ("3.10", "Prepare and Issue Engineering/Design Agreement/PO", "supply_pbu", "predecessor", "2.7", 8, "after", None),
+    ("3.11", "Issue POs for Early Activities (Site Survey, Geotechnical Investigation)", "supply_pbu", "predecessor", "2.6", 8, "after", None),
+    ("3.12", "Finalize prequalification of new vendors (if any)", "supply_pbu", "predecessor", "1.2", 21, "after", None),
+
     ("4.1", "Provide SC scope for Early Activities", "eng", "predecessor", "1.1", 9, "after", None),
     ("4.2", "Update the initial Design and Quantities including site layout", "eng", "predecessor", "2.9", 10, "after", None),
     ("4.3", "Provide brief SOW for Design Firm as per PTS for core project", "eng", "predecessor", "1.1", 2, "after", None),
@@ -496,6 +549,18 @@ L1_ITEMS = [
     ("4.6", "Review Vendors technical offers received from Supply Chain", "eng", "predecessor", "3.2", 5, "after", None),
     ("4.7", "Verify site layout after approach Site for Preliminary investigation", "eng", "predecessor", "2.9", 5, "after", None),
     ("4.8", "Update Engineering Risk Register including lesson learned", "eng", "predecessor", "4.2", 10, "after", None),
+
+    # Engineering (PBU) -- own copy of Engineering's 4.1-4.8 (item [PBU
+    # scope routing]), applies to OHTL-scoped projects instead of the
+    # original Engineering Department.
+    ("4.1", "Provide SC scope for Early Activities", "eng_pbu", "predecessor", "1.1", 9, "after", None),
+    ("4.2", "Update the initial Design and Quantities including site layout", "eng_pbu", "predecessor", "2.9", 10, "after", None),
+    ("4.3", "Provide brief SOW for Design Firm as per PTS for core project", "eng_pbu", "predecessor", "1.1", 2, "after", None),
+    ("4.4", "Review and evaluate Design Firm Technical Offers and Finalize selection", "eng_pbu", "predecessor", "3.9", 5, "after", None),
+    ("4.5", "Review Vendors technical offers received from Tendering & Procurement", "eng_pbu", "predecessor", "1.2", 10, "after", None),
+    ("4.6", "Review Vendors technical offers received from Supply Chain", "eng_pbu", "predecessor", "3.2", 5, "after", None),
+    ("4.7", "Verify site layout after approach Site for Preliminary investigation", "eng_pbu", "predecessor", "2.9", 5, "after", None),
+    ("4.8", "Update Engineering Risk Register including lesson learned", "eng_pbu", "predecessor", "4.2", 10, "after", None),
 
     ("5.1", "Provide Project Baseline Schedule as per Contractual Milestones", "planning", "predecessor", "1.3", 20, "after", None),
     ("5.2", "Provide Project Working Schedule (Actual Resource Loaded) with 25% reduction in overall project duration", "planning", "predecessor", "2.12", 10, "after", None),

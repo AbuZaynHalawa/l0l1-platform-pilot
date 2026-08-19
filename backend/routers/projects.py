@@ -59,7 +59,8 @@ def _instantiate_deliverables(db: Session, project: models.Project):
         .filter(models.DeliverableDefinition.stage == stage, models.DeliverableDefinition.active == True)  # noqa: E712
         .all()
     )
-    defs = [d for d in defs if rules.is_bu_applicable(d, project) and d.id not in existing_def_ids]
+    defs = [d for d in defs if rules.is_bu_applicable(d, project) and rules.is_scope_variant_applicable(d, project)
+            and d.id not in existing_def_ids]
     auto_done_fields = _L0_AUTO_DONE_FIELDS if stage == models.Stage.L0 else _L1_AUTO_DONE_FIELDS
     dept_seen = set()
     auto_done_subs = []  # (sub, definition) pairs — WorkflowHistory needs real ids, added after the commit below

@@ -586,12 +586,15 @@ def _trend(db: Session, department_id: int, stage: models.Stage, current_pct: fl
 # Item [performance history]: Yasser's real per-department Acceptable
 # thresholds -- everyone defaults to 80% unless listed here. "Supply chain
 # (SS)" and "PBU Procurement" (his original sheet's two Supply Chain
-# sub-splits, both 85%) collapse onto the app's single "Supply Chain"
-# department, which has no such split.
+# sub-splits, both 85%) used to collapse onto the app's single "Supply
+# Chain" department, which had no such split -- item [PBU scope routing]
+# gave Supply Chain a real "Procurement (PBU)" counterpart, so both get
+# their own threshold now instead of one standing in for both.
 _MIN_ACCEPTABLE = {
     "Planning": 70.0,
     "Cost Control": 70.0,
     "Supply Chain": 85.0,
+    "Procurement (PBU)": 85.0,
 }
 
 
