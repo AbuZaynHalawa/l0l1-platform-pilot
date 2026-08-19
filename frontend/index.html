@@ -118,8 +118,8 @@
       <div class="dash-row dash-stage-split">
         <div class="dash-stage-col" id="stageColL0">
           <div class="card">
-            <div class="section-title stage-title-l0">Top L0 Departments</div>
-            <div id="topDeptsL0"></div>
+            <div class="section-title stage-title-l0">Latest L0 Announcements</div>
+            <div id="digestL0List"></div>
           </div>
           <div class="card">
             <div class="section-title stage-title-l0">Newest L0 Milestones</div>
@@ -130,14 +130,14 @@
             <ul id="concernsL0List"></ul>
           </div>
           <div class="card">
-            <div class="section-title stage-title-l0">Latest L0 Announcements</div>
-            <div id="digestL0List"></div>
+            <div class="section-title stage-title-l0">Top L0 Departments</div>
+            <div id="topDeptsL0"></div>
           </div>
         </div>
         <div class="dash-stage-col" id="stageColL1">
           <div class="card">
-            <div class="section-title stage-title-l1">Top L1 Departments</div>
-            <div id="topDeptsL1"></div>
+            <div class="section-title stage-title-l1">Latest L1 Announcements</div>
+            <div id="digestL1List"></div>
           </div>
           <div class="card">
             <div class="section-title stage-title-l1">Newest L1 Milestones</div>
@@ -148,8 +148,8 @@
             <ul id="concernsL1List"></ul>
           </div>
           <div class="card">
-            <div class="section-title stage-title-l1">Latest L1 Announcements</div>
-            <div id="digestL1List"></div>
+            <div class="section-title stage-title-l1">Top L1 Departments</div>
+            <div id="topDeptsL1"></div>
           </div>
         </div>
       </div>
@@ -607,6 +607,7 @@
           <h1 class="detail-title" id="dTitle"></h1>
         </div>
         <div class="detail-head-actions">
+          <button class="btn" id="dL0LinkBtn" hidden>&#8592; View L0 Tender Folder</button>
           <button class="btn" id="dGanttBtn">View Timeline</button>
           <button class="btn primary" id="dExtendBsdBtn" hidden>Extend Deadline</button>
           <span class="pill" id="dTriagePill" hidden></span>
@@ -818,6 +819,11 @@
             <label>Business Unit <span class="req">*</span></label>
             <div class="scope-grid" id="cfBuGrid"></div>
             <span class="hint">This scope can't be auto-classified &#8212; choose the applicable unit(s), or TBA.</span>
+          </div>
+          <div class="field" style="margin-top:14px;">
+            <label>Tender Documents</label>
+            <input type="file" id="cfTenderDocs" multiple />
+            <span class="hint">Goes into the project's "0. Tender Documents" folder. Optional &#8212; you can also add these later from the project page.</span>
           </div>
         </div>
 

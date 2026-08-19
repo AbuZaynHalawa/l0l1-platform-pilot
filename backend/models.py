@@ -334,6 +334,26 @@ class Document(Base):
     submission = relationship("DeliverableSubmission")
 
 
+class TenderDocument(Base):
+    """Plain project-level file storage for the "0. Tender Documents" folder.
+    Deliberately NOT a DeliverableDefinition/Department -- no due date,
+    owner, SME, or review step, and invisible to every tracking/performance/
+    achievement calculation, all of which key off DeliverableSubmission.
+    An L1 project gets its own copies (see create_l1_project) rather than
+    referencing the L0's rows directly, so later additions on one side
+    don't silently appear on the other.
+    """
+    __tablename__ = "tender_documents"
+    id = Column(Integer, primary_key=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    file_name = Column(String, nullable=False)
+    file_ref = Column(String, nullable=False)
+    uploaded_by = Column(String, nullable=True)
+    uploaded_at = Column(DateTime, default=datetime.utcnow)
+
+    project = relationship("Project")
+
+
 class Follower(Base):
     """A person who opted in to updates on one specific deliverable submission
     (due/uploaded/approved/rejected), independent of being its owner or SME.

@@ -2133,6 +2133,13 @@
     stageBadge.textContent = p.stage + " Stage";
     stageBadge.className = "stage-badge " + (p.stage === "L0" ? "l0" : "l1");
     document.getElementById("dTitle").textContent = p.est_no.toUpperCase() + " – " + p.name;
+    var l0LinkBtn = document.getElementById("dL0LinkBtn");
+    if (p.stage === "L1" && p.l0_source_id) {
+      l0LinkBtn.hidden = false;
+      l0LinkBtn.onclick = function () { openDetail(p.l0_source_id); };
+    } else {
+      l0LinkBtn.hidden = true;
+    }
     var pill = document.getElementById("dStatusPill");
     pill.className = "pill " + (PROJECT_STATUS_CLASS[p.status] || "neutral");
     pill.innerHTML = '<span class="dot"></span>' + p.status;
@@ -2343,12 +2350,30 @@
     var deptFocal = {}, deptNumber = {};
     allDeptsMeta.forEach(function (d) { deptFocal[d.name] = d.focal_point_name; deptNumber[d.name] = d.number; });
     var allDelivs = await api("/api/projects/" + id + "/deliverables");
+    var tenderDocs = await api("/api/projects/" + id + "/tender-documents");
     var deptNames = [];
     allDelivs.forEach(function (d) { if (deptNames.indexOf(d.department) === -1) deptNames.push(d.department); });
     var folders = document.getElementById("dFolders");
     folders.innerHTML = "";
-    document.getElementById("dFolderCount").textContent = deptNames.length + " total";
+    document.getElementById("dFolderCount").textContent = (deptNames.length + 1) + " total";
     currentDeptOpen = deptNames.length ? deptNames[0] : null;
+
+    // Folder 0: plain project-level file storage, not a department -- no
+    // due date, owner, SME, or tracking of any kind, so it's built here as
+    // its own row rather than through makeFolderRow/renderDeliverables.
+    var tdRow = el("div", "folder-row");
+    tdRow.innerHTML =
+      '<div class="folder-left"><span class="folder-ic">&#128196;</span><div><div class="folder-name">0. Tender Documents</div>' +
+      '<div class="folder-focal">' + tenderDocs.length + " file" + (tenderDocs.length === 1 ? "" : "s") + '</div></div></div>' +
+      '<div class="folder-right"></div>';
+    tdRow.addEventListener("click", function () {
+      document.querySelectorAll(".folder-row").forEach(function (r) { r.classList.remove("active"); });
+      tdRow.classList.add("active");
+      currentDeptOpen = null;
+      document.getElementById("dDeliverTitle").textContent = "Tender Documents";
+      renderTenderDocs(tenderDocs, id);
+    });
+    folders.appendChild(tdRow);
 
     function makeFolderRow(deptName, isChild) {
       var deptItems = allDelivs.filter(function (d) { return d.department === deptName; });
@@ -2547,6 +2572,67 @@
   document.getElementById("checklistEditCancel").addEventListener("click", closeChecklistEditModal);
   document.getElementById("checklistEditClose").addEventListener("click", closeChecklistEditModal);
 
+  function renderTenderDocs(docs, projectId) {
+    document.getElementById("dDeliverCount").textContent = docs.length + " file" + (docs.length === 1 ? "" : "s");
+    var wrap = document.getElementById("dDeliverables");
+    wrap.innerHTML = "";
+    if (can("create")) {
+      var uploadRow = el("div", "deliv-row");
+      var fileInput = el("input"); fileInput.type = "file"; fileInput.style.display = "none";
+      var btn = el("button", "btn", "Upload Tender Document");
+      btn.addEventListener("click", function () { fileInput.click(); });
+      fileInput.addEventListener("change", async function () {
+        if (!fileInput.files[0]) return;
+        var fd = new FormData();
+        fd.append("file", fileInput.files[0]);
+        fd.append("actor_name", CURRENT_ROLE + " (pilot)");
+        fd.append("actor_role", CURRENT_ROLE);
+        fd.append("actor_email", actingEmail());
+        try {
+          await api("/api/projects/" + projectId + "/tender-documents", { method: "POST", body: fd });
+          showToast("Document uploaded");
+          openDetail(projectId);
+        } catch (err) {
+          showToast("Upload failed &#8211; " + apiErrorDetail(err), true);
+        }
+      });
+      uploadRow.appendChild(btn);
+      uploadRow.appendChild(fileInput);
+      wrap.appendChild(uploadRow);
+    }
+    if (!docs.length) {
+      wrap.appendChild(el("div", "deliv-row", '<span style="color:var(--ink-500);font-size:12.5px;">No tender documents uploaded yet.</span>'));
+      return;
+    }
+    docs.forEach(function (d) {
+      var row = el("div", "deliv-row");
+      var body = el("div", "deliv-body");
+      var link = el("a", "deliv-name", d.file_name);
+      link.href = d.file_url; link.target = "_blank"; link.rel = "noopener";
+      link.style.color = "var(--purple-1)";
+      body.appendChild(link);
+      body.appendChild(el("div", "folder-focal",
+        "Uploaded by " + (d.uploaded_by || "&#8213;") + " &middot; " + fmtDate(d.uploaded_at ? d.uploaded_at.slice(0, 10) : null)));
+      row.appendChild(body);
+      if (can("create")) {
+        var delBtn = el("button", "btn", "Remove");
+        delBtn.addEventListener("click", async function () {
+          if (!confirm('Remove "' + d.file_name + '"?')) return;
+          try {
+            await api("/api/projects/" + projectId + "/tender-documents/" + d.id +
+              "?actor_role=" + encodeURIComponent(CURRENT_ROLE) + "&actor_email=" + encodeURIComponent(actingEmail()),
+              { method: "DELETE" });
+            showToast("Document removed");
+            openDetail(projectId);
+          } catch (err) {
+            showToast("Could not remove &#8211; " + apiErrorDetail(err), true);
+          }
+        });
+        row.appendChild(delBtn);
+      }
+      wrap.appendChild(row);
+    });
+  }
   function renderDeliverables(items) {
     var wrap = document.getElementById("dDeliverables");
     wrap.innerHTML = "";
@@ -4774,6 +4860,19 @@
         var p = await api("/api/projects/l0", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         showToast(p.est_no + " created &#8211; announcement sent");
         createdL0Id = p.id;
+        var tenderDocFiles = document.getElementById("cfTenderDocs").files;
+        for (var tdi = 0; tdi < tenderDocFiles.length; tdi++) {
+          var tdFd = new FormData();
+          tdFd.append("file", tenderDocFiles[tdi]);
+          tdFd.append("actor_name", CURRENT_ROLE + " (pilot)");
+          tdFd.append("actor_role", CURRENT_ROLE);
+          tdFd.append("actor_email", actingEmail());
+          try {
+            await api("/api/projects/" + p.id + "/tender-documents", { method: "POST", body: tdFd });
+          } catch (tdErr) {
+            showToast("Project created, but \"" + tenderDocFiles[tdi].name + "\" failed to upload &#8211; add it from the project page.", true);
+          }
+        }
       } else {
         var l0Id = document.getElementById("cfL0Source").value;
         var l1Announce = document.getElementById("cfL1Announce").value;

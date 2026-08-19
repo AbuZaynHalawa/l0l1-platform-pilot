@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from .. import models, schemas, rules, announcements
@@ -142,6 +142,7 @@ def _provision_and_instantiate(db: Session, project: models.Project):
     stage = project.stage
     folder_root = f"{stage.value}/{sanitize_segment(project.est_no)} {sanitize_segment(project.name)}"
     _storage.create_folder(folder_root)
+    _storage.create_folder(f"{folder_root}/Tender Documents")
     project.onedrive_folder_path = folder_root
     _instantiate_deliverables(db, project)
 
@@ -240,9 +241,79 @@ def create_l1_project(payload: schemas.ProjectCreateL1, db: Session = Depends(ge
 
     _provision_and_instantiate(db, project)
 
+    # Folder 0: an L1 gets its own copies of the L0's tender documents (not a
+    # shared reference) so a later addition on one side doesn't silently
+    # appear on the other -- same "each stage owns its own data" model the
+    # rest of _provision_and_instantiate already follows.
+    l0_docs = db.query(models.TenderDocument).filter(models.TenderDocument.project_id == l0.id).all()
+    if l0_docs:
+        dest_folder = f"{project.onedrive_folder_path}/Tender Documents"
+        for doc in l0_docs:
+            new_ref = _storage.copy_file(doc.file_ref, dest_folder, doc.file_name)
+            db.add(models.TenderDocument(
+                project_id=project.id, file_name=doc.file_name, file_ref=new_ref,
+                uploaded_by=(f"{doc.uploaded_by} (copied from L0)" if doc.uploaded_by else "Copied from L0"),
+            ))
+        db.commit()
+
     recipients = sorted({d.focal_point_email for d in db.query(models.Department).all() if d.focal_point_email} | rules.system_group_emails(db))
     announcements.project_created(db, project, recipients)
     return project
+
+
+@router.get("/{project_id}/tender-documents")
+def list_tender_documents(project_id: int, db: Session = Depends(get_db)):
+    project = db.get(models.Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    docs = (
+        db.query(models.TenderDocument)
+        .filter(models.TenderDocument.project_id == project_id)
+        .order_by(models.TenderDocument.uploaded_at.desc())
+        .all()
+    )
+    return [
+        {"id": d.id, "file_name": d.file_name, "file_url": _storage.file_url(d.file_ref),
+         "uploaded_by": d.uploaded_by, "uploaded_at": d.uploaded_at}
+        for d in docs
+    ]
+
+
+@router.post("/{project_id}/tender-documents")
+async def upload_tender_document(
+    project_id: int, file: UploadFile = File(...),
+    actor_name: str = Form("Admin"), actor_role: str = Form("Admin"), actor_email: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    project = db.get(models.Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    if not rules.can_act(actor_role, actor_email, [project.bid_manager, project.project_manager]):
+        raise HTTPException(403, "Only the assigned Bid Manager/Project Manager or an Admin can add tender documents")
+    content = await file.read()
+    folder = f"{project.onedrive_folder_path}/Tender Documents"
+    file_ref = _storage.upload_file(folder, file.filename, content)
+    doc = models.TenderDocument(project_id=project.id, file_name=file.filename, file_ref=file_ref, uploaded_by=actor_name)
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+    return {"id": doc.id, "file_name": doc.file_name, "file_url": _storage.file_url(doc.file_ref),
+            "uploaded_by": doc.uploaded_by, "uploaded_at": doc.uploaded_at}
+
+
+@router.delete("/{project_id}/tender-documents/{doc_id}")
+def delete_tender_document(project_id: int, doc_id: int, actor_role: str = "Viewer", actor_email: str = "", db: Session = Depends(get_db)):
+    project = db.get(models.Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    doc = db.get(models.TenderDocument, doc_id)
+    if not doc or doc.project_id != project_id:
+        raise HTTPException(404, "Document not found")
+    if not rules.can_act(actor_role, actor_email, [project.bid_manager, project.project_manager]):
+        raise HTTPException(403, "Only the assigned Bid Manager/Project Manager or an Admin can remove tender documents")
+    db.delete(doc)
+    db.commit()
+    return {"status": "ok"}
 
 
 @router.delete("/{project_id}")
@@ -271,6 +342,7 @@ def delete_project(project_id: int, actor_role: str = "Viewer", db: Session = De
             {"submission_id": None}, synchronize_session=False)
     db.query(models.Announcement).filter(models.Announcement.project_id == project_id).update(
         {"project_id": None}, synchronize_session=False)
+    db.query(models.TenderDocument).filter(models.TenderDocument.project_id == project_id).delete(synchronize_session=False)
 
     db.delete(project)
     db.commit()

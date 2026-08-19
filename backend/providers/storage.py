@@ -36,6 +36,17 @@ class StorageProvider(ABC):
     def file_url(self, file_ref: str) -> str:
         """Best-effort link to view/download the file."""
 
+    @abstractmethod
+    def download_file(self, file_ref: str) -> bytes:
+        """Read a file's raw bytes back, given a ref previously returned by upload_file."""
+
+    def copy_file(self, file_ref: str, dest_folder_ref: str, filename: str) -> str:
+        """Duplicate a file into another folder. Read+reupload works for any
+        provider that implements download_file, so this needs no per-provider
+        override (used for L0 -> L1 tender document copies).
+        """
+        return self.upload_file(dest_folder_ref, filename, self.download_file(file_ref))
+
 
 class LocalStorageProvider(StorageProvider):
     """Pilot-phase stand-in: writes to a local folder inside this project.
@@ -58,6 +69,9 @@ class LocalStorageProvider(StorageProvider):
 
     def file_url(self, file_ref: str) -> str:
         return f"/local-files/{file_ref.replace(chr(92), '/')}"  # URL path needs "/" even on Windows, where file_ref carries native "\"
+
+    def download_file(self, file_ref: str) -> bytes:
+        return (LOCAL_ROOT / file_ref).read_bytes()
 
 
 class OneDriveStorageProvider(StorageProvider):
@@ -108,6 +122,13 @@ class OneDriveStorageProvider(StorageProvider):
         if r.status_code == 200:
             return r.json().get("webUrl", "")
         return ""
+
+    def download_file(self, file_ref: str) -> bytes:
+        import httpx
+        url = f"https://graph.microsoft.com/v1.0/me/drive/items/{file_ref}/content"
+        r = httpx.get(url, headers=self._headers())
+        r.raise_for_status()
+        return r.content
 
 
 def get_storage_provider() -> StorageProvider:
