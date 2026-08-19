@@ -348,6 +348,12 @@ class TenderDocument(Base):
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
     file_name = Column(String, nullable=False)
     file_ref = Column(String, nullable=False)
+    # Relative subfolder path within "0. Tender Documents" (e.g. "Drawings/Civil"),
+    # "" for a file uploaded at the root. Set from the browser's own
+    # webkitRelativePath when a whole folder is uploaded, so the folder
+    # structure the BM already organized on their machine carries straight
+    # into the platform instead of flattening into one file list.
+    folder_path = Column(String, nullable=False, default="")
     uploaded_by = Column(String, nullable=True)
     uploaded_at = Column(DateTime, default=datetime.utcnow)
 

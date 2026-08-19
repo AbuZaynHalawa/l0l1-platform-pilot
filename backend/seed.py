@@ -82,6 +82,7 @@ models.Base.metadata.create_all(bind=engine)
 # reassignment_requests index above, which predates this table's existence).
 ensure_index("due_date_requests", "ix_due_date_requests_submission_id", "submission_id")
 ensure_column("due_date_requests", "escalated_at", "TIMESTAMP")
+ensure_column("tender_documents", "folder_path", "VARCHAR")
 
 TEST_EMAIL = "test-focal@example.com"  # single placeholder until real contacts are provided
 

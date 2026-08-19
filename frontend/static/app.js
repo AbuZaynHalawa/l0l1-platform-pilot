@@ -2604,66 +2604,151 @@
   document.getElementById("checklistEditCancel").addEventListener("click", closeChecklistEditModal);
   document.getElementById("checklistEditClose").addEventListener("click", closeChecklistEditModal);
 
+  // Uploads a FileList to the given project/folder, one request per file
+  // (relative_path carries a folder pick's own structure, see
+  // upload_tender_document). Returns the count that actually succeeded.
+  async function uploadTenderDocFiles(projectId, fileList, currentPath, isFolder) {
+    var ok = 0;
+    for (var i = 0; i < fileList.length; i++) {
+      var f = fileList[i];
+      var rel = isFolder ? f.webkitRelativePath : f.name;
+      var fullRel = currentPath ? currentPath + "/" + rel : rel;
+      var fd = new FormData();
+      fd.append("file", f);
+      fd.append("relative_path", fullRel);
+      fd.append("actor_name", CURRENT_ROLE + " (pilot)");
+      fd.append("actor_role", CURRENT_ROLE);
+      fd.append("actor_email", actingEmail());
+      try {
+        await api("/api/projects/" + projectId + "/tender-documents", { method: "POST", body: fd });
+        ok++;
+      } catch (err) {
+        showToast('"' + f.name + '" failed to upload &#8211; ' + apiErrorDetail(err), true);
+      }
+    }
+    return ok;
+  }
+  // Folder 0 is a real navigable tree, not a flat list -- folder_path on
+  // each doc (e.g. "Drawings/Civil") groups documents client-side into
+  // subfolders you click into, with a breadcrumb back to the root, same
+  // interaction shape as the Departments folder list beside it.
   function renderTenderDocs(docs, projectId) {
-    document.getElementById("dDeliverCount").textContent = docs.length + " file" + (docs.length === 1 ? "" : "s");
-    var wrap = document.getElementById("dDeliverables");
-    wrap.innerHTML = "";
-    if (can("create")) {
-      var uploadRow = el("div", "deliv-row");
-      var fileInput = el("input"); fileInput.type = "file"; fileInput.style.display = "none";
-      var btn = el("button", "btn", "Upload Tender Document");
-      btn.addEventListener("click", function () { fileInput.click(); });
-      fileInput.addEventListener("change", async function () {
-        if (!fileInput.files[0]) return;
-        var fd = new FormData();
-        fd.append("file", fileInput.files[0]);
-        fd.append("actor_name", CURRENT_ROLE + " (pilot)");
-        fd.append("actor_role", CURRENT_ROLE);
-        fd.append("actor_email", actingEmail());
-        try {
-          await api("/api/projects/" + projectId + "/tender-documents", { method: "POST", body: fd });
-          showToast("Document uploaded");
-          openDetail(projectId);
-        } catch (err) {
-          showToast("Upload failed &#8211; " + apiErrorDetail(err), true);
+    var currentPath = "";
+    function refresh() {
+      api("/api/projects/" + projectId + "/tender-documents").then(function (fresh) {
+        docs = fresh;
+        draw();
+      });
+    }
+    function draw() {
+      var wrap = document.getElementById("dDeliverables");
+      wrap.innerHTML = "";
+      var prefix = currentPath ? currentPath + "/" : "";
+      var childFolders = {}, childFiles = [];
+      docs.forEach(function (d) {
+        var fp = d.folder_path || "";
+        if (fp === currentPath) {
+          childFiles.push(d);
+        } else if (fp.indexOf(prefix) === 0) {
+          var nextSeg = fp.slice(prefix.length).split("/")[0];
+          childFolders[nextSeg] = (childFolders[nextSeg] || 0) + 1;
         }
       });
-      uploadRow.appendChild(btn);
-      uploadRow.appendChild(fileInput);
-      wrap.appendChild(uploadRow);
-    }
-    if (!docs.length) {
-      wrap.appendChild(el("div", "deliv-row", '<span style="color:var(--ink-500);font-size:12.5px;">No tender documents uploaded yet.</span>'));
-      return;
-    }
-    docs.forEach(function (d) {
-      var row = el("div", "deliv-row");
-      var body = el("div", "deliv-body");
-      var link = el("a", "deliv-name", d.file_name);
-      link.href = d.file_url; link.target = "_blank"; link.rel = "noopener";
-      link.style.color = "var(--purple-1)";
-      body.appendChild(link);
-      body.appendChild(el("div", "folder-focal",
-        "Uploaded by " + (d.uploaded_by || "&#8213;") + " &middot; " + fmtDate(d.uploaded_at ? d.uploaded_at.slice(0, 10) : null)));
-      row.appendChild(body);
+      var folderNames = Object.keys(childFolders).sort();
+      document.getElementById("dDeliverCount").textContent =
+        (folderNames.length + childFiles.length) + " item" + (folderNames.length + childFiles.length === 1 ? "" : "s");
+
+      // Breadcrumb -- root + one clickable segment per path part, so you can
+      // jump back to any ancestor folder in one click, not just "up one".
+      var crumb = el("div", "deliv-row");
+      var crumbBody = el("div", "deliv-body");
+      var rootLink = el("a", "", "0. Tender Documents");
+      rootLink.href = "#"; rootLink.style.fontWeight = "700"; rootLink.style.color = currentPath ? "var(--purple-1)" : "var(--ink-900)";
+      rootLink.addEventListener("click", function (e) { e.preventDefault(); currentPath = ""; draw(); });
+      crumbBody.appendChild(rootLink);
+      var acc = "";
+      (currentPath ? currentPath.split("/") : []).forEach(function (seg, idx, arr) {
+        acc = acc ? acc + "/" + seg : seg;
+        var accPath = acc;
+        var isLast = idx === arr.length - 1;
+        crumbBody.appendChild(document.createTextNode(" / "));
+        var segLink = el("a", "", seg);
+        segLink.href = "#"; segLink.style.fontWeight = "700";
+        segLink.style.color = isLast ? "var(--ink-900)" : "var(--purple-1)";
+        segLink.addEventListener("click", function (e) { e.preventDefault(); currentPath = accPath; draw(); });
+        crumbBody.appendChild(segLink);
+      });
+      crumb.appendChild(crumbBody);
+      wrap.appendChild(crumb);
+
       if (can("create")) {
-        var delBtn = el("button", "btn", "Remove");
-        delBtn.addEventListener("click", async function () {
-          if (!confirm('Remove "' + d.file_name + '"?')) return;
-          try {
-            await api("/api/projects/" + projectId + "/tender-documents/" + d.id +
-              "?actor_role=" + encodeURIComponent(CURRENT_ROLE) + "&actor_email=" + encodeURIComponent(actingEmail()),
-              { method: "DELETE" });
-            showToast("Document removed");
-            openDetail(projectId);
-          } catch (err) {
-            showToast("Could not remove &#8211; " + apiErrorDetail(err), true);
-          }
+        var uploadRow = el("div", "deliv-row");
+        var fileInput = el("input"); fileInput.type = "file"; fileInput.multiple = true; fileInput.style.display = "none";
+        var folderInput = el("input"); folderInput.type = "file"; folderInput.webkitdirectory = true; folderInput.multiple = true; folderInput.style.display = "none";
+        var filesBtn = el("button", "btn", "Upload Files");
+        filesBtn.addEventListener("click", function () { fileInput.click(); });
+        var folderBtn = el("button", "btn", "Upload Folder");
+        folderBtn.addEventListener("click", function () { folderInput.click(); });
+        fileInput.addEventListener("change", async function () {
+          if (!fileInput.files.length) return;
+          var ok = await uploadTenderDocFiles(projectId, fileInput.files, currentPath, false);
+          if (ok) showToast(ok + " file" + (ok === 1 ? "" : "s") + " uploaded");
+          refresh();
         });
-        row.appendChild(delBtn);
+        folderInput.addEventListener("change", async function () {
+          if (!folderInput.files.length) return;
+          var ok = await uploadTenderDocFiles(projectId, folderInput.files, currentPath, true);
+          if (ok) showToast(ok + " file" + (ok === 1 ? "" : "s") + " uploaded");
+          refresh();
+        });
+        uploadRow.appendChild(filesBtn); uploadRow.appendChild(folderBtn);
+        uploadRow.appendChild(fileInput); uploadRow.appendChild(folderInput);
+        wrap.appendChild(uploadRow);
       }
-      wrap.appendChild(row);
-    });
+
+      if (!folderNames.length && !childFiles.length) {
+        wrap.appendChild(el("div", "deliv-row", '<span style="color:var(--ink-500);font-size:12.5px;">No tender documents here yet.</span>'));
+        return;
+      }
+      folderNames.forEach(function (name) {
+        var count = childFolders[name];
+        var row = el("div", "folder-row");
+        row.innerHTML =
+          '<div class="folder-left"><span class="folder-ic">&#128193;</span><div><div class="folder-name">' + name + '</div>' +
+          '<div class="folder-focal">' + count + " file" + (count === 1 ? "" : "s") + '</div></div></div><div class="folder-right"></div>';
+        row.addEventListener("click", function () { currentPath = currentPath ? currentPath + "/" + name : name; draw(); });
+        wrap.appendChild(row);
+      });
+      childFiles.forEach(function (d) {
+        var row = el("div", "deliv-row");
+        var body = el("div", "deliv-body");
+        var link = el("a", "deliv-name", d.file_name);
+        link.href = d.file_url; link.target = "_blank"; link.rel = "noopener";
+        link.style.color = "var(--purple-1)";
+        body.appendChild(link);
+        body.appendChild(el("div", "folder-focal",
+          "Uploaded by " + (d.uploaded_by || "&#8213;") + " &middot; " + fmtDate(d.uploaded_at ? d.uploaded_at.slice(0, 10) : null)));
+        row.appendChild(body);
+        if (can("create")) {
+          var delBtn = el("button", "btn", "Remove");
+          delBtn.addEventListener("click", async function () {
+            if (!confirm('Remove "' + d.file_name + '"?')) return;
+            try {
+              await api("/api/projects/" + projectId + "/tender-documents/" + d.id +
+                "?actor_role=" + encodeURIComponent(CURRENT_ROLE) + "&actor_email=" + encodeURIComponent(actingEmail()),
+                { method: "DELETE" });
+              showToast("Document removed");
+              refresh();
+            } catch (err) {
+              showToast("Could not remove &#8211; " + apiErrorDetail(err), true);
+            }
+          });
+          row.appendChild(delBtn);
+        }
+        wrap.appendChild(row);
+      });
+    }
+    draw();
   }
   function renderDeliverables(items) {
     var wrap = document.getElementById("dDeliverables");
@@ -4892,19 +4977,8 @@
         var p = await api("/api/projects/l0", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         showToast(p.est_no + " created &#8211; announcement sent");
         createdL0Id = p.id;
-        var tenderDocFiles = document.getElementById("cfTenderDocs").files;
-        for (var tdi = 0; tdi < tenderDocFiles.length; tdi++) {
-          var tdFd = new FormData();
-          tdFd.append("file", tenderDocFiles[tdi]);
-          tdFd.append("actor_name", CURRENT_ROLE + " (pilot)");
-          tdFd.append("actor_role", CURRENT_ROLE);
-          tdFd.append("actor_email", actingEmail());
-          try {
-            await api("/api/projects/" + p.id + "/tender-documents", { method: "POST", body: tdFd });
-          } catch (tdErr) {
-            showToast("Project created, but \"" + tenderDocFiles[tdi].name + "\" failed to upload &#8211; add it from the project page.", true);
-          }
-        }
+        await uploadTenderDocFiles(p.id, document.getElementById("cfTenderDocs").files, "", false);
+        await uploadTenderDocFiles(p.id, document.getElementById("cfTenderDocsFolder").files, "", true);
       } else {
         var l0Id = document.getElementById("cfL0Source").value;
         var l1Announce = document.getElementById("cfL1Announce").value;

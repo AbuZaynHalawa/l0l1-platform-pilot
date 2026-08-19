@@ -247,11 +247,12 @@ def create_l1_project(payload: schemas.ProjectCreateL1, db: Session = Depends(ge
     # rest of _provision_and_instantiate already follows.
     l0_docs = db.query(models.TenderDocument).filter(models.TenderDocument.project_id == l0.id).all()
     if l0_docs:
-        dest_folder = f"{project.onedrive_folder_path}/Tender Documents"
+        base_folder = f"{project.onedrive_folder_path}/Tender Documents"
         for doc in l0_docs:
+            dest_folder = f"{base_folder}/{doc.folder_path}" if doc.folder_path else base_folder
             new_ref = _storage.copy_file(doc.file_ref, dest_folder, doc.file_name)
             db.add(models.TenderDocument(
-                project_id=project.id, file_name=doc.file_name, file_ref=new_ref,
+                project_id=project.id, file_name=doc.file_name, file_ref=new_ref, folder_path=doc.folder_path or "",
                 uploaded_by=(f"{doc.uploaded_by} (copied from L0)" if doc.uploaded_by else "Copied from L0"),
             ))
         db.commit()
@@ -274,7 +275,7 @@ def list_tender_documents(project_id: int, db: Session = Depends(get_db)):
     )
     return [
         {"id": d.id, "file_name": d.file_name, "file_url": _storage.file_url(d.file_ref),
-         "uploaded_by": d.uploaded_by, "uploaded_at": d.uploaded_at}
+         "folder_path": d.folder_path or "", "uploaded_by": d.uploaded_by, "uploaded_at": d.uploaded_at}
         for d in docs
     ]
 
@@ -282,6 +283,11 @@ def list_tender_documents(project_id: int, db: Session = Depends(get_db)):
 @router.post("/{project_id}/tender-documents")
 async def upload_tender_document(
     project_id: int, file: UploadFile = File(...),
+    # Folder uploads (browser sends each file's webkitRelativePath, e.g.
+    # "Drawings/Civil/dwg1.pdf") set relative_path so the picked folder's
+    # own structure carries into the platform instead of flattening; a
+    # plain file upload leaves this blank and the file lands at the root.
+    relative_path: str = Form(""),
     actor_name: str = Form("Admin"), actor_role: str = Form("Admin"), actor_email: str = Form(""),
     db: Session = Depends(get_db),
 ):
@@ -291,14 +297,20 @@ async def upload_tender_document(
     if not rules.can_act(actor_role, actor_email, [project.bid_manager, project.project_manager]):
         raise HTTPException(403, "Only the assigned Bid Manager/Project Manager or an Admin can add tender documents")
     content = await file.read()
-    folder = f"{project.onedrive_folder_path}/Tender Documents"
-    file_ref = _storage.upload_file(folder, file.filename, content)
-    doc = models.TenderDocument(project_id=project.id, file_name=file.filename, file_ref=file_ref, uploaded_by=actor_name)
+    rel_parts = [sanitize_segment(p) for p in (relative_path or "").split("/") if p.strip()]
+    folder_path = "/".join(rel_parts[:-1]) if len(rel_parts) > 1 else ""
+    file_name = rel_parts[-1] if rel_parts else file.filename
+    base_folder = f"{project.onedrive_folder_path}/Tender Documents"
+    folder = f"{base_folder}/{folder_path}" if folder_path else base_folder
+    file_ref = _storage.upload_file(folder, file_name, content)
+    doc = models.TenderDocument(
+        project_id=project.id, file_name=file_name, file_ref=file_ref, folder_path=folder_path, uploaded_by=actor_name,
+    )
     db.add(doc)
     db.commit()
     db.refresh(doc)
     return {"id": doc.id, "file_name": doc.file_name, "file_url": _storage.file_url(doc.file_ref),
-            "uploaded_by": doc.uploaded_by, "uploaded_at": doc.uploaded_at}
+            "folder_path": doc.folder_path or "", "uploaded_by": doc.uploaded_by, "uploaded_at": doc.uploaded_at}
 
 
 @router.delete("/{project_id}/tender-documents/{doc_id}")
