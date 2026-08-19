@@ -269,6 +269,28 @@ def _threshold_duration(window: int | None) -> int:
     return 3 if (window is not None and window < 30) else 7
 
 
+# [tight-BSD duration ratio]: some L0 tenders come with a tight BSD (e.g. 20
+# calendar days) where the standard item durations genuinely don't fit
+# between announcement and BSD. _apply_duration_ratio (below, called from
+# recompute_project_due_dates) searches these ratios from 100% down to the
+# 50% floor, in 5% steps, for the largest one where every predecessor-
+# chained item's due date still lands on or before BSD -- trial and error,
+# not a closed-form calculation, since the chains are too interdependent to
+# solve for directly.
+_DURATION_RATIO_STEPS = [1.00, 0.95, 0.90, 0.85, 0.80, 0.75, 0.70, 0.65, 0.60, 0.55, 0.50]
+
+
+def _scaled_duration(project: "models.Project", offset: int) -> int:
+    """Applies the project's current duration_ratio to a workday offset,
+    floored at 1 -- a ratio can shrink a 10-day item down to 1 day, never to
+    0 or negative. 1.0 (the default/no-compression case) is a no-op.
+    """
+    ratio = getattr(project, "duration_ratio", None) or 1.0
+    if ratio >= 1.0:
+        return offset
+    return max(1, round(offset * ratio))
+
+
 _BBU_COORD_SUFFIX_RE = re.compile(r"\s*-?\s*\(in coordination with BBU\)\s*$")
 
 
@@ -626,7 +648,7 @@ def compute_due_date(db: Session, definition: models.DeliverableDefinition, proj
             if project.announcement_date is None:
                 return None
             start = next_workday_after(project.announcement_date)
-            return duration_end(start, 3)  # the 3rd working day after announcement
+            return duration_end(start, _scaled_duration(project, 3))  # the 3rd working day after announcement
 
         anchor = _resolve_predecessor_anchor(db, project, pred_item_no, definition.department_id, lookup)
         if anchor is None:
@@ -641,16 +663,19 @@ def compute_due_date(db: Session, definition: models.DeliverableDefinition, proj
         if definition.offset_direction == "before":
             # Counting backward from a downstream deadline (e.g. BSD-anchored
             # item 1.20), not waiting on this predecessor to finish — no
-            # next-workday shift here.
+            # next-workday shift here. Not a "how long this takes" duration,
+            # so the tight-BSD ratio below doesn't apply here either.
             result = anchor - timedelta(days=offset)
             return _skip_weekend_backward(result)
         else:
             # Genuine dependency: work starts the day after the predecessor
             # is due, then runs `offset` working days — offset counts the
             # start day itself as day 1 (a 1-day item starts and ends the
-            # same day), not an additive calendar offset.
+            # same day), not an additive calendar offset. [tight-BSD duration
+            # ratio]: on a tight-BSD L0 project this offset gets scaled down
+            # first (floored at 1 workday) -- see Project.duration_ratio.
             start = next_workday_after(anchor)
-            return duration_end(start, offset)
+            return duration_end(start, _scaled_duration(project, offset) if is_l0 else offset)
 
     # "client_dependent" and library/on_request (anchor_type is None) both have no computable date.
     return None
@@ -731,6 +756,84 @@ def deadline_bucket(submission: "models.DeliverableSubmission") -> str:
     return "due" if key == "due" else "not_due"
 
 
+def _run_due_date_pass(db: Session, project: models.Project, subs: list, lookup: dict[str, list]) -> None:
+    """One full stabilization pass over every submission in `subs`, mutating
+    due_date/status in place until nothing changes (or 6 passes, whichever
+    first — chains in the real templates are shallow, that's always enough).
+    The shared engine both recompute_project_due_dates and the duration-
+    ratio search below run, so the two can never drift out of sync with
+    each other.
+    """
+    for _pass in range(6):
+        changed = False
+        for s in subs:
+            # Once approved, a submission's due_date is frozen — this matters most for
+            # "client_dependent" items (Contract Signing, LOA, etc.): approving one
+            # freezes its due_date to the real approval date, so downstream
+            # predecessor-chained items get a real anchor instead of staying
+            # unresolvable forever. Recomputing it would wipe that back to None.
+            if s.status == models.SubmissionStatus.APPROVED:
+                continue
+            # Item [due-date requests]: on_hold freezes due_date entirely
+            # (resumed later with an explicit forward shift, see the
+            # /resume endpoint); due_date_locked marks a due_date that's
+            # been manually set (an approved extension, or a just-resumed
+            # hold) and must not be overwritten by the anchor formula below.
+            if s.on_hold or s.due_date_locked:
+                continue
+            if s.applicability == "not_required":
+                if s.due_date is not None or s.status != models.SubmissionStatus.NOT_REQUIRED:
+                    s.due_date = None
+                    s.status = models.SubmissionStatus.NOT_REQUIRED
+                    changed = True
+                continue
+            if s.applicability == "pending":
+                if s.due_date is not None or s.status != models.SubmissionStatus.PENDING_TRIAGE:
+                    s.due_date = None
+                    s.status = models.SubmissionStatus.PENDING_TRIAGE
+                    changed = True
+                continue
+            new_due = compute_due_date(db, s.definition, project, lookup)
+            if new_due != s.due_date:
+                s.due_date = new_due
+                changed = True
+            refresh_status(s)
+        if not changed:
+            break
+
+
+def _apply_duration_ratio(db: Session, project: models.Project, subs: list, lookup: dict[str, list]) -> None:
+    """[tight-BSD duration ratio], L0 only. Tries _DURATION_RATIO_STEPS from
+    100% down to the 50% floor, running a full _run_due_date_pass at each
+    candidate (compute_due_date reads project.duration_ratio live via
+    _scaled_duration, so mutating it here and re-running the pass is enough
+    to try a new ratio) until every submission's resulting due_date fits on
+    or before BSD. Stops at the first (largest) ratio that fits -- due_date
+    on `subs` reflects that winning ratio's pass when this returns, so the
+    caller doesn't need to run its own pass afterward.
+
+    No-ops to the standard 1.0 ratio (and clears the insufficient flag) when
+    BSD or announcement_date isn't set yet -- nothing to search against.
+    """
+    if project.bsd is None or project.announcement_date is None:
+        project.duration_ratio = 1.0
+        project.duration_ratio_insufficient = False
+        _run_due_date_pass(db, project, subs, lookup)
+        return
+
+    for ratio in _DURATION_RATIO_STEPS:
+        project.duration_ratio = ratio
+        _run_due_date_pass(db, project, subs, lookup)
+        max_due = max((s.due_date for s in subs if s.due_date), default=None)
+        if max_due is None or max_due <= project.bsd:
+            project.duration_ratio_insufficient = False
+            return
+    # Every ratio tried, including the 50% floor, still overshoots BSD --
+    # left applied anyway (best effort) per the "always flag when tight
+    # durations are used" decision; the flag is what makes that visible.
+    project.duration_ratio_insufficient = True
+
+
 def recompute_project_due_dates(db: Session, project: models.Project, force: bool = False) -> None:
     """Recomputes every submission's due date for a project, in an order that
     lets predecessor chains resolve (announcement/bsd roots first, then
@@ -770,42 +873,12 @@ def recompute_project_due_dates(db: Session, project: models.Project, force: boo
     for s in subs:
         lookup.setdefault(s.definition.item_no, []).append(s)
 
-    for _pass in range(6):
-        changed = False
-        for s in subs:
-            # Once approved, a submission's due_date is frozen — this matters most for
-            # "client_dependent" items (Contract Signing, LOA, etc.): approving one
-            # freezes its due_date to the real approval date, so downstream
-            # predecessor-chained items get a real anchor instead of staying
-            # unresolvable forever. Recomputing it would wipe that back to None.
-            if s.status == models.SubmissionStatus.APPROVED:
-                continue
-            # Item [due-date requests]: on_hold freezes due_date entirely
-            # (resumed later with an explicit forward shift, see the
-            # /resume endpoint); due_date_locked marks a due_date that's
-            # been manually set (an approved extension, or a just-resumed
-            # hold) and must not be overwritten by the anchor formula below.
-            if s.on_hold or s.due_date_locked:
-                continue
-            if s.applicability == "not_required":
-                if s.due_date is not None or s.status != models.SubmissionStatus.NOT_REQUIRED:
-                    s.due_date = None
-                    s.status = models.SubmissionStatus.NOT_REQUIRED
-                    changed = True
-                continue
-            if s.applicability == "pending":
-                if s.due_date is not None or s.status != models.SubmissionStatus.PENDING_TRIAGE:
-                    s.due_date = None
-                    s.status = models.SubmissionStatus.PENDING_TRIAGE
-                    changed = True
-                continue
-            new_due = compute_due_date(db, s.definition, project, lookup)
-            if new_due != s.due_date:
-                s.due_date = new_due
-                changed = True
-            refresh_status(s)
-        if not changed:
-            break
+    if project.stage == models.Stage.L0:
+        _apply_duration_ratio(db, project, subs, lookup)
+    else:
+        project.duration_ratio = 1.0
+        project.duration_ratio_insufficient = False
+        _run_due_date_pass(db, project, subs, lookup)
 
     project.due_dates_computed_on = today
 

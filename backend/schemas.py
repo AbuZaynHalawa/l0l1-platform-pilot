@@ -82,6 +82,8 @@ class ProjectOut(BaseModel):
     l0_source_id: int | None
     pending_triage_count: int = 0
     created_at: datetime | None = None  # item [nav badges]: L0/L1 "new project" counts read this
+    duration_ratio: float | None = 1.0  # [tight-BSD duration ratio], L0 only -- 1.0 = standard, no compression
+    duration_ratio_insufficient: bool | None = False  # True if even the 50% floor still overshoots BSD
 
     class Config:
         from_attributes = True

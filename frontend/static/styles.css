@@ -405,6 +405,11 @@
      via the extra attribute selector) fixes it properly. */
   .terminal-banner.triage-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .terminal-banner.triage-banner[hidden] { display: none; }
+  /* [tight-BSD duration ratio]: warn tone when compression made everything
+     fit before BSD; crit tone (set via the .insufficient modifier in JS)
+     when even the 50% floor still doesn't. */
+  .terminal-banner.duration-ratio-banner { background: var(--warn-bg); border-color: transparent; color: var(--ink-900); }
+  .terminal-banner.duration-ratio-banner.insufficient { background: var(--crit-bg); }
   .meta-item .mk { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-500); font-weight: 700; }
   .meta-item .mv { font-size: 13.5px; margin-top: 2px; font-weight: 600; }
   /* Item 169: the tentative-date-pending-predecessor note appended next to

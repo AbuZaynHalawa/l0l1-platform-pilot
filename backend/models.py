@@ -189,6 +189,21 @@ class Project(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     due_dates_computed_on = Column(Date, nullable=True)  # calendar date recompute_project_due_dates last actually ran
     last_triage_reminder_at = Column(DateTime, nullable=True)  # item 79's admin "Remind BM" action
+    # [tight-BSD duration ratio], L0 only: a tender with a tight BSD can have
+    # standard item durations that don't fit inside announcement-to-BSD at
+    # all -- rules._apply_duration_ratio searches 100%/95%/90%/.../50% (5%
+    # steps) for the largest ratio where every predecessor-chained item's
+    # due date still fits before BSD, applied as a multiplier on top of
+    # whatever offset that item would otherwise use (including the 4.4/5.3
+    # tiered durations and the 1.8/1.9/1.10 threshold durations), floored at
+    # 1 workday so nothing collapses to a same-day or negative duration.
+    # 1.0 = standard, no compression needed.
+    duration_ratio = Column(Float, default=1.0)
+    # True once the search above tried every ratio down to the 50% floor and
+    # still couldn't fit everything before BSD -- the 50% ratio is applied
+    # anyway (best effort), but this flags it so the overshoot is visible
+    # rather than a silent surprise on a real deliverable's due date.
+    duration_ratio_insufficient = Column(Boolean, default=False)
 
     submissions = relationship("DeliverableSubmission", back_populates="project", cascade="all, delete-orphan",
                                 foreign_keys="DeliverableSubmission.project_id")

@@ -77,6 +77,9 @@ ensure_enum_value("announcements", "type", "SME_NOMINATION_DECISION")
 # Nightly checks (item [due-soon nudge] / [request escalation]).
 ensure_column("deliverable_submissions", "due_soon_reminded_for_date", "DATE")
 ensure_column("deliverable_submissions", "due_soon_reminded_offsets", "JSON")
+# [tight-BSD duration ratio]
+ensure_column("projects", "duration_ratio", "FLOAT")
+ensure_column("projects", "duration_ratio_insufficient", "BOOLEAN")
 
 # [SME nominations, per-item rework]: sme_nominations shipped with a
 # single-blanket-request shape (email/name/reason, one row per submission

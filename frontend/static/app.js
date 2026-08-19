@@ -2294,6 +2294,21 @@
     currentProjectTerminal = (p.stage === "L0" && (p.status === "Submitted" || p.status === "Cancelled")) ||
       (p.stage === "L1" && p.status === "Completed");
     document.getElementById("dTerminalBanner").hidden = !currentProjectTerminal;
+    // [tight-BSD duration ratio]: only ever set (non-1.0) on L0 -- see
+    // rules._apply_duration_ratio. Always flagged when compression is in
+    // use at all, not just when it's insufficient, per the product call.
+    var ratioBanner = document.getElementById("dDurationRatioBanner");
+    var ratio = p.duration_ratio == null ? 1.0 : p.duration_ratio;
+    if (p.stage === "L0" && ratio < 1.0) {
+      ratioBanner.hidden = false;
+      ratioBanner.classList.toggle("insufficient", !!p.duration_ratio_insufficient);
+      var pct = Math.round(ratio * 100);
+      ratioBanner.textContent = p.duration_ratio_insufficient
+        ? "⚠ Tight BSD: durations were compressed to " + pct + "% of standard, and even that still isn't enough — some deliverables are due after the Bid Submission Date."
+        : "⏱ Tight BSD: standard item durations didn't fit before the Bid Submission Date, so they were compressed to " + pct + "% to make everything fit.";
+    } else {
+      ratioBanner.hidden = true;
+    }
     var extendBtn = document.getElementById("dExtendBsdBtn");
     extendBtn.hidden = !(p.stage === "L0" && can("create") && !currentProjectTerminal);
     extendBtn.onclick = function () {
