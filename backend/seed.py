@@ -247,10 +247,17 @@ L0_ITEMS = [
     ("1.14", "Incorporate Consultant findings (if applicable)", "tendering", None, None, 0, "after", "on_request", None),
     ("1.15", "Incorporate SME's findings (if applicable)", "tendering", None, None, 0, "after", "on_request", None),
     ("1.16", "Prepare Manpower & Equipment Schedules", "tendering", "predecessor", "5.3", 1, "after", "date_driven", None),
-    ("1.17", "Circulate technical offers & Terms received from Vendors & SC & Consultant to Supply chain & Engineering", "tendering", "predecessor", "1.9", 10, "after", "date_driven", "M4"),
+    ("1.17", "Circulate technical offers & Terms received from Vendors & SC & Consultant to Engineering", "tendering", "predecessor", "1.9", 10, "after", "date_driven", "M4"),
     ("1.18", "Develop a comprehensive Technical-commercial proposal", "tendering", "predecessor", "1.20", 5, "before", "date_driven", None),
     ("1.19", "Adjust Proposals based on Tender Committee and/or VC Comments", "tendering", "predecessor", "1.18", 1, "after", "date_driven", None),
     ("1.20", "Submit Proposal to client", "tendering", "bsd", None, 0, "before", "date_driven", "M5"),
+    # Split from 1.17 (previously one combined item covering both
+    # departments) -- same due-date formula (predecessor 1.9, +10 workdays)
+    # as the item it was split from, not a milestone itself (1.17 alone
+    # kept M4; this is a plain supporting item, matching how it worked
+    # before the split -- the combined item wasn't gating anything else,
+    # only Supply Chain/Quality's own downstream items chained off it).
+    ("1.21", "Circulate commercial offers & Terms received from Vendors & SC & Consultant to Supply chain", "tendering", "predecessor", "1.9", 10, "after", "date_driven", None),
 
     # NOTE: the flat "operation" rows below are the OLD, pre-split Operation
     # Units structure — kept (and kept in sync by upsert) only because
@@ -308,9 +315,11 @@ L0_ITEMS = [
     ("3.2", "Highlight points require Pre-bid clarifications", "supply", "pre_bid", None, 3, "before", "date_driven", None),
     ("3.3", "Provide list of approved and acknowledge suppliers", "supply", None, None, 0, "after", "library", None),
     ("3.4", "Provide P.O.'s and Procurement Historical Data", "supply", None, None, 0, "after", "library", None),
-    ("3.5", "Review and Evaluate of Main Materials (Long lead items) and Subcontracting Strategy", "supply", "predecessor", "1.17", 2, "after", "date_driven", None),
-    ("3.6", "Prepare List of long lead items, key materials and items fall on critical path", "supply", "predecessor", "1.17", 2, "after", "date_driven", None),
-    ("3.7", "Support tendering with required logistics pricing and provide backup data", "supply", "predecessor", "1.17", 2, "after", "date_driven", None),
+    # Predecessor 1.21 (not 1.17) -- these are Supply Chain's own follow-up
+    # to the commercial-offers circulation now split out to them specifically.
+    ("3.5", "Review and Evaluate of Main Materials (Long lead items) and Subcontracting Strategy", "supply", "predecessor", "1.21", 2, "after", "date_driven", None),
+    ("3.6", "Prepare List of long lead items, key materials and items fall on critical path", "supply", "predecessor", "1.21", 2, "after", "date_driven", None),
+    ("3.7", "Support tendering with required logistics pricing and provide backup data", "supply", "predecessor", "1.21", 2, "after", "date_driven", None),
     ("3.8", "Complete Internal Prequalification of Potential Vendors (where applicable)", "supply", None, None, 0, "after", "on_request", None),
     ("3.9", "Participate in negotiation rounds at bidding stage lead by tender team", "supply", None, None, 0, "after", "on_request", None),
 
@@ -321,9 +330,9 @@ L0_ITEMS = [
     ("3.2", "Highlight points require Pre-bid clarifications", "supply_pbu", "pre_bid", None, 3, "before", "date_driven", None),
     ("3.3", "Provide list of approved and acknowledge suppliers", "supply_pbu", None, None, 0, "after", "library", None),
     ("3.4", "Provide P.O.'s and Procurement Historical Data", "supply_pbu", None, None, 0, "after", "library", None),
-    ("3.5", "Review and Evaluate of Main Materials (Long lead items) and Subcontracting Strategy", "supply_pbu", "predecessor", "1.17", 2, "after", "date_driven", None),
-    ("3.6", "Prepare List of long lead items, key materials and items fall on critical path", "supply_pbu", "predecessor", "1.17", 2, "after", "date_driven", None),
-    ("3.7", "Support tendering with required logistics pricing and provide backup data", "supply_pbu", "predecessor", "1.17", 2, "after", "date_driven", None),
+    ("3.5", "Review and Evaluate of Main Materials (Long lead items) and Subcontracting Strategy", "supply_pbu", "predecessor", "1.21", 2, "after", "date_driven", None),
+    ("3.6", "Prepare List of long lead items, key materials and items fall on critical path", "supply_pbu", "predecessor", "1.21", 2, "after", "date_driven", None),
+    ("3.7", "Support tendering with required logistics pricing and provide backup data", "supply_pbu", "predecessor", "1.21", 2, "after", "date_driven", None),
     ("3.8", "Complete Internal Prequalification of Potential Vendors (where applicable)", "supply_pbu", None, None, 0, "after", "on_request", None),
     ("3.9", "Participate in negotiation rounds at bidding stage lead by tender team", "supply_pbu", None, None, 0, "after", "on_request", None),
 
@@ -400,7 +409,7 @@ L0_ITEMS = [
     ("11.1", "Prepare Risk Register", "quality", "predecessor", "2.2", 1, "after", "date_driven", None),
     ("11.2", "Highlight points require Pre-bid clarifications", "quality", "pre_bid", None, 3, "before", "date_driven", None),
     ("11.3", "Prepare QA/QC Plan - Tender Level", "quality", "predecessor", "1.1", 7, "after", "date_driven", None),
-    ("11.4", "Evaluate Selected subcontractors (for not Qualified / Approved Subcontractors)", "quality", "predecessor", "1.17", 2, "after", "date_driven", None),
+    ("11.4", "Evaluate Selected subcontractors (for not Qualified / Approved Subcontractors)", "quality", "predecessor", "1.21", 2, "after", "date_driven", None),
     ("11.5", "Standard Personnel Requirements (Client's Standards)", "quality", "predecessor", "1.1", 7, "after", "date_driven", None),
 
     # Item 141 second rework: reverted -- HSSE keeps its own full
@@ -628,6 +637,7 @@ L0_SHORT_NAMES = {
     "1.15": "Incorporate SME Findings", "1.16": "Prepare Manpower Schedule",
     "1.17": "Circulate Technical Offers", "1.18": "Develop Tech-Comm Proposal",
     "1.19": "Adjust Proposal (Comments)", "1.20": "Submit Proposal",
+    "1.21": "Circulate Commercial Offers",
 
     "2.1": "Attend Site Visit", "2.2": "Site Visit Report", "2.3": "Highlight Pre-bid Points",
     "2.4": "Prepare Risk Register", "2.5": "Prepare Execution Plan", "2.6": "Review Project Schedule",
