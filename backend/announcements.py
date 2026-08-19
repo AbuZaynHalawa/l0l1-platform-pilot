@@ -383,3 +383,29 @@ def reassignment_decision(db: Session, project: models.Project, requester_emails
     return _create(db, type=models.AnnouncementType.DEADLINE, title=title, body=body,
                     recipients=sorted({e for e in requester_emails if e}), project=project,
                     submission_id=submission_id, greeting="Owner", link_html=link_html)
+
+
+def sme_nomination_requested(db: Session, admin_emails: list[str], email: str, name: str | None,
+                              reason: str | None) -> models.Announcement:
+    """Not tied to a project (see SmeNomination) -- DEADLINE-typed like every
+    other Follow Up tab request so it lands in Admin's Reminders tab, same
+    reasoning as reassignment_requested above.
+    """
+    title = "SME Nomination – Admin Action Needed"
+    reason_part = f' &#8211; &quot;{reason}&quot;' if reason else ""
+    body = f"{_b(name or email)} ({_b(email)}) has nominated themselves as an SME{reason_part}. Awaiting your decision."
+    return _create(db, type=models.AnnouncementType.DEADLINE, title=title, body=body,
+                    recipients=sorted({e for e in admin_emails if e}), greeting="Admin")
+
+
+def sme_nomination_decision(db: Session, email: str, approved: bool, comment: str | None = None) -> models.Announcement:
+    if approved:
+        title = "SME Nomination Approved"
+        body = f"Your request to become an SME was {_hl('approved', 'good')}. You can now review and approve deliverables assigned to you as SME."
+    else:
+        title = "SME Nomination Declined"
+        body = f"Your request to become an SME was {_hl('declined', 'crit')}."
+        if comment:
+            body += f' &#8211; &quot;{comment}&quot;'
+    return _create(db, type=models.AnnouncementType.DEADLINE, title=title, body=body,
+                    recipients=[email] if email else [], greeting="Team")

@@ -1191,7 +1191,8 @@
       try {
         var reassigns = await api("/api/deliverables/reassignment-requests?status=pending");
         var dueDateReqs = await api("/api/deliverables/due-date-requests?status=pending");
-        document.getElementById("followupBadge").textContent = (reassigns.length + dueDateReqs.length) || "";
+        var smeNoms = await api("/api/departments/sme-nominations?status=pending");
+        document.getElementById("followupBadge").textContent = (reassigns.length + dueDateReqs.length + smeNoms.length) || "";
       } catch (e) {}
     } else {
       document.getElementById("followupBadge").textContent = "";
@@ -2127,6 +2128,39 @@
   });
   document.getElementById("dueDateRequestCancel").addEventListener("click", function () {
     document.getElementById("dueDateRequestOverlay").hidden = true;
+  });
+
+  // Self-service SME nomination (open to everyone, no role/assignment gate --
+  // that's the whole point) -- same small-modal shape as the due-date-
+  // request form above, just not tied to a submission.
+  document.getElementById("becomeSmeBtn").addEventListener("click", function () {
+    document.getElementById("smeNomEmail").value = passiveIdentity();
+    document.getElementById("smeNomName").value = "";
+    document.getElementById("smeNomReason").value = "";
+    document.getElementById("smeNomOverlay").hidden = false;
+  });
+  function closeSmeNomModal() { document.getElementById("smeNomOverlay").hidden = true; }
+  document.getElementById("smeNomClose").addEventListener("click", closeSmeNomModal);
+  document.getElementById("smeNomCancel").addEventListener("click", closeSmeNomModal);
+  document.getElementById("smeNomSubmit").addEventListener("click", async function () {
+    var email = document.getElementById("smeNomEmail").value.trim();
+    if (!email) { showToast("Email is required", true); return; }
+    try {
+      await api("/api/departments/sme-nominations", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email,
+          name: document.getElementById("smeNomName").value.trim() || null,
+          reason: document.getElementById("smeNomReason").value.trim() || null,
+        }),
+      });
+    } catch (err) {
+      showToast("Could not submit &#8211; " + apiErrorDetail(err), true);
+      return;
+    }
+    localStorage.setItem("myEmail", email);
+    closeSmeNomModal();
+    showToast("Nomination submitted &#8211; pending admin approval");
   });
 
   /* ================= PROJECT DETAIL ================= */
@@ -4452,6 +4486,47 @@
         actions.appendChild(appr); actions.appendChild(rej);
         row.appendChild(actions);
         reassignWrap.appendChild(row);
+      });
+    }
+
+    var smeNoms = await api("/api/departments/sme-nominations?status=pending");
+    var smeNomWrap = document.getElementById("smeNomList");
+    document.getElementById("smeNomCount").textContent = smeNoms.length || "";
+    smeNomWrap.innerHTML = "";
+    if (!smeNoms.length) {
+      smeNomWrap.appendChild(el("div", "empty-state", "No pending SME nominations."));
+    } else {
+      smeNoms.forEach(function (n) {
+        var row = el("div", "aq-row");
+        var main = el("div", "aq-main");
+        main.appendChild(el("div", "aq-title", (n.name || n.email)));
+        main.appendChild(el("div", "aq-sub",
+          '<span>' + n.email + '</span>' +
+          (n.reason ? '<span class="sep">&middot;</span><span>' + n.reason + '</span>' : "")));
+        row.appendChild(main);
+        var actions = el("div", "deliv-actions");
+        var appr = el("button", "btn primary", "Approve");
+        appr.addEventListener("click", async function () {
+          await api("/api/departments/sme-nominations/" + n.id + "/decide", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ approved: true, comment: "", actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
+          });
+          showToast(n.email + " is now an SME");
+          loadFollowUp();
+        });
+        var rej = el("button", "btn ghost-crit", "Reject");
+        rej.addEventListener("click", async function () {
+          var comment = prompt("Reason for declining (optional):", "") || "";
+          await api("/api/departments/sme-nominations/" + n.id + "/decide", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ approved: false, comment: comment, actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
+          });
+          showToast("Nomination declined");
+          loadFollowUp();
+        });
+        actions.appendChild(appr); actions.appendChild(rej);
+        row.appendChild(actions);
+        smeNomWrap.appendChild(row);
       });
     }
 

@@ -84,6 +84,7 @@
         <!-- Item 162: a way to test as a real person with real assigned
              work, instead of guessing an email that matches nothing. -->
         <select class="role-select" id="actingEmailQuickPick" style="display:none;"><option value="">Quick pick&#8230;</option></select>
+        <button class="theme-btn" id="becomeSmeBtn">Become an SME</button>
         <button class="theme-btn" id="themeToggle">Dark mode</button>
         <div class="avatar">YH</div>
       </div>
@@ -542,6 +543,13 @@
         <div id="reassignList"></div>
       </div>
 
+      <div class="card table-card" style="margin-bottom:18px;">
+        <div class="section-title">
+          <span>SME Nominations <span class="cnt" id="smeNomCount"></span></span>
+        </div>
+        <div id="smeNomList"></div>
+      </div>
+
       <div class="card table-card">
         <div class="section-title">
           <span>Due &amp; Overdue Deliverables</span>
@@ -926,6 +934,40 @@
       <div class="modal-actions-row" style="margin-top:20px;">
         <button class="btn" id="dueDateRequestCancel">Cancel</button>
         <button class="btn primary" id="dueDateRequestSubmit">Submit Request</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Self-service SME nomination -- open to any user; the request just
+     queues in Follow Up for an Admin to approve/decline. -->
+<div class="modal-overlay" id="smeNomOverlay" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <div class="eyebrow">Nominate Yourself</div>
+        <h2>Become an SME</h2>
+      </div>
+      <button class="modal-close" id="smeNomClose">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <p class="tour-step-text" style="margin-top:0;">Subject to admin approval &#8212; once approved, you can be
+        assigned to review and approve deliverables as an SME.</p>
+      <div class="field">
+        <label>Your Name</label>
+        <input type="text" id="smeNomName" placeholder="Full name" />
+      </div>
+      <div class="field" style="margin-top:14px;">
+        <label>Your Email <span class="req">*</span></label>
+        <input type="text" id="smeNomEmail" placeholder="you@algihaz.com" />
+      </div>
+      <div class="field" style="margin-top:14px;">
+        <label>Why (optional)</label>
+        <textarea id="smeNomReason" rows="3" placeholder="Relevant experience, department, etc."></textarea>
+      </div>
+      <div class="modal-actions-row" style="margin-top:20px;">
+        <button class="btn" id="smeNomCancel">Cancel</button>
+        <button class="btn primary" id="smeNomSubmit">Submit Nomination</button>
       </div>
     </div>
   </div>

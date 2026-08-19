@@ -1,8 +1,9 @@
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from .. import models, rules
+from .. import models, rules, announcements
 from ..database import get_db
 
 router = APIRouter(prefix="/api/departments", tags=["departments"])
@@ -303,3 +304,88 @@ def remove_user(user_id: int, db: Session = Depends(get_db)):
     db.delete(user)
     db.commit()
     return {"deleted": user_id}
+
+
+# ---------------------------------------------------------------------------
+# SME self-nomination -- any user can request to become an SME; admin
+# approval actually flips the roster role (mirrors ReassignmentRequest/
+# DueDateRequest's request-then-decide shape, just not tied to a project).
+# ---------------------------------------------------------------------------
+def _serialize_nomination(n: models.SmeNomination) -> dict:
+    return {
+        "id": n.id, "email": n.email, "name": n.name, "reason": n.reason, "status": n.status,
+        "requested_at": n.requested_at, "decided_at": n.decided_at,
+        "decided_by_email": n.decided_by_email, "decision_comment": n.decision_comment,
+    }
+
+
+class SmeNominationCreate(BaseModel):
+    email: str
+    name: str | None = None
+    reason: str | None = None
+
+
+@router.post("/sme-nominations")
+def create_sme_nomination(payload: SmeNominationCreate, db: Session = Depends(get_db)):
+    email = payload.email.strip()
+    if not email:
+        raise HTTPException(400, "Email is required")
+    existing_user = db.query(models.User).filter(models.User.email.ilike(email)).first()
+    if existing_user and existing_user.role == "SME":
+        raise HTTPException(400, "This email is already an SME")
+    if db.query(models.SmeNomination).filter(
+        models.SmeNomination.email.ilike(email), models.SmeNomination.status == "pending",
+    ).first():
+        raise HTTPException(400, "A nomination for this email is already pending")
+    nom = models.SmeNomination(
+        email=email, name=(payload.name or "").strip() or None, reason=(payload.reason or "").strip() or None,
+    )
+    db.add(nom)
+    db.commit()
+    db.refresh(nom)
+    announcements.sme_nomination_requested(db, sorted(rules.admin_emails(db)), nom.email, nom.name, nom.reason)
+    return _serialize_nomination(nom)
+
+
+@router.get("/sme-nominations")
+def list_sme_nominations(status: str | None = None, db: Session = Depends(get_db)):
+    q = db.query(models.SmeNomination).order_by(models.SmeNomination.requested_at.desc())
+    if status:
+        q = q.filter(models.SmeNomination.status == status)
+    return [_serialize_nomination(n) for n in q.all()]
+
+
+class SmeNominationDecision(BaseModel):
+    approved: bool
+    comment: str = ""
+    actor_role: str = "Admin"
+    actor_email: str = ""
+
+
+@router.post("/sme-nominations/{nomination_id}/decide")
+def decide_sme_nomination(nomination_id: int, payload: SmeNominationDecision, db: Session = Depends(get_db)):
+    if payload.actor_role != "Admin":
+        raise HTTPException(403, "Only an Admin can decide an SME nomination")
+    nom = db.get(models.SmeNomination, nomination_id)
+    if not nom:
+        raise HTTPException(404, "Nomination not found")
+    if nom.status != "pending":
+        raise HTTPException(400, "This nomination has already been decided")
+
+    if payload.approved:
+        user = db.query(models.User).filter(models.User.email.ilike(nom.email)).first()
+        if user:
+            user.role = "SME"
+            if nom.name and not user.name:
+                user.name = nom.name
+        else:
+            db.add(models.User(name=nom.name or nom.email, email=nom.email, role="SME"))
+
+    nom.status = "approved" if payload.approved else "rejected"
+    nom.decided_at = datetime.utcnow()
+    nom.decided_by_email = payload.actor_email or None
+    nom.decision_comment = payload.comment or None
+    db.commit()
+
+    announcements.sme_nomination_decision(db, nom.email, payload.approved, payload.comment)
+    return _serialize_nomination(nom)
