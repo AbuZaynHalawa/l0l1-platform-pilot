@@ -2604,6 +2604,34 @@
   document.getElementById("checklistEditCancel").addEventListener("click", closeChecklistEditModal);
   document.getElementById("checklistEditClose").addEventListener("click", closeChecklistEditModal);
 
+  // A browser's native file dialog can't offer an in-dialog toggle between
+  // picking files vs. a folder -- that choice has to be made before the
+  // dialog opens. This is the closest real equivalent to "one button": a
+  // single visible button that pops a tiny two-option menu (Files/Folder),
+  // each wired to click a real (hidden) <input>, one plain and one
+  // webkitdirectory. Reused everywhere a Tender Documents upload control
+  // is needed instead of two separate buttons.
+  function fileOrFolderButton(label, fileInput, folderInput) {
+    var wrap = el("span", "upload-choice-wrap");
+    var btn = el("button", "btn", label + " &#9662;");
+    btn.type = "button";
+    var menu = el("div", "upload-choice-menu");
+    var filesOpt = el("button", "upload-choice-opt", "&#128196; Files&#8230;");
+    var folderOpt = el("button", "upload-choice-opt", "&#128193; Folder&#8230;");
+    filesOpt.type = "button"; folderOpt.type = "button";
+    filesOpt.addEventListener("click", function (e) { e.stopPropagation(); menu.classList.remove("open"); fileInput.click(); });
+    folderOpt.addEventListener("click", function (e) { e.stopPropagation(); menu.classList.remove("open"); folderInput.click(); });
+    menu.appendChild(filesOpt); menu.appendChild(folderOpt);
+    btn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      var opening = !menu.classList.contains("open");
+      document.querySelectorAll(".upload-choice-menu.open").forEach(function (m) { m.classList.remove("open"); });
+      if (opening) menu.classList.add("open");
+    });
+    document.addEventListener("click", function () { menu.classList.remove("open"); });
+    wrap.appendChild(btn); wrap.appendChild(menu);
+    return wrap;
+  }
   // Uploads a FileList to the given project/folder, one request per file
   // (relative_path carries a folder pick's own structure, see
   // upload_tender_document). Returns the count that actually succeeded.
@@ -2685,10 +2713,6 @@
         var uploadRow = el("div", "deliv-row");
         var fileInput = el("input"); fileInput.type = "file"; fileInput.multiple = true; fileInput.style.display = "none";
         var folderInput = el("input"); folderInput.type = "file"; folderInput.webkitdirectory = true; folderInput.multiple = true; folderInput.style.display = "none";
-        var filesBtn = el("button", "btn", "Upload Files");
-        filesBtn.addEventListener("click", function () { fileInput.click(); });
-        var folderBtn = el("button", "btn", "Upload Folder");
-        folderBtn.addEventListener("click", function () { folderInput.click(); });
         fileInput.addEventListener("change", async function () {
           if (!fileInput.files.length) return;
           var ok = await uploadTenderDocFiles(projectId, fileInput.files, currentPath, false);
@@ -2701,7 +2725,7 @@
           if (ok) showToast(ok + " file" + (ok === 1 ? "" : "s") + " uploaded");
           refresh();
         });
-        uploadRow.appendChild(filesBtn); uploadRow.appendChild(folderBtn);
+        uploadRow.appendChild(fileOrFolderButton("Upload", fileInput, folderInput));
         uploadRow.appendChild(fileInput); uploadRow.appendChild(folderInput);
         wrap.appendChild(uploadRow);
       }
@@ -4864,6 +4888,18 @@
   });
 
   /* ================= CREATE PROJECT ================= */
+  (function () {
+    var fileInput = document.getElementById("cfTenderDocs");
+    var folderInput = document.getElementById("cfTenderDocsFolder");
+    var summary = document.getElementById("cfTenderDocsSummary");
+    function updateSummary() {
+      var n = fileInput.files.length + folderInput.files.length;
+      summary.textContent = n ? n + " file" + (n === 1 ? "" : "s") + " selected" : "";
+    }
+    fileInput.addEventListener("change", updateSummary);
+    folderInput.addEventListener("change", updateSummary);
+    document.getElementById("cfTenderDocsUploadWrap").appendChild(fileOrFolderButton("Upload", fileInput, folderInput));
+  })();
   var createOptionsLoaded = false;
   var _createOptionsCache = null;
   async function getCreateOptions() {

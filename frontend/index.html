@@ -822,10 +822,10 @@
           </div>
           <div class="field" style="margin-top:14px;">
             <label>Tender Documents</label>
-            <span class="hint" style="display:block;margin-bottom:4px;">Individual files</span>
-            <input type="file" id="cfTenderDocs" multiple />
-            <span class="hint" style="display:block;margin:10px 0 4px;">Or a whole folder (its structure carries over)</span>
-            <input type="file" id="cfTenderDocsFolder" webkitdirectory multiple />
+            <div id="cfTenderDocsUploadWrap" style="margin:4px 0;"></div>
+            <input type="file" id="cfTenderDocs" multiple style="display:none;" />
+            <input type="file" id="cfTenderDocsFolder" webkitdirectory multiple style="display:none;" />
+            <span class="hint" id="cfTenderDocsSummary" style="display:block;margin-top:2px;"></span>
             <span class="hint" style="display:block;margin-top:6px;">Goes into the project's "0. Tender Documents" folder. Optional &#8212; you can also add these later from the project page.</span>
           </div>
         </div>
