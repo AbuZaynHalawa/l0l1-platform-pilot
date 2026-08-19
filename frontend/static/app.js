@@ -3114,8 +3114,10 @@
       // department (see the barCls branch below) -- three tones is all
       // that logic actually produces: "crit" for Due or Rejected, "good"
       // for Completed, "neutral" for everything else (Not Due, On Hold,
-      // and any deadline_status MATRIX_BUCKET_META doesn't cover).
-      [["var(--good)", "Completed"], ["var(--crit)", "Due / Rejected"], ["var(--ink-300)", "Not Due"]].forEach(function (pair) {
+      // and any deadline_status MATRIX_BUCKET_META doesn't cover) -- .gantt-
+      // bar.neutral is actually var(--purple-1), not a grey, so the swatch
+      // has to match that or it reads as an unexplained extra color.
+      [["var(--good)", "Completed"], ["var(--crit)", "Due / Rejected"], ["var(--purple-1)", "Not Due"]].forEach(function (pair) {
         var lg = el("span", "lg");
         lg.innerHTML = '<span class="sw" style="background:' + pair[0] + '"></span>';
         lg.appendChild(document.createTextNode(pair[1]));
