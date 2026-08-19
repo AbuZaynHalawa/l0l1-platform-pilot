@@ -3079,30 +3079,44 @@
       var o = el("option", "", deptLabel(name, seenDepts[name])); o.value = name;
       deptSel.appendChild(o);
     });
-    // Timeline-display-only: TBU/PBU/DBU/BBU are 4 real, separate
-    // departments everywhere else in the app (folders, focal points,
-    // performance) -- only the Gantt legend collapses them into one "2.
-    // Operation Units" swatch, since they already share one color (same
-    // department_number) and 4 near-identical legend rows was just visual
-    // noise here. The BU itself still shows -- as a note on each bar's own
-    // label below, not as a separate legend entry.
-    var seenOpUnitsBU = sortedDeptNames.some(function (name) { return /^Operation Units \((TBU|PBU|DBU|BBU)\)$/.test(name); });
     legend.innerHTML = "";
-    sortedDeptNames.forEach(function (name) {
-      if (/^Operation Units \((TBU|PBU|DBU|BBU)\)$/.test(name)) return;
-      var lg = el("span", "lg");
-      lg.innerHTML = '<span class="sw" style="background:' + deptColor(seenDepts[name]) + '"></span>';
-      lg.appendChild(document.createTextNode(deptLabel(name, seenDepts[name])));
-      legend.appendChild(lg);
-    });
-    if (seenOpUnitsBU) {
-      var opLg = el("span", "lg");
-      opLg.innerHTML = '<span class="sw" style="background:' + deptColor(2) + '"></span>';
-      opLg.appendChild(document.createTextNode("2. Operation Units"));
-      legend.appendChild(opLg);
+    if (ganttIsPooled) {
+      // Timeline-display-only: TBU/PBU/DBU/BBU are 4 real, separate
+      // departments everywhere else in the app (folders, focal points,
+      // performance) -- only the Gantt legend collapses them into one "2.
+      // Operation Units" swatch, since they already share one color (same
+      // department_number) and 4 near-identical legend rows was just visual
+      // noise here. The BU itself still shows -- as a note on each bar's own
+      // label below, not as a separate legend entry.
+      var seenOpUnitsBU = sortedDeptNames.some(function (name) { return /^Operation Units \((TBU|PBU|DBU|BBU)\)$/.test(name); });
+      sortedDeptNames.forEach(function (name) {
+        if (/^Operation Units \((TBU|PBU|DBU|BBU)\)$/.test(name)) return;
+        var lg = el("span", "lg");
+        lg.innerHTML = '<span class="sw" style="background:' + deptColor(seenDepts[name]) + '"></span>';
+        lg.appendChild(document.createTextNode(deptLabel(name, seenDepts[name])));
+        legend.appendChild(lg);
+      });
+      if (seenOpUnitsBU) {
+        var opLg = el("span", "lg");
+        opLg.innerHTML = '<span class="sw" style="background:' + deptColor(2) + '"></span>';
+        opLg.appendChild(document.createTextNode("2. Operation Units"));
+        legend.appendChild(opLg);
+      }
+    } else {
+      // Per-project view colors bars by deadline/status instead of
+      // department (see the barCls branch below) -- three tones is all
+      // that logic actually produces: "crit" for Due or Rejected, "good"
+      // for Completed, "neutral" for everything else (Not Due, On Hold,
+      // and any deadline_status MATRIX_BUCKET_META doesn't cover).
+      [["var(--good)", "Completed"], ["var(--crit)", "Due / Rejected"], ["var(--ink-300)", "Not Due"]].forEach(function (pair) {
+        var lg = el("span", "lg");
+        lg.innerHTML = '<span class="sw" style="background:' + pair[0] + '"></span>';
+        lg.appendChild(document.createTextNode(pair[1]));
+        legend.appendChild(lg);
+      });
     }
     legend.className = "ann-type-key gantt-dept-legend";
-    legend.style.display = ganttIsPooled ? "" : "none";
+    legend.style.display = "";
 
     applyGanttFilters();
   }
