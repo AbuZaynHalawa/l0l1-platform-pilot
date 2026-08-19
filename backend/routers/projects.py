@@ -313,6 +313,33 @@ async def upload_tender_document(
             "folder_path": doc.folder_path or "", "uploaded_by": doc.uploaded_by, "uploaded_at": doc.uploaded_at}
 
 
+@router.delete("/{project_id}/tender-documents/folder")
+def delete_tender_document_folder(project_id: int, path: str, actor_role: str = "Viewer", actor_email: str = "", db: Session = Depends(get_db)):
+    """Removes an entire subfolder (and everything nested under it) in one
+    call -- every doc whose folder_path is exactly `path` or starts with
+    `path/`. Declared before the /{doc_id} route below on purpose: FastAPI
+    would otherwise try to int-parse the literal segment "folder" as a
+    doc_id and 404 before ever reaching this handler (same ordering
+    footgun documented on get_bm_triage_status).
+    """
+    project = db.get(models.Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    if not rules.can_act(actor_role, actor_email, [project.bid_manager, project.project_manager]):
+        raise HTTPException(403, "Only the assigned Bid Manager/Project Manager or an Admin can remove tender documents")
+    path = path.strip("/")
+    if not path:
+        raise HTTPException(400, "No folder specified")
+    docs = db.query(models.TenderDocument).filter(models.TenderDocument.project_id == project_id).all()
+    to_delete = [d for d in docs if d.folder_path == path or (d.folder_path or "").startswith(path + "/")]
+    if not to_delete:
+        raise HTTPException(404, "Folder not found")
+    for d in to_delete:
+        db.delete(d)
+    db.commit()
+    return {"status": "ok", "deleted": len(to_delete)}
+
+
 @router.delete("/{project_id}/tender-documents/{doc_id}")
 def delete_tender_document(project_id: int, doc_id: int, actor_role: str = "Viewer", actor_email: str = "", db: Session = Depends(get_db)):
     project = db.get(models.Project, project_id)

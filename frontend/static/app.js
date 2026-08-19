@@ -2749,11 +2749,31 @@
       }
       folderNames.forEach(function (name) {
         var count = childFolders[name];
+        var childPath = currentPath ? currentPath + "/" + name : name;
         var row = el("div", "folder-row");
         row.innerHTML =
           '<div class="folder-left"><span class="folder-ic">&#128193;</span><div><div class="folder-name">' + name + '</div>' +
-          '<div class="folder-focal">' + count + " file" + (count === 1 ? "" : "s") + '</div></div></div><div class="folder-right"></div>';
-        row.addEventListener("click", function () { currentPath = currentPath ? currentPath + "/" + name : name; draw(); });
+          '<div class="folder-focal">' + count + " file" + (count === 1 ? "" : "s") + '</div></div></div>';
+        row.addEventListener("click", function () { currentPath = childPath; draw(); });
+        if (can("create")) {
+          var folderRight = el("div", "folder-right");
+          var delFolderBtn = el("button", "btn ghost-crit", "Delete Folder");
+          delFolderBtn.addEventListener("click", async function (e) {
+            e.stopPropagation();
+            if (!confirm('Delete "' + name + '" and everything in it (' + count + " file" + (count === 1 ? "" : "s") + ")?")) return;
+            try {
+              await api("/api/projects/" + projectId + "/tender-documents/folder?path=" + encodeURIComponent(childPath) +
+                "&actor_role=" + encodeURIComponent(CURRENT_ROLE) + "&actor_email=" + encodeURIComponent(actingEmail()),
+                { method: "DELETE" });
+              showToast("Folder deleted");
+              refresh();
+            } catch (err) {
+              showToast("Could not delete folder &#8211; " + apiErrorDetail(err), true);
+            }
+          });
+          folderRight.appendChild(delFolderBtn);
+          row.appendChild(folderRight);
+        }
         wrap.appendChild(row);
       });
       childFiles.forEach(function (d) {
