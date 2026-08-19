@@ -2604,6 +2604,19 @@
   document.getElementById("checklistEditCancel").addEventListener("click", closeChecklistEditModal);
   document.getElementById("checklistEditClose").addEventListener("click", closeChecklistEditModal);
 
+  // PDFs, images, and text open inline in a browser tab on their own --
+  // Office formats (Word/Excel/PowerPoint) never do, regardless of any
+  // server header, because browsers simply have no built-in renderer for
+  // them and fall back to downloading. Route just those through Microsoft's
+  // Office Online viewer (needs a real absolute, publicly-fetchable URL --
+  // works on the deployed pilot, not off a bare localhost dev server).
+  var _OFFICE_VIEWER_EXTS = ["doc", "docx", "xls", "xlsx", "ppt", "pptx"];
+  function tenderDocViewUrl(fileName, fileUrl) {
+    var ext = (fileName.split(".").pop() || "").toLowerCase();
+    if (_OFFICE_VIEWER_EXTS.indexOf(ext) === -1) return fileUrl;
+    var absolute = location.origin + fileUrl;
+    return "https://view.officeapps.live.com/op/view.aspx?src=" + encodeURIComponent(absolute);
+  }
   // A browser's native file dialog can't offer an in-dialog toggle between
   // picking files vs. a folder -- that choice has to be made before the
   // dialog opens. This is the closest real equivalent to "one button": a
@@ -2747,7 +2760,7 @@
         var row = el("div", "deliv-row");
         var body = el("div", "deliv-body");
         var link = el("a", "deliv-name", d.file_name);
-        link.href = d.file_url; link.target = "_blank"; link.rel = "noopener";
+        link.href = tenderDocViewUrl(d.file_name, d.file_url); link.target = "_blank"; link.rel = "noopener";
         link.style.color = "var(--purple-1)";
         body.appendChild(link);
         body.appendChild(el("div", "folder-focal",
