@@ -448,6 +448,37 @@ def mark_not_required(submission_id: int, actor_role: str = "Viewer", actor_emai
     return {"status": "ok"}
 
 
+@router.post("/{submission_id}/completion-date")
+def edit_completion_date(submission_id: int, payload: schemas.EditCompletionDateRequest, db: Session = Depends(get_db)):
+    """Admin-only correction for a submission's recorded completion date
+    (reviewed_at) -- e.g. a test/placeholder approval landed on the wrong
+    day, or the real sign-off date wasn't what got recorded at the time.
+    Downstream predecessor-chained items anchor off this date, not the
+    original due_date (see rules._predecessor_anchor_date), so correcting
+    it here cascades their due dates too, exactly like a genuine early or
+    late finish would.
+    """
+    if payload.actor_role != "Admin":
+        raise HTTPException(403, "Only an Admin can edit a completion date")
+    sub = db.get(models.DeliverableSubmission, submission_id)
+    if not sub:
+        raise HTTPException(404, "Deliverable not found")
+    if sub.status != models.SubmissionStatus.APPROVED or not sub.reviewed_at:
+        raise HTTPException(400, "Only an approved deliverable has a completion date to edit")
+    if payload.completion_date > date.today():
+        raise HTTPException(400, "Completion date can't be in the future")
+
+    old_date = sub.reviewed_at.date()
+    sub.reviewed_at = datetime.combine(payload.completion_date, sub.reviewed_at.time())
+    db.add(models.WorkflowHistory(submission_id=sub.id, action="completion_date_edited", actor_name="Admin",
+                                   note=f"Completion date changed from {old_date.isoformat()} to {payload.completion_date.isoformat()}"))
+    db.commit()
+
+    rules.recompute_project_due_dates(db, sub.project, force=True)
+    db.commit()
+    return {"status": "ok"}
+
+
 @router.post("/{submission_id}/reassign-request")
 def request_reassignment(submission_id: int, payload: schemas.ReassignRequestCreate, db: Session = Depends(get_db)):
     sub = db.get(models.DeliverableSubmission, submission_id)

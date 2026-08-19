@@ -1964,6 +1964,35 @@
       });
       actionsRow.appendChild(reopenBtn);
     }
+    // Admin escape hatch: downstream predecessor-chained items anchor off
+    // this deliverable's real completion date (reviewed_at), not its
+    // planned due_date -- if that recorded date is wrong (test/placeholder
+    // data, a mis-set approval) it silently pulls every dependent item's
+    // schedule along with it. Lets an admin correct it directly rather than
+    // Reopen + re-approve just to fix a date.
+    if (CURRENT_ROLE === "Admin" && d.status === "approved") {
+      var editCompletionBtn = el("button", "btn", "Edit Completion Date");
+      editCompletionBtn.addEventListener("click", function () {
+        openChecklistEditModal({
+          type: "date",
+          title: "Edit Completion Date",
+          eyebrow: "Items chained off " + d.item_no + " recompute their due dates from this date.",
+          selected: d.reviewed_at ? d.reviewed_at.slice(0, 10) : "",
+          onSave: function (nextDate) {
+            if (!nextDate) { showToast("Pick a date", true); return; }
+            api("/api/deliverables/" + d.id + "/completion-date", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ completion_date: nextDate, actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
+            }).then(function () {
+              closeChecklistEditModal();
+              showToast("Completion date updated");
+              refreshModal();
+            }).catch(function (err) { showToast("Could not update &#8211; " + apiErrorDetail(err), true); });
+          },
+        });
+      });
+      actionsRow.appendChild(editCompletionBtn);
+    }
     body.appendChild(actionsRow);
 
     // Item 143 (2nd revision): workflow nudges -- a reminder to close out
@@ -3929,6 +3958,7 @@
     reopened: "&#128257;", auto_done: "&#9989;",
     extension_requested: "&#8987;", extension_approved: "&#9989;", extension_rejected: "&#10060;",
     hold_requested: "&#9208;", hold_approved: "&#9989;", hold_rejected: "&#10060;", resumed: "&#9654;",
+    completion_date_edited: "&#128197;",
   };
   async function renderActivityTimeline(projectId, timelineId) {
     var wrap = document.getElementById(timelineId);
