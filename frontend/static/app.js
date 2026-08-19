@@ -3057,6 +3057,7 @@
     });
   });
   document.getElementById("ganttDeptFilter").addEventListener("change", applyGanttFilters);
+  document.getElementById("ganttWbsFilter").addEventListener("change", applyGanttFilters);
   document.getElementById("ganttDeadlineFilter").addEventListener("change", applyGanttFilters);
   document.getElementById("ganttProgressFilter").addEventListener("change", applyGanttFilters);
   document.getElementById("ganttRows").addEventListener("scroll", function () {
@@ -3077,6 +3078,13 @@
     document.getElementById("ganttDeadlineFilter").value = "";
     document.getElementById("ganttProgressFilter").value = "";
     document.getElementById("ganttDeptFilter").innerHTML = '<option value="">All Departments</option>';
+    var wbsSel = document.getElementById("ganttWbsFilter");
+    wbsSel.innerHTML = '<option value="">All WBS Categories</option>';
+    wbsSel.value = "";
+    // WBS categorization (from "Gantt chart WBS.xlsx") only applies to L1 --
+    // L0 rows carry category=null and stay flat/ungrouped, so the filter
+    // would just be a dead control there.
+    wbsSel.hidden = ganttStage !== "L1";
     await renderGanttFor(scopeSel.value);
   }
 
@@ -3109,6 +3117,17 @@
     sortedDeptNames.forEach(function (name) {
       var o = el("option", "", deptLabel(name, seenDepts[name])); o.value = name;
       deptSel.appendChild(o);
+    });
+    // Rows arrive pre-sorted by WBS category (backend's GANTT_WBS_CATEGORY_ORDER),
+    // so preserving first-seen order here reproduces that order without
+    // duplicating the category list in JS.
+    var wbsSel = document.getElementById("ganttWbsFilter");
+    var seenCats = [];
+    ganttRowsUnfiltered.forEach(function (r) { if (r.category && seenCats.indexOf(r.category) === -1) seenCats.push(r.category); });
+    wbsSel.innerHTML = '<option value="">All WBS Categories</option>';
+    seenCats.forEach(function (cat) {
+      var o = el("option", "", cat); o.value = cat;
+      wbsSel.appendChild(o);
     });
     legend.innerHTML = "";
     if (ganttIsPooled) {
@@ -3156,10 +3175,12 @@
 
   function applyGanttFilters() {
     var dept = document.getElementById("ganttDeptFilter").value;
+    var wbs = document.getElementById("ganttWbsFilter").value;
     var deadline = document.getElementById("ganttDeadlineFilter").value;
     var progress = document.getElementById("ganttProgressFilter").value;
     var rows = ganttRowsUnfiltered.filter(function (r) {
-      return (!dept || r.department === dept) && (!deadline || r.deadline_status === deadline) && (!progress || r.status === progress);
+      return (!dept || r.department === dept) && (!wbs || r.category === wbs) &&
+        (!deadline || r.deadline_status === deadline) && (!progress || r.status === progress);
     });
     drawGanttRows(rows, ganttIsPooled);
   }
