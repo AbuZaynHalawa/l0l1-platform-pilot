@@ -125,17 +125,18 @@ DEPARTMENTS = [
     # Items 128/129: Planning, Cost Control, Risk, Fleet, FM are no longer
     # L1-only -- L0 now shares these same rows (see L0_DEPT below), same
     # pattern as Tendering/Supply Chain/Engineering/HR/Contract already use.
-    "TBU / PBU", "BBU / PBU", "Planning", "Cost Control",
+    "Planning", "Cost Control",
     "Treasury", "Finance", "Quality", "HSSE",
     "Risk", "Fleet", "FM",
-    # Item 122 rework: L1's own TBU/PBU/DBU/BBU split now reuses the exact
-    # same "Operation Units (TBU)" etc. rows L0's item 69 split already
-    # created (see L0_DEPT/L1_DEPT below) -- so it nests under the same
-    # "2. Operation Units" group header in the folder list, instead of
-    # showing as its own separate ungrouped set of rows. "TBU / PBU" and
-    # "BBU / PBU" above are the old combined buckets -- existing projects
-    # keep whatever submissions they already created there (deactivated for
-    # new projects below).
+    # Item 122 rework: L1's own TBU/PBU/DBU/BBU split reuses the exact same
+    # "Operation Units (TBU)" etc. rows L0's item 69 split already created
+    # (see L0_DEPT/L1_DEPT below) -- so it nests under the same "2.
+    # Operation Units" group header in the folder list, instead of showing
+    # as its own separate ungrouped set of rows. The old combined "TBU /
+    # PBU" and "BBU / PBU" buckets this superseded are gone entirely now
+    # (were carried here for a while for existing-project compatibility;
+    # removed once every submission still on them was confirmed at zero
+    # progress -- see the one-time cleanup in run() below).
 ]
 
 # Renames existing production department rows in place (preserving id and
@@ -177,7 +178,7 @@ DEPARTMENT_RENAMES = {
 # Fleet/FM splits already used.
 DEPARTMENT_NUMBERS = {
     "Tendering Department": 1,
-    "Operation Units": 2, "TBU / PBU": 2, "BBU": 2, "BBU / PBU": 2,
+    "Operation Units": 2, "BBU": 2,
     "Operation Units (TBU)": 2, "Operation Units (PBU)": 2, "Operation Units (DBU)": 2, "Operation Units (BBU)": 2,
     "TBU": 2, "PBU": 2, "DBU": 2,
     "Supply Chain": 3,
@@ -398,7 +399,7 @@ L0_ITEMS = [
 # (duration). Items 1.1-1.6 ARE the milestones M1-M6 (column D).
 # ---------------------------------------------------------------------------
 L1_DEPT = {
-    "tendering": "Tendering Department", "tbupbu": "TBU / PBU", "bbupbu": "BBU / PBU",
+    "tendering": "Tendering Department",
     "supply": "Supply Chain", "eng": "Engineering Department", "planning": "Planning",
     "costctrl": "Cost Control", "contract": "Contract", "hr": "Human Resources",
     "treasury": "Treasury", "finance": "Finance", "quality": "Quality",
@@ -420,38 +421,18 @@ L1_ITEMS = [
     ("1.5", "Receiving LOA / Post bid clarifications ends", "tendering", "client_dependent", None, 0, "after", "M5"),
     ("1.6", "Contract Signing", "tendering", "client_dependent", None, 0, "after", "M6"),
 
-    ("2.1", "Submission of Cost Center request to Cost Control Department", "tbupbu", "predecessor", "1.2", 1, "after", None),
-    # Item [predecessor renumber]: was "5.3" -- that was Cost Control's
-    # temporary-budget item before it got renamed to 6.1 (to stop colliding
-    # with Planning's own, unrelated 5.3). This reference was never updated
-    # when that rename happened, so it silently started resolving against
-    # Planning's 5.3 instead (same number, wrong item, no error) rather than
-    # the budget item it was always meant to depend on.
-    ("2.2", "Creating PRs for long-lead items through the system", "tbupbu", "predecessor", "4.5", 2, "after", None),
-    ("2.3", "Assignment of Temporary Project Manager & Project Engineer", "tbupbu", "predecessor", "1.1", 5, "after", None),
-    ("2.4", "Internal Kick off Meeting (to be called by Project Manager)", "tbupbu", "predecessor", "2.3", 5, "after", None),
-    ("2.5", "Draft Master Project Execution Plan ready to be submitted", "tbupbu", "predecessor", "1.2", 25, "after", None),
-    # Item [predecessor renumber]: same stale-5.3 bug as 2.2 above -- this is
-    # a PR-creation item too, so it depends on Cost Control's budget item
-    # (renamed 5.3 -> 6.1), not Planning's unrelated same-numbered 5.3.
-    ("2.6", "Create PRs for Early Activities (Soil Investigation, Topography)", "tbupbu", "predecessor", "6.1", 2, "after", None),
-    ("2.7", "Create PR for Design Firm/Consultant", "tbupbu", "predecessor", "4.4", 2, "after", None),
-    ("2.8", "Start Activities for Geotechnical Investigation (in house or vendor)", "tbupbu", "predecessor", "1.5", 7, "after", None),
-    ("2.9", "Start Activities for Topography and Site Investigation", "tbupbu", "predecessor", "1.2", 25, "after", None),
-    ("2.10", "Provide list of project permits (Governmental, Local Authority)", "tbupbu", "predecessor", "1.2", 15, "after", None),
-    ("2.11", "Preparation of Subcontracting Strategy for (OHTL/UGC) projects", "tbupbu", "predecessor", "1.2", 5, "after", None),
-    ("2.12", "Provide Confirmation on the Proposal recommendation for working schedule", "tbupbu", "predecessor", "5.3", 3, "after", None),
-
     ("2.13", "Submission of Cost Center request to Cost Control Department", "bbu", "predecessor", "1.2", 1, "after", None),
     ("2.14", "Creating PRs for MEP consultancy items through system", "bbu", "predecessor", "6.1", 2, "after", None),
     ("2.15", "BBU input for Draft Project Execution Plan", "bbu", "predecessor", "1.2", 20, "after", None),
-    ("2.16", "Provide general layout of Temporary facilities, laydown and storage", "bbupbu", "predecessor", "1.2", 7, "after", None),
     ("2.17", "Prepare/Update Subcontracting Strategy / Model", "bbu", "predecessor", "1.2", 5, "after", None),
     ("2.18", "Finalize Subcontract Agreement for SS projects", "bbu", "predecessor", "1.6", 10, "after", None),
 
     # Item 122: full TBU/PBU/DBU/BBU split (mirrors item 69's L0 pattern) --
-    # own copy of 2.1-2.12 per business unit instead of one combined
-    # "TBU / PBU" folder applying to every project regardless of BU.
+    # own copy of 2.1-2.12 per business unit. The old combined "TBU / PBU"
+    # and "BBU / PBU" catalog entries this replaced (2.1-2.12 under
+    # "tbupbu", 2.16 under "bbupbu") are gone -- confirmed zero real
+    # progress on every existing submission still pointing at them before
+    # removal (see the one-time cleanup migration in run() below).
     ("2.1", "Submission of Cost Center request to Cost Control Department", "tbu", "predecessor", "1.2", 1, "after", None),
     ("2.2", "Creating PRs for long-lead items through the system", "tbu", "predecessor", "4.5", 2, "after", None),
     ("2.3", "Assignment of Temporary Project Manager & Project Engineer", "tbu", "predecessor", "1.1", 5, "after", None),
@@ -1313,26 +1294,47 @@ def run():
                 db.commit()
                 print(f"Deactivated {deactivated} old flat Operation Units item(s) — superseded by TBU/PBU/DBU/BBU split.")
 
-        # Backfill (item 122): same as above but for L1's old combined
-        # "TBU / PBU" / "BBU / PBU" buckets, now superseded by real
-        # TBU/PBU/DBU/BBU folders. Existing projects keep their
-        # already-created submissions on the old departments untouched.
+        # One-time full removal (item 122 follow-up): L1's old combined
+        # "TBU / PBU" / "BBU / PBU" buckets were carried for a while so
+        # existing projects kept whatever they'd already created there
+        # (just deactivated for new projects), but confirmed on production
+        # that every submission ever created under them was still at
+        # zero progress (no_progress, no file) -- genuinely never used,
+        # not abandoned work -- so this deletes them outright instead of
+        # leaving the confusing duplicate "TBU / PBU"/"BBU / PBU" folders
+        # and gantt-legend entries sitting alongside the real TBU/PBU/DBU/
+        # BBU split forever. Safety net: if a submission under either
+        # somehow does carry progress (a state this repo's own production
+        # data never had), that department is left alone and a warning
+        # printed instead of silently discarding it.
         for old_name in ("TBU / PBU", "BBU / PBU"):
-            old_dept = dept_map.get(old_name)
+            old_dept = db.query(models.Department).filter_by(name=old_name).first()
             if not old_dept:
                 continue
-            deactivated = (
-                db.query(models.DeliverableDefinition)
-                .filter(
-                    models.DeliverableDefinition.department_id == old_dept.id,
-                    models.DeliverableDefinition.stage == models.Stage.L1,
-                    models.DeliverableDefinition.active == True,  # noqa: E712
-                )
-                .update({"active": False})
+            subs = (
+                db.query(models.DeliverableSubmission)
+                .join(models.DeliverableDefinition)
+                .filter(models.DeliverableDefinition.department_id == old_dept.id)
+                .all()
             )
-            if deactivated:
-                db.commit()
-                print(f"Deactivated {deactivated} old L1 '{old_name}' item(s) — superseded by TBU/PBU/DBU/BBU split.")
+            has_progress = any(s.status != models.SubmissionStatus.NO_PROGRESS or s.file_name for s in subs)
+            if has_progress:
+                print(f"WARNING: '{old_name}' has a submission with real progress -- skipped removal, left in place.")
+                continue
+            sub_ids = [s.id for s in subs]
+            if sub_ids:
+                db.query(models.WorkflowHistory).filter(models.WorkflowHistory.submission_id.in_(sub_ids)).delete(synchronize_session=False)
+                db.query(models.Document).filter(models.Document.submission_id.in_(sub_ids)).delete(synchronize_session=False)
+                db.query(models.Follower).filter(models.Follower.submission_id.in_(sub_ids)).delete(synchronize_session=False)
+                db.query(models.ReassignmentRequest).filter(models.ReassignmentRequest.submission_id.in_(sub_ids)).delete(synchronize_session=False)
+                db.query(models.DueDateRequest).filter(models.DueDateRequest.submission_id.in_(sub_ids)).delete(synchronize_session=False)
+                db.query(models.Announcement).filter(models.Announcement.submission_id.in_(sub_ids)).update(
+                    {"submission_id": None}, synchronize_session=False)
+                db.query(models.DeliverableSubmission).filter(models.DeliverableSubmission.id.in_(sub_ids)).delete(synchronize_session=False)
+            removed_defs = db.query(models.DeliverableDefinition).filter_by(department_id=old_dept.id).delete(synchronize_session=False)
+            db.delete(old_dept)
+            db.commit()
+            print(f"Removed old L1 '{old_name}' department entirely -- {removed_defs} definition(s), {len(sub_ids)} empty submission(s).")
 
         # Backfill: M6 (Contract Signing) already approved on some L1 project
         # before the auto-sign-on-approval logic existed, so contract_status
