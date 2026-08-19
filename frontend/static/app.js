@@ -2168,7 +2168,16 @@
   function _itemSortKey(itemNo) {
     return (itemNo || "").split(".").map(function (p) { return ("000" + p).slice(-4); }).join(".");
   }
+  // Keeps the count on the submit button itself, live, as items are
+  // (de)selected -- so any accidental selection loss (stage-switch reset,
+  // etc.) is visible immediately instead of only after submitting and
+  // getting fewer nominations than expected.
+  function _updateSmeNomSubmitLabel() {
+    var count = Object.keys(smeNomSelected).length;
+    document.getElementById("smeNomSubmit").textContent = count ? "Submit Nomination (" + count + ")" : "Submit Nomination";
+  }
   function renderSmeNomItems() {
+    _updateSmeNomSubmitLabel();
     var filterText = document.getElementById("smeNomFilter").value.trim().toLowerCase();
     var wrap = document.getElementById("smeNomItemList");
     wrap.innerHTML = "";
@@ -2204,14 +2213,23 @@
       cb.disabled = already;
       cb.addEventListener("change", function () {
         if (cb.checked) smeNomSelected[d.id] = true; else delete smeNomSelected[d.id];
+        _updateSmeNomSubmitLabel();
       });
       row.appendChild(cb);
       row.appendChild(document.createTextNode(d.item_no + " · " + d.name + (already ? " (already SME)" : "")));
       wrap.appendChild(row);
     });
+    _updateSmeNomSubmitLabel();
   }
   document.querySelectorAll("#smeNomStageToggle .chip").forEach(function (btn) {
     btn.addEventListener("click", async function () {
+      // Load-bearing guard: re-clicking the already-active stage chip used
+      // to still wipe smeNomSelected unconditionally below, silently
+      // dropping every item the user had already picked with no visual
+      // sign anything happened (the reloaded list looks identical, just
+      // unchecked) -- a real report of "picked several items, only one
+      // ended up submitted" traced back to exactly this.
+      if (btn.dataset.stage === smeNomStage) return;
       document.querySelectorAll("#smeNomStageToggle .chip").forEach(function (b) { b.classList.remove("active"); });
       btn.classList.add("active");
       smeNomStage = btn.dataset.stage;
