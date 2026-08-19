@@ -939,35 +939,39 @@
   </div>
 </div>
 
-<!-- Self-service SME nomination -- open to any user; the request just
-     queues in Follow Up for an Admin to approve/decline. -->
+<!-- Self-service SME nomination -- open to any user already in the L0-L1
+     Group roster (name/email are resolved from there, not typed); each
+     picked item queues separately in Follow Up for an Admin to
+     approve/decline. -->
 <div class="modal-overlay" id="smeNomOverlay" hidden>
   <div class="modal-card">
     <div class="modal-head">
       <div>
         <div class="eyebrow">Nominate Yourself</div>
         <h2>Become an SME</h2>
+        <div class="sub" id="smeNomIdentityLine" style="margin-top:2px;"></div>
       </div>
       <button class="modal-close" id="smeNomClose">&#10005;</button>
     </div>
     <div class="modal-body">
-      <p class="tour-step-text" style="margin-top:0;">Subject to admin approval &#8212; once approved, you can be
-        assigned to review and approve deliverables as an SME.</p>
-      <div class="field">
-        <label>Your Name</label>
-        <input type="text" id="smeNomName" placeholder="Full name" />
+      <div id="smeNomNotInRoster" class="empty-state" hidden>
+        You need to be added to the L0-L1 Group first &#8212; ask an Admin
+        (Focal Points &#8594; L0-L1 Group), then come back and try again.
       </div>
-      <div class="field" style="margin-top:14px;">
-        <label>Your Email <span class="req">*</span></label>
-        <input type="text" id="smeNomEmail" placeholder="you@algihaz.com" />
-      </div>
-      <div class="field" style="margin-top:14px;">
-        <label>Why (optional)</label>
-        <textarea id="smeNomReason" rows="3" placeholder="Relevant experience, department, etc."></textarea>
-      </div>
-      <div class="modal-actions-row" style="margin-top:20px;">
-        <button class="btn" id="smeNomCancel">Cancel</button>
-        <button class="btn primary" id="smeNomSubmit">Submit Nomination</button>
+      <div id="smeNomForm">
+        <p class="tour-step-text" style="margin-top:0;">Pick the item(s) you see yourself fit to review as SME
+          &#8212; each one goes to an Admin for approval separately.</p>
+        <div class="filter-chips" id="smeNomStageToggle" style="margin-bottom:12px;">
+          <button class="chip active" data-stage="L0">L0 Tenders</button>
+          <button class="chip" data-stage="L1">L1 Projects</button>
+        </div>
+        <input type="text" id="smeNomFilter" placeholder="Filter by item number or name&#8230;"
+          style="width:100%;padding:8px 12px;border-radius:9px;border:1px solid var(--line);background:var(--surface-sunken);color:var(--ink-900);font-size:13px;margin-bottom:10px;box-sizing:border-box;" />
+        <div id="smeNomItemList" style="max-height:320px;overflow-y:auto;border:1px solid var(--line);border-radius:10px;"></div>
+        <div class="modal-actions-row" style="margin-top:20px;">
+          <button class="btn" id="smeNomCancel">Cancel</button>
+          <button class="btn primary" id="smeNomSubmit">Submit Nomination</button>
+        </div>
       </div>
     </div>
   </div>

@@ -389,22 +389,26 @@ class ReassignmentRequest(Base):
 
 
 class SmeNomination(Base):
-    """Self-nomination: any user can request to become an SME, subject to
-    admin approval before their User.role actually changes -- not tied to
-    any single project/deliverable, unlike ReassignmentRequest/DueDateRequest
-    above, since it's a roster-level change (who's eligible to review at
-    all), not an action on one submission.
+    """Self-nomination: a user (already in the L0-L1 Group roster) picks one
+    or more catalog items they see themselves fit to be SME for -- one row
+    per (email, deliverable_definition), not one row per submission event,
+    so an admin approves/rejects each item individually. Approving both
+    grants the User.role=SME (if not already) and adds the nominee to that
+    specific item's default_sme_emails -- a nomination alone never changes
+    anything by itself.
     """
     __tablename__ = "sme_nominations"
     id = Column(Integer, primary_key=True)
     email = Column(String, nullable=False)
     name = Column(String, nullable=True)
-    reason = Column(Text, nullable=True)
+    deliverable_definition_id = Column(Integer, ForeignKey("deliverable_definitions.id"), nullable=False)
     status = Column(String, default="pending")  # pending | approved | rejected
     requested_at = Column(DateTime, default=datetime.utcnow)
     decided_at = Column(DateTime, nullable=True)
     decided_by_email = Column(String, nullable=True)
     decision_comment = Column(Text, nullable=True)
+
+    definition = relationship("DeliverableDefinition")
 
 
 class DueDateRequest(Base):

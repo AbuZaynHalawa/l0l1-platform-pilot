@@ -2130,37 +2130,119 @@
     document.getElementById("dueDateRequestOverlay").hidden = true;
   });
 
-  // Self-service SME nomination (open to everyone, no role/assignment gate --
-  // that's the whole point) -- same small-modal shape as the due-date-
-  // request form above, just not tied to a submission.
-  document.getElementById("becomeSmeBtn").addEventListener("click", function () {
-    document.getElementById("smeNomEmail").value = passiveIdentity();
-    document.getElementById("smeNomName").value = "";
-    document.getElementById("smeNomReason").value = "";
-    document.getElementById("smeNomOverlay").hidden = false;
+  // Self-service SME nomination -- open to everyone, but the nominee's own
+  // name/email are resolved from the L0-L1 Group roster (not typed), and
+  // each picked item queues as its own row for an Admin to approve/reject
+  // individually (see loadFollowUp's smeNomList further down).
+  var smeNomStage = "L0", smeNomItems = [], smeNomSelected = {}, smeNomEmail = "", smeNomName = "";
+  async function openSmeNomModal() {
+    var overlay = document.getElementById("smeNomOverlay");
+    var notInRoster = document.getElementById("smeNomNotInRoster");
+    var form = document.getElementById("smeNomForm");
+    var identityLine = document.getElementById("smeNomIdentityLine");
+    var email = passiveIdentity();
+    var users = await api("/api/departments/users");
+    var match = email && users.find(function (u) { return u.email.trim().toLowerCase() === email.trim().toLowerCase(); });
+    if (!match) {
+      notInRoster.hidden = false;
+      form.hidden = true;
+      identityLine.textContent = email ? ("We don't recognize " + email + " in the roster.") : "";
+      overlay.hidden = false;
+      return;
+    }
+    notInRoster.hidden = true;
+    form.hidden = false;
+    smeNomEmail = match.email; smeNomName = match.name;
+    identityLine.textContent = "Nominating as " + (match.name || match.email) + " (" + match.email + ")";
+    smeNomSelected = {};
+    document.getElementById("smeNomFilter").value = "";
+    smeNomStage = "L0";
+    document.querySelectorAll("#smeNomStageToggle .chip").forEach(function (b) { b.classList.toggle("active", b.dataset.stage === "L0"); });
+    await loadSmeNomItems();
+    overlay.hidden = false;
+  }
+  async function loadSmeNomItems() {
+    smeNomItems = await api("/api/departments/deliverable-focal?stage=" + smeNomStage);
+    renderSmeNomItems();
+  }
+  function _itemSortKey(itemNo) {
+    return (itemNo || "").split(".").map(function (p) { return ("000" + p).slice(-4); }).join(".");
+  }
+  function renderSmeNomItems() {
+    var filterText = document.getElementById("smeNomFilter").value.trim().toLowerCase();
+    var wrap = document.getElementById("smeNomItemList");
+    wrap.innerHTML = "";
+    var filtered = smeNomItems.filter(function (d) {
+      return !filterText || (d.item_no + " " + d.name).toLowerCase().indexOf(filterText) !== -1;
+    });
+    if (!filtered.length) {
+      wrap.appendChild(el("div", "empty-state", "No matching items."));
+      return;
+    }
+    // The backend list sorts by department NUMBER then item_no (right for
+    // the Focal Points table it's normally used for) -- same-numbered
+    // sibling departments (Operation Units' TBU/PBU/DBU/BBU, Engineering/
+    // Engineering (PBU), etc.) end up interleaved item-by-item rather than
+    // grouped, so this view re-groups by the exact department name and
+    // sorts within each group instead of trusting incoming order.
+    filtered = filtered.slice().sort(function (a, b) {
+      if (a.department_number !== b.department_number) return (a.department_number || 0) - (b.department_number || 0);
+      if (a.department !== b.department) return a.department < b.department ? -1 : 1;
+      return _itemSortKey(a.item_no) < _itemSortKey(b.item_no) ? -1 : 1;
+    });
+    var lastDept = null;
+    filtered.forEach(function (d) {
+      if (d.department !== lastDept) {
+        wrap.appendChild(el("div", "deliv-subheader", deptLabel(d.department, d.department_number)));
+        lastDept = d.department;
+      }
+      var already = (d.default_sme_emails || []).some(function (e) { return e.toLowerCase() === smeNomEmail.toLowerCase(); });
+      var row = el("label", "scope-opt");
+      row.style.padding = "6px 18px";
+      var cb = el("input"); cb.type = "checkbox";
+      cb.checked = !already && !!smeNomSelected[d.id];
+      cb.disabled = already;
+      cb.addEventListener("change", function () {
+        if (cb.checked) smeNomSelected[d.id] = true; else delete smeNomSelected[d.id];
+      });
+      row.appendChild(cb);
+      row.appendChild(document.createTextNode(d.item_no + " · " + d.name + (already ? " (already SME)" : "")));
+      wrap.appendChild(row);
+    });
+  }
+  document.querySelectorAll("#smeNomStageToggle .chip").forEach(function (btn) {
+    btn.addEventListener("click", async function () {
+      document.querySelectorAll("#smeNomStageToggle .chip").forEach(function (b) { b.classList.remove("active"); });
+      btn.classList.add("active");
+      smeNomStage = btn.dataset.stage;
+      smeNomSelected = {}; // item ids aren't comparable across stages
+      await loadSmeNomItems();
+    });
   });
+  document.getElementById("smeNomFilter").addEventListener("input", renderSmeNomItems);
+  document.getElementById("becomeSmeBtn").addEventListener("click", openSmeNomModal);
   function closeSmeNomModal() { document.getElementById("smeNomOverlay").hidden = true; }
   document.getElementById("smeNomClose").addEventListener("click", closeSmeNomModal);
   document.getElementById("smeNomCancel").addEventListener("click", closeSmeNomModal);
   document.getElementById("smeNomSubmit").addEventListener("click", async function () {
-    var email = document.getElementById("smeNomEmail").value.trim();
-    if (!email) { showToast("Email is required", true); return; }
+    var ids = Object.keys(smeNomSelected).map(Number);
+    if (!ids.length) { showToast("Pick at least one item", true); return; }
+    var result;
     try {
-      await api("/api/departments/sme-nominations", {
+      result = await api("/api/departments/sme-nominations", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: email,
-          name: document.getElementById("smeNomName").value.trim() || null,
-          reason: document.getElementById("smeNomReason").value.trim() || null,
-        }),
+        body: JSON.stringify({ email: smeNomEmail, name: smeNomName, definition_ids: ids }),
       });
     } catch (err) {
       showToast("Could not submit &#8211; " + apiErrorDetail(err), true);
       return;
     }
-    localStorage.setItem("myEmail", email);
     closeSmeNomModal();
-    showToast("Nomination submitted &#8211; pending admin approval");
+    if (result.created) {
+      showToast("Nominated for " + result.created + " item" + (result.created === 1 ? "" : "s") + " &#8211; pending admin approval");
+    } else {
+      showToast("Already SME or already pending for everything you picked", true);
+    }
   });
 
   /* ================= PROJECT DETAIL ================= */
@@ -4489,6 +4571,10 @@
       });
     }
 
+    // Grouped by nominee (fu-dept-group, same collapsed-accordion pattern
+    // as the overdue-deliverables list below) since one person can have
+    // several pending item picks at once -- each item still gets its own
+    // Approve/Reject, decided independently.
     var smeNoms = await api("/api/departments/sme-nominations?status=pending");
     var smeNomWrap = document.getElementById("smeNomList");
     document.getElementById("smeNomCount").textContent = smeNoms.length || "";
@@ -4496,37 +4582,58 @@
     if (!smeNoms.length) {
       smeNomWrap.appendChild(el("div", "empty-state", "No pending SME nominations."));
     } else {
-      smeNoms.forEach(function (n) {
-        var row = el("div", "aq-row");
-        var main = el("div", "aq-main");
-        main.appendChild(el("div", "aq-title", (n.name || n.email)));
-        main.appendChild(el("div", "aq-sub",
-          '<span>' + n.email + '</span>' +
-          (n.reason ? '<span class="sep">&middot;</span><span>' + n.reason + '</span>' : "")));
-        row.appendChild(main);
-        var actions = el("div", "deliv-actions");
-        var appr = el("button", "btn primary", "Approve");
-        appr.addEventListener("click", async function () {
-          await api("/api/departments/sme-nominations/" + n.id + "/decide", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ approved: true, comment: "", actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
+      var byNominee = {};
+      smeNoms.forEach(function (n) { (byNominee[n.email] = byNominee[n.email] || []).push(n); });
+      Object.keys(byNominee).sort().forEach(function (email) {
+        var noms = byNominee[email];
+        var group = document.createElement("details");
+        group.className = "fu-dept-group";
+        group.open = true;
+        var summary = document.createElement("summary");
+        summary.appendChild(el("span", "fu-dept-name", (noms[0].name || email) + (noms[0].name ? " (" + email + ")" : "")));
+        summary.appendChild(el("span", "fu-dept-tags",
+          '<span class="fu-dept-count">' + noms.length + " item" + (noms.length === 1 ? "" : "s") + '</span>'));
+        group.appendChild(summary);
+        noms.forEach(function (n) {
+          var row = el("div", "aq-row");
+          var main = el("div", "aq-main");
+          main.appendChild(el("div", "aq-title", n.item_no + " &middot; " + n.item_name));
+          main.appendChild(el("div", "aq-sub",
+            '<span>' + n.stage + '</span><span class="sep">&middot;</span><span>' + deptLabel(n.department, n.department_number) + '</span>'));
+          row.appendChild(main);
+          var actions = el("div", "deliv-actions");
+          var appr = el("button", "btn primary", "Approve");
+          appr.addEventListener("click", async function () {
+            await api("/api/departments/sme-nominations/" + n.id + "/decide", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ approved: true, comment: "", actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
+            });
+            showToast(email + " is now the SME for " + n.item_no);
+            loadFollowUp();
           });
-          showToast(n.email + " is now an SME");
-          loadFollowUp();
-        });
-        var rej = el("button", "btn ghost-crit", "Reject");
-        rej.addEventListener("click", async function () {
-          var comment = prompt("Reason for declining (optional):", "") || "";
-          await api("/api/departments/sme-nominations/" + n.id + "/decide", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ approved: false, comment: comment, actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
+          var rej = el("button", "btn ghost-crit", "Reject");
+          rej.addEventListener("click", function () {
+            openChecklistEditModal({
+              type: "text",
+              title: "Decline Nomination",
+              eyebrow: "Reason for declining " + n.item_no + " for " + (n.name || email) + " (optional)",
+              selected: "",
+              onSave: async function (comment) {
+                closeChecklistEditModal();
+                await api("/api/departments/sme-nominations/" + n.id + "/decide", {
+                  method: "POST", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ approved: false, comment: comment, actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
+                });
+                showToast("Nomination declined");
+                loadFollowUp();
+              },
+            });
           });
-          showToast("Nomination declined");
-          loadFollowUp();
+          actions.appendChild(appr); actions.appendChild(rej);
+          row.appendChild(actions);
+          group.appendChild(row);
         });
-        actions.appendChild(appr); actions.appendChild(rej);
-        row.appendChild(actions);
-        smeNomWrap.appendChild(row);
+        smeNomWrap.appendChild(group);
       });
     }
 

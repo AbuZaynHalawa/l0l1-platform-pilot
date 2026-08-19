@@ -7,6 +7,7 @@ Focal point / owner / SME emails below are PLACEHOLDERS — swap for the real
 per-department contacts and the real per-deliverable owner/SME mapping when
 provided, then re-run: `python -m backend.seed` (safe to re-run, upserts).
 """
+from sqlalchemy import inspect, text
 from .database import SessionLocal, engine, ensure_column, ensure_enum_value, ensure_index, ensure_not_unique
 from . import models, rules
 
@@ -75,12 +76,30 @@ ensure_enum_value("announcements", "type", "HOLD_DECISION")
 ensure_column("deliverable_submissions", "due_soon_reminded_for_date", "DATE")
 ensure_column("deliverable_submissions", "due_soon_reminded_offsets", "JSON")
 
+# [SME nominations, per-item rework]: sme_nominations shipped with a
+# single-blanket-request shape (email/name/reason, one row per submission
+# click) days ago with zero real usage, then got reworked into one row per
+# (email, deliverable_definition_id) so an admin approves/rejects each
+# picked item individually. create_all() only creates missing tables, never
+# alters an existing one's columns -- with nothing real in it yet, dropping
+# and letting create_all() below rebuild it from the current model is
+# simpler and safer than hand-writing an ALTER TABLE for a column rename
+# that never had real data to preserve.
+_inspector = inspect(engine)
+if _inspector.has_table("sme_nominations"):
+    _existing_cols = {c["name"] for c in _inspector.get_columns("sme_nominations")}
+    if "deliverable_definition_id" not in _existing_cols:
+        with engine.connect() as _conn:
+            _conn.execute(text("DROP TABLE sme_nominations"))
+            _conn.commit()
+
 models.Base.metadata.create_all(bind=engine)
 
 # due_date_requests is a brand-new table -- create_all above just made it,
 # so its index can only be added after that point (unlike the
 # reassignment_requests index above, which predates this table's existence).
 ensure_index("due_date_requests", "ix_due_date_requests_submission_id", "submission_id")
+ensure_index("sme_nominations", "ix_sme_nominations_definition_id", "deliverable_definition_id")
 ensure_column("due_date_requests", "escalated_at", "TIMESTAMP")
 ensure_column("tender_documents", "folder_path", "VARCHAR")
 

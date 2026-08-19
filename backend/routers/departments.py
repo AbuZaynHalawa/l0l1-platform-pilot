@@ -307,13 +307,21 @@ def remove_user(user_id: int, db: Session = Depends(get_db)):
 
 
 # ---------------------------------------------------------------------------
-# SME self-nomination -- any user can request to become an SME; admin
-# approval actually flips the roster role (mirrors ReassignmentRequest/
-# DueDateRequest's request-then-decide shape, just not tied to a project).
+# SME self-nomination -- a user already in the L0-L1 Group roster picks one
+# or more catalog items they see themselves fit to be SME for; admin
+# approves/rejects each item individually (mirrors ReassignmentRequest/
+# DueDateRequest's request-then-decide shape, one row per picked item
+# instead of one row per submission click). Approving grants User.role=SME
+# (if not already) and adds the nominee to that specific item's
+# default_sme_emails -- a nomination alone never changes anything by itself.
 # ---------------------------------------------------------------------------
 def _serialize_nomination(n: models.SmeNomination) -> dict:
+    d = n.definition
     return {
-        "id": n.id, "email": n.email, "name": n.name, "reason": n.reason, "status": n.status,
+        "id": n.id, "email": n.email, "name": n.name, "status": n.status,
+        "stage": d.stage.value if d else None, "item_no": d.item_no if d else None,
+        "item_name": d.name if d else None,
+        "department": d.department.name if d else None, "department_number": d.department.number if d else None,
         "requested_at": n.requested_at, "decided_at": n.decided_at,
         "decided_by_email": n.decided_by_email, "decision_comment": n.decision_comment,
     }
@@ -322,7 +330,7 @@ def _serialize_nomination(n: models.SmeNomination) -> dict:
 class SmeNominationCreate(BaseModel):
     email: str
     name: str | None = None
-    reason: str | None = None
+    definition_ids: list[int] = []
 
 
 @router.post("/sme-nominations")
@@ -330,26 +338,44 @@ def create_sme_nomination(payload: SmeNominationCreate, db: Session = Depends(ge
     email = payload.email.strip()
     if not email:
         raise HTTPException(400, "Email is required")
-    existing_user = db.query(models.User).filter(models.User.email.ilike(email)).first()
-    if existing_user and existing_user.role == "SME":
-        raise HTTPException(400, "This email is already an SME")
-    if db.query(models.SmeNomination).filter(
-        models.SmeNomination.email.ilike(email), models.SmeNomination.status == "pending",
-    ).first():
-        raise HTTPException(400, "A nomination for this email is already pending")
-    nom = models.SmeNomination(
-        email=email, name=(payload.name or "").strip() or None, reason=(payload.reason or "").strip() or None,
-    )
-    db.add(nom)
+    if not payload.definition_ids:
+        raise HTTPException(400, "Pick at least one item")
+    user = db.query(models.User).filter(models.User.email.ilike(email)).first()
+    if not user:
+        raise HTTPException(400, "You need to be added to the L0-L1 Group first (Focal Points → L0-L1 Group)")
+
+    created: list[models.SmeNomination] = []
+    for def_id in payload.definition_ids:
+        d = db.get(models.DeliverableDefinition, def_id)
+        if not d:
+            continue
+        already_sme = email.lower() in [e.lower() for e in (d.default_sme_emails or [])]
+        already_pending = db.query(models.SmeNomination).filter(
+            models.SmeNomination.email.ilike(email),
+            models.SmeNomination.deliverable_definition_id == def_id,
+            models.SmeNomination.status == "pending",
+        ).first()
+        if already_sme or already_pending:
+            continue
+        created.append(models.SmeNomination(
+            email=email, name=(payload.name or user.name or "").strip() or None, deliverable_definition_id=def_id,
+        ))
+    db.add_all(created)
     db.commit()
-    db.refresh(nom)
-    announcements.sme_nomination_requested(db, sorted(rules.admin_emails(db)), nom.email, nom.name, nom.reason)
-    return _serialize_nomination(nom)
+
+    if created:
+        announcements.sme_nomination_requested(db, sorted(rules.admin_emails(db)), email, payload.name or user.name, len(created))
+    return {"created": len(created), "skipped": len(payload.definition_ids) - len(created)}
 
 
 @router.get("/sme-nominations")
 def list_sme_nominations(status: str | None = None, db: Session = Depends(get_db)):
-    q = db.query(models.SmeNomination).order_by(models.SmeNomination.requested_at.desc())
+    q = (
+        db.query(models.SmeNomination)
+        .join(models.DeliverableDefinition)
+        .join(models.Department)
+        .order_by(models.SmeNomination.requested_at.desc())
+    )
     if status:
         q = q.filter(models.SmeNomination.status == status)
     return [_serialize_nomination(n) for n in q.all()]
@@ -372,6 +398,7 @@ def decide_sme_nomination(nomination_id: int, payload: SmeNominationDecision, db
     if nom.status != "pending":
         raise HTTPException(400, "This nomination has already been decided")
 
+    d = nom.definition
     if payload.approved:
         user = db.query(models.User).filter(models.User.email.ilike(nom.email)).first()
         if user:
@@ -379,7 +406,30 @@ def decide_sme_nomination(nomination_id: int, payload: SmeNominationDecision, db
             if nom.name and not user.name:
                 user.name = nom.name
         else:
-            db.add(models.User(name=nom.name or nom.email, email=nom.email, role="SME"))
+            user = models.User(name=nom.name or nom.email, email=nom.email, role="SME")
+            db.add(user)
+            db.flush()
+
+        current_defaults = d.default_sme_emails or []
+        if user.email.lower() not in [e.lower() for e in current_defaults]:
+            d.default_sme_emails = current_defaults + [user.email]
+
+        # Same safety gate item 46's Scope/BU resync and update_deliverable_focal
+        # above already use -- only pushed onto a submission that hasn't had
+        # any real progress yet; once someone's uploaded or it's mid-review,
+        # changing who's responsible has to go through Reassign instead.
+        _SAFE_STATUSES = {models.SubmissionStatus.NO_PROGRESS, models.SubmissionStatus.PENDING_TRIAGE,
+                           models.SubmissionStatus.NOT_REQUIRED}
+        untouched = (
+            db.query(models.DeliverableSubmission)
+            .filter(models.DeliverableSubmission.deliverable_definition_id == d.id,
+                    models.DeliverableSubmission.status.in_(_SAFE_STATUSES))
+            .all()
+        )
+        for s in untouched:
+            existing = s.sme_emails or []
+            if user.email.lower() not in [e.lower() for e in existing]:
+                s.sme_emails = existing + [user.email]
 
     nom.status = "approved" if payload.approved else "rejected"
     nom.decided_at = datetime.utcnow()
@@ -387,5 +437,5 @@ def decide_sme_nomination(nomination_id: int, payload: SmeNominationDecision, db
     nom.decision_comment = payload.comment or None
     db.commit()
 
-    announcements.sme_nomination_decision(db, nom.email, payload.approved, payload.comment)
+    announcements.sme_nomination_decision(db, nom.email, d.item_no, d.name, payload.approved, payload.comment)
     return _serialize_nomination(nom)

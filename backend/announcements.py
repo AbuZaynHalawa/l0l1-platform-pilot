@@ -386,25 +386,28 @@ def reassignment_decision(db: Session, project: models.Project, requester_emails
 
 
 def sme_nomination_requested(db: Session, admin_emails: list[str], email: str, name: str | None,
-                              reason: str | None) -> models.Announcement:
+                              item_count: int) -> models.Announcement:
     """Not tied to a project (see SmeNomination) -- DEADLINE-typed like every
     other Follow Up tab request so it lands in Admin's Reminders tab, same
-    reasoning as reassignment_requested above.
+    reasoning as reassignment_requested above. One announcement per
+    submission batch (all items picked in one go), not per item -- the
+    per-item detail is what the Follow Up list itself is for.
     """
     title = "SME Nomination – Admin Action Needed"
-    reason_part = f' &#8211; &quot;{reason}&quot;' if reason else ""
-    body = f"{_b(name or email)} ({_b(email)}) has nominated themselves as an SME{reason_part}. Awaiting your decision."
+    item_word = "item" if item_count == 1 else "items"
+    body = f"{_b(name or email)} ({_b(email)}) has nominated themselves as SME for {_b(item_count)} {item_word}. Awaiting your decision."
     return _create(db, type=models.AnnouncementType.DEADLINE, title=title, body=body,
                     recipients=sorted({e for e in admin_emails if e}), greeting="Admin")
 
 
-def sme_nomination_decision(db: Session, email: str, approved: bool, comment: str | None = None) -> models.Announcement:
+def sme_nomination_decision(db: Session, email: str, item_no: str, item_name: str,
+                             approved: bool, comment: str | None = None) -> models.Announcement:
     if approved:
         title = "SME Nomination Approved"
-        body = f"Your request to become an SME was {_hl('approved', 'good')}. You can now review and approve deliverables assigned to you as SME."
+        body = f"Your request to become the SME for {_b(item_no)} {item_name} was {_hl('approved', 'good')}."
     else:
         title = "SME Nomination Declined"
-        body = f"Your request to become an SME was {_hl('declined', 'crit')}."
+        body = f"Your request to become the SME for {_b(item_no)} {item_name} was {_hl('declined', 'crit')}."
         if comment:
             body += f' &#8211; &quot;{comment}&quot;'
     return _create(db, type=models.AnnouncementType.DEADLINE, title=title, body=body,
