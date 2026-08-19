@@ -520,7 +520,7 @@ def list_reassignment_requests(status: str = "pending", db: Session = Depends(ge
             "est_no": r.submission.project.est_no, "item_no": r.submission.definition.item_no,
             "name": r.submission.definition.name,
             "from_email": r.from_email, "to_email": r.to_email, "reason": r.reason,
-            "status": r.status, "requested_at": r.requested_at,
+            "status": r.status, "requested_at": r.requested_at, "decided_at": r.decided_at,
         }
         for r in reqs
     ]
@@ -621,7 +621,8 @@ def list_due_date_requests(status: str = "pending", db: Session = Depends(get_db
             "name": r.submission.definition.name,
             "requested_by_email": r.requested_by_email, "reason": r.reason,
             "requested_due_date": r.requested_due_date, "current_due_date": r.submission.due_date,
-            "status": r.status, "requested_at": r.requested_at,
+            "status": r.status, "requested_at": r.requested_at, "decided_at": r.decided_at,
+            "decided_by_email": r.decided_by_email, "decision_comment": r.decision_comment,
         }
         for r in reqs
     ]

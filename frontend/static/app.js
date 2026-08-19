@@ -4766,6 +4766,87 @@
     refreshNavBadges();
   }
 
+  // Decision history for the three Follow Up queues above -- lazily
+  // fetched only when the toggle is opened (a "Show History" click, not on
+  // every page load, since past decisions only grow over time). All three
+  // list endpoints already support an unfiltered fetch (an empty/omitted
+  // `status` skips their own status filter), so this needs no new endpoint
+  // -- just fetch everything and keep the non-pending rows.
+  function _historyStatusPill(status) {
+    return '<span class="pill ' + (status === "approved" ? "good" : "crit") + '"><span class="dot"></span>' +
+      (status === "approved" ? "Approved" : "Rejected") + '</span>';
+  }
+  function _setupHistoryToggle(toggleId, containerId, loadFn) {
+    var btn = document.getElementById(toggleId);
+    var container = document.getElementById(containerId);
+    var loaded = false;
+    btn.addEventListener("click", async function () {
+      if (container.hidden) {
+        container.hidden = false;
+        btn.textContent = "Hide History";
+        if (!loaded) { await loadFn(container); loaded = true; }
+      } else {
+        container.hidden = true;
+        btn.textContent = "Show History";
+      }
+    });
+  }
+  _setupHistoryToggle("dueDateHistoryToggle", "dueDateReqHistory", async function (container) {
+    var all = await api("/api/deliverables/due-date-requests?status=");
+    var decided = all.filter(function (r) { return r.status !== "pending"; });
+    container.innerHTML = "";
+    if (!decided.length) { container.appendChild(el("div", "empty-state", "No decided requests yet.")); return; }
+    decided.forEach(function (r) {
+      var row = el("div", "aq-row");
+      var main = el("div", "aq-main");
+      var kindLabel = r.kind === "extension" ? "Extension" : "Hold";
+      main.appendChild(el("div", "aq-title", kindLabel + " &middot; " + r.item_no + " &middot; " + r.name));
+      main.appendChild(el("div", "aq-sub",
+        '<span>' + r.est_no + '</span><span class="sep">&middot;</span><span>' + r.requested_by_email + '</span>' +
+        (r.decided_at ? '<span class="sep">&middot;</span><span>' + fmtDate(r.decided_at.slice(0, 10)) + '</span>' : "") +
+        (r.decision_comment ? '<span class="sep">&middot;</span><span>&#8220;' + r.decision_comment + '&#8221;</span>' : "")));
+      row.appendChild(main);
+      row.appendChild(el("div", "", _historyStatusPill(r.status)));
+      container.appendChild(row);
+    });
+  });
+  _setupHistoryToggle("reassignHistoryToggle", "reassignHistory", async function (container) {
+    var all = await api("/api/deliverables/reassignment-requests?status=");
+    var decided = all.filter(function (r) { return r.status !== "pending"; });
+    container.innerHTML = "";
+    if (!decided.length) { container.appendChild(el("div", "empty-state", "No decided requests yet.")); return; }
+    decided.forEach(function (r) {
+      var row = el("div", "aq-row");
+      var main = el("div", "aq-main");
+      main.appendChild(el("div", "aq-title", r.item_no + " &middot; " + r.name));
+      main.appendChild(el("div", "aq-sub",
+        '<span>' + r.est_no + '</span><span class="sep">&middot;</span>' +
+        '<span>' + (r.from_email || "Unassigned") + ' &#8594; ' + r.to_email + '</span>' +
+        (r.decided_at ? '<span class="sep">&middot;</span><span>' + fmtDate(r.decided_at.slice(0, 10)) + '</span>' : "")));
+      row.appendChild(main);
+      row.appendChild(el("div", "", _historyStatusPill(r.status)));
+      container.appendChild(row);
+    });
+  });
+  _setupHistoryToggle("smeNomHistoryToggle", "smeNomHistory", async function (container) {
+    var all = await api("/api/departments/sme-nominations");
+    var decided = all.filter(function (r) { return r.status !== "pending"; });
+    container.innerHTML = "";
+    if (!decided.length) { container.appendChild(el("div", "empty-state", "No decided nominations yet.")); return; }
+    decided.forEach(function (n) {
+      var row = el("div", "aq-row");
+      var main = el("div", "aq-main");
+      main.appendChild(el("div", "aq-title", n.item_no + " &middot; " + n.item_name));
+      main.appendChild(el("div", "aq-sub",
+        '<span>' + (n.name || n.email) + '</span><span class="sep">&middot;</span><span>' + n.stage + '</span>' +
+        (n.decided_at ? '<span class="sep">&middot;</span><span>' + fmtDate(n.decided_at.slice(0, 10)) + '</span>' : "") +
+        (n.decision_comment ? '<span class="sep">&middot;</span><span>&#8220;' + n.decision_comment + '&#8221;</span>' : "")));
+      row.appendChild(main);
+      row.appendChild(el("div", "", _historyStatusPill(n.status)));
+      container.appendChild(row);
+    });
+  });
+
   /* ================= BM TRIAGE STATUS (admin) ================= */
   var BM_TRIAGE_STATUS_META = {
     done: ["good", "Done"], reminded: ["warn", "Reminded"], pending: ["crit", "Pending"],
