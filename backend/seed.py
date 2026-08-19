@@ -387,7 +387,7 @@ L0_ITEMS = [
     ("5.1", "Prepare Risk Register", "planning", "predecessor", "2.2", 1, "after", "date_driven", None),
     ("5.2", "Highlight points require Pre-bid clarifications", "planning", "pre_bid", None, 3, "before", "date_driven", None),
     ("5.3", "Prepare Project schedule (level according to client requirement, up to Level 3)", "planning", "predecessor", "1.1", 15, "after", "date_driven", "M3"),
-    ("5.4", "Verify Quantities for remeasured Contracts (if applicable)", "planning", "predecessor", "1.1", 3, "after", "date_driven", None),
+    ("5.4", "Verify Quantities for remeasured Contracts (if applicable)", "planning", "predecessor", "1.1", 10, "after", "date_driven", None),
     ("5.5", "Provide Updated Productivity Norms and Calculations (PCO-01-SPR-001)", "planning", None, None, 0, "after", "library", None),
 
     ("6.1", "Prepare Risk Register", "costctrl", "predecessor", "2.2", 1, "after", "date_driven", None),
@@ -408,7 +408,7 @@ L0_ITEMS = [
     ("8.1", "Verify local content requirements in coordination with the Manning Schedule", "hr", "predecessor", "5.3", 5, "after", "date_driven", None),
     ("8.2", "Updated HR Cost Estimates (Salaries / Wages / Benefits)", "hr", None, None, 0, "after", "library", None),
     ("8.3", "Provide updated information on Workforce availability, nationality, release dates", "hr", None, None, 0, "after", "library", None),
-    ("8.4", "Provide Supporting documents, such as team CV's, certificates and Qualifications", "hr", "predecessor", "1.1", 3, "after", "date_driven", None),
+    ("8.4", "Provide Supporting documents, such as team CV's, certificates and Qualifications", "hr", "predecessor", "1.1", 5, "after", "date_driven", None),
 
     # Item 141: L0's old combined "Financial Department" splits into
     # Treasury (Risk Register duplicated + Issue Bid Bonds) and Finance
@@ -1341,6 +1341,18 @@ def run():
                     models.DeliverableDefinition.item_no.in_(_due_fix_items))
             .all()
         }
+        # Same snapshot-before-upsert trick as the L1 block above, for L0's
+        # 5.4/8.4 offset change (3 -> 10 and 3 -> 5 workdays after 1.1) --
+        # forces a same-day recompute on existing projects instead of
+        # waiting for tomorrow's first read.
+        _l0_due_fix_items = ["5.4", "8.4"]
+        _l0_due_fix_before = {
+            (d.item_no, d.department_id): (d.anchor_type, d.predecessor_item_no, d.offset_days)
+            for d in db.query(models.DeliverableDefinition)
+            .filter(models.DeliverableDefinition.stage == models.Stage.L0,
+                    models.DeliverableDefinition.item_no.in_(_l0_due_fix_items))
+            .all()
+        }
 
         for item_no, name, dkey, anchor, pred, offset, direction, dtype, ms in L0_ITEMS:
             dept = dept_map[L0_DEPT[dkey]]
@@ -1366,6 +1378,23 @@ def run():
                 .all()
             }
             for proj in affected_projects:
+                rules.recompute_project_due_dates(db, proj, force=True)
+            db.commit()
+
+        _l0_due_fix_changed_def_ids = [
+            d.id for d in db.query(models.DeliverableDefinition)
+            .filter(models.DeliverableDefinition.stage == models.Stage.L0,
+                    models.DeliverableDefinition.item_no.in_(_l0_due_fix_items))
+            .all()
+            if _l0_due_fix_before.get((d.item_no, d.department_id)) != (d.anchor_type, d.predecessor_item_no, d.offset_days)
+        ]
+        if _l0_due_fix_changed_def_ids:
+            l0_affected_projects = {
+                s.project for s in db.query(models.DeliverableSubmission)
+                .filter(models.DeliverableSubmission.deliverable_definition_id.in_(_l0_due_fix_changed_def_ids))
+                .all()
+            }
+            for proj in l0_affected_projects:
                 rules.recompute_project_due_dates(db, proj, force=True)
             db.commit()
 
