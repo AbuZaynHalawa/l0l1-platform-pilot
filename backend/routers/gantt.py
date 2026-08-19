@@ -129,15 +129,16 @@ def get_project_gantt(project_id: int, db: Session = Depends(get_db)):
             "start": start, "end": s.due_date, "status": s.status.value, "deadline_status": rules.deadline_status(s)[0],
             "is_milestone": d.is_milestone, "milestone_code": d.milestone_code,
         })
+    rows.sort(key=lambda r: (r["start"], rules.item_sort_key(r["item_no"])))
     return rows
 
 
 @router.get("/timeline")
 def get_stage_timeline(stage: str, db: Session = Depends(get_db)):
     """Every active project's deliverable-level bars for one stage, pooled
-    together (not grouped by project) and sorted by due date — e.g. item 3.3
-    from one project can sit right next to item 2.1 from another, whichever
-    is due sooner.
+    together (not grouped by project) and sorted by start date — e.g. item
+    3.3 from one project can sit right next to item 2.1 from another,
+    whichever starts sooner.
     """
     projects = (
         db.query(models.Project)
@@ -182,5 +183,5 @@ def get_stage_timeline(stage: str, db: Session = Depends(get_db)):
                 "start": start, "end": s.due_date, "status": s.status.value, "deadline_status": rules.deadline_status(s)[0],
                 "is_milestone": d.is_milestone, "milestone_code": d.milestone_code,
             })
-    rows.sort(key=lambda r: (r["end"], r["est_no"], rules.item_sort_key(r["item_no"])))
+    rows.sort(key=lambda r: (r["start"], r["est_no"], rules.item_sort_key(r["item_no"])))
     return rows
