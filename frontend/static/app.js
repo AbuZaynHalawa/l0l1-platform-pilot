@@ -3192,7 +3192,17 @@
     }
     wrap.appendChild(gridlines);
 
+    // L1's rows carry a WBS category (Milestones, Budget, Early Activities,
+    // etc, from "Gantt chart WBS.xlsx") and arrive pre-grouped by it from
+    // the backend sort -- a header row goes in wherever it changes from the
+    // previous row. L0 rows have category=null and stay flat/ungrouped.
+    var lastCategory = undefined;
     rows.forEach(function (r) {
+      if (r.category !== undefined && r.category !== lastCategory) {
+        var catHeader = el("div", "gantt-cat-header", r.category);
+        wrap.appendChild(catHeader);
+        lastCategory = r.category;
+      }
       var s = new Date(r.start + "T00:00:00").getTime();
       var e = new Date(r.end + "T00:00:00").getTime() + DAY;
       var leftPx = px(s);

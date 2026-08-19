@@ -956,6 +956,11 @@
   .gantt-gridline.month { background: var(--ink-300); opacity: .8; }
   .gantt-gridline.today { background: var(--crit); width: 2px; }
   .gantt-today-label { position: absolute; top: -2px; transform: translateX(-50%); font-size: 9.5px; font-weight: 800; color: var(--crit); background: var(--crit-bg); padding: 1px 5px; border-radius: 5px; white-space: nowrap; }
+  .gantt-cat-header {
+    padding: 8px 14px 5px; font-size: 10.5px; font-weight: 800; text-transform: uppercase;
+    letter-spacing: .05em; color: var(--purple-1); background: var(--accent-soft);
+    width: fit-content; min-width: 100%; box-sizing: border-box;
+  }
   .gantt-row { display: flex; align-items: center; gap: 12px; padding: 7px 14px; border-bottom: 1px solid var(--line); }
   .gantt-row:last-child { border-bottom: none; }
   .gantt-label { position: sticky; left: 0; z-index: 4; background: var(--surface); width: 210px; flex-shrink: 0; font-size: 12px; color: var(--ink-700); line-height: 1.35; }

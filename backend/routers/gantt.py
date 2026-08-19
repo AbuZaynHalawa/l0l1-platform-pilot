@@ -11,6 +11,52 @@ from ..database import get_db
 
 router = APIRouter(prefix="/api/gantt", tags=["gantt"])
 
+# WBS grouping for the L1 timeline, from "Gantt chart WBS.xlsx" (its own
+# item numbers are the OLD pre-renumber scheme -- each one mapped to its
+# current item_no here by description match, the same technique used for
+# the earlier due-date/gantt-start formula work; see seed.py's own
+# renumber-history comments for the department splits this crosses).
+# Order matters: categories render in this order, not alphabetically.
+GANTT_WBS_CATEGORY_ORDER = [
+    "Milestones", "Budget", "Early Activities", "Design Firm", "Long Lead Items",
+    "Site Activities", "Project Finance", "Project Documents",
+    "Other Deliverables after Contract Signature", "Other",
+]
+_GANTT_WBS_CATEGORIES: dict[str, str] = {
+    # Milestones
+    "1.1": "Milestones", "1.2": "Milestones", "1.3": "Milestones",
+    "1.4": "Milestones", "1.5": "Milestones", "1.6": "Milestones",
+    # Budget
+    "2.1": "Budget", "2.13": "Budget", "6.1": "Budget", "6.2": "Budget",
+    # Early Activities
+    "4.1": "Early Activities", "2.6": "Early Activities", "2.14": "Early Activities", "3.11": "Early Activities",
+    # Design Firm
+    "4.3": "Design Firm", "3.9": "Design Firm", "4.4": "Design Firm", "2.7": "Design Firm",
+    # Long Lead Items
+    "4.5": "Long Lead Items", "2.2": "Long Lead Items", "3.1": "Long Lead Items", "3.2": "Long Lead Items",
+    "4.6": "Long Lead Items", "4.2": "Long Lead Items", "3.3": "Long Lead Items", "3.4": "Long Lead Items",
+    "3.5": "Long Lead Items", "3.6": "Long Lead Items", "3.7": "Long Lead Items", "3.8": "Long Lead Items",
+    "2.18": "Long Lead Items",
+    # Site Activities (includes the sheet's unlabeled "2.10."-headed rows --
+    # topography/geotechnical site investigation, same theme)
+    "2.3": "Site Activities", "2.17": "Site Activities", "2.11": "Site Activities", "2.4": "Site Activities",
+    "2.16": "Site Activities", "16.1": "Site Activities", "2.9": "Site Activities", "4.7": "Site Activities",
+    "2.8": "Site Activities",
+    # Project Finance
+    "10.1": "Project Finance", "9.1": "Project Finance", "9.2": "Project Finance",
+    # Project Documents
+    "12.3": "Project Documents", "11.2": "Project Documents", "8.1": "Project Documents",
+    "11.1": "Project Documents", "12.1": "Project Documents", "12.4": "Project Documents",
+    "12.5": "Project Documents", "2.15": "Project Documents", "3.12": "Project Documents",
+    "2.5": "Project Documents", "4.8": "Project Documents", "5.1": "Project Documents",
+    "5.3": "Project Documents", "2.12": "Project Documents", "5.2": "Project Documents",
+    "5.4": "Project Documents", "14.1": "Project Documents",
+    # Other Deliverables after Contract Signature
+    "7.1": "Other Deliverables after Contract Signature", "15.1": "Other Deliverables after Contract Signature",
+    "10.2": "Other Deliverables after Contract Signature", "9.3": "Other Deliverables after Contract Signature",
+    "6.3": "Other Deliverables after Contract Signature",
+}
+
 
 # The 8 L1 items with hardcoded Start/End formulas in New L1 Template
 # (Final).xlsx (rows 13/19/30/31/45/47/57/70) don't all anchor their bar's
@@ -90,6 +136,27 @@ def _bar_start(db: Session, project: models.Project, d: models.DeliverableDefini
     return None
 
 
+def _wbs_category(d: models.DeliverableDefinition) -> str | None:
+    """None for L0 (the WBS sheet only covers L1) so the frontend keeps L0
+    flat, ungrouped, exactly as before this feature.
+    """
+    if d.stage != models.Stage.L1:
+        return None
+    return _GANTT_WBS_CATEGORIES.get(d.item_no, "Other")
+
+
+def _category_sort_index(category: str | None) -> int:
+    """L0 rows (category=None) all share index 0, so they sort purely by
+    start date among themselves -- unchanged, ungrouped behavior.
+    """
+    if category is None:
+        return 0
+    try:
+        return GANTT_WBS_CATEGORY_ORDER.index(category)
+    except ValueError:
+        return len(GANTT_WBS_CATEGORY_ORDER)
+
+
 @router.get("/projects/{project_id}")
 def get_project_gantt(project_id: int, db: Session = Depends(get_db)):
     project = db.get(models.Project, project_id)
@@ -127,9 +194,9 @@ def get_project_gantt(project_id: int, db: Session = Depends(get_db)):
             "item_no": d.item_no, "name": rules.display_name(d, project), "short_name": d.short_name or d.name,
             "department": d.department.name, "department_number": d.department.number, "submission_id": s.id,
             "start": start, "end": s.due_date, "status": s.status.value, "deadline_status": rules.deadline_status(s)[0],
-            "is_milestone": d.is_milestone, "milestone_code": d.milestone_code,
+            "is_milestone": d.is_milestone, "milestone_code": d.milestone_code, "category": _wbs_category(d),
         })
-    rows.sort(key=lambda r: (r["start"], rules.item_sort_key(r["item_no"])))
+    rows.sort(key=lambda r: (_category_sort_index(r["category"]), r["start"], rules.item_sort_key(r["item_no"])))
     return rows
 
 
@@ -181,7 +248,7 @@ def get_stage_timeline(stage: str, db: Session = Depends(get_db)):
                 "est_no": project.est_no, "project_id": project.id, "project_name": project.name,
                 "submission_id": s.id,
                 "start": start, "end": s.due_date, "status": s.status.value, "deadline_status": rules.deadline_status(s)[0],
-                "is_milestone": d.is_milestone, "milestone_code": d.milestone_code,
+                "is_milestone": d.is_milestone, "milestone_code": d.milestone_code, "category": _wbs_category(d),
             })
-    rows.sort(key=lambda r: (r["start"], r["est_no"], rules.item_sort_key(r["item_no"])))
+    rows.sort(key=lambda r: (_category_sort_index(r["category"]), r["start"], r["est_no"], rules.item_sort_key(r["item_no"])))
     return rows
