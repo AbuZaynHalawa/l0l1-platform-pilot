@@ -1053,8 +1053,8 @@
     }
     var markAllBtn = document.getElementById("triageMarkAllNotRequired");
     markAllBtn.hidden = !(can("create") && pending.length);
-    markAllBtn.onclick = function () {
-      if (!confirm("Mark all " + pending.length + " item(s) as Applicable?")) return;
+    markAllBtn.onclick = async function () {
+      if (!(await customConfirm("Mark all " + pending.length + " item(s) as Applicable?"))) return;
       toggleButtons.forEach(function (t) {
         state[t.id] = true;
         t.appBtn.classList.add("active"); t.notBtn.classList.remove("active");
@@ -1949,9 +1949,9 @@
       var reopenBtn = el("button", "btn ghost-crit", "Reopen");
       reopenBtn.addEventListener("click", async function () {
         var confirmMsg = d.status === "not_required"
-          ? "Reopen " + d.item_no + "? It'll go back into the normal workflow and need a submission again."
-          : "Reopen " + d.item_no + "? It'll go back into the normal workflow for more work.";
-        if (!confirm(confirmMsg)) return;
+          ? "It'll go back into the normal workflow and need a submission again."
+          : "It'll go back into the normal workflow for more work.";
+        if (!(await customConfirm(confirmMsg, { title: "Reopen " + d.item_no + "?", danger: true, okLabel: "Reopen" }))) return;
         try {
           await api("/api/deliverables/" + d.id + "/reopen?actor_role=" + encodeURIComponent(CURRENT_ROLE) +
             "&actor_email=" + encodeURIComponent(actingEmail()), { method: "POST" });
@@ -2611,6 +2611,28 @@
   document.getElementById("checklistEditCancel").addEventListener("click", closeChecklistEditModal);
   document.getElementById("checklistEditClose").addEventListener("click", closeChecklistEditModal);
 
+  // Custom-styled replacement for native confirm() -- same modal shell as
+  // the rest of the app instead of the browser's own unstyled dialog.
+  // Promise-based so call sites just `await customConfirm(...)`.
+  var _confirmResolve = null;
+  function customConfirm(message, opts) {
+    opts = opts || {};
+    document.getElementById("confirmTitle").textContent = opts.title || "Are you sure?";
+    document.getElementById("confirmMessage").textContent = message;
+    var okBtn = document.getElementById("confirmOkBtn");
+    okBtn.textContent = opts.okLabel || "OK";
+    okBtn.className = "btn " + (opts.danger ? "ghost-crit" : "primary");
+    document.getElementById("confirmOverlay").hidden = false;
+    return new Promise(function (resolve) { _confirmResolve = resolve; });
+  }
+  function _settleConfirm(result) {
+    document.getElementById("confirmOverlay").hidden = true;
+    if (_confirmResolve) { var r = _confirmResolve; _confirmResolve = null; r(result); }
+  }
+  document.getElementById("confirmOkBtn").addEventListener("click", function () { _settleConfirm(true); });
+  document.getElementById("confirmCancelBtn").addEventListener("click", function () { _settleConfirm(false); });
+  document.getElementById("confirmClose").addEventListener("click", function () { _settleConfirm(false); });
+
   // PDFs, images, and text open inline in a browser tab on their own --
   // Office formats (Word/Excel/PowerPoint) never do, regardless of any
   // server header, because browsers simply have no built-in renderer for
@@ -2767,7 +2789,8 @@
           var delFolderBtn = el("button", "btn ghost-crit", "Delete Folder");
           delFolderBtn.addEventListener("click", async function (e) {
             e.stopPropagation();
-            if (!confirm('Delete "' + name + '" and everything in it (' + count + " file" + (count === 1 ? "" : "s") + ")?")) return;
+            if (!(await customConfirm("This deletes " + count + " file" + (count === 1 ? "" : "s") + " and cannot be undone.",
+              { title: 'Delete "' + name + '"?', danger: true, okLabel: "Delete" }))) return;
             try {
               await api("/api/projects/" + projectId + "/tender-documents/folder?path=" + encodeURIComponent(childPath) +
                 "&actor_role=" + encodeURIComponent(CURRENT_ROLE) + "&actor_email=" + encodeURIComponent(actingEmail()),
@@ -2796,7 +2819,8 @@
         if (can("create")) {
           var delBtn = el("button", "btn", "Remove");
           delBtn.addEventListener("click", async function () {
-            if (!confirm('Remove "' + d.file_name + '"?')) return;
+            if (!(await customConfirm("This removes the file and cannot be undone.",
+              { title: 'Remove "' + d.file_name + '"?', danger: true, okLabel: "Remove" }))) return;
             try {
               await api("/api/projects/" + projectId + "/tender-documents/" + d.id +
                 "?actor_role=" + encodeURIComponent(CURRENT_ROLE) + "&actor_email=" + encodeURIComponent(actingEmail()),
@@ -2961,7 +2985,7 @@
     after = after || refreshCurrentFolder;
     var btn = el("button", "btn ghost-crit", "Mark Not Required");
     btn.addEventListener("click", async function () {
-      if (!confirm("Mark this deliverable as Not Required? It won't need a due date or a submission.")) return;
+      if (!(await customConfirm("It won't need a due date or a submission.", { title: "Mark as Not Required?" }))) return;
       try {
         await api("/api/deliverables/" + submissionId + "/mark-not-required?actor_role=" + encodeURIComponent(CURRENT_ROLE) +
           "&actor_email=" + encodeURIComponent(actingEmail()), { method: "POST" });
@@ -3145,18 +3169,14 @@
     var wrap = document.getElementById("ganttRows");
     axis.innerHTML = "";
     wrap.innerHTML = "";
-    // Est only exists as its own sticky column in the pooled (cross-project)
-    // Timeline -- shifts Start/Finish/the track offset right by its width
-    // + gap when shown, computed here instead of two parallel CSS layouts.
-    var startColLeft = isPooled ? 304 : 222;
-    var finishColLeft = startColLeft + 92;
-    var trackOffset = finishColLeft + 104;
+    // Est only exists as its own column in the pooled (cross-project)
+    // Timeline -- shifts the track offset (axis padding + gridlines) right
+    // by its width + gap when shown, computed here instead of two parallel
+    // CSS layouts. Matches the .gantt-frozen-cols row padding/gap/widths.
+    var ROW_PAD = 14, GAP = 12, LABEL_W = 210, EST_W = 70, COL_W = 80;
+    var trackOffset = ROW_PAD + LABEL_W + GAP + (isPooled ? EST_W + GAP : 0) + COL_W + GAP + COL_W + GAP;
     var estHeader = document.getElementById("ganttEstColHeader");
     estHeader.hidden = !isPooled;
-    var headerStartCol = document.querySelector(".gantt-col-header .gantt-start-col");
-    var headerFinishCol = document.querySelector(".gantt-col-header .gantt-finish-col");
-    headerStartCol.style.left = startColLeft + "px";
-    headerFinishCol.style.left = finishColLeft + "px";
     axis.style.paddingLeft = trackOffset + "px";
     if (!rows.length) {
       wrap.appendChild(el("div", "empty-state", "Nothing scheduled yet."));
@@ -3283,14 +3303,12 @@
       var buNote = buMatch ? ' <span class="gantt-bu-note">(' + buMatch[1] + ")</span>" : "";
       var label = el("div", "gantt-label", "<b>" + r.item_no + "</b> &middot; " + r.short_name + buNote);
       label.title = r.name;
-      row.appendChild(label);
-      if (isPooled) row.appendChild(el("div", "gantt-est-col", r.est_no));
-      var startCol = el("div", "gantt-start-col", fmtDate(r.start));
-      var finishCol = el("div", "gantt-finish-col", fmtDate(r.end));
-      startCol.style.left = startColLeft + "px";
-      finishCol.style.left = finishColLeft + "px";
-      row.appendChild(startCol);
-      row.appendChild(finishCol);
+      var frozenCols = el("div", "gantt-frozen-cols");
+      frozenCols.appendChild(label);
+      if (isPooled) frozenCols.appendChild(el("div", "gantt-est-col", r.est_no));
+      frozenCols.appendChild(el("div", "gantt-start-col", fmtDate(r.start)));
+      frozenCols.appendChild(el("div", "gantt-finish-col", fmtDate(r.end)));
+      row.appendChild(frozenCols);
       var track = el("div", "gantt-track");
       track.style.width = trackWidthPx + "px";
       var bar;

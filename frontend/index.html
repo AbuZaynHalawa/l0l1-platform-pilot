@@ -930,6 +930,26 @@
   </div>
 </div>
 
+
+<!-- Custom confirm dialog -- replaces native confirm() everywhere for visual
+     consistency with the rest of the app; driven by customConfirm() in
+     app.js, which returns a Promise resolving true/false. -->
+<div class="modal-overlay" id="confirmOverlay" hidden>
+  <div class="modal-card confirm-card">
+    <div class="modal-head">
+      <div><h2 id="confirmTitle">Are you sure?</h2></div>
+      <button class="modal-close" id="confirmClose">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <p class="confirm-message" id="confirmMessage"></p>
+      <div class="modal-actions-row" style="margin-top:18px;">
+        <button class="btn" id="confirmCancelBtn">Cancel</button>
+        <button class="btn primary" id="confirmOkBtn">OK</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Item 131: interactive System Introduction walkthrough -->
 <div class="modal-overlay" id="tourOverlay" hidden>
   <div class="modal-card tour-card">

@@ -505,6 +505,10 @@
   .modal-head h2 { font-size: 17px; margin: 4px 0 0; }
   .modal-close { border: none; background: var(--surface-sunken); color: var(--ink-500); width: 28px; height: 28px; border-radius: 8px; cursor: pointer; font-size: 13px; flex-shrink: 0; }
   .modal-body { padding: 18px 22px 22px; overflow-y: auto; }
+  .confirm-card { max-width: 420px; }
+  .confirm-card .modal-head { border-bottom: none; padding-bottom: 4px; }
+  .confirm-card .modal-head h2 { margin-top: 0; }
+  .confirm-message { font-size: 13.5px; color: var(--ink-700); line-height: 1.55; margin: 0; }
   .modal-meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 20px; margin-bottom: 16px; }
   .modal-meta-grid .mk { font-size: 10.5px; color: var(--ink-500); text-transform: uppercase; letter-spacing: .05em; font-weight: 700; }
   .modal-meta-grid .mv { font-size: 12.5px; color: var(--ink-900); margin-top: 2px; }
@@ -964,22 +968,34 @@
     letter-spacing: .05em; color: var(--purple-1); background: var(--accent-soft);
     width: fit-content; min-width: 100%; box-sizing: border-box;
   }
-  .gantt-row { display: flex; align-items: center; gap: 12px; padding: 7px 14px; border-bottom: 1px solid var(--line); }
+  /* width: max-content is load-bearing, not cosmetic -- without it the row's
+     own box stays only as wide as its scroll container (~924px) even though
+     .gantt-track overflows it much further, and position: sticky's
+     containing block is the row itself: past ~924px of horizontal scroll
+     the frozen columns run out of row to stick within and start scrolling
+     away with everything else instead of staying pinned. */
+  .gantt-row { display: flex; align-items: center; gap: 12px; padding: 7px 14px; border-bottom: 1px solid var(--line); width: max-content; min-width: 100%; }
   .gantt-row:last-child { border-bottom: none; }
-  .gantt-label { position: sticky; left: 0; z-index: 4; background: var(--surface); width: 210px; flex-shrink: 0; font-size: 12px; color: var(--ink-700); line-height: 1.35; }
+  /* Item [gantt frozen-cols fix]: Item/Est/Start/Finish used to each be
+     their own independently `position: sticky` flex child -- at larger
+     horizontal scroll offsets the four stickies desynced from each other
+     (a real browser quirk with several offset-sticky siblings in one flex
+     row) and collapsed on top of one another, which is also why bars were
+     visible showing through underneath: no single opaque layer covered
+     them. One sticky wrapper per row sidesteps both problems -- only one
+     element needs to stick, and it's one contiguous opaque block. */
+  .gantt-frozen-cols { position: sticky; left: 0; z-index: 4; background: var(--surface); display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  .gantt-label { width: 210px; flex-shrink: 0; font-size: 12px; color: var(--ink-700); line-height: 1.35; }
   .gantt-label b { color: var(--ink-900); }
   .gantt-est-col, .gantt-start-col, .gantt-finish-col {
-    position: sticky; z-index: 4; background: var(--surface); width: 80px; flex-shrink: 0;
+    width: 80px; flex-shrink: 0;
     font-size: 11.5px; color: var(--ink-700); font-variant-numeric: tabular-nums;
   }
-  .gantt-est-col { left: 222px; width: 70px; font-weight: 600; color: var(--ink-500); }
-  .gantt-start-col { left: 222px; }
-  .gantt-finish-col { left: 314px; }
+  .gantt-est-col { width: 70px; font-weight: 600; color: var(--ink-500); }
   /* Est column only appears in the pooled (cross-project) Timeline -- when
-     present, Start/Finish (and the track offset they precede) shift right
-     by its width + gap. Set as inline styles from JS per render, since
-     whether it's shown depends on the pooled/per-project toggle, not a
-     fixed layout -- these are just the non-pooled defaults. */
+     present, the track offset (axis padding + gridlines) shifts right by
+     its width + gap; computed in JS per render since it depends on the
+     pooled/per-project toggle, not a fixed layout. */
   .gantt-track { position: relative; height: 18px; background: var(--surface-sunken); border-radius: 5px; flex-shrink: 0; }
   .gantt-bar { position: absolute; top: 2px; height: 14px; border-radius: 4px; min-width: 6px; }
   .gantt-bar.good { background: var(--good); }
