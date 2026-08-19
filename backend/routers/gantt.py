@@ -11,6 +11,14 @@ from ..database import get_db
 
 router = APIRouter(prefix="/api/gantt", tags=["gantt"])
 
+# L0's own early Tendering admin/announcement items (M1, then site
+# visit/pre-bid/bid-bond/estimate-program logistics) -- excluded from the
+# Gantt/Timeline chart specifically, not from the deliverables list or
+# anywhere else; most are auto-completed from the project's own date
+# fields anyway (see _L0_AUTO_DONE_FIELDS in projects.py) and just cluttered
+# the chart with same-day slivers at the very start of every L0 tender.
+_GANTT_L0_EXCLUDED_ITEMS = {"1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7"}
+
 # WBS grouping for the L1 timeline, from "Gantt chart WBS.xlsx" (its own
 # item numbers are the OLD pre-renumber scheme -- each one mapped to its
 # current item_no here by description match, the same technique used for
@@ -184,6 +192,8 @@ def get_project_gantt(project_id: int, db: Session = Depends(get_db)):
             continue  # unscheduled: client-dependent not yet approved, or library/on_request items
         if s.auto_completed:
             continue  # items 115/116: not real tracked work, keep off the chart
+        if d.stage == models.Stage.L0 and d.item_no in _GANTT_L0_EXCLUDED_ITEMS:
+            continue
         if d.item_no in seen_item_nos:
             continue
         seen_item_nos.add(d.item_no)
@@ -235,6 +245,8 @@ def get_stage_timeline(stage: str, db: Session = Depends(get_db)):
             if s.auto_completed:
                 continue  # items 115/116: not real tracked work, keep off the chart
             d = s.definition
+            if d.stage == models.Stage.L0 and d.item_no in _GANTT_L0_EXCLUDED_ITEMS:
+                continue
             if (s.project_id, d.item_no) in seen_item_nos:
                 continue
             seen_item_nos.add((s.project_id, d.item_no))
