@@ -3079,13 +3079,28 @@
       var o = el("option", "", deptLabel(name, seenDepts[name])); o.value = name;
       deptSel.appendChild(o);
     });
+    // Timeline-display-only: TBU/PBU/DBU/BBU are 4 real, separate
+    // departments everywhere else in the app (folders, focal points,
+    // performance) -- only the Gantt legend collapses them into one "2.
+    // Operation Units" swatch, since they already share one color (same
+    // department_number) and 4 near-identical legend rows was just visual
+    // noise here. The BU itself still shows -- as a note on each bar's own
+    // label below, not as a separate legend entry.
+    var seenOpUnitsBU = sortedDeptNames.some(function (name) { return /^Operation Units \((TBU|PBU|DBU|BBU)\)$/.test(name); });
     legend.innerHTML = "";
     sortedDeptNames.forEach(function (name) {
+      if (/^Operation Units \((TBU|PBU|DBU|BBU)\)$/.test(name)) return;
       var lg = el("span", "lg");
       lg.innerHTML = '<span class="sw" style="background:' + deptColor(seenDepts[name]) + '"></span>';
       lg.appendChild(document.createTextNode(deptLabel(name, seenDepts[name])));
       legend.appendChild(lg);
     });
+    if (seenOpUnitsBU) {
+      var opLg = el("span", "lg");
+      opLg.innerHTML = '<span class="sw" style="background:' + deptColor(2) + '"></span>';
+      opLg.appendChild(document.createTextNode("2. Operation Units"));
+      legend.appendChild(opLg);
+    }
     legend.className = "ann-type-key gantt-dept-legend";
     legend.style.display = ganttIsPooled ? "" : "none";
 
@@ -3222,7 +3237,12 @@
       var leftPx = px(s);
       var widthPx = Math.max(4, px(e) - px(s));
       var row = el("div", "gantt-row");
-      var label = el("div", "gantt-label", "<b>" + r.item_no + "</b> &middot; " + r.short_name);
+      // The legend collapses TBU/PBU/DBU/BBU into one "Operation Units"
+      // swatch (see above), so which BU this particular bar belongs to
+      // would otherwise be invisible -- noted on the label itself instead.
+      var buMatch = /^Operation Units \((TBU|PBU|DBU|BBU)\)$/.exec(r.department);
+      var buNote = buMatch ? ' <span class="gantt-bu-note">(' + buMatch[1] + ")</span>" : "";
+      var label = el("div", "gantt-label", "<b>" + r.item_no + "</b> &middot; " + r.short_name + buNote);
       label.title = r.name;
       row.appendChild(label);
       if (isPooled) row.appendChild(el("div", "gantt-est-col", r.est_no));
