@@ -3107,6 +3107,19 @@
     var wrap = document.getElementById("ganttRows");
     axis.innerHTML = "";
     wrap.innerHTML = "";
+    // Est only exists as its own sticky column in the pooled (cross-project)
+    // Timeline -- shifts Start/Finish/the track offset right by its width
+    // + gap when shown, computed here instead of two parallel CSS layouts.
+    var startColLeft = isPooled ? 304 : 222;
+    var finishColLeft = startColLeft + 92;
+    var trackOffset = finishColLeft + 104;
+    var estHeader = document.getElementById("ganttEstColHeader");
+    estHeader.hidden = !isPooled;
+    var headerStartCol = document.querySelector(".gantt-col-header .gantt-start-col");
+    var headerFinishCol = document.querySelector(".gantt-col-header .gantt-finish-col");
+    headerStartCol.style.left = startColLeft + "px";
+    headerFinishCol.style.left = finishColLeft + "px";
+    axis.style.paddingLeft = trackOffset + "px";
     if (!rows.length) {
       wrap.appendChild(el("div", "empty-state", "Nothing scheduled yet."));
       return;
@@ -3167,6 +3180,7 @@
     // Gridlines overlay (month boundaries + week ticks + today marker), aligned under the track area.
     var gridlines = el("div", "gantt-gridlines");
     gridlines.style.width = trackWidthPx + "px";
+    gridlines.style.left = trackOffset + "px";
     var monthCur = new Date(min); monthCur.setHours(0, 0, 0, 0); monthCur.setDate(1);
     monthCur = new Date(monthCur.getFullYear(), monthCur.getMonth() + 1, 1);
     while (monthCur.getTime() < max) {
@@ -3208,14 +3222,16 @@
       var leftPx = px(s);
       var widthPx = Math.max(4, px(e) - px(s));
       var row = el("div", "gantt-row");
-      var labelHtml = isPooled
-        ? "<b>" + r.item_no + "</b> &middot; " + r.short_name + '<span class="gantt-est-tag">' + r.est_no + "</span>"
-        : "<b>" + r.item_no + "</b> &middot; " + r.short_name;
-      var label = el("div", "gantt-label", labelHtml);
+      var label = el("div", "gantt-label", "<b>" + r.item_no + "</b> &middot; " + r.short_name);
       label.title = r.name;
       row.appendChild(label);
-      row.appendChild(el("div", "gantt-start-col", fmtDate(r.start)));
-      row.appendChild(el("div", "gantt-finish-col", fmtDate(r.end)));
+      if (isPooled) row.appendChild(el("div", "gantt-est-col", r.est_no));
+      var startCol = el("div", "gantt-start-col", fmtDate(r.start));
+      var finishCol = el("div", "gantt-finish-col", fmtDate(r.end));
+      startCol.style.left = startColLeft + "px";
+      finishCol.style.left = finishColLeft + "px";
+      row.appendChild(startCol);
+      row.appendChild(finishCol);
       var track = el("div", "gantt-track");
       track.style.width = trackWidthPx + "px";
       var bar;
