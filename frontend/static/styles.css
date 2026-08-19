@@ -303,7 +303,13 @@
     display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; flex-shrink: 0;
   }
   .milestone-body { min-width: 0; flex: 1; }
-  .milestone-name { font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* display: block is load-bearing, not cosmetic -- this is a <span>, and
+     it's a grandchild (not a direct child) of .milestone-row's flex
+     container, so it never gets auto-blockified the way a direct flex
+     child would. Left as inline, overflow/text-overflow/white-space are
+     silently no-ops on it and long milestone names spilled straight past
+     the card and off the right edge of the screen on mobile. */
+  .milestone-name { display: block; font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .milestone-meta { font-size: 11px; color: var(--ink-500); margin-top: 2px; }
   .milestone-date { font-size: 11px; color: var(--ink-500); flex-shrink: 0; white-space: nowrap; }
 
@@ -945,6 +951,17 @@
   .gantt-col-header {
     display: flex; align-items: center; gap: 12px; padding: 7px 14px; border-bottom: 1px solid var(--line);
     font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-500);
+    /* This row's content (Item/Est/Start/Finish) mirrors the frozen columns
+       inside .gantt-scroll, which are pinned and never need to scroll --
+       but unlike .gantt-axis-clip (its sibling, already clipped) this had
+       no overflow of its own, so on a viewport narrower than that content
+       it silently forced a SECOND, independent horizontal scrollbar on the
+       parent .card.table-card (which has its own overflow-x:auto for
+       plain, non-gantt tables) -- fighting with .gantt-scroll's own scroll
+       for the same gesture. Clipping it here matches .gantt-axis-clip and
+       leaves exactly one real horizontal scroll on this view.
+       */
+    overflow: hidden;
   }
   .gantt-axis-clip { overflow: hidden; }
   .gantt-axis { padding-left: 418px; border-bottom: 1px solid var(--line); margin-bottom: 4px; width: max-content; }
@@ -1371,6 +1388,11 @@
     .rail {
       position: fixed; top: 0; left: 0; bottom: 0; width: min(280px, 84vw); z-index: 40;
       transform: translateX(-100%); transition: transform .2s ease; box-shadow: var(--shadow-2);
+      /* Load-bearing: fixed top+bottom pins the drawer's height to the
+         viewport, but the nav item list (especially Admin, with the most
+         items) is regularly taller than that -- without a scroll, whatever
+         didn't fit was just clipped off-screen with no way to reach it. */
+      overflow-y: auto; -webkit-overflow-scrolling: touch;
     }
     .rail.open { transform: translateX(0); }
     .rail-backdrop.open { display: block; }
