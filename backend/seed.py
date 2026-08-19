@@ -1332,6 +1332,8 @@ def run():
                     {"submission_id": None}, synchronize_session=False)
                 db.query(models.DeliverableSubmission).filter(models.DeliverableSubmission.id.in_(sub_ids)).delete(synchronize_session=False)
             removed_defs = db.query(models.DeliverableDefinition).filter_by(department_id=old_dept.id).delete(synchronize_session=False)
+            db.query(models.PerformanceSnapshot).filter_by(department_id=old_dept.id).delete(synchronize_session=False)
+            db.query(models.User).filter_by(department_id=old_dept.id).update({"department_id": None}, synchronize_session=False)
             db.delete(old_dept)
             db.commit()
             print(f"Removed old L1 '{old_name}' department entirely -- {removed_defs} definition(s), {len(sub_ids)} empty submission(s).")
