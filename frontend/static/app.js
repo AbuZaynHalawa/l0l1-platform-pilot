@@ -3204,6 +3204,8 @@
       var label = el("div", "gantt-label", labelHtml);
       label.title = r.name;
       row.appendChild(label);
+      row.appendChild(el("div", "gantt-start-col", fmtDate(r.start)));
+      row.appendChild(el("div", "gantt-finish-col", fmtDate(r.end)));
       var track = el("div", "gantt-track");
       track.style.width = trackWidthPx + "px";
       var bar;

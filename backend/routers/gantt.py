@@ -107,12 +107,19 @@ def get_project_gantt(project_id: int, db: Session = Depends(get_db)):
     )
     subs.sort(key=lambda s: (s.definition.department.number or 0, rules.item_sort_key(s.definition.item_no)))
     rows = []
+    seen_item_nos = set()  # Operation Units' TBU/PBU/DBU/BBU split means the same
+    # item_no can have several submissions on one project -- one bar per
+    # item_no is plenty for a schedule view, so only the first (by the sort
+    # above) of each is kept.
     for s in subs:
         d = s.definition
         if s.due_date is None:
             continue  # unscheduled: client-dependent not yet approved, or library/on_request items
         if s.auto_completed:
             continue  # items 115/116: not real tracked work, keep off the chart
+        if d.item_no in seen_item_nos:
+            continue
+        seen_item_nos.add(d.item_no)
         start = _bar_start(db, project, d, s.due_date) or s.due_date
         if start > s.due_date:
             start = s.due_date
@@ -151,12 +158,18 @@ def get_stage_timeline(stage: str, db: Session = Depends(get_db)):
             .filter(models.DeliverableSubmission.project_id.in_(proj_by_id.keys()))
             .all()
         )
+        seen_item_nos = set()  # (project_id, item_no) -- same dedup as get_project_gantt,
+        # keyed per-project here since pooling must NOT collapse the same
+        # item_no across different projects.
         for s in subs:
             if s.due_date is None:
                 continue  # unscheduled: client-dependent not yet approved, or library/on_request items
             if s.auto_completed:
                 continue  # items 115/116: not real tracked work, keep off the chart
             d = s.definition
+            if (s.project_id, d.item_no) in seen_item_nos:
+                continue
+            seen_item_nos.add((s.project_id, d.item_no))
             project = proj_by_id[s.project_id]
             start = _bar_start(db, project, d, s.due_date) or s.due_date
             if start > s.due_date:
