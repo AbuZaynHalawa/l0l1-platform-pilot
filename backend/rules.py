@@ -370,6 +370,22 @@ def add_workdays(start: date, n: int) -> date:
     return d
 
 
+def subtract_workdays(end: date, n: int) -> date:
+    """The date n working days before end, not counting end itself and
+    skipping Friday/Saturday -- mirror of add_workdays, backward. Used only
+    by gantt.py's item 14.1 bar-start override, where the Excel counts
+    backward a fixed number of workdays from the item's own due date
+    (WORKDAY.INTL(due, -15, ...)) rather than forward from a predecessor.
+    """
+    d = end
+    remaining = n
+    while remaining > 0:
+        d -= timedelta(days=1)
+        if d.weekday() not in (4, 5):
+            remaining -= 1
+    return d
+
+
 def duration_end(start: date, duration_days: int) -> date:
     """End date of a task that starts on `start` and runs `duration_days`
     working days, counting `start` itself as day 1 (a 1-day duration task

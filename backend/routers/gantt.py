@@ -12,7 +12,68 @@ from ..database import get_db
 router = APIRouter(prefix="/api/gantt", tags=["gantt"])
 
 
-def _bar_start(db: Session, project: models.Project, d: models.DeliverableDefinition):
+# The 8 L1 items with hardcoded Start/End formulas in New L1 Template
+# (Final).xlsx (rows 13/19/30/31/45/47/57/70) don't all anchor their bar's
+# visual START the same way their due date (End) does -- three distinct
+# patterns, verified formula-by-formula rather than assumed uniform:
+#   ("predecessor", item_no)  Start = next_workday_after(that OTHER item's
+#       due_date) -- a genuinely different item than whichever one drives
+#       this item's own due date (e.g. 2.2's due date chains off 4.5, but
+#       its Start column chains off 6.1 instead).
+#   ("start_of", item_no)     Start = next_workday_after(that item's OWN
+#       bar-start), not its due_date -- a Start-to-Start relationship: e.g.
+#       3.1 (Issue RFQ) can begin the moment 4.5 (technical offer review)
+#       itself begins, even though 3.1 can't finish until days after 4.5
+#       finishes (that Finish-to-Finish+lag part is what the due-date
+#       formula already captures).
+#   ("duration_back", n)      Start = this item's own due_date, minus n
+#       working days -- a fixed-length bar with no predecessor tie at all
+#       (14.1's Start formula counts backward from its own End, not
+#       forward from anything).
+# Item 7.1 needs no entry: its Start formula already resolves to the same
+# next_workday_after(predecessor's due_date) the default branch below
+# already computes, off the same predecessor (1.5) driving its due date.
+_GANTT_START_OVERRIDES: dict[str, tuple[str, object]] = {
+    "2.2": ("predecessor", "6.1"),
+    "2.8": ("predecessor", "3.11"),
+    "3.1": ("start_of", "4.5"),
+    "3.2": ("predecessor", "2.2"),
+    "4.4": ("start_of", "3.9"),
+    "4.6": ("start_of", "3.2"),
+    "14.1": ("duration_back", 15),
+}
+
+
+def _find_submission(db: Session, project: models.Project, item_no: str, stage) -> models.DeliverableSubmission | None:
+    return (
+        db.query(models.DeliverableSubmission)
+        .join(models.DeliverableDefinition)
+        .filter(
+            models.DeliverableSubmission.project_id == project.id,
+            models.DeliverableDefinition.item_no == item_no,
+            models.DeliverableDefinition.stage == stage,
+        )
+        .first()
+    )
+
+
+def _bar_start(db: Session, project: models.Project, d: models.DeliverableDefinition, due_date=None):
+    override = _GANTT_START_OVERRIDES.get(d.item_no) if d.stage == models.Stage.L1 else None
+    if override:
+        kind, value = override
+        if kind == "duration_back":
+            return rules.subtract_workdays(due_date, value) if due_date else None
+        other = _find_submission(db, project, value, d.stage)
+        if other is None or other.due_date is None:
+            return None
+        if kind == "predecessor":
+            return rules.next_workday_after(other.due_date)
+        # kind == "start_of": recurse into the OTHER item's own bar-start
+        # (which may itself be a plain predecessor anchor -- no override
+        # needed there, the recursion falls through to the default branch).
+        other_start = _bar_start(db, project, other.definition, other.due_date)
+        return rules.next_workday_after(other_start) if other_start else None
+
     if d.anchor_type == "announcement":
         return project.announcement_date
     if d.anchor_type == "bsd":
@@ -22,16 +83,7 @@ def _bar_start(db: Session, project: models.Project, d: models.DeliverableDefini
     if d.anchor_type == "pre_bid":
         return project.pre_bid_deadline
     if d.anchor_type == "predecessor" and d.predecessor_item_no:
-        pred = (
-            db.query(models.DeliverableSubmission)
-            .join(models.DeliverableDefinition)
-            .filter(
-                models.DeliverableSubmission.project_id == project.id,
-                models.DeliverableDefinition.item_no == d.predecessor_item_no,
-                models.DeliverableDefinition.stage == d.stage,
-            )
-            .first()
-        )
+        pred = _find_submission(db, project, d.predecessor_item_no, d.stage)
         if pred is None or pred.due_date is None:
             return None
         return rules.next_workday_after(pred.due_date)
@@ -61,7 +113,7 @@ def get_project_gantt(project_id: int, db: Session = Depends(get_db)):
             continue  # unscheduled: client-dependent not yet approved, or library/on_request items
         if s.auto_completed:
             continue  # items 115/116: not real tracked work, keep off the chart
-        start = _bar_start(db, project, d) or s.due_date
+        start = _bar_start(db, project, d, s.due_date) or s.due_date
         if start > s.due_date:
             start = s.due_date
         rows.append({
@@ -106,7 +158,7 @@ def get_stage_timeline(stage: str, db: Session = Depends(get_db)):
                 continue  # items 115/116: not real tracked work, keep off the chart
             d = s.definition
             project = proj_by_id[s.project_id]
-            start = _bar_start(db, project, d) or s.due_date
+            start = _bar_start(db, project, d, s.due_date) or s.due_date
             if start > s.due_date:
                 start = s.due_date
             rows.append({
