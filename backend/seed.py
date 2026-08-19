@@ -72,6 +72,8 @@ ensure_enum_value("announcements", "type", "EXTENSION_REQUEST")
 ensure_enum_value("announcements", "type", "EXTENSION_DECISION")
 ensure_enum_value("announcements", "type", "HOLD_REQUEST")
 ensure_enum_value("announcements", "type", "HOLD_DECISION")
+ensure_enum_value("announcements", "type", "REASSIGNMENT_DECISION")
+ensure_enum_value("announcements", "type", "SME_NOMINATION_DECISION")
 # Nightly checks (item [due-soon nudge] / [request escalation]).
 ensure_column("deliverable_submissions", "due_soon_reminded_for_date", "DATE")
 ensure_column("deliverable_submissions", "due_soon_reminded_offsets", "JSON")

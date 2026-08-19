@@ -380,7 +380,7 @@ def reassignment_decision(db: Session, project: models.Project, requester_emails
         title = "Reassignment Rejected"
         body = f"{_b(item_no)} {item_name} on {_b(project.est_no)}: the request to reassign to {_b(to_email)} was {_hl('rejected', 'crit')}."
     link_html = _deliverable_link(submission_id) if submission_id is not None else None
-    return _create(db, type=models.AnnouncementType.DEADLINE, title=title, body=body,
+    return _create(db, type=models.AnnouncementType.REASSIGNMENT_DECISION, title=title, body=body,
                     recipients=sorted({e for e in requester_emails if e}), project=project,
                     submission_id=submission_id, greeting="Owner", link_html=link_html)
 
@@ -410,5 +410,5 @@ def sme_nomination_decision(db: Session, email: str, item_no: str, item_name: st
         body = f"Your request to become the SME for {_b(item_no)} {item_name} was {_hl('declined', 'crit')}."
         if comment:
             body += f' &#8211; &quot;{comment}&quot;'
-    return _create(db, type=models.AnnouncementType.DEADLINE, title=title, body=body,
+    return _create(db, type=models.AnnouncementType.SME_NOMINATION_DECISION, title=title, body=body,
                     recipients=[email] if email else [], greeting="Team")

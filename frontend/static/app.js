@@ -216,6 +216,7 @@
     doc_added: ["&#128206;", "doc-added"], deliverable_approved: ["&#9989;", "deliverable-approved"],
     extension_request: ["&#8987;", "extension-request"], extension_decision: ["&#128197;", "extension-decision"],
     hold_request: ["&#9208;", "hold-request"], hold_decision: ["&#9208;", "hold-decision"],
+    reassignment_decision: ["&#128101;", "reassignment-decision"], sme_nomination_decision: ["&#127891;", "sme-nomination-decision"],
   };
   // Item 165: single source of truth for the Announcements type filter and
   // its legend -- audience: "all" means every role sees it as a filter
@@ -239,6 +240,8 @@
     { value: "extension_decision", label: "Extension Decision", sw: "var(--good)", audience: ["Owner"] },
     { value: "hold_request", label: "Hold Requested", sw: "var(--warn)", audience: ["Owner", "SME"] },
     { value: "hold_decision", label: "Hold Decision", sw: "var(--good)", audience: ["Owner"] },
+    { value: "reassignment_decision", label: "Reassignment Decision", sw: "var(--good)", audience: ["Owner"] },
+    { value: "sme_nomination_decision", label: "SME Nomination Decision", sw: "var(--good)", audience: "all" },
   ];
   // Item [announcement recipients]: the "To:" line used to list every
   // recipient email verbatim -- fine at a handful of test users, unreadable

@@ -88,6 +88,14 @@ class AnnouncementType(str, enum.Enum):
     EXTENSION_DECISION = "extension_decision"
     HOLD_REQUEST = "hold_request"
     HOLD_DECISION = "hold_decision"
+    # Reassignment/SME-nomination decisions used to share the generic
+    # DEADLINE bucket (Reminders tab) with their own still-pending request
+    # notifications -- but a DECISION is news about something already
+    # resolved, not an action still owed, same reasoning EXTENSION_DECISION/
+    # HOLD_DECISION above already got split out for. The *request* side of
+    # both stays DEADLINE on purpose (still needs an Admin's action).
+    REASSIGNMENT_DECISION = "reassignment_decision"
+    SME_NOMINATION_DECISION = "sme_nomination_decision"
 
 
 class Department(Base):
