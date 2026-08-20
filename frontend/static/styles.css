@@ -1456,8 +1456,8 @@
    real toggle). Everything below is scoped under .po-column so these
    generic names (.card/.chip/.note/.top/...) never leak into the rest
    of the page. */
-.po-columns { display: flex; gap: 16px; align-items: flex-start; overflow-x: auto; padding-bottom: 8px; }
-.po-column { flex: 0 0 300px; width: 300px; }
+.po-columns { display: flex; gap: 20px; align-items: flex-start; overflow-x: auto; padding-bottom: 8px; }
+.po-column { flex: 1 1 360px; min-width: 340px; max-width: 440px; }
 .po-column h2 { font-size: 14px; font-weight: 600; margin: 0 0 2px; color: var(--ink-900); }
 .po-column .desc { font-size: 11.5px; color: var(--ink-500); margin: 0 0 0.75rem; }
 .po-column .mini-stats { display: flex; gap: 6px; margin-bottom: 0.75rem; }

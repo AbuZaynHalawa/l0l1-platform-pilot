@@ -4358,7 +4358,7 @@
     }
     return '<div class="po-item-track">' + dots + "</div>";
   }
-  function poRegistryBox(items, count, sourceLabel, fixedCount) {
+  function poRegistryBox(items, count, sourceLabel) {
     var box = el("div", "po-registry-box");
     box.innerHTML = '<div class="title">Line items (' + count + ')</div><div class="source">' + sourceLabel + "</div>";
     if (!items.length) {
@@ -4369,7 +4369,7 @@
       var stepLabel = li.current_item_no || (li.total_steps ? "done" : "");
       box.insertAdjacentHTML("beforeend",
         '<div class="po-item-row"><div class="iname">' + li.name + '<span class="istep">' + stepLabel + "</span></div>"
-        + (fixedCount ? "" : poItemTrack(li)) + "</div>");
+        + poItemTrack(li) + "</div>");
     });
     return box;
   }
@@ -4387,16 +4387,32 @@
     if (d.awaiting_note || d.deadline_status === "due") return "blocked";
     return "pending";
   }
-  function poCard(itemNo, kind, ctx, fixedCount) {
+  // A "needs" token is only ever resolvable against a real anchor when it's
+  // a bare item_no (e.g. "1.2") -- qualified ones like "3.12 (if required)"
+  // or "3.2 start" describe a condition, not a plain predecessor, so they
+  // always stay phrased as "needs". A bare token whose own single-item
+  // status is done reads far more usefully as "predecessor X is completed"
+  // than a stale "needs X" once that predecessor is no longer the blocker.
+  function poNeedsText(needsList, singleByItemNo) {
+    if (!needsList.length) return "anchor";
+    return needsList.map(function (token) {
+      if (/^\d+\.\d+$/.test(token) && poSingleStatus(singleByItemNo[token]) === "done") {
+        return "predecessor " + token + " is completed";
+      }
+      return "needs " + token;
+    }).join(" · ");
+  }
+  function poCard(itemNo, kind, ctx, fixedCount, singleByItemNo) {
     var meta = PO_ITEM_META[itemNo] || { label: itemNo, needs: [] };
-    var status, per = "", prog = "", score = "", dynamicNote = null;
+    var status, prog = "", score = "", dynamicNote = null;
     if (kind === "fanout") {
       status = poFanoutStatus(itemNo, ctx.items, ctx.counts);
       // A structurally-fixed-at-1 category (Consultancy) has no real "out of
-      // how many" question to answer -- skip the per-item/count badges, they
-      // only earn their keep once a category can genuinely vary.
+      // how many" question to answer -- skip the count/score badges, they
+      // only earn their keep once a category can genuinely vary. The "X/N
+      // passed" count itself already signals per-item tracking, so no
+      // separate "per item" label is needed alongside it.
       if (!fixedCount) {
-        per = '<span class="chip">per item</span>';
         prog = ctx.counts.total ? '<span class="chip" style="color:var(--ink-900);font-weight:500;">' + ctx.counts.passed + "/" + ctx.counts.total + " passed</span>" : "";
         if (ctx.counts.score !== null && ctx.counts.score !== undefined) {
           score = '<span class="chip" style="color:var(--ink-900);font-weight:500;" title="pro-rata score across this item\'s own due-and-done cohort">' + ctx.counts.score + "%</span>";
@@ -4406,14 +4422,14 @@
       status = poSingleStatus(ctx);
       if (ctx && ctx.awaiting_note) dynamicNote = ctx.awaiting_note;
     }
-    var needs = meta.needs.length ? "needs " + meta.needs.join(" + ") : "anchor";
+    var needs = poNeedsText(meta.needs, singleByItemNo);
     var noteText = dynamicNote || meta.note;
     var note = noteText ? '<div class="note" style="color:' + (status === "blocked" ? "var(--crit)" : "var(--ink-500)") + ';">&#8617; ' + noteText + "</div>" : "";
     return '<div class="card">'
       + '<span class="icon">' + poIcon(status) + "</span>"
       + '<div class="body">'
       + '<div class="top"><span class="name"><b>' + itemNo + "</b>" + meta.label + "</span>" + poPill(status) + "</div>"
-      + '<div class="meta">' + needs + per + prog + score + "</div>"
+      + '<div class="meta">' + needs + prog + score + "</div>"
       + note
       + "</div></div>";
   }
@@ -4424,7 +4440,7 @@
     var summary, allDelivs;
     try {
       summary = await api("/api/projects/" + projectId + "/po-line-items/po-cycle-summary");
-      allDelivs = await api("/api/projects/" + projectId + "/deliverables");
+      allDelivs = await api("/api/projects/" + projectId + "/deliverables?include_auto_completed=true");
     } catch (err) {
       wrap.innerHTML = '<div class="empty-state">Couldn\'t load PO Lifecycle &#8211; ' + apiErrorDetail(err) + "</div>";
       return;
@@ -4467,11 +4483,16 @@
         + '<div class="mini-stat"><div class="label">In progress</div><div class="val" style="color:var(--accent);">' + statsTotal.in_progress + "</div></div>"
         + '<div class="mini-stat"><div class="label">Blocked</div><div class="val" style="color:var(--crit);">' + statsTotal.blocked + "</div></div>"
         + "</div>");
-      col.appendChild(poRegistryBox(allItems, allItems.length, registrySource[key], fixedCount));
+      // Consultancy is always exactly one fixed item -- there's nothing to
+      // register or declare, so the "Line items" box (built for a variable
+      // registry) has no useful content here at all; skip it entirely.
+      if (!fixedCount) col.appendChild(poRegistryBox(allItems, allItems.length, registrySource[key]));
 
       var railHtml = '<div class="rail">';
       (PO_COLUMN_LAYOUT[key] || []).forEach(function (itemNo) {
-        railHtml += fanoutData[itemNo] ? poCard(itemNo, "fanout", fanoutData[itemNo], fixedCount) : poCard(itemNo, "single", singleByItemNo[itemNo], fixedCount);
+        railHtml += fanoutData[itemNo]
+          ? poCard(itemNo, "fanout", fanoutData[itemNo], fixedCount, singleByItemNo)
+          : poCard(itemNo, "single", singleByItemNo[itemNo], fixedCount, singleByItemNo);
       });
       railHtml += "</div>";
       col.insertAdjacentHTML("beforeend", railHtml);

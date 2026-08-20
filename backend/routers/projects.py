@@ -707,7 +707,8 @@ def get_project_history(project_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/{project_id}/deliverables", response_model=list[schemas.SubmissionOut])
-def get_deliverables(project_id: int, department: str | None = None, db: Session = Depends(get_db)):
+def get_deliverables(project_id: int, department: str | None = None, include_auto_completed: bool = False,
+                      db: Session = Depends(get_db)):
     project = db.get(models.Project, project_id)
     if not project:
         raise HTTPException(404, "Project not found")
@@ -722,8 +723,13 @@ def get_deliverables(project_id: int, department: str | None = None, db: Session
         .join(models.DeliverableDefinition)
         .join(models.Department)
         .filter(models.DeliverableSubmission.project_id == project_id)
-        .filter(models.DeliverableSubmission.auto_completed.isnot(True))
     )
+    # items 115/116 exclude auto-completed rows (1.1 etc) from the normal
+    # Deliverables list -- they're not real tracked work. [PO Lifecycle] needs
+    # 1.1 itself though, since it's a causal-chain context card there (the
+    # anchor everything else needs) -- include_auto_completed opts back in.
+    if not include_auto_completed:
+        q = q.filter(models.DeliverableSubmission.auto_completed.isnot(True))
     if department:
         q = q.filter(models.Department.name == department)
     subs = q.all()
