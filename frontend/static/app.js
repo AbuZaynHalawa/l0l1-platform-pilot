@@ -4289,12 +4289,17 @@
     long_lead: { title: "Long lead items POs", desc: "full award cycle, one per item" },
     sc: { title: "S/C agreements", desc: "per item — which line applies depends on tender scope" },
   };
+  // No hardcoded dept lists here on purpose -- a project only ever
+  // instantiates the ONE Operation Units BU variant its actual scope
+  // resolves to (rules.is_bu_applicable), so "TBU/PBU/DBU" as three
+  // generic chips would be misleading. poDeptTag() below reads the real
+  // department off the real submission instead.
   var PO_ITEM_META = {
     "1.1": { label: "Announcement", needs: [] },
-    "2.3": { label: "PM assigned", needs: ["1.1"], dept: ["TBU", "PBU", "DBU"] },
+    "2.3": { label: "PM assigned", needs: ["1.1"] },
     "1.2": { label: "Mobilization plan", needs: ["1.1"] },
-    "2.1": { label: "Cost center request", needs: ["1.2"], dept: ["TBU", "PBU", "DBU"] },
-    "2.13": { label: "Cost center request", needs: ["1.2"], dept: ["BBU"] },
+    "2.1": { label: "Cost center request", needs: ["1.2"] },
+    "2.13": { label: "Cost center request", needs: ["1.2"] },
     "6.1": { label: "Temp budget", needs: ["2.1"] },
     "4.3": { label: "Design SOW", needs: ["1.1"] },
     "3.9": { label: "Share design offers", needs: ["4.3"] },
@@ -4313,15 +4318,15 @@
     "3.5": { label: "PO approval (Oracle)", needs: ["3.4"] },
     "3.6": { label: "Internal PO signature", needs: ["3.5"] },
     "3.7": { label: "Vendor PO signature", needs: ["3.6"] },
-    "2.6": { label: "Early-activity PRs", needs: ["4.1", "6.1", "2.3"], dept: ["TBU", "PBU", "DBU"] },
-    "2.14": { label: "MEP consultancy PRs", needs: ["4.1", "6.1", "2.3", "2.13"], dept: ["BBU"] },
+    "2.6": { label: "Early-activity PRs", needs: ["4.1", "6.1", "2.3"] },
+    "2.14": { label: "MEP consultancy PRs", needs: ["4.1", "6.1", "2.3", "2.13"] },
     "3.11": { label: "Issue POs", needs: ["2.6", "2.14"], note: "one combined step — covers both early-activity and MEP lines" },
-    "2.7": { label: "Design-firm PR", needs: ["4.1", "6.1", "2.3"], dept: ["TBU", "PBU", "DBU"] },
+    "2.7": { label: "Design-firm PR", needs: ["4.1", "6.1", "2.3"] },
     "3.10": { label: "Design-firm PO", needs: ["2.7"] },
-    "2.11": { label: "Subcontract strategy", needs: ["1.2"], dept: ["TBU", "PBU", "DBU"], note: "declares the S/C items — OHTL/UGC scope" },
-    "2.17": { label: "Subcontract strategy", needs: ["1.2"], dept: ["BBU"], note: "declares the S/C items — SS scope" },
+    "2.11": { label: "Subcontract strategy", needs: ["1.2"], note: "declares the S/C items — OHTL/UGC scope" },
+    "2.17": { label: "Subcontract strategy", needs: ["1.2"], note: "declares the S/C items — SS scope" },
     "3.8": { label: "Subcontract (OHTL/UGC)", needs: ["2.11", "1.6", "6.2"] },
-    "2.18": { label: "Subcontract (SS)", needs: ["1.6", "6.2"], dept: ["BBU"] },
+    "2.18": { label: "Subcontract (SS)", needs: ["1.6", "6.2"] },
   };
   // Exact card order per column, matching the artifact -- single (project-
   // level) items interleaved with fan-out (per-item) ones exactly as shown.
@@ -4381,7 +4386,15 @@
     if (d.awaiting_note || d.deadline_status === "due") return "blocked";
     return "pending";
   }
-  function poCard(itemNo, kind, ctx) {
+  // A project only ever instantiates the one Operation Units BU variant its
+  // scope resolves to (rules.is_bu_applicable) -- reading the tag off the
+  // real department name (e.g. "Operation Units (TBU)") shows exactly the
+  // one that actually applies here, not every BU the catalog could offer.
+  function poDeptTag(departmentName) {
+    var m = departmentName && departmentName.match(/\(([A-Z]+)\)/);
+    return m ? m[1] : "";
+  }
+  function poCard(itemNo, kind, ctx, deptName) {
     var meta = PO_ITEM_META[itemNo] || { label: itemNo, needs: [] };
     var status, per = "", prog = "", score = "", dynamicNote = null;
     if (kind === "fanout") {
@@ -4395,7 +4408,8 @@
       status = poSingleStatus(ctx);
       if (ctx && ctx.awaiting_note) dynamicNote = ctx.awaiting_note;
     }
-    var dept = (meta.dept || []).map(function (x) { return '<span class="chip">' + x + "</span>"; }).join("");
+    var deptTag = poDeptTag(deptName);
+    var dept = deptTag ? '<span class="chip">' + deptTag + "</span>" : "";
     var needs = meta.needs.length ? "needs " + meta.needs.join(" + ") : "anchor";
     var noteText = dynamicNote || meta.note;
     var note = noteText ? '<div class="note" style="color:' + (status === "blocked" ? "var(--crit)" : "var(--ink-500)") + ';">&#8617; ' + noteText + "</div>" : "";
@@ -4459,7 +4473,8 @@
 
       var railHtml = '<div class="rail">';
       (PO_COLUMN_LAYOUT[key] || []).forEach(function (itemNo) {
-        railHtml += fanoutData[itemNo] ? poCard(itemNo, "fanout", fanoutData[itemNo]) : poCard(itemNo, "single", singleByItemNo[itemNo]);
+        var deptName = singleByItemNo[itemNo] && singleByItemNo[itemNo].department;
+        railHtml += fanoutData[itemNo] ? poCard(itemNo, "fanout", fanoutData[itemNo], deptName) : poCard(itemNo, "single", singleByItemNo[itemNo], deptName);
       });
       railHtml += "</div>";
       col.insertAdjacentHTML("beforeend", railHtml);
