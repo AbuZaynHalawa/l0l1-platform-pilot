@@ -4358,7 +4358,7 @@
     }
     return '<div class="po-item-track">' + dots + "</div>";
   }
-  function poRegistryBox(items, count, sourceLabel) {
+  function poRegistryBox(items, count, sourceLabel, fixedCount) {
     var box = el("div", "po-registry-box");
     box.innerHTML = '<div class="title">Line items (' + count + ')</div><div class="source">' + sourceLabel + "</div>";
     if (!items.length) {
@@ -4368,7 +4368,8 @@
     items.forEach(function (li) {
       var stepLabel = li.current_item_no || (li.total_steps ? "done" : "");
       box.insertAdjacentHTML("beforeend",
-        '<div class="po-item-row"><div class="iname">' + li.name + '<span class="istep">' + stepLabel + "</span></div>" + poItemTrack(li) + "</div>");
+        '<div class="po-item-row"><div class="iname">' + li.name + '<span class="istep">' + stepLabel + "</span></div>"
+        + (fixedCount ? "" : poItemTrack(li)) + "</div>");
     });
     return box;
   }
@@ -4386,30 +4387,25 @@
     if (d.awaiting_note || d.deadline_status === "due") return "blocked";
     return "pending";
   }
-  // A project only ever instantiates the one Operation Units BU variant its
-  // scope resolves to (rules.is_bu_applicable) -- reading the tag off the
-  // real department name (e.g. "Operation Units (TBU)") shows exactly the
-  // one that actually applies here, not every BU the catalog could offer.
-  function poDeptTag(departmentName) {
-    var m = departmentName && departmentName.match(/\(([A-Z]+)\)/);
-    return m ? m[1] : "";
-  }
-  function poCard(itemNo, kind, ctx, deptName) {
+  function poCard(itemNo, kind, ctx, fixedCount) {
     var meta = PO_ITEM_META[itemNo] || { label: itemNo, needs: [] };
     var status, per = "", prog = "", score = "", dynamicNote = null;
     if (kind === "fanout") {
       status = poFanoutStatus(itemNo, ctx.items, ctx.counts);
-      per = '<span class="chip">per item</span>';
-      prog = ctx.counts.total ? '<span class="chip" style="color:var(--ink-900);font-weight:500;">' + ctx.counts.passed + "/" + ctx.counts.total + " passed</span>" : "";
-      if (ctx.counts.score !== null && ctx.counts.score !== undefined) {
-        score = '<span class="chip" style="color:var(--ink-900);font-weight:500;" title="pro-rata score across this item\'s own due-and-done cohort">' + ctx.counts.score + "%</span>";
+      // A structurally-fixed-at-1 category (Consultancy) has no real "out of
+      // how many" question to answer -- skip the per-item/count badges, they
+      // only earn their keep once a category can genuinely vary.
+      if (!fixedCount) {
+        per = '<span class="chip">per item</span>';
+        prog = ctx.counts.total ? '<span class="chip" style="color:var(--ink-900);font-weight:500;">' + ctx.counts.passed + "/" + ctx.counts.total + " passed</span>" : "";
+        if (ctx.counts.score !== null && ctx.counts.score !== undefined) {
+          score = '<span class="chip" style="color:var(--ink-900);font-weight:500;" title="pro-rata score across this item\'s own due-and-done cohort">' + ctx.counts.score + "%</span>";
+        }
       }
     } else {
       status = poSingleStatus(ctx);
       if (ctx && ctx.awaiting_note) dynamicNote = ctx.awaiting_note;
     }
-    var deptTag = poDeptTag(deptName);
-    var dept = deptTag ? '<span class="chip">' + deptTag + "</span>" : "";
     var needs = meta.needs.length ? "needs " + meta.needs.join(" + ") : "anchor";
     var noteText = dynamicNote || meta.note;
     var note = noteText ? '<div class="note" style="color:' + (status === "blocked" ? "var(--crit)" : "var(--ink-500)") + ';">&#8617; ' + noteText + "</div>" : "";
@@ -4417,7 +4413,7 @@
       + '<span class="icon">' + poIcon(status) + "</span>"
       + '<div class="body">'
       + '<div class="top"><span class="name"><b>' + itemNo + "</b>" + meta.label + "</span>" + poPill(status) + "</div>"
-      + '<div class="meta">' + needs + dept + per + prog + score + "</div>"
+      + '<div class="meta">' + needs + per + prog + score + "</div>"
       + note
       + "</div></div>";
   }
@@ -4463,18 +4459,19 @@
           fanoutData[itemNo] = { items: cd.items, counts: cd.step_counts[itemNo] };
         });
       });
+      var fixedCount = key === "consultancy";
       col.insertAdjacentHTML("beforeend",
         '<div class="mini-stats">'
+        + '<div class="mini-stat"><div class="label">Total POs</div><div class="val">' + allItems.length + "</div></div>"
         + '<div class="mini-stat"><div class="label">Complete</div><div class="val">' + statsTotal.complete + "</div></div>"
         + '<div class="mini-stat"><div class="label">In progress</div><div class="val" style="color:var(--accent);">' + statsTotal.in_progress + "</div></div>"
         + '<div class="mini-stat"><div class="label">Blocked</div><div class="val" style="color:var(--crit);">' + statsTotal.blocked + "</div></div>"
         + "</div>");
-      col.appendChild(poRegistryBox(allItems, allItems.length, registrySource[key]));
+      col.appendChild(poRegistryBox(allItems, allItems.length, registrySource[key], fixedCount));
 
       var railHtml = '<div class="rail">';
       (PO_COLUMN_LAYOUT[key] || []).forEach(function (itemNo) {
-        var deptName = singleByItemNo[itemNo] && singleByItemNo[itemNo].department;
-        railHtml += fanoutData[itemNo] ? poCard(itemNo, "fanout", fanoutData[itemNo], deptName) : poCard(itemNo, "single", singleByItemNo[itemNo], deptName);
+        railHtml += fanoutData[itemNo] ? poCard(itemNo, "fanout", fanoutData[itemNo], fixedCount) : poCard(itemNo, "single", singleByItemNo[itemNo], fixedCount);
       });
       railHtml += "</div>";
       col.insertAdjacentHTML("beforeend", railHtml);

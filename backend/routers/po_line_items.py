@@ -134,7 +134,14 @@ def po_cycle_summary(project_id: int, db: Session = Depends(get_db)):
 
     line_items = (
         db.query(models.PoLineItem)
-        .filter(models.PoLineItem.project_id == project.id, models.PoLineItem.status == "active")
+        .filter(models.PoLineItem.project_id == project.id, models.PoLineItem.status == "active",
+                # Only items that came from a real 1.2/4.1/2.11/2.17 selection --
+                # excludes the synthetic "Item 1 (migrated)" rows the one-time
+                # backfill created for pre-existing production progress. Their
+                # underlying submissions stay real and trackable in the normal
+                # Deliverables tab; this summary just doesn't surface them as
+                # a named registry item anymore.
+                models.PoLineItem.source_submission_id.isnot(None))
         .all()
     )
     subs = (
