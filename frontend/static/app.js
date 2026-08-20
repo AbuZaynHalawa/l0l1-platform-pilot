@@ -1760,7 +1760,7 @@
     try {
       await api("/api/deliverables/" + submissionId + "/po-selection", {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(Object.assign({ actor_role: CURRENT_ROLE, actor_email: actingEmail() }, patch)),
+        body: JSON.stringify(Object.assign({ actor_name: CURRENT_ROLE + " (pilot)", actor_role: CURRENT_ROLE, actor_email: actingEmail() }, patch)),
       });
       after();
     } catch (err) { showToast("Couldn't save &#8211; " + apiErrorDetail(err), true); }
@@ -1818,9 +1818,13 @@
     if (canEdit) {
       var addBtn = el("button", "btn", "+ Add item manually");
       addBtn.addEventListener("click", function () {
-        var name = prompt("Item name:");
-        if (!name || !name.trim()) return;
-        savePoSelection(d.id, { long_lead_items: rows.concat([{ name: name.trim() }]) }, refreshModal);
+        openChecklistEditModal({
+          type: "text", eyebrow: d.item_no, title: "Add long-lead item", placeholder: "Item name", selected: "",
+          onSave: function (name) {
+            if (!name || !name.trim()) return;
+            savePoSelection(d.id, { long_lead_items: rows.concat([{ name: name.trim() }]) }, function () { closeChecklistEditModal(); refreshModal(); });
+          },
+        });
       });
       sec.appendChild(addBtn);
     }
@@ -1850,9 +1854,13 @@
     if (canEdit) {
       var addBtn = el("button", "btn", "+ Add item");
       addBtn.addEventListener("click", function () {
-        var name = prompt("Subcontract agreement name:");
-        if (!name || !name.trim()) return;
-        savePoSelection(d.id, { items: items.concat([name.trim()]) }, refreshModal);
+        openChecklistEditModal({
+          type: "text", eyebrow: d.item_no, title: "Add " + label.toLowerCase(), placeholder: "Agreement name", selected: "",
+          onSave: function (name) {
+            if (!name || !name.trim()) return;
+            savePoSelection(d.id, { items: items.concat([name.trim()]) }, function () { closeChecklistEditModal(); refreshModal(); });
+          },
+        });
       });
       sec.appendChild(addBtn);
     }
@@ -4247,6 +4255,7 @@
     extension_requested: "&#8987;", extension_approved: "&#9989;", extension_rejected: "&#10060;",
     hold_requested: "&#9208;", hold_approved: "&#9989;", hold_rejected: "&#10060;", resumed: "&#9654;",
     completion_date_edited: "&#128197;",
+    po_selection_updated: "&#128203;",
   };
   async function renderActivityTimeline(projectId, timelineId) {
     var wrap = document.getElementById(timelineId);
@@ -4330,12 +4339,14 @@
     var needs = meta.needs.length ? "needs " + meta.needs.join(" + ") : "anchor";
     var dept = (meta.dept || []).map(function (x) { return '<span class="chip">' + x + "</span>"; }).join("");
     var prog = counts.total ? '<span class="chip po-prog-chip">' + counts.passed + "/" + counts.total + " passed</span>" : "";
+    var score = (counts.score !== null && counts.score !== undefined)
+      ? '<span class="chip po-score-chip" title="pro-rata score across this item\'s own due-and-done cohort">' + counts.score + "%</span>" : "";
     var note = meta.note ? '<div class="note" style="color:' + (status === "blocked" ? "var(--crit)" : "var(--ink-500)") + ';">&#8617; ' + meta.note + "</div>" : "";
     var card = el("div", "po-step-card");
     card.appendChild(el("span", "po-step-icon", poIcon(status)));
     var b = el("div", "po-step-body");
     b.appendChild(el("div", "po-step-top", "<span><b>" + itemNo + "</b> " + meta.label + "</span>" + poPill(status)));
-    b.appendChild(el("div", "po-step-meta", needs + dept + prog));
+    b.appendChild(el("div", "po-step-meta", needs + dept + prog + score));
     if (meta.note) b.insertAdjacentHTML("beforeend", note);
     card.appendChild(b);
     return card;

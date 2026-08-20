@@ -209,13 +209,31 @@ def update_po_selection(submission_id: int, payload: schemas.PoSelectionUpdate, 
         raise HTTPException(403, f"Only {', '.join(assigned_owners) or 'the assigned owner'} or an Admin can edit this")
 
     selection = dict(sub.po_selection or {})
+    changed_notes = []
+    field_labels = {
+        "long_lead_items": "long-lead items", "mep_selected": "MEP consultancy",
+        "selected": "early activities", "items": "items",
+    }
     for field in ("long_lead_items", "mep_selected", "selected", "items"):
         value = getattr(payload, field)
         if value is not None:
             selection[field] = value
+            if field == "long_lead_items":
+                names = [r.get("name") for r in value if r.get("name")]
+            else:
+                names = value
+            changed_notes.append(field_labels[field] + ": " + (", ".join(names) if names else "none"))
     sub.po_selection = selection
+    # Matches upload's own status transition (deliverables.py:154-155) --
+    # picking items is real progress on this deliverable, same as attaching
+    # a file, so it shouldn't keep reading "No Progress Yet".
+    if sub.status in (models.SubmissionStatus.NO_PROGRESS, models.SubmissionStatus.REJECTED):
+        sub.status = models.SubmissionStatus.IN_PROGRESS
+    if changed_notes:
+        db.add(models.WorkflowHistory(submission_id=sub.id, action="po_selection_updated",
+                                       actor_name=payload.actor_name, note="; ".join(changed_notes)))
     db.commit()
-    return {"po_selection": sub.po_selection}
+    return {"po_selection": sub.po_selection, "status": sub.status.value}
 
 
 def _document_out(d: "models.Document") -> dict:

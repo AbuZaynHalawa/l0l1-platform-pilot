@@ -159,6 +159,7 @@ class PoSelectionUpdate(BaseModel):
     mep_selected: list[str] | None = None  # 1.2
     selected: list[str] | None = None  # 4.1
     items: list[str] | None = None  # 2.11 / 2.17
+    actor_name: str = "Owner"
     actor_role: str = "Owner"
     actor_email: str = ""
 

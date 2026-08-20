@@ -1477,6 +1477,7 @@
 .po-step-meta { font-size: 10.5px; color: var(--ink-500); margin-top: 3px; }
 .po-step-meta .chip { font-size: 10.5px; padding: 1px 7px; margin-left: 5px; }
 .po-prog-chip { background: var(--surface-sunken); color: var(--ink-700); font-weight: 700; }
+.po-score-chip { background: var(--good-bg); color: var(--good-2); font-weight: 700; }
 .po-step-body .note { font-size: 10.5px; margin-top: 3px; }
 
 /* [PO Lifecycle] declaring-item selection block, inside the normal deliverable modal */

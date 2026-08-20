@@ -476,13 +476,36 @@ def _kpi_cohort(subs: list) -> list:
 def _kpi_pct_pooled(cohort: list) -> float | None:
     """L1 aggregation per architecture_map.md section 3.4/4.3: SUM(points for
     due items) / COUNT(due items), one pooled ratio across every submission.
+
+    [PO Lifecycle pro-rata]: a fan-out item_no (multiple submissions sharing
+    one item_no, one per named PoLineItem -- e.g. ten long-lead items all
+    filing under "2.2") counts as ONE pool entry, scored by its own
+    item_group_kpi_pct, instead of each line item's copy counting
+    separately -- otherwise a project with more named items would silently
+    outweigh one with fewer. Every ordinary (non-fan-out) submission is
+    still pooled individually, exactly as before.
     """
     if not cohort:
         return None
-    total_points = sum((rules.kpi_points(s.due_date, s.submitted_at.date() if s.submitted_at else None) or 0.0) for s in cohort)
+    flat = [s for s in cohort if s.po_line_item_id is None]
+    fan_out: dict[str, list] = {}
+    for s in cohort:
+        if s.po_line_item_id is not None:
+            fan_out.setdefault(s.definition.item_no, []).append(s)
+
+    total_points = sum((rules.kpi_points(s.due_date, s.submitted_at.date() if s.submitted_at else None) or 0.0) for s in flat)
+    count = len(flat)
+    for item_subs in fan_out.values():
+        group_pct = rules.item_group_kpi_pct(item_subs)
+        if group_pct is not None:
+            total_points += group_pct / 100.0  # this item_no's own ratio, contributing as ONE unit
+            count += 1
+
+    if not count:
+        return None
     # Item [early bonus]: capped at 100 -- individual items can earn more
     # than a full point for being early, the reported score can't.
-    return round(min((total_points / len(cohort)) * 100, 100.0), 1)
+    return round(min((total_points / count) * 100, 100.0), 1)
 
 
 def _kpi_pct_per_item_averaged(cohort: list) -> float | None:

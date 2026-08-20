@@ -947,3 +947,25 @@ def kpi_points(due_date: date | None, submitted_date: date | None, grace_days: i
     if days_late <= 28:
         return 0.6
     return 0.0
+
+
+def item_group_kpi_pct(subs: list) -> float | None:
+    """[PO Lifecycle pro-rata]: score for one item_no's worth of submissions
+    -- the single project-level row an ordinary item has, or all N line
+    items sharing a fan-out item_no (e.g. "2.2" across every long-lead
+    item). Cohort = due_and_done (approved + overdue + pending_review),
+    matching the convention every other KPI number in this app already
+    uses -- an item that isn't due yet doesn't drag the group down, one
+    that's overdue and still untouched scores a real 0. None only when
+    nothing in the group has reached a scoreable state yet.
+    """
+    cohort = [
+        s for s in subs
+        if s.status == models.SubmissionStatus.APPROVED
+        or s.status == models.SubmissionStatus.PENDING_REVIEW
+        or deadline_status(s)[0] == "due"
+    ]
+    if not cohort:
+        return None
+    total = sum((kpi_points(s.due_date, s.submitted_at.date() if s.submitted_at else None) or 0.0) for s in cohort)
+    return round(min((total / len(cohort)) * 100, 100.0), 1)

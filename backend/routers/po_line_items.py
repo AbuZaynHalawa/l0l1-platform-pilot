@@ -152,6 +152,7 @@ def po_cycle_summary(project_id: int, db: Session = Depends(get_db)):
         cat_items = [li for li in line_items if li.category == category]
         items_out = []
         step_counts = {item_no: {"passed": 0, "total": 0} for item_no in sequence}
+        subs_per_step: dict[str, list] = {item_no: [] for item_no in sequence}  # [PO Lifecycle pro-rata]
         counts = {"complete": 0, "in_progress": 0, "blocked": 0}
         for li in cat_items:
             item_subs = subs_by_item.get(li.id, {})
@@ -161,6 +162,7 @@ def po_cycle_summary(project_id: int, db: Session = Depends(get_db)):
             for item_no in item_seq:
                 sub = item_subs[item_no]
                 step_counts[item_no]["total"] += 1
+                subs_per_step[item_no].append(sub)
                 if sub.status == models.SubmissionStatus.APPROVED:
                     passed += 1
                     step_counts[item_no]["passed"] += 1
@@ -180,5 +182,7 @@ def po_cycle_summary(project_id: int, db: Session = Depends(get_db)):
                 "step_position": passed, "total_steps": len(item_seq),
                 "current_item_no": current_item_no,
             })
+        for item_no, item_subs in subs_per_step.items():
+            step_counts[item_no]["score"] = rules.item_group_kpi_pct(item_subs) if item_subs else None
         result[category] = {"items": items_out, "step_counts": step_counts, "stats": counts}
     return result
