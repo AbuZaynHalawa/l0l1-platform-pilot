@@ -1449,36 +1449,43 @@
     .perf-card-grid { grid-template-columns: 1fr 1fr !important; }
   }
 
-/* ================= PO LIFECYCLE (read-only tab) ================= */
+/* ================= PO LIFECYCLE (read-only tab) =================
+   Ported 1:1 from the approved "PO Lifecycle network" artifact sketch --
+   same class shapes/spacing, real app design tokens in place of the
+   artifact's own standalone palette (so dark mode keeps tracking the
+   real toggle). Everything below is scoped under .po-column so these
+   generic names (.card/.chip/.note/.top/...) never leak into the rest
+   of the page. */
 .po-columns { display: flex; gap: 16px; align-items: flex-start; overflow-x: auto; padding-bottom: 8px; }
 .po-column { flex: 0 0 300px; width: 300px; }
-.po-col-title { font-size: 14px; font-weight: 700; color: var(--ink-900); margin-bottom: 2px; }
-.po-col-desc { font-size: 11.5px; color: var(--ink-500); margin-bottom: 10px; }
-.po-mini-stats { display: flex; gap: 6px; margin-bottom: 10px; }
-.po-mini-stat { flex: 1; background: var(--surface-sunken); border-radius: 8px; padding: 6px 8px; }
-.po-mini-stat .lbl { font-size: 10px; color: var(--ink-500); }
-.po-mini-stat .val { font-size: 16px; font-weight: 700; color: var(--ink-900); }
-.po-registry-box { background: var(--surface-sunken); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; }
-.po-registry-title { font-size: 11.5px; font-weight: 700; color: var(--ink-900); margin-bottom: 6px; }
-.po-item-row { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-bottom: 6px; }
-.po-item-row:last-child { margin-bottom: 0; }
-.po-item-top { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; font-size: 12.5px; color: var(--ink-900); }
-.po-item-meta { font-size: 10.5px; color: var(--ink-500); margin-top: 3px; }
+.po-column h2 { font-size: 14px; font-weight: 600; margin: 0 0 2px; color: var(--ink-900); }
+.po-column .desc { font-size: 11.5px; color: var(--ink-500); margin: 0 0 0.75rem; }
+.po-column .mini-stats { display: flex; gap: 6px; margin-bottom: 0.75rem; }
+.po-column .mini-stat { flex: 1; background: var(--surface-sunken); border-radius: 8px; padding: 6px 8px; }
+.po-column .mini-stat .label { font-size: 10px; color: var(--ink-500); }
+.po-column .mini-stat .val { font-size: 16px; font-weight: 500; color: var(--ink-900); }
+.po-column .po-registry-box { background: var(--neutral-bg); border: 0.5px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-bottom: 0.75rem; }
+.po-column .po-registry-box .title { font-size: 11.5px; font-weight: 600; color: var(--ink-900); }
+.po-column .po-registry-box .source { font-size: 10.5px; color: var(--ink-500); margin: 2px 0 6px; }
+.po-column .po-registry-box .row { font-size: 11px; color: var(--ink-700); padding: 2px 0; }
 .po-selection-empty { font-size: 11.5px; color: var(--ink-500); font-style: italic; padding: 4px 0; }
-.po-step-track { display: flex; gap: 2px; margin-top: 5px; }
-.po-step-dot { flex: 1; height: 4px; border-radius: 2px; background: var(--line); }
-.po-step-dot.filled { background: var(--good); }
-.po-step-card { display: flex; gap: 9px; align-items: flex-start; padding: 8px 0; border-top: 1px solid var(--line); }
-.po-step-card:first-of-type { border-top: none; }
-.po-step-icon { flex-shrink: 0; margin-top: 2px; }
-.po-step-body { flex: 1; min-width: 0; }
-.po-step-top { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; font-size: 12.5px; color: var(--ink-900); }
-.po-step-top b { font-weight: 700; color: var(--ink-500); margin-right: 5px; }
-.po-step-meta { font-size: 10.5px; color: var(--ink-500); margin-top: 3px; }
-.po-step-meta .chip { font-size: 10.5px; padding: 1px 7px; margin-left: 5px; }
-.po-prog-chip { background: var(--surface-sunken); color: var(--ink-700); font-weight: 700; }
-.po-score-chip { background: var(--good-bg); color: var(--good-2); font-weight: 700; }
-.po-step-body .note { font-size: 10.5px; margin-top: 3px; }
+.po-column .po-item-row { padding: 4px 0; }
+.po-column .po-item-row .iname { font-size: 11px; color: var(--ink-700); display: flex; justify-content: space-between; gap: 6px; }
+.po-column .po-item-row .istep { font-size: 9.5px; color: var(--accent); white-space: nowrap; }
+.po-column .po-item-track { display: flex; gap: 2px; margin-top: 2px; }
+.po-column .po-item-track .dot { flex: 1; height: 4px; border-radius: 2px; background: var(--line); }
+.po-column .po-item-track .dot.done { background: var(--good); }
+.po-column .po-item-track .dot.current { background: var(--accent); }
+.po-column .rail { border-left: 1.5px solid var(--line); }
+.po-column .card { display: flex; gap: 8px; align-items: flex-start; padding: 7px 10px; }
+.po-column .card .icon { flex-shrink: 0; margin-top: 1px; }
+.po-column .card .body { flex: 1; min-width: 0; }
+.po-column .card .top { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+.po-column .card .name { font-size: 12.5px; color: var(--ink-900); }
+.po-column .card .name b { font-weight: 500; color: var(--ink-500); margin-right: 6px; }
+.po-column .card .meta { font-size: 10.5px; color: var(--ink-500); margin-top: 2px; }
+.po-column .card .meta .chip { font-size: 10.5px; color: var(--ink-700); margin-left: 6px; }
+.po-column .card .note { font-size: 10.5px; margin-top: 2px; }
 
 /* [PO Lifecycle] declaring-item selection block, inside the normal deliverable modal */
 .po-selection-block { background: var(--surface-sunken); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 10px 0; }

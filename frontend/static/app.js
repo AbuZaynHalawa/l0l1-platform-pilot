@@ -4280,20 +4280,34 @@
   // All owner input (uploads, checklist ticks, item lists) happens on 1.2/
   // 4.1/2.11/2.17's own deliverable windows -- see PO_DECLARING_ITEM_NOS
   // above. This tab only ever displays what's already been approved there.
+  // Layout and metadata ported 1:1 from the approved "PO Lifecycle network"
+  // artifact sketch -- same column order, same card content, same registry
+  // trackers, real data underneath instead of mock examples.
   var PO_CATEGORY_META = {
     consultancy: { title: "Consultancy PO", desc: "Design firm — always exactly one" },
-    early_activity: { title: "Early activities & MEP consultancies", desc: "one PR/PO cycle per item" },
-    mep: { title: "Early activities & MEP consultancies", desc: "one PR/PO cycle per item" },
-    long_lead: { title: "Long lead items", desc: "full award cycle, one per item" },
+    early_activity_mep: { title: "Early activities & MEP consultancies POs", desc: "one PR/PO cycle per item" },
+    long_lead: { title: "Long lead items POs", desc: "full award cycle, one per item" },
     sc: { title: "S/C agreements", desc: "per item — which line applies depends on tender scope" },
   };
-  // Ported from the approved sketch: item_no -> display label, its true
-  // predecessors (for the "needs" line), department chips, and any note.
-  var PO_STEP_META = {
+  var PO_ITEM_META = {
+    "1.1": { label: "Announcement", needs: [] },
+    "2.3": { label: "PM assigned", needs: ["1.1"], dept: ["TBU", "PBU", "DBU"] },
+    "1.2": { label: "Mobilization plan", needs: ["1.1"] },
+    "2.1": { label: "Cost center request", needs: ["1.2"], dept: ["TBU", "PBU", "DBU"] },
+    "2.13": { label: "Cost center request", needs: ["1.2"], dept: ["BBU"] },
+    "6.1": { label: "Temp budget", needs: ["2.1"] },
+    "4.3": { label: "Design SOW", needs: ["1.1"] },
+    "3.9": { label: "Share design offers", needs: ["4.3"] },
+    "4.4": { label: "Finalize design selection", needs: ["3.9"] },
+    "4.1": { label: "SC scope for early activities", needs: ["1.1"], note: "declares the early-activity items" },
     "4.5": { label: "Vendor offers review", needs: ["1.2"] },
-    "2.2": { label: "Long-lead item PRs", needs: ["4.5", "6.1", "2.3"], dept: ["TBU", "PBU", "DBU"] },
-    "3.1": { label: "Issue RFQ", needs: ["2.2"], note: "also waiting on 3.12 if required" },
+    "2.2": { label: "Long-lead item PRs", needs: ["4.5", "6.1", "2.3"] },
+    "3.12": { label: "Prequalification of new vendors", needs: ["1.2"], note: "only blocks 3.1 if required" },
+    "3.1": { label: "Issue RFQ", needs: ["2.2", "3.12 (if required)"] },
     "3.2": { label: "Negotiation window", needs: ["3.1"], note: "opens 4.6, but can't finish until 4.6 does" },
+    "4.6": { label: "Review SC vendor offers", needs: ["3.2 start"], note: "mutual gate with 3.2" },
+    "1.6": { label: "Contract signing", needs: [], note: "external / client-dependent anchor" },
+    "6.2": { label: "Baseline budget", needs: [], note: "anchored off-cycle via 1.3" },
     "3.3": { label: "Award approval", needs: ["1.6", "3.2", "6.2"] },
     "3.4": { label: "Top mgmt approval", needs: ["3.3"] },
     "3.5": { label: "PO approval (Oracle)", needs: ["3.4"] },
@@ -4304,116 +4318,151 @@
     "3.11": { label: "Issue POs", needs: ["2.6", "2.14"], note: "one combined step — covers both early-activity and MEP lines" },
     "2.7": { label: "Design-firm PR", needs: ["4.1", "6.1", "2.3"], dept: ["TBU", "PBU", "DBU"] },
     "3.10": { label: "Design-firm PO", needs: ["2.7"] },
+    "2.11": { label: "Subcontract strategy", needs: ["1.2"], dept: ["TBU", "PBU", "DBU"], note: "declares the S/C items — OHTL/UGC scope" },
+    "2.17": { label: "Subcontract strategy", needs: ["1.2"], dept: ["BBU"], note: "declares the S/C items — SS scope" },
     "3.8": { label: "Subcontract (OHTL/UGC)", needs: ["2.11", "1.6", "6.2"] },
     "2.18": { label: "Subcontract (SS)", needs: ["1.6", "6.2"], dept: ["BBU"] },
   };
+  // Exact card order per column, matching the artifact -- single (project-
+  // level) items interleaved with fan-out (per-item) ones exactly as shown.
+  var PO_COLUMN_LAYOUT = {
+    consultancy: ["1.1", "2.3", "1.2", "2.1", "6.1", "4.3", "3.9", "4.4", "2.7", "3.10"],
+    early_activity_mep: ["1.1", "2.3", "1.2", "2.1", "2.13", "6.1", "4.1", "2.6", "2.14", "3.11"],
+    long_lead: ["1.1", "2.3", "1.2", "2.1", "4.5", "6.1", "2.2", "3.12", "3.1", "3.2", "4.6", "1.6", "6.2", "3.3", "3.4", "3.5", "3.6", "3.7"],
+    sc: ["1.1", "2.3", "1.2", "2.11", "2.17", "1.6", "6.2", "3.8", "2.18"],
+  };
   function poIcon(status) {
-    var c = { complete: "var(--good)", progress: "var(--accent)", blocked: "var(--crit)" }[status] || "var(--ink-500)";
-    if (status === "complete") return '<svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="none" stroke="' + c + '" stroke-width="1.4"/><path d="M5 8.2L7 10.2L11 6" fill="none" stroke="' + c + '" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-    if (status === "progress") return '<svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="none" stroke="' + c + '" stroke-width="1.4"/><path d="M8 4.5V8L10.5 9.5" fill="none" stroke="' + c + '" stroke-width="1.4" stroke-linecap="round"/></svg>';
-    if (status === "blocked") return '<svg width="16" height="16" viewBox="0 0 16 16"><rect x="4" y="7.5" width="8" height="6" rx="1.3" fill="none" stroke="' + c + '" stroke-width="1.4"/><path d="M5.5 7.5V5.3A2.5 2.5 0 0 1 10.5 5.3V7.5" fill="none" stroke="' + c + '" stroke-width="1.4"/></svg>';
-    return '<svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="none" stroke="' + c + '" stroke-width="1.4" stroke-dasharray="2.2,2.4"/></svg>';
+    var c = { done: "var(--good)", progress: "var(--accent)", blocked: "var(--crit)" }[status] || "var(--ink-500)";
+    if (status === "done") return '<svg width="14" height="14" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="none" stroke="' + c + '" stroke-width="1.4"/><path d="M5 8.2L7 10.2L11 6" fill="none" stroke="' + c + '" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    if (status === "progress") return '<svg width="14" height="14" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="none" stroke="' + c + '" stroke-width="1.4"/><path d="M8 4.5V8L10.5 9.5" fill="none" stroke="' + c + '" stroke-width="1.4" stroke-linecap="round"/></svg>';
+    if (status === "blocked") return '<svg width="14" height="14" viewBox="0 0 16 16"><rect x="4" y="7.5" width="8" height="6" rx="1.3" fill="none" stroke="' + c + '" stroke-width="1.4"/><path d="M5.5 7.5V5.3A2.5 2.5 0 0 1 10.5 5.3V7.5" fill="none" stroke="' + c + '" stroke-width="1.4"/></svg>';
+    return '<svg width="14" height="14" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="none" stroke="' + c + '" stroke-width="1.4" stroke-dasharray="2.2,2.4"/></svg>';
   }
+  var PO_PILL_MAP = { done: ["good", "Complete"], progress: ["warn", "In progress"], blocked: ["crit", "Blocked"] };
   function poPill(status) {
-    var map = { complete: ["good", "Complete"], progress: ["warn", "In progress"], blocked: ["crit", "Blocked"] };
-    var m = map[status] || ["neutral", "Not due yet"];
+    var m = PO_PILL_MAP[status] || ["neutral", "Not due yet"];
     return '<span class="pill ' + m[0] + '"><span class="dot"></span>' + m[1] + "</span>";
   }
-  function poStepDots(li) {
-    var total = li.total_steps || 0, filled = li.step_position || 0;
-    if (!total) return el("div");
+  function poItemTrack(li) {
+    var total = li.total_steps || 0, pos = li.step_position || 0;
+    if (!total) return "";
     var dots = "";
-    for (var i = 0; i < total; i++) dots += '<span class="po-step-dot' + (i < filled ? " filled" : "") + '"></span>';
-    return el("div", "po-step-track", dots);
+    for (var i = 0; i < total; i++) {
+      var cls = i < pos ? "done" : (i === pos ? "current" : "");
+      dots += '<span class="dot' + (cls ? " " + cls : "") + '"></span>';
+    }
+    return '<div class="po-item-track">' + dots + "</div>";
   }
-  function poStepStatus(items, itemNo, counts) {
-    if (!counts.total) return "pending";
-    if (counts.passed === counts.total) return "complete";
+  function poRegistryBox(items, count, sourceLabel) {
+    var box = el("div", "po-registry-box");
+    box.innerHTML = '<div class="title">Line items (' + count + ')</div><div class="source">' + sourceLabel + "</div>";
+    if (!items.length) {
+      box.insertAdjacentHTML("beforeend", '<div class="row">None declared yet</div>');
+      return box;
+    }
+    items.forEach(function (li) {
+      var stepLabel = li.current_item_no || (li.total_steps ? "done" : "");
+      box.insertAdjacentHTML("beforeend",
+        '<div class="po-item-row"><div class="iname">' + li.name + '<span class="istep">' + stepLabel + "</span></div>" + poItemTrack(li) + "</div>");
+    });
+    return box;
+  }
+  function poFanoutStatus(itemNo, items, counts) {
+    if (!counts || !counts.total) return "pending";
+    if (counts.passed === counts.total) return "done";
     var atStep = items.filter(function (li) { return li.current_item_no === itemNo; });
     if (atStep.some(function (li) { return li.status === "blocked"; })) return "blocked";
     return "progress";
   }
-  function poStepCard(itemNo, items, counts) {
-    var meta = PO_STEP_META[itemNo] || { label: itemNo, needs: [] };
-    var status = poStepStatus(items, itemNo, counts);
-    var needs = meta.needs.length ? "needs " + meta.needs.join(" + ") : "anchor";
+  function poSingleStatus(d) {
+    if (!d) return "pending";
+    if (d.status === "approved") return "done";
+    if (d.status === "in_progress" || d.status === "pending_review") return "progress";
+    if (d.awaiting_note || d.deadline_status === "due") return "blocked";
+    return "pending";
+  }
+  function poCard(itemNo, kind, ctx) {
+    var meta = PO_ITEM_META[itemNo] || { label: itemNo, needs: [] };
+    var status, per = "", prog = "", score = "", dynamicNote = null;
+    if (kind === "fanout") {
+      status = poFanoutStatus(itemNo, ctx.items, ctx.counts);
+      per = '<span class="chip">per item</span>';
+      prog = ctx.counts.total ? '<span class="chip" style="color:var(--ink-900);font-weight:500;">' + ctx.counts.passed + "/" + ctx.counts.total + " passed</span>" : "";
+      if (ctx.counts.score !== null && ctx.counts.score !== undefined) {
+        score = '<span class="chip" style="color:var(--ink-900);font-weight:500;" title="pro-rata score across this item\'s own due-and-done cohort">' + ctx.counts.score + "%</span>";
+      }
+    } else {
+      status = poSingleStatus(ctx);
+      if (ctx && ctx.awaiting_note) dynamicNote = ctx.awaiting_note;
+    }
     var dept = (meta.dept || []).map(function (x) { return '<span class="chip">' + x + "</span>"; }).join("");
-    var prog = counts.total ? '<span class="chip po-prog-chip">' + counts.passed + "/" + counts.total + " passed</span>" : "";
-    var score = (counts.score !== null && counts.score !== undefined)
-      ? '<span class="chip po-score-chip" title="pro-rata score across this item\'s own due-and-done cohort">' + counts.score + "%</span>" : "";
-    var note = meta.note ? '<div class="note" style="color:' + (status === "blocked" ? "var(--crit)" : "var(--ink-500)") + ';">&#8617; ' + meta.note + "</div>" : "";
-    var card = el("div", "po-step-card");
-    card.appendChild(el("span", "po-step-icon", poIcon(status)));
-    var b = el("div", "po-step-body");
-    b.appendChild(el("div", "po-step-top", "<span><b>" + itemNo + "</b> " + meta.label + "</span>" + poPill(status)));
-    b.appendChild(el("div", "po-step-meta", needs + dept + prog + score));
-    if (meta.note) b.insertAdjacentHTML("beforeend", note);
-    card.appendChild(b);
-    return card;
+    var needs = meta.needs.length ? "needs " + meta.needs.join(" + ") : "anchor";
+    var noteText = dynamicNote || meta.note;
+    var note = noteText ? '<div class="note" style="color:' + (status === "blocked" ? "var(--crit)" : "var(--ink-500)") + ';">&#8617; ' + noteText + "</div>" : "";
+    return '<div class="card">'
+      + '<span class="icon">' + poIcon(status) + "</span>"
+      + '<div class="body">'
+      + '<div class="top"><span class="name"><b>' + itemNo + "</b>" + meta.label + "</span>" + poPill(status) + "</div>"
+      + '<div class="meta">' + needs + dept + per + prog + score + "</div>"
+      + note
+      + "</div></div>";
   }
   async function renderPoLifecycle(projectId, containerId) {
     var wrap = document.getElementById(containerId);
     if (!projectId) { wrap.innerHTML = ""; return; }
     wrap.innerHTML = '<div class="empty-state">Loading&hellip;</div>';
-    var summary;
+    var summary, allDelivs;
     try {
       summary = await api("/api/projects/" + projectId + "/po-line-items/po-cycle-summary");
+      allDelivs = await api("/api/projects/" + projectId + "/deliverables");
     } catch (err) {
       wrap.innerHTML = '<div class="empty-state">Couldn\'t load PO Lifecycle &#8211; ' + apiErrorDetail(err) + "</div>";
       return;
     }
+    var singleByItemNo = {};
+    allDelivs.forEach(function (d) { if (!singleByItemNo[d.item_no]) singleByItemNo[d.item_no] = d; });
+
     wrap.innerHTML = "";
     var row = el("div", "po-columns");
+    var registrySource = {
+      consultancy: "fixed — always required, added automatically",
+      early_activity_mep: "early-activity rows from 4.1 · MEP rows from 1.2",
+      long_lead: "from 1.2 — owner-entered list, or auto-parsed from the uploaded Excel",
+      sc: "from 2.11 (OHTL/UGC scope) or 2.17 (SS scope) — whichever applies to this project",
+    };
     ["consultancy", "early_activity_mep", "long_lead", "sc"].forEach(function (key) {
       var cats = key === "early_activity_mep" ? ["early_activity", "mep"] : [key];
       var col = el("div", "po-column");
-      var meta = PO_CATEGORY_META[key] || PO_CATEGORY_META[cats[0]];
-      col.appendChild(el("div", "po-col-title", meta.title));
-      col.appendChild(el("div", "po-col-desc", meta.desc));
+      var meta = PO_CATEGORY_META[key];
+      col.innerHTML = "<h2>" + meta.title + '</h2><div class="desc">' + meta.desc + "</div>";
 
       var statsTotal = { complete: 0, in_progress: 0, blocked: 0 };
-      cats.forEach(function (c) {
-        var s = (summary[c] || {}).stats || {};
-        statsTotal.complete += s.complete || 0;
-        statsTotal.in_progress += s.in_progress || 0;
-        statsTotal.blocked += s.blocked || 0;
-      });
-      var stats = el("div", "po-mini-stats");
-      stats.appendChild(el("div", "po-mini-stat", '<div class="lbl">Complete</div><div class="val">' + statsTotal.complete + "</div>"));
-      stats.appendChild(el("div", "po-mini-stat", '<div class="lbl">In progress</div><div class="val" style="color:var(--accent);">' + statsTotal.in_progress + "</div>"));
-      stats.appendChild(el("div", "po-mini-stat", '<div class="lbl">Blocked</div><div class="val" style="color:var(--crit);">' + statsTotal.blocked + "</div>"));
-      col.appendChild(stats);
-
-      // Read-only line-items registry — declared on 1.2/4.1/2.11/2.17, edited there.
       var allItems = [];
-      cats.forEach(function (c) { allItems = allItems.concat((summary[c] || {}).items || []); });
-      var reg = el("div", "po-registry-box");
-      reg.appendChild(el("div", "po-registry-title", "Line items (" + allItems.length + ")"));
-      if (allItems.length) {
-        allItems.forEach(function (li) {
-          var row2 = el("div", "po-item-row");
-          row2.appendChild(el("div", "po-item-top", "<b>" + li.name + "</b>" + poPill(li.status)));
-          row2.appendChild(el("div", "po-item-meta", (li.current_item_no ? "at " + li.current_item_no : "done") + " &middot; " + li.step_position + "/" + li.total_steps));
-          row2.appendChild(poStepDots(li));
-          reg.appendChild(row2);
-        });
-      } else {
-        reg.appendChild(el("div", "po-selection-empty", "None declared yet — set on " +
-          (key === "long_lead" ? "1.2" : key === "early_activity_mep" ? "4.1 / 1.2" : key === "sc" ? "2.11 / 2.17" : "project creation") +
-          "'s own deliverable, once approved"));
-      }
-      col.appendChild(reg);
-
-      // Step cards — shared chain, one row per item_no.
-      var seen = {};
+      var fanoutData = {};
       cats.forEach(function (c) {
-        var catData = summary[c] || { items: [], step_counts: {} };
-        Object.keys(catData.step_counts || {}).forEach(function (itemNo) {
-          if (seen[itemNo]) return;
-          seen[itemNo] = true;
-          col.appendChild(poStepCard(itemNo, catData.items, catData.step_counts[itemNo]));
+        var cd = summary[c] || { items: [], step_counts: {}, stats: {} };
+        statsTotal.complete += cd.stats.complete || 0;
+        statsTotal.in_progress += cd.stats.in_progress || 0;
+        statsTotal.blocked += cd.stats.blocked || 0;
+        allItems = allItems.concat(cd.items);
+        Object.keys(cd.step_counts || {}).forEach(function (itemNo) {
+          fanoutData[itemNo] = { items: cd.items, counts: cd.step_counts[itemNo] };
         });
       });
+      col.insertAdjacentHTML("beforeend",
+        '<div class="mini-stats">'
+        + '<div class="mini-stat"><div class="label">Complete</div><div class="val">' + statsTotal.complete + "</div></div>"
+        + '<div class="mini-stat"><div class="label">In progress</div><div class="val" style="color:var(--accent);">' + statsTotal.in_progress + "</div></div>"
+        + '<div class="mini-stat"><div class="label">Blocked</div><div class="val" style="color:var(--crit);">' + statsTotal.blocked + "</div></div>"
+        + "</div>");
+      col.appendChild(poRegistryBox(allItems, allItems.length, registrySource[key]));
+
+      var railHtml = '<div class="rail">';
+      (PO_COLUMN_LAYOUT[key] || []).forEach(function (itemNo) {
+        railHtml += fanoutData[itemNo] ? poCard(itemNo, "fanout", fanoutData[itemNo]) : poCard(itemNo, "single", singleByItemNo[itemNo]);
+      });
+      railHtml += "</div>";
+      col.insertAdjacentHTML("beforeend", railHtml);
       row.appendChild(col);
     });
     wrap.appendChild(row);
