@@ -1469,13 +1469,14 @@
    real toggle). Everything below is scoped under .po-column so these
    generic names (.card/.chip/.note/.top/...) never leak into the rest
    of the page. */
-.po-columns { display: flex; gap: 20px; align-items: flex-start; overflow-x: auto; padding-bottom: 8px; }
-.po-column { flex: 1 1 360px; min-width: 340px; max-width: 440px; }
+.po-columns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; align-items: start; }
+.po-column { min-width: 0; }
+@media (max-width: 980px) { .po-columns { grid-template-columns: 1fr; } }
 .po-column h2 { font-size: 14px; font-weight: 600; margin: 0 0 2px; color: var(--ink-900); }
 .po-column .desc { font-size: 11.5px; color: var(--ink-500); margin: 0 0 0.75rem; }
 .po-column .mini-stats { display: flex; gap: 6px; margin-bottom: 0.75rem; }
-.po-column .mini-stat { flex: 1; background: var(--surface-sunken); border-radius: 8px; padding: 6px 8px; }
-.po-column .mini-stat .label { font-size: 10px; color: var(--ink-500); }
+.po-column .mini-stat { flex: 1; min-width: 0; background: var(--surface-sunken); border-radius: 8px; padding: 6px 8px; }
+.po-column .mini-stat .label { font-size: 10px; color: var(--ink-500); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .po-column .mini-stat .val { font-size: 16px; font-weight: 500; color: var(--ink-900); }
 .po-column .po-registry-box { background: var(--neutral-bg); border: 0.5px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-bottom: 0.75rem; }
 .po-column .po-registry-box .title { font-size: 11.5px; font-weight: 600; color: var(--ink-900); }

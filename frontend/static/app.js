@@ -4383,6 +4383,35 @@
     "3.8": { label: "Subcontract (OHTL/UGC)", needs: ["2.11", "1.6", "6.2"] },
     "2.18": { label: "Subcontract (SS)", needs: ["1.6", "6.2"] },
   };
+  // The single/context (project-level, non-fan-out) item_nos -- every
+  // PO_ITEM_META key that never appears in a CATEGORY_STEP_SEQUENCE chain.
+  // poEffectiveNextItemNo only ever drills into these: a fan-out item_no
+  // (e.g. "2.2") isn't resolvable via singleByItemNo (it has N independent
+  // submissions, not one), and its own current_item_no already reflects
+  // that item's real progress through its chain.
+  var PO_ANCHOR_ITEM_NOS = {
+    "1.1": 1, "2.3": 1, "1.2": 1, "2.1": 1, "2.13": 1, "6.1": 1, "4.3": 1, "3.9": 1,
+    "4.4": 1, "4.1": 1, "3.12": 1, "1.6": 1, "6.2": 1, "2.11": 1, "2.17": 1,
+  };
+  // A fan-out item's own current_item_no (e.g. "2.6") only tells you where
+  // that item sits in ITS OWN chain -- it says nothing about whether the
+  // single-item prerequisites that chain step itself depends on (temp
+  // budget, cost center, PM assignment...) are actually satisfied yet. This
+  // walks that dependency graph upward and returns the real root blocker,
+  // e.g. "2.1" (cost center) instead of a misleadingly-optimistic "2.6".
+  function poEffectiveNextItemNo(itemNo, singleByItemNo, depth) {
+    depth = depth || 0;
+    var meta = PO_ITEM_META[itemNo];
+    if (!meta || !meta.needs.length || depth > 6) return itemNo;
+    for (var i = 0; i < meta.needs.length; i++) {
+      var token = meta.needs[i];
+      if (!PO_ANCHOR_ITEM_NOS[token] || !(token in singleByItemNo)) continue;
+      if (poSingleStatus(singleByItemNo[token]) !== "done") {
+        return poEffectiveNextItemNo(token, singleByItemNo, depth + 1);
+      }
+    }
+    return itemNo;
+  }
   // Exact card order per column, matching the artifact -- single (project-
   // level) items interleaved with fan-out (per-item) ones exactly as shown.
   var PO_COLUMN_LAYOUT = {
@@ -4413,7 +4442,7 @@
     }
     return '<div class="po-item-track">' + dots + "</div>";
   }
-  function poRegistryBox(items, count, sourceLabel) {
+  function poRegistryBox(items, count, sourceLabel, singleByItemNo) {
     var box = el("div", "po-registry-box");
     box.innerHTML = '<div class="title">Line items (' + count + ')</div><div class="source">' + sourceLabel + "</div>";
     if (!items.length) {
@@ -4421,7 +4450,11 @@
       return box;
     }
     items.forEach(function (li) {
-      var stepLabel = li.current_item_no ? "Next " + li.current_item_no : (li.total_steps ? "Done" : "");
+      // The item's own current_item_no only says where it sits in its own
+      // chain -- drill through any unmet single-item prerequisite (budget,
+      // cost center, PM assignment...) so "Next" names the real blocker.
+      var nextItemNo = li.current_item_no ? poEffectiveNextItemNo(li.current_item_no, singleByItemNo) : null;
+      var stepLabel = nextItemNo ? "Next " + nextItemNo : (li.total_steps ? "Done" : "");
       box.insertAdjacentHTML("beforeend",
         '<div class="po-item-row"><div class="iname">' + li.name + '<span class="istep">' + stepLabel + "</span></div>"
         + poItemTrack(li) + "</div>");
@@ -4468,7 +4501,7 @@
       // passed" count itself already signals per-item tracking, so no
       // separate "per item" label is needed alongside it.
       if (!fixedCount) {
-        prog = ctx.counts.total ? '<span class="chip" style="color:var(--ink-900);font-weight:500;">' + ctx.counts.passed + "/" + ctx.counts.total + " passed</span>" : "";
+        prog = ctx.counts.total ? '<span class="chip" style="color:var(--ink-900);font-weight:500;">' + ctx.counts.passed + "/" + ctx.counts.total + " completed</span>" : "";
         if (ctx.counts.score !== null && ctx.counts.score !== undefined) {
           score = '<span class="chip" style="color:var(--ink-900);font-weight:500;" title="pro-rata score across this item\'s own due-and-done cohort">' + ctx.counts.score + "%</span>";
         }
@@ -4531,17 +4564,20 @@
         });
       });
       var fixedCount = key === "consultancy";
-      col.insertAdjacentHTML("beforeend",
-        '<div class="mini-stats">'
-        + '<div class="mini-stat"><div class="label">Total POs</div><div class="val">' + allItems.length + "</div></div>"
-        + '<div class="mini-stat"><div class="label">Complete</div><div class="val">' + statsTotal.complete + "</div></div>"
-        + '<div class="mini-stat"><div class="label">In progress</div><div class="val" style="color:var(--accent);">' + statsTotal.in_progress + "</div></div>"
-        + '<div class="mini-stat"><div class="label">Blocked</div><div class="val" style="color:var(--crit);">' + statsTotal.blocked + "</div></div>"
-        + "</div>");
-      // Consultancy is always exactly one fixed item -- there's nothing to
-      // register or declare, so the "Line items" box (built for a variable
-      // registry) has no useful content here at all; skip it entirely.
-      if (!fixedCount) col.appendChild(poRegistryBox(allItems, allItems.length, registrySource[key]));
+      // Consultancy is always exactly one fixed item -- a Total/Complete/In
+      // progress/Blocked summary answers a question ("out of how many?")
+      // that never applies here, same reasoning as skipping the registry
+      // box below.
+      if (!fixedCount) {
+        col.insertAdjacentHTML("beforeend",
+          '<div class="mini-stats">'
+          + '<div class="mini-stat"><div class="label">Total POs</div><div class="val">' + allItems.length + "</div></div>"
+          + '<div class="mini-stat"><div class="label">Complete</div><div class="val">' + statsTotal.complete + "</div></div>"
+          + '<div class="mini-stat"><div class="label">In progress</div><div class="val" style="color:var(--accent);">' + statsTotal.in_progress + "</div></div>"
+          + '<div class="mini-stat"><div class="label">Blocked</div><div class="val" style="color:var(--crit);">' + statsTotal.blocked + "</div></div>"
+          + "</div>");
+        col.appendChild(poRegistryBox(allItems, allItems.length, registrySource[key], singleByItemNo));
+      }
 
       var railHtml = '<div class="rail">';
       (PO_COLUMN_LAYOUT[key] || []).forEach(function (itemNo) {
