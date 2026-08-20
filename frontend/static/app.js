@@ -1871,10 +1871,28 @@
     var qs = passiveIdentity() ? "?actor_email=" + encodeURIComponent(passiveIdentity()) : "";
     var d = await api("/api/deliverables/" + submissionId + qs);
     document.getElementById("delivModalEyebrow").textContent = d.est_no + " – " + deptLabel(d.department, d.department_number);
-    document.getElementById("delivModalTitle").textContent = d.item_no + " · " + d.name;
+    document.getElementById("delivModalTitle").textContent = d.item_no + " · " + d.name + (d.line_item_name ? " — " + d.line_item_name : "");
     var authorized = isAssigned({ owner_emails: d.owner_emails, sme_emails: d.sme_emails });
     var body = document.getElementById("delivModalBody");
     body.innerHTML = "";
+
+    // [PO Lifecycle]: a fan-out item_no (one submission per PO line item)
+    // shows as a single collapsed row in the Deliverables list -- this
+    // switcher is where each item's own upload/status/SME-review/score
+    // actually lives, inside this one window, instead of as separate
+    // top-level rows.
+    if (d.siblings && d.siblings.length) {
+      var switchDotColor = { approved: "var(--good)", pending_review: "var(--accent)", in_progress: "var(--accent)", rejected: "var(--crit)" };
+      var switcher = el("div", "item-switcher");
+      d.siblings.forEach(function (s) {
+        var chip = el("button", "item-switch-chip" + (s.id === d.id ? " active" : ""),
+          '<span class="dot" style="background:' + (switchDotColor[s.status] || "var(--ink-500)") + ';"></span>' + (s.line_item_name || "Item"));
+        chip.type = "button";
+        if (s.id !== d.id) chip.addEventListener("click", function () { openDelivModal(s.id); });
+        switcher.appendChild(chip);
+      });
+      body.appendChild(switcher);
+    }
 
     var meta = el("div", "modal-meta-grid");
     // Item 134 rework: SME is no longer editable from here -- it's set as
@@ -3159,6 +3177,92 @@
     }
     draw();
   }
+  function buildDelivRow(d) {
+    var row = el("div", "deliv-row");
+    row.dataset.sid = String(d.id);
+    var body = el("div", "deliv-body");
+    // [PO Lifecycle]: a fan-out row (e.g. "2.6" spawned once per checked
+    // early activity) needs its named line item visible right in the
+    // list, or two rows sharing one item_no would be indistinguishable.
+    var displayName = d.line_item_name ? d.name + " — " + d.line_item_name : d.name;
+    var nameEl = el("div", "deliv-name", displayName);
+    nameEl.title = displayName;
+    body.appendChild(nameEl);
+    // Item 169: a null due_date pending a milestone reads as a stalled
+    // "Due —" otherwise, with no explanation of what it's actually
+    // waiting on.
+    var dueLabel = d.due_date ? ("Due " + dueDateHtml(d)) : (d.awaiting_note || "Due " + fmtDate(d.due_date));
+    // Item [early bonus]: once Completed, show the real point value
+    // earned right in the list row, not just inside the detail modal.
+    var pointsHtml = (d.points_earned !== null && d.points_earned !== undefined)
+      ? ' &middot; ' + pointsEarnedLabel(d.points_earned) : "";
+    body.appendChild(el("div", "deliv-due", '<span class="deliv-due-date">' + dueLabel + '</span> ' + statusPillsHtml(d) + pointsHtml));
+    var authorized = isAssigned(d);
+    if (authorized && d.completion_note) {
+      body.appendChild(el("div", "deliv-comment", "&#128172; " + d.completion_note));
+    }
+    body.style.cursor = "pointer";
+    body.addEventListener("click", function () { openDelivModal(d.id); });
+    row.appendChild(el("div", "deliv-num", d.item_no));
+    row.appendChild(body);
+
+    var actions = el("div", "deliv-actions");
+    if (!authorized) {
+      actions.appendChild(el("span", "locked-note", "Owner/SME only"));
+    } else if (currentProjectTerminal) {
+      if (d.file_url) actions.appendChild(fileLink(d));
+    } else if (d.status === "pending_review") {
+      // Item 143 (2nd revision): Mark Completed was clicked -- awaiting
+      // the SME's confirm/reject. Uploads close entirely until the SME
+      // decides, so only a view link shows here, no Upload button.
+      if (d.file_url) actions.appendChild(fileLink(d));
+      if (can("review")) {
+        var appr = el("button", "btn primary", "Confirm Completion");
+        appr.addEventListener("click", function () { review(d.id, true, function () { openDetail(currentProjectId); }); });
+        var rej = el("button", "btn ghost-crit", "Send Back");
+        rej.addEventListener("click", function () { review(d.id, false, function () { openDetail(currentProjectId); }); });
+        actions.appendChild(appr); actions.appendChild(rej);
+      } else {
+        actions.appendChild(el("span", "locked-note", "Awaiting SME confirmation"));
+      }
+    } else if (d.status === "no_progress" || d.status === "in_progress" || d.status === "rejected") {
+      if (d.file_url) actions.appendChild(fileLink(d));
+      if (d.deadline_status === "due" && can("remind")) actions.appendChild(el("button", "btn ghost-crit", "Send reminder"));
+      if (can("upload")) { actions.appendChild(uploadButton(d.id)); actions.appendChild(markCompleteButton(d.id)); }
+      if (CURRENT_ROLE === "Admin") actions.appendChild(markNotRequiredButton(d.id));
+    } else if (d.file_url) {
+      actions.appendChild(fileLink(d));
+    }
+    row.appendChild(actions);
+    return row;
+  }
+  // [PO Lifecycle]: a fan-out item_no (one submission per PO line item, e.g.
+  // 5 long-lead items each needing their own 4.5) collapses into ONE row
+  // here -- each item's own upload/status/SME-review/score still lives
+  // independently on the backend, but is only ever surfaced inside this
+  // row's modal (via its sibling switcher), not as separate top-level rows.
+  function buildFanoutDelivRow(subs) {
+    var first = subs[0];
+    var row = el("div", "deliv-row");
+    row.dataset.sid = String(first.id);
+    var body = el("div", "deliv-body");
+    var displayName = first.name + " (" + subs.length + " items)";
+    var nameEl = el("div", "deliv-name", displayName);
+    nameEl.title = displayName;
+    body.appendChild(nameEl);
+    var complete = subs.filter(function (s) { return s.status === "approved"; }).length;
+    var pending = subs.filter(function (s) { return s.status !== "approved" && s.due_date; });
+    var soonest = pending.reduce(function (min, s) { return (!min || s.due_date < min.due_date) ? s : min; }, null);
+    var dueHtml = soonest ? '<span class="deliv-due-date">Next due ' + dueDateHtml(soonest) + '</span> ' : "";
+    var countHtml = '<span class="pill neutral"><span class="dot"></span>' + complete + "/" + subs.length + " complete</span>";
+    body.appendChild(el("div", "deliv-due", dueHtml + countHtml));
+    body.style.cursor = "pointer";
+    body.addEventListener("click", function () { openDelivModal(first.id); });
+    row.appendChild(el("div", "deliv-num", first.item_no));
+    row.appendChild(body);
+    row.appendChild(el("div", "deliv-actions"));
+    return row;
+  }
   function renderDeliverables(items) {
     var wrap = document.getElementById("dDeliverables");
     wrap.innerHTML = "";
@@ -3167,71 +3271,22 @@
       wrap.appendChild(el("div", "deliv-row", '<span style="color:var(--ink-500);font-size:12.5px;">No deliverables catalogued for this department yet.</span>'));
       return;
     }
+    var groups = [], groupByItemNo = {};
+    items.forEach(function (d) {
+      var g = groupByItemNo[d.item_no];
+      if (!g) { g = []; groupByItemNo[d.item_no] = g; groups.push(g); }
+      g.push(d);
+    });
     var hasSplit = items.some(function (d) { return /\[PBU\]/.test(d.name); }) && items.some(function (d) { return !/\[PBU\]/.test(d.name); });
     var lastSubGroup = null;
-    items.forEach(function (d, idx) {
+    groups.forEach(function (subs) {
+      var d = subs[0];
       var subGroup = /\[PBU\]/.test(d.name) ? "PBU" : "Main";
       if (hasSplit && subGroup !== lastSubGroup) {
         wrap.appendChild(el("div", "deliv-subheader", subGroup === "PBU" ? "PBU-Specific Items" : "Main Business Unit"));
         lastSubGroup = subGroup;
       }
-      var row = el("div", "deliv-row");
-      row.dataset.sid = String(d.id);
-      var body = el("div", "deliv-body");
-      // [PO Lifecycle]: a fan-out row (e.g. "2.6" spawned once per checked
-      // early activity) needs its named line item visible right in the
-      // list, or two rows sharing one item_no would be indistinguishable.
-      var displayName = d.line_item_name ? d.name + " — " + d.line_item_name : d.name;
-      var nameEl = el("div", "deliv-name", displayName);
-      nameEl.title = displayName;
-      body.appendChild(nameEl);
-      // Item 169: a null due_date pending a milestone reads as a stalled
-      // "Due —" otherwise, with no explanation of what it's actually
-      // waiting on.
-      var dueLabel = d.due_date ? ("Due " + dueDateHtml(d)) : (d.awaiting_note || "Due " + fmtDate(d.due_date));
-      // Item [early bonus]: once Completed, show the real point value
-      // earned right in the list row, not just inside the detail modal.
-      var pointsHtml = (d.points_earned !== null && d.points_earned !== undefined)
-        ? ' &middot; ' + pointsEarnedLabel(d.points_earned) : "";
-      body.appendChild(el("div", "deliv-due", '<span class="deliv-due-date">' + dueLabel + '</span> ' + statusPillsHtml(d) + pointsHtml));
-      var authorized = isAssigned(d);
-      if (authorized && d.completion_note) {
-        body.appendChild(el("div", "deliv-comment", "&#128172; " + d.completion_note));
-      }
-      body.style.cursor = "pointer";
-      body.addEventListener("click", function () { openDelivModal(d.id); });
-      row.appendChild(el("div", "deliv-num", d.item_no));
-      row.appendChild(body);
-
-      var actions = el("div", "deliv-actions");
-      if (!authorized) {
-        actions.appendChild(el("span", "locked-note", "Owner/SME only"));
-      } else if (currentProjectTerminal) {
-        if (d.file_url) actions.appendChild(fileLink(d));
-      } else if (d.status === "pending_review") {
-        // Item 143 (2nd revision): Mark Completed was clicked -- awaiting
-        // the SME's confirm/reject. Uploads close entirely until the SME
-        // decides, so only a view link shows here, no Upload button.
-        if (d.file_url) actions.appendChild(fileLink(d));
-        if (can("review")) {
-          var appr = el("button", "btn primary", "Confirm Completion");
-          appr.addEventListener("click", function () { review(d.id, true, function () { openDetail(currentProjectId); }); });
-          var rej = el("button", "btn ghost-crit", "Send Back");
-          rej.addEventListener("click", function () { review(d.id, false, function () { openDetail(currentProjectId); }); });
-          actions.appendChild(appr); actions.appendChild(rej);
-        } else {
-          actions.appendChild(el("span", "locked-note", "Awaiting SME confirmation"));
-        }
-      } else if (d.status === "no_progress" || d.status === "in_progress" || d.status === "rejected") {
-        if (d.file_url) actions.appendChild(fileLink(d));
-        if (d.deadline_status === "due" && can("remind")) actions.appendChild(el("button", "btn ghost-crit", "Send reminder"));
-        if (can("upload")) { actions.appendChild(uploadButton(d.id)); actions.appendChild(markCompleteButton(d.id)); }
-        if (CURRENT_ROLE === "Admin") actions.appendChild(markNotRequiredButton(d.id));
-      } else if (d.file_url) {
-        actions.appendChild(fileLink(d));
-      }
-      row.appendChild(actions);
-      wrap.appendChild(row);
+      wrap.appendChild(subs.length > 1 ? buildFanoutDelivRow(subs) : buildDelivRow(d));
     });
   }
   // Item 138: a lighter refresh than openDetail() for the project detail
@@ -4366,7 +4421,7 @@
       return box;
     }
     items.forEach(function (li) {
-      var stepLabel = li.current_item_no || (li.total_steps ? "done" : "");
+      var stepLabel = li.current_item_no ? "Next " + li.current_item_no : (li.total_steps ? "Done" : "");
       box.insertAdjacentHTML("beforeend",
         '<div class="po-item-row"><div class="iname">' + li.name + '<span class="istep">' + stepLabel + "</span></div>"
         + poItemTrack(li) + "</div>");

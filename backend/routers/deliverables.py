@@ -913,6 +913,25 @@ def get_deliverable_detail(submission_id: int, actor_email: str | None = None, d
         .filter(models.DueDateRequest.submission_id == submission_id, models.DueDateRequest.status == "pending")
         .first()
     )
+    # [PO Lifecycle]: a fan-out item (one submission per line item, e.g. 5
+    # long-lead items all needing their own 4.5) shows as ONE row in the
+    # Deliverables list -- siblings lets the modal offer a switcher so each
+    # item's own upload/status/SME-review/score still lives inside this one
+    # window, instead of 5 separate top-level rows.
+    siblings = []
+    if sub.po_line_item_id is not None:
+        sib_subs = (
+            db.query(models.DeliverableSubmission)
+            .filter(models.DeliverableSubmission.project_id == sub.project_id,
+                    models.DeliverableSubmission.deliverable_definition_id == sub.deliverable_definition_id)
+            .order_by(models.DeliverableSubmission.id)
+            .all()
+        )
+        if len(sib_subs) > 1:
+            siblings = [
+                {"id": s.id, "line_item_name": s.po_line_item.name if s.po_line_item_id else None, "status": s.status.value}
+                for s in sib_subs
+            ]
     return {
         "id": sub.id, "item_no": sub.definition.item_no, "name": rules.display_name(sub.definition, sub.project),
         "department": sub.definition.department.name, "department_number": sub.definition.department.number,
@@ -936,6 +955,7 @@ def get_deliverable_detail(submission_id: int, actor_email: str | None = None, d
         "po_selection": sub.po_selection if sub.definition.item_no in po_line_items.DECLARING_ITEM_NOS else None,
         "po_line_item_id": sub.po_line_item_id,
         "line_item_name": sub.po_line_item.name if sub.po_line_item_id else None,
+        "siblings": siblings,
         "history": [
             {"action": h.action, "actor": h.actor_name, "note": h.note, "at": h.created_at}
             for h in history
