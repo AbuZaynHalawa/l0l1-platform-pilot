@@ -330,11 +330,22 @@ class DeliverableSubmission(Base):
     # particular copy of the step belongs to. Null for every ordinary
     # (non-fan-out) submission, same as today.
     po_line_item_id = Column(Integer, ForeignKey("po_line_items.id"), nullable=True)
+    # [PO Lifecycle]: pre-approval scratch space on a *declaring* item's own
+    # submission (1.2, 4.1, 2.11, 2.17) -- the owner edits this in place via
+    # PATCH /po-selection while working the item, and it's read exactly once,
+    # at approval, to create/soft-cancel the PoLineItems it declares. Shape
+    # depends on item_no: {"long_lead_items":[{name,qty,unit,supplier,
+    # delivery_est}...], "mep_selected":[...]} for 1.2; {"selected":[...]}
+    # for 4.1; {"items":[...]} for 2.11/2.17.
+    po_selection = Column(JSON, nullable=True)
 
     project = relationship("Project", back_populates="submissions", foreign_keys=[project_id])
     definition = relationship("DeliverableDefinition")
     history = relationship("WorkflowHistory", back_populates="submission", cascade="all, delete-orphan")
-    po_line_item = relationship("PoLineItem", back_populates="submissions")
+    # Two distinct FK paths now exist between these tables (this column, and
+    # PoLineItem.source_submission_id going the other way) -- foreign_keys
+    # pins this relationship to the fan-out direction, not the declaring one.
+    po_line_item = relationship("PoLineItem", back_populates="submissions", foreign_keys=[po_line_item_id])
 
 
 class WorkflowHistory(Base):
@@ -366,9 +377,16 @@ class PoLineItem(Base):
     status = Column(String, default="active")  # active | cancelled
     created_at = Column(DateTime, default=datetime.utcnow)
     created_by_email = Column(String, nullable=True)
+    # [PO Lifecycle correction]: which declaring submission (1.2/4.1/2.11/
+    # 2.17) this item came from, so sync_from_submission can diff its own
+    # previously-created items against the declaring item's current
+    # po_selection on every approval -- null on the synthetic pre-migration
+    # "Item 1 (migrated)" rows, which have no real declaring submission.
+    source_submission_id = Column(Integer, ForeignKey("deliverable_submissions.id"), nullable=True)
 
     project = relationship("Project")
-    submissions = relationship("DeliverableSubmission", back_populates="po_line_item")
+    submissions = relationship("DeliverableSubmission", back_populates="po_line_item",
+                                foreign_keys="DeliverableSubmission.po_line_item_id")
 
 
 class Document(Base):

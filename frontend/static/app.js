@@ -1750,6 +1750,115 @@
     }
     closeTour();
   });
+  /* ===== [PO Lifecycle] declaring-item selection UI, inside the normal deliverable modal ===== */
+  var PO_DECLARING_ITEM_NOS = ["1.2", "4.1", "2.11", "2.17"];
+  var EARLY_ACTIVITY_TYPES = ["Geotechnical/Soil Investigation", "Topography Survey", "Route Survey",
+    "Radar/GPR Survey", "Hydrology Study", "Environmental Study (ESIA)"];
+  var MEP_TYPES = ["HCIS Consultancy", "Fire Fighting Consultancy"];
+
+  async function savePoSelection(submissionId, patch, after) {
+    try {
+      await api("/api/deliverables/" + submissionId + "/po-selection", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(Object.assign({ actor_role: CURRENT_ROLE, actor_email: actingEmail() }, patch)),
+      });
+      after();
+    } catch (err) { showToast("Couldn't save &#8211; " + apiErrorDetail(err), true); }
+  }
+
+  function poChecklistSection(d, refreshModal, label, options, selectionKey, canEdit) {
+    var sec = el("div", "po-selection-section");
+    var selected = (d.po_selection && d.po_selection[selectionKey]) || [];
+    var head = el("div", "po-selection-head");
+    head.appendChild(el("span", "po-selection-label", label));
+    if (canEdit) {
+      var editBtn = el("button", "btn", "Edit");
+      editBtn.addEventListener("click", function () {
+        openChecklistEditModal({
+          eyebrow: d.item_no, title: label, options: options, selected: selected,
+          onSave: function (picked) {
+            var patch = {}; patch[selectionKey] = picked;
+            savePoSelection(d.id, patch, function () { closeChecklistEditModal(); refreshModal(); });
+          },
+        });
+      });
+      head.appendChild(editBtn);
+    }
+    sec.appendChild(head);
+    if (selected.length) {
+      var chips = el("div", "po-selection-chips");
+      selected.forEach(function (s) { chips.appendChild(el("span", "po-chip", s)); });
+      sec.appendChild(chips);
+    } else {
+      sec.appendChild(el("div", "po-selection-empty", "None selected yet"));
+    }
+    return sec;
+  }
+
+  function poLongLeadSection(d, refreshModal, canEdit) {
+    var sec = el("div", "po-selection-section");
+    sec.appendChild(el("div", "po-selection-label", "Long-lead items"));
+    var rows = (d.po_selection && d.po_selection.long_lead_items) || [];
+    var table = el("div", "po-longlead-table");
+    rows.forEach(function (r, idx) {
+      var row = el("div", "po-longlead-row");
+      row.appendChild(el("span", "po-longlead-name", r.name + (r.qty ? " &#8212; " + r.qty + " " + (r.unit || "") : "")));
+      if (canEdit) {
+        var rm = el("button", "btn ghost-crit", "Remove");
+        rm.addEventListener("click", function () {
+          var next = rows.slice(); next.splice(idx, 1);
+          savePoSelection(d.id, { long_lead_items: next }, refreshModal);
+        });
+        row.appendChild(rm);
+      }
+      table.appendChild(row);
+    });
+    if (!rows.length) table.appendChild(el("div", "po-selection-empty", "No items yet &#8212; upload the long-lead Excel above, or add one manually"));
+    sec.appendChild(table);
+    if (canEdit) {
+      var addBtn = el("button", "btn", "+ Add item manually");
+      addBtn.addEventListener("click", function () {
+        var name = prompt("Item name:");
+        if (!name || !name.trim()) return;
+        savePoSelection(d.id, { long_lead_items: rows.concat([{ name: name.trim() }]) }, refreshModal);
+      });
+      sec.appendChild(addBtn);
+    }
+    return sec;
+  }
+
+  function poTextListSection(d, refreshModal, label, canEdit) {
+    var sec = el("div", "po-selection-section");
+    sec.appendChild(el("div", "po-selection-label", label));
+    var items = (d.po_selection && d.po_selection.items) || [];
+    var list = el("div", "po-longlead-table");
+    items.forEach(function (name, idx) {
+      var row = el("div", "po-longlead-row");
+      row.appendChild(el("span", "po-longlead-name", name));
+      if (canEdit) {
+        var rm = el("button", "btn ghost-crit", "Remove");
+        rm.addEventListener("click", function () {
+          var next = items.slice(); next.splice(idx, 1);
+          savePoSelection(d.id, { items: next }, refreshModal);
+        });
+        row.appendChild(rm);
+      }
+      list.appendChild(row);
+    });
+    if (!items.length) list.appendChild(el("div", "po-selection-empty", "No items yet"));
+    sec.appendChild(list);
+    if (canEdit) {
+      var addBtn = el("button", "btn", "+ Add item");
+      addBtn.addEventListener("click", function () {
+        var name = prompt("Subcontract agreement name:");
+        if (!name || !name.trim()) return;
+        savePoSelection(d.id, { items: items.concat([name.trim()]) }, refreshModal);
+      });
+      sec.appendChild(addBtn);
+    }
+    return sec;
+  }
+
   async function openDelivModal(submissionId) {
     var qs = passiveIdentity() ? "?actor_email=" + encodeURIComponent(passiveIdentity()) : "";
     var d = await api("/api/deliverables/" + submissionId + qs);
@@ -1784,6 +1893,27 @@
     // behind it stale (still showing the pre-action status/buttons) until
     // a manual page reload -- also refresh that list every time.
     var refreshModal = function () { openDelivModal(submissionId); refreshCurrentFolder(); };
+
+    // [PO Lifecycle]: 1.2/4.1/2.11/2.17 each declare which PO line items
+    // exist -- edited right here, pre-approval, through the normal
+    // Deliverables window. Nothing is created downstream until this
+    // submission is actually approved (see sync_from_submission on the
+    // backend); this block is just the scratch pad.
+    if (PO_DECLARING_ITEM_NOS.indexOf(d.item_no) !== -1) {
+      var canEditSelection = authorized && !d.project_terminal && d.status !== "approved" && d.status !== "pending_review";
+      var poBlock = el("div", "po-selection-block");
+      poBlock.appendChild(el("div", "po-selection-title", "PO Lifecycle selection"));
+      if (d.item_no === "4.1") {
+        poBlock.appendChild(poChecklistSection(d, refreshModal, "Early activities", EARLY_ACTIVITY_TYPES, "selected", canEditSelection));
+      } else if (d.item_no === "1.2") {
+        poBlock.appendChild(poLongLeadSection(d, refreshModal, canEditSelection));
+        poBlock.appendChild(poChecklistSection(d, refreshModal, "MEP consultancy", MEP_TYPES, "mep_selected", canEditSelection));
+      } else {
+        poBlock.appendChild(poTextListSection(d, refreshModal, "S/C agreements", canEditSelection));
+      }
+      body.appendChild(poBlock);
+    }
+
     var actionsRow = el("div", "modal-actions-row");
     var shareBtn = el("button", "btn", "Share");
     shareBtn.addEventListener("click", async function () {
@@ -3040,8 +3170,12 @@
       var row = el("div", "deliv-row");
       row.dataset.sid = String(d.id);
       var body = el("div", "deliv-body");
-      var nameEl = el("div", "deliv-name", d.name);
-      nameEl.title = d.name;
+      // [PO Lifecycle]: a fan-out row (e.g. "2.6" spawned once per checked
+      // early activity) needs its named line item visible right in the
+      // list, or two rows sharing one item_no would be indistinguishable.
+      var displayName = d.line_item_name ? d.name + " — " + d.line_item_name : d.name;
+      var nameEl = el("div", "deliv-name", displayName);
+      nameEl.title = displayName;
       body.appendChild(nameEl);
       // Item 169: a null due_date pending a milestone reads as a stalled
       // "Due —" otherwise, with no explanation of what it's actually
@@ -4133,16 +4267,46 @@
       wrap.appendChild(row);
     });
   }
-  /* ================= PO LIFECYCLE ================= */
+  /* ================= PO LIFECYCLE (read-only) ================= */
+  // All owner input (uploads, checklist ticks, item lists) happens on 1.2/
+  // 4.1/2.11/2.17's own deliverable windows -- see PO_DECLARING_ITEM_NOS
+  // above. This tab only ever displays what's already been approved there.
   var PO_CATEGORY_META = {
-    long_lead: { title: "Long lead items", desc: "full award cycle, one per item" },
+    consultancy: { title: "Consultancy PO", desc: "Design firm — always exactly one" },
     early_activity: { title: "Early activities & MEP consultancies", desc: "one PR/PO cycle per item" },
-    mep: { title: "MEP consultancies", desc: "one PR/PO cycle per item" },
-    consultancy: { title: "Consultancy PO", desc: "always exactly one" },
-    sc: { title: "S/C agreements", desc: "per item, depends on tender scope" },
+    mep: { title: "Early activities & MEP consultancies", desc: "one PR/PO cycle per item" },
+    long_lead: { title: "Long lead items", desc: "full award cycle, one per item" },
+    sc: { title: "S/C agreements", desc: "per item — which line applies depends on tender scope" },
   };
+  // Ported from the approved sketch: item_no -> display label, its true
+  // predecessors (for the "needs" line), department chips, and any note.
+  var PO_STEP_META = {
+    "4.5": { label: "Vendor offers review", needs: ["1.2"] },
+    "2.2": { label: "Long-lead item PRs", needs: ["4.5", "6.1", "2.3"], dept: ["TBU", "PBU", "DBU"] },
+    "3.1": { label: "Issue RFQ", needs: ["2.2"], note: "also waiting on 3.12 if required" },
+    "3.2": { label: "Negotiation window", needs: ["3.1"], note: "opens 4.6, but can't finish until 4.6 does" },
+    "3.3": { label: "Award approval", needs: ["1.6", "3.2", "6.2"] },
+    "3.4": { label: "Top mgmt approval", needs: ["3.3"] },
+    "3.5": { label: "PO approval (Oracle)", needs: ["3.4"] },
+    "3.6": { label: "Internal PO signature", needs: ["3.5"] },
+    "3.7": { label: "Vendor PO signature", needs: ["3.6"] },
+    "2.6": { label: "Early-activity PRs", needs: ["4.1", "6.1", "2.3"], dept: ["TBU", "PBU", "DBU"] },
+    "2.14": { label: "MEP consultancy PRs", needs: ["4.1", "6.1", "2.3", "2.13"], dept: ["BBU"] },
+    "3.11": { label: "Issue POs", needs: ["2.6", "2.14"], note: "one combined step — covers both early-activity and MEP lines" },
+    "2.7": { label: "Design-firm PR", needs: ["4.1", "6.1", "2.3"], dept: ["TBU", "PBU", "DBU"] },
+    "3.10": { label: "Design-firm PO", needs: ["2.7"] },
+    "3.8": { label: "Subcontract (OHTL/UGC)", needs: ["2.11", "1.6", "6.2"] },
+    "2.18": { label: "Subcontract (SS)", needs: ["1.6", "6.2"], dept: ["BBU"] },
+  };
+  function poIcon(status) {
+    var c = { complete: "var(--good)", progress: "var(--accent)", blocked: "var(--crit)" }[status] || "var(--ink-500)";
+    if (status === "complete") return '<svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="none" stroke="' + c + '" stroke-width="1.4"/><path d="M5 8.2L7 10.2L11 6" fill="none" stroke="' + c + '" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    if (status === "progress") return '<svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="none" stroke="' + c + '" stroke-width="1.4"/><path d="M8 4.5V8L10.5 9.5" fill="none" stroke="' + c + '" stroke-width="1.4" stroke-linecap="round"/></svg>';
+    if (status === "blocked") return '<svg width="16" height="16" viewBox="0 0 16 16"><rect x="4" y="7.5" width="8" height="6" rx="1.3" fill="none" stroke="' + c + '" stroke-width="1.4"/><path d="M5.5 7.5V5.3A2.5 2.5 0 0 1 10.5 5.3V7.5" fill="none" stroke="' + c + '" stroke-width="1.4"/></svg>';
+    return '<svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="none" stroke="' + c + '" stroke-width="1.4" stroke-dasharray="2.2,2.4"/></svg>';
+  }
   function poPill(status) {
-    var map = { complete: ["good", "Complete"], in_progress: ["warn", "In progress"], blocked: ["crit", "Blocked"] };
+    var map = { complete: ["good", "Complete"], progress: ["warn", "In progress"], blocked: ["crit", "Blocked"] };
     var m = map[status] || ["neutral", "Not due yet"];
     return '<span class="pill ' + m[0] + '"><span class="dot"></span>' + m[1] + "</span>";
   }
@@ -4153,14 +4317,36 @@
     for (var i = 0; i < total; i++) dots += '<span class="po-step-dot' + (i < filled ? " filled" : "") + '"></span>';
     return el("div", "po-step-track", dots);
   }
+  function poStepStatus(items, itemNo, counts) {
+    if (!counts.total) return "pending";
+    if (counts.passed === counts.total) return "complete";
+    var atStep = items.filter(function (li) { return li.current_item_no === itemNo; });
+    if (atStep.some(function (li) { return li.status === "blocked"; })) return "blocked";
+    return "progress";
+  }
+  function poStepCard(itemNo, items, counts) {
+    var meta = PO_STEP_META[itemNo] || { label: itemNo, needs: [] };
+    var status = poStepStatus(items, itemNo, counts);
+    var needs = meta.needs.length ? "needs " + meta.needs.join(" + ") : "anchor";
+    var dept = (meta.dept || []).map(function (x) { return '<span class="chip">' + x + "</span>"; }).join("");
+    var prog = counts.total ? '<span class="chip po-prog-chip">' + counts.passed + "/" + counts.total + " passed</span>" : "";
+    var note = meta.note ? '<div class="note" style="color:' + (status === "blocked" ? "var(--crit)" : "var(--ink-500)") + ';">&#8617; ' + meta.note + "</div>" : "";
+    var card = el("div", "po-step-card");
+    card.appendChild(el("span", "po-step-icon", poIcon(status)));
+    var b = el("div", "po-step-body");
+    b.appendChild(el("div", "po-step-top", "<span><b>" + itemNo + "</b> " + meta.label + "</span>" + poPill(status)));
+    b.appendChild(el("div", "po-step-meta", needs + dept + prog));
+    if (meta.note) b.insertAdjacentHTML("beforeend", note);
+    card.appendChild(b);
+    return card;
+  }
   async function renderPoLifecycle(projectId, containerId) {
     var wrap = document.getElementById(containerId);
     if (!projectId) { wrap.innerHTML = ""; return; }
     wrap.innerHTML = '<div class="empty-state">Loading&hellip;</div>';
-    var summary, checklist;
+    var summary;
     try {
       summary = await api("/api/projects/" + projectId + "/po-line-items/po-cycle-summary");
-      checklist = await api("/api/projects/" + projectId + "/po-line-items/checklist-options");
     } catch (err) {
       wrap.innerHTML = '<div class="empty-state">Couldn\'t load PO Lifecycle &#8211; ' + apiErrorDetail(err) + "</div>";
       return;
@@ -4170,12 +4356,11 @@
     ["consultancy", "early_activity_mep", "long_lead", "sc"].forEach(function (key) {
       var cats = key === "early_activity_mep" ? ["early_activity", "mep"] : [key];
       var col = el("div", "po-column");
-      var primaryCat = cats[0];
-      var meta = PO_CATEGORY_META[key] || PO_CATEGORY_META[primaryCat];
+      var meta = PO_CATEGORY_META[key] || PO_CATEGORY_META[cats[0]];
       col.appendChild(el("div", "po-col-title", meta.title));
       col.appendChild(el("div", "po-col-desc", meta.desc));
 
-      var statsTotal = { complete: 0, in_progress: 0, blocked: 0, not_due: 0 };
+      var statsTotal = { complete: 0, in_progress: 0, blocked: 0 };
       cats.forEach(function (c) {
         var s = (summary[c] || {}).stats || {};
         statsTotal.complete += s.complete || 0;
@@ -4188,83 +4373,39 @@
       stats.appendChild(el("div", "po-mini-stat", '<div class="lbl">Blocked</div><div class="val" style="color:var(--crit);">' + statsTotal.blocked + "</div>"));
       col.appendChild(stats);
 
-      col.appendChild(poRegistryControls(projectId, key, cats, checklist));
-
-      cats.forEach(function (c) {
-        var items = (summary[c] || {}).items || [];
-        items.forEach(function (li) {
-          var card = el("div", "po-item-row");
-          card.appendChild(el("div", "po-item-top",
-            "<b>" + li.name + "</b>" + poPill(li.status)));
-          card.appendChild(el("div", "po-item-meta",
-            (li.current_item_no ? "at " + li.current_item_no : "done") + " &middot; " + li.step_position + "/" + li.total_steps));
-          card.appendChild(poStepDots(li));
-          col.appendChild(card);
+      // Read-only line-items registry — declared on 1.2/4.1/2.11/2.17, edited there.
+      var allItems = [];
+      cats.forEach(function (c) { allItems = allItems.concat((summary[c] || {}).items || []); });
+      var reg = el("div", "po-registry-box");
+      reg.appendChild(el("div", "po-registry-title", "Line items (" + allItems.length + ")"));
+      if (allItems.length) {
+        allItems.forEach(function (li) {
+          var row2 = el("div", "po-item-row");
+          row2.appendChild(el("div", "po-item-top", "<b>" + li.name + "</b>" + poPill(li.status)));
+          row2.appendChild(el("div", "po-item-meta", (li.current_item_no ? "at " + li.current_item_no : "done") + " &middot; " + li.step_position + "/" + li.total_steps));
+          row2.appendChild(poStepDots(li));
+          reg.appendChild(row2);
         });
-        if (!items.length) col.appendChild(el("div", "po-item-empty", "No items yet"));
+      } else {
+        reg.appendChild(el("div", "po-selection-empty", "None declared yet — set on " +
+          (key === "long_lead" ? "1.2" : key === "early_activity_mep" ? "4.1 / 1.2" : key === "sc" ? "2.11 / 2.17" : "project creation") +
+          "'s own deliverable, once approved"));
+      }
+      col.appendChild(reg);
+
+      // Step cards — shared chain, one row per item_no.
+      var seen = {};
+      cats.forEach(function (c) {
+        var catData = summary[c] || { items: [], step_counts: {} };
+        Object.keys(catData.step_counts || {}).forEach(function (itemNo) {
+          if (seen[itemNo]) return;
+          seen[itemNo] = true;
+          col.appendChild(poStepCard(itemNo, catData.items, catData.step_counts[itemNo]));
+        });
       });
       row.appendChild(col);
     });
     wrap.appendChild(row);
-  }
-  function poRegistryControls(projectId, key, cats, checklist) {
-    var box = el("div", "po-registry-box");
-    if (key === "long_lead") {
-      var fileInput = el("input"); fileInput.type = "file"; fileInput.accept = ".xlsx"; fileInput.style.display = "none";
-      var btn = el("button", "btn", "Upload Excel");
-      btn.addEventListener("click", function () { fileInput.click(); });
-      fileInput.addEventListener("change", async function () {
-        if (!fileInput.files[0]) return;
-        var fd = new FormData(); fd.append("file", fileInput.files[0]);
-        try {
-          var preview = await api("/api/projects/" + projectId + "/po-line-items/excel-preview", { method: "POST", body: fd });
-          if (!confirm("Found " + preview.rows.length + " item(s):\n" + preview.rows.map(function (r) { return "&#8226; " + r.name; }).join("\n").replace(/&#8226;/g, "-") + "\n\nAdd these to the registry?")) return;
-          await api("/api/projects/" + projectId + "/po-line-items/excel-commit", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ items: preview.rows, actor_email: actingEmail() }),
-          });
-          showToast("Added " + preview.rows.length + " long-lead item(s)");
-          renderPoLifecycle(projectId, "dPoLifecycleBody");
-        } catch (err) { showToast("Couldn't import &#8211; " + apiErrorDetail(err), true); }
-      });
-      var wrapEl = el("span"); wrapEl.appendChild(btn); wrapEl.appendChild(fileInput);
-      box.appendChild(wrapEl);
-    } else if (key === "early_activity_mep") {
-      cats.forEach(function (c) {
-        (checklist[c] || []).forEach(function (opt) {
-          var label = el("label", "po-checklist-opt");
-          var cb = el("input"); cb.type = "checkbox"; cb.checked = opt.checked;
-          cb.addEventListener("change", async function () {
-            try {
-              await api("/api/projects/" + projectId + "/po-line-items/checklist-toggle", {
-                method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ category: c, checklist_type: opt.type, checked: cb.checked, actor_email: actingEmail() }),
-              });
-              renderPoLifecycle(projectId, "dPoLifecycleBody");
-            } catch (err) { showToast("Couldn't update &#8211; " + apiErrorDetail(err), true); cb.checked = !cb.checked; }
-          });
-          label.appendChild(cb);
-          label.appendChild(document.createTextNode(" " + opt.type));
-          box.appendChild(label);
-        });
-      });
-    } else if (key === "sc") {
-      var input = el("input"); input.type = "text"; input.placeholder = "Subcontract agreement name";
-      var addBtn = el("button", "btn", "Add");
-      addBtn.addEventListener("click", async function () {
-        if (!input.value.trim()) return;
-        try {
-          await api("/api/projects/" + projectId + "/po-line-items/manual", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ category: "sc", name: input.value.trim(), actor_email: actingEmail() }),
-          });
-          input.value = "";
-          renderPoLifecycle(projectId, "dPoLifecycleBody");
-        } catch (err) { showToast("Couldn't add &#8211; " + apiErrorDetail(err), true); }
-      });
-      box.appendChild(input); box.appendChild(addBtn);
-    }
-    return box;
   }
 
   // Item 96: Activity Trail lives inside the project detail page itself now,

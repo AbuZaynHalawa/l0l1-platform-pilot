@@ -84,6 +84,10 @@ ensure_column("projects", "duration_ratio_insufficient", "BOOLEAN")
 # [PO Lifecycle]
 ensure_column("deliverable_submissions", "po_line_item_id", "INTEGER")
 ensure_column("deliverable_definitions", "line_item_category", "VARCHAR")
+# [PO Lifecycle correction]: registry now sources from the declaring item's
+# own submission (1.2/4.1/2.11/2.17), not a dedicated tab UI.
+ensure_column("deliverable_submissions", "po_selection", "JSON")
+ensure_column("po_line_items", "source_submission_id", "INTEGER")
 
 # [SME nominations, per-item rework]: sme_nominations shipped with a
 # single-blanket-request shape (email/name/reason, one row per submission

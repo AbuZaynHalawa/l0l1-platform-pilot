@@ -751,6 +751,8 @@ def get_deliverables(project_id: int, department: str | None = None, db: Session
             awaiting_note=rules.awaiting_milestone_note(db, s),
             points_earned=points_earned,
             pending_due_date_request_kind=pending_kinds.get(s.id),
+            po_line_item_id=s.po_line_item_id,
+            line_item_name=s.po_line_item.name if s.po_line_item_id else None,
         ))
     db.commit()
 

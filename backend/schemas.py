@@ -133,6 +133,11 @@ class SubmissionOut(BaseModel):
     # outstanding, not-yet-decided DueDateRequest, so the list view can show
     # a "Pending ... Approval" pill instead of the normal Due/Not Due one.
     pending_due_date_request_kind: str | None = None
+    # [PO Lifecycle]: set only on a fan-out submission (2.6, 3.1..3.7, etc.)
+    # so the Deliverables list can distinguish "2.6 — Topography Survey"
+    # from "2.6 — Route Survey" as two separate, individually actionable rows.
+    po_line_item_id: int | None = None
+    line_item_name: str | None = None
 
     class Config:
         from_attributes = True
@@ -141,6 +146,19 @@ class SubmissionOut(BaseModel):
 class MarkCompleteRequest(BaseModel):
     comment: str
     actor_name: str = "Owner"
+    actor_role: str = "Owner"
+    actor_email: str = ""
+
+
+class PoSelectionUpdate(BaseModel):
+    """[PO Lifecycle]: pre-approval edits to a declaring item's (1.2/4.1/
+    2.11/2.17) po_selection JSON. Shape is item_no-dependent -- the caller
+    sends whichever of these fields apply, unset fields are left alone.
+    """
+    long_lead_items: list[dict] | None = None  # 1.2 -- [{name, qty, unit, supplier, delivery_est}]
+    mep_selected: list[str] | None = None  # 1.2
+    selected: list[str] | None = None  # 4.1
+    items: list[str] | None = None  # 2.11 / 2.17
     actor_role: str = "Owner"
     actor_email: str = ""
 

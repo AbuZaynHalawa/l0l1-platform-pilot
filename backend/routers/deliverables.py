@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 from .. import models, schemas, announcements, rules
 from ..database import get_db
 from ..providers.storage import get_storage_provider, sanitize_segment
+from ..excel_parsing import parse_long_lead_workbook
+from . import po_line_items
 
 router = APIRouter(prefix="/api/deliverables", tags=["deliverables"])
 _storage = get_storage_provider()
@@ -159,6 +161,22 @@ async def upload_deliverable(submission_id: int, file: UploadFile = File(...),
     # popup's document list the same way an "Add Document" upload does —
     # one upload mechanism, one place it's visible, not two disconnected ones.
     db.add(models.Document(submission_id=sub.id, file_name=file.filename, file_ref=file_ref, uploaded_by=actor_name))
+
+    # [PO Lifecycle]: 1.2's own upload IS the long-lead-items source file --
+    # no separate upload control. Best-effort parse; a file that doesn't
+    # match the expected template just leaves po_selection untouched (the
+    # owner falls back to adding rows manually in the modal), never blocks
+    # the upload itself.
+    if sub.definition.item_no == "1.2" and sub.project.stage == models.Stage.L1:
+        try:
+            rows = parse_long_lead_workbook(content)
+        except Exception:
+            rows = []
+        if rows:
+            selection = dict(sub.po_selection or {})
+            selection["long_lead_items"] = rows
+            sub.po_selection = selection
+
     db.commit()
 
     announcements.followers_notified(db, sub.project, _follower_emails(db, sub.id),
@@ -167,6 +185,37 @@ async def upload_deliverable(submission_id: int, file: UploadFile = File(...),
                                   file.filename, submission_id=sub.id)
 
     return {"status": "ok", "file_ref": file_ref}
+
+
+@router.patch("/{submission_id}/po-selection")
+def update_po_selection(submission_id: int, payload: schemas.PoSelectionUpdate, db: Session = Depends(get_db)):
+    """[PO Lifecycle]: the owner's pre-approval scratch pad for 1.2/4.1/
+    2.11/2.17 -- ticking a checklist box, editing a long-lead row, adding an
+    S/C name. Nothing downstream (no PoLineItem, no fan-out) happens here;
+    that's only read once, at approval, by sync_from_submission.
+    """
+    sub = db.get(models.DeliverableSubmission, submission_id)
+    if not sub:
+        raise HTTPException(404, "Deliverable not found")
+    if sub.definition.item_no not in po_line_items.DECLARING_ITEM_NOS:
+        raise HTTPException(400, "This deliverable has no PO Lifecycle selection")
+    if rules.is_project_terminal(sub.project):
+        raise HTTPException(400, "This project is closed — deliverables are read-only")
+    if sub.status in (models.SubmissionStatus.PENDING_REVIEW, models.SubmissionStatus.APPROVED):
+        raise HTTPException(400, "This deliverable is already completed or awaiting review — reopen it to change the selection")
+
+    assigned_owners = rules.resolve_owners(sub)
+    if not rules.can_act(payload.actor_role, payload.actor_email, assigned_owners):
+        raise HTTPException(403, f"Only {', '.join(assigned_owners) or 'the assigned owner'} or an Admin can edit this")
+
+    selection = dict(sub.po_selection or {})
+    for field in ("long_lead_items", "mep_selected", "selected", "items"):
+        value = getattr(payload, field)
+        if value is not None:
+            selection[field] = value
+    sub.po_selection = selection
+    db.commit()
+    return {"po_selection": sub.po_selection}
 
 
 def _document_out(d: "models.Document") -> dict:
@@ -257,6 +306,15 @@ def _finalize_approval(db: Session, sub: "models.DeliverableSubmission", comment
 
     rules.check_l1_completion(db, sub.project)
     db.commit()
+
+    # [PO Lifecycle]: 1.2/4.1/2.11/2.17 each declare a set of PO line items
+    # via po_selection, edited pre-approval on this same submission through
+    # the normal Deliverables tab -- approval is the one moment that set
+    # becomes real. Placed last, decoupled from the snapshot/unlock logic
+    # above: the new items' own due dates and owner-assignment notification
+    # come from _instantiate_deliverables itself, not from this function.
+    if sub.definition.item_no in po_line_items.DECLARING_ITEM_NOS and sub.project.stage == models.Stage.L1:
+        po_line_items.sync_from_submission(db, sub)
 
 
 @router.post("/{submission_id}/mark-complete")
@@ -857,6 +915,9 @@ def get_deliverable_detail(submission_id: int, actor_email: str | None = None, d
         "submitted_at": sub.submitted_at, "review_comment": sub.review_comment, "reviewed_at": sub.reviewed_at,
         "completion_note": rules.mark_complete_note(sub), "is_milestone": sub.definition.is_milestone,
         "milestone_code": sub.definition.milestone_code, "following": following,
+        "po_selection": sub.po_selection if sub.definition.item_no in po_line_items.DECLARING_ITEM_NOS else None,
+        "po_line_item_id": sub.po_line_item_id,
+        "line_item_name": sub.po_line_item.name if sub.po_line_item_id else None,
         "history": [
             {"action": h.action, "actor": h.actor_name, "note": h.note, "at": h.created_at}
             for h in history

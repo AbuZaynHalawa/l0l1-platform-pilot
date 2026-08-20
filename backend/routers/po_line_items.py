@@ -1,18 +1,15 @@
-"""[PO Lifecycle]: the line-item registry (long-lead items from an owner-
-uploaded Excel, early-activity/MEP from fixed checklists, S/C agreements
-from manual entry, consultancy fixed at one) and the summary endpoint that
-feeds the PO Lifecycle tab.
+"""[PO Lifecycle]: the read-only summary the PO Lifecycle tab renders, plus
+sync_from_submission -- the approval-time hook that turns a declaring
+item's (1.2/4.1/2.11/2.17) po_selection into real PoLineItems. All owner
+input (uploads, checklist ticks, S/C names) happens on the declaring
+submission itself, through the normal Deliverables tab -- this module has
+no write endpoints of its own.
 """
-from datetime import datetime
-
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from .. import models, rules
 from ..database import get_db
-from ..excel_parsing import parse_long_lead_workbook
-from .projects import _instantiate_deliverables
 
 router = APIRouter(prefix="/api/projects/{project_id}/po-line-items", tags=["po-line-items"])
 
@@ -35,6 +32,11 @@ EARLY_ACTIVITY_TYPES = [
 ]
 MEP_TYPES = ["HCIS Consultancy", "Fire Fighting Consultancy"]
 
+# Which item_no declares which categories, and how its po_selection maps to
+# each -- the single source of truth sync_from_submission and the frontend
+# modal both key off.
+DECLARING_ITEM_NOS = ("1.2", "4.1", "2.11", "2.17")
+
 
 def _get_project(db: Session, project_id: int) -> models.Project:
     project = db.query(models.Project).filter(models.Project.id == project_id).first()
@@ -43,14 +45,72 @@ def _get_project(db: Session, project_id: int) -> models.Project:
     return project
 
 
-def _after_registry_change(db: Session, project: models.Project):
-    """New PoLineItems need their step chains instantiated immediately, not
-    on the next unrelated write -- same pattern _provision_and_instantiate
-    already uses at project creation.
+def sync_from_submission(db: Session, sub: "models.DeliverableSubmission") -> None:
+    """Reads sub.po_selection and diffs it against the PoLineItems this
+    submission previously created (source_submission_id == sub.id):
+    missing ones get created, ones no longer selected get soft-cancelled.
+    Idempotent -- safe on a reopen -> edit selection -> re-approve cycle,
+    which is exactly how a selection changes after the fact. Called once
+    from _finalize_approval; never a route.
     """
-    _instantiate_deliverables(db, project)
-    rules.recompute_project_due_dates(db, project, force=True)
+    item_no = sub.definition.item_no
+    if item_no not in DECLARING_ITEM_NOS:
+        return
+    selection = sub.po_selection or {}
+    project = sub.project
+
+    def set_item_submissions_applicability(li, applicability: str):
+        # Cancelling a PoLineItem must also stand its own submissions down --
+        # otherwise a deselected item leaves its 2.6/3.11/etc. rows sitting
+        # in the Deliverables list forever as actionable ghosts nobody can
+        # ever actually complete. Re-selecting reverses it the same way.
+        db.query(models.DeliverableSubmission).filter(
+            models.DeliverableSubmission.po_line_item_id == li.id,
+        ).update({"applicability": applicability}, synchronize_session=False)
+
+    def sync_category(category: str, desired_names: list[str], source: str, meta_by_name: dict | None = None):
+        meta_by_name = meta_by_name or {}
+        existing = db.query(models.PoLineItem).filter(
+            models.PoLineItem.source_submission_id == sub.id,
+            models.PoLineItem.category == category,
+        ).all()
+        existing_by_name = {li.name: li for li in existing}
+        for name in desired_names:
+            li = existing_by_name.get(name)
+            if li:
+                if li.status != "active":
+                    li.status = "active"
+                    set_item_submissions_applicability(li, "applicable")
+                if name in meta_by_name:
+                    li.meta = meta_by_name[name]
+            else:
+                db.add(models.PoLineItem(
+                    project_id=project.id, category=category, name=name, source=source,
+                    meta=meta_by_name.get(name), status="active", source_submission_id=sub.id,
+                ))
+        for name, li in existing_by_name.items():
+            if name not in desired_names and li.status == "active":
+                li.status = "cancelled"
+                set_item_submissions_applicability(li, "not_required")
+
+    if item_no == "1.2":
+        long_lead_rows = [r for r in (selection.get("long_lead_items") or []) if r.get("name")]
+        names = [r["name"] for r in long_lead_rows]
+        meta_map = {r["name"]: {k: r.get(k) for k in ("qty", "unit", "supplier", "delivery_est")}
+                    for r in long_lead_rows}
+        sync_category("long_lead", names, "excel", meta_map)
+        mep_selected = [t for t in (selection.get("mep_selected") or []) if t in MEP_TYPES]
+        sync_category("mep", mep_selected, "checklist")
+    elif item_no == "4.1":
+        selected = [t for t in (selection.get("selected") or []) if t in EARLY_ACTIVITY_TYPES]
+        sync_category("early_activity", selected, "checklist")
+    elif item_no in ("2.11", "2.17"):
+        items = [n.strip() for n in (selection.get("items") or []) if n and n.strip()]
+        sync_category("sc", items, "manual")
+
     db.commit()
+    from .projects import _instantiate_deliverables
+    _instantiate_deliverables(db, project)  # fans out the new items' step chains, recomputes due dates, commits
 
 
 @router.get("")
@@ -64,142 +124,6 @@ def list_po_line_items(project_id: int, category: str | None = None, db: Session
         {"id": li.id, "category": li.category, "name": li.name, "source": li.source, "meta": li.meta}
         for li in q.order_by(models.PoLineItem.created_at).all()
     ]
-
-
-@router.get("/checklist-options")
-def checklist_options(project_id: int, db: Session = Depends(get_db)):
-    """The fixed early-activity/MEP types, each flagged with whether it's
-    already been ticked (an active PoLineItem exists for it) on this project.
-    """
-    _get_project(db, project_id)
-    existing = {
-        (li.category, (li.meta or {}).get("checklist_type"))
-        for li in db.query(models.PoLineItem).filter(
-            models.PoLineItem.project_id == project_id, models.PoLineItem.status == "active",
-            models.PoLineItem.category.in_(["early_activity", "mep"])).all()
-    }
-    return {
-        "early_activity": [{"type": t, "checked": ("early_activity", t) in existing} for t in EARLY_ACTIVITY_TYPES],
-        "mep": [{"type": t, "checked": ("mep", t) in existing} for t in MEP_TYPES],
-    }
-
-
-@router.post("/excel-preview")
-async def excel_preview(project_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
-    _get_project(db, project_id)
-    content = await file.read()
-    try:
-        rows = parse_long_lead_workbook(content)
-    except Exception:
-        raise HTTPException(400, "Couldn't read that file as an Excel workbook")
-    if not rows:
-        raise HTTPException(400, "No items found — check the file has \"Local Material\" / "
-                                  "\"Imported Material\" sheets with an ITEM DESCRIPTION column")
-    return {"rows": rows}
-
-
-class _ExcelCommitItem(BaseModel):
-    name: str
-    qty: float | None = None
-    unit: str | None = None
-    supplier: str | None = None
-    delivery_est: str | None = None
-
-
-class _ExcelCommitRequest(BaseModel):
-    items: list[_ExcelCommitItem]
-    actor_email: str = ""
-
-
-@router.post("/excel-commit")
-def excel_commit(project_id: int, body: _ExcelCommitRequest, db: Session = Depends(get_db)):
-    project = _get_project(db, project_id)
-    if not body.items:
-        raise HTTPException(400, "No items to add")
-    for item in body.items:
-        db.add(models.PoLineItem(
-            project_id=project.id, category="long_lead", name=item.name, source="excel",
-            meta={"qty": item.qty, "unit": item.unit, "supplier": item.supplier, "delivery_est": item.delivery_est},
-            created_by_email=body.actor_email or None,
-        ))
-    db.commit()
-    _after_registry_change(db, project)
-    return {"added": len(body.items)}
-
-
-class _ManualAddRequest(BaseModel):
-    category: str
-    name: str
-    actor_email: str = ""
-
-
-@router.post("/manual")
-def manual_add(project_id: int, body: _ManualAddRequest, db: Session = Depends(get_db)):
-    project = _get_project(db, project_id)
-    if body.category not in CATEGORY_STEP_SEQUENCE:
-        raise HTTPException(400, "Unknown category")
-    if not body.name.strip():
-        raise HTTPException(400, "Name is required")
-    li = models.PoLineItem(project_id=project.id, category=body.category, name=body.name.strip(),
-                            source="manual", created_by_email=body.actor_email or None)
-    db.add(li)
-    db.commit()
-    _after_registry_change(db, project)
-    return {"id": li.id}
-
-
-class _ChecklistToggleRequest(BaseModel):
-    category: str  # early_activity | mep
-    checklist_type: str
-    checked: bool
-    actor_email: str = ""
-
-
-@router.post("/checklist-toggle")
-def checklist_toggle(project_id: int, body: _ChecklistToggleRequest, db: Session = Depends(get_db)):
-    project = _get_project(db, project_id)
-    if body.category not in ("early_activity", "mep"):
-        raise HTTPException(400, "checklist-toggle is only for early_activity / mep")
-    valid_types = EARLY_ACTIVITY_TYPES if body.category == "early_activity" else MEP_TYPES
-    if body.checklist_type not in valid_types:
-        raise HTTPException(400, "Unknown checklist type for this category")
-
-    existing = (
-        db.query(models.PoLineItem)
-        .filter(models.PoLineItem.project_id == project.id, models.PoLineItem.category == body.category)
-        .all()
-    )
-    match = next((li for li in existing if (li.meta or {}).get("checklist_type") == body.checklist_type), None)
-
-    if body.checked:
-        if match and match.status == "active":
-            return {"id": match.id}  # already ticked, no-op
-        if match:
-            match.status = "active"  # re-ticking a previously-unticked item resumes it, doesn't duplicate
-        else:
-            match = models.PoLineItem(project_id=project.id, category=body.category, name=body.checklist_type,
-                                       source="checklist", meta={"checklist_type": body.checklist_type},
-                                       created_by_email=body.actor_email or None)
-            db.add(match)
-    else:
-        if not match or match.status != "active":
-            return {"cancelled": False}
-        match.status = "cancelled"  # soft-cancel only — existing submissions/history are never deleted
-    db.commit()
-    _after_registry_change(db, project)
-    return {"id": match.id}
-
-
-@router.post("/{line_item_id}/cancel")
-def cancel_line_item(project_id: int, line_item_id: int, db: Session = Depends(get_db)):
-    project = _get_project(db, project_id)
-    li = db.query(models.PoLineItem).filter(models.PoLineItem.id == line_item_id,
-                                             models.PoLineItem.project_id == project.id).first()
-    if not li:
-        raise HTTPException(404, "Line item not found")
-    li.status = "cancelled"
-    db.commit()
-    return {"ok": True}
 
 
 @router.get("/po-cycle-summary")
