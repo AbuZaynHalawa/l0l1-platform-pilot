@@ -484,16 +484,24 @@ def _predecessor_anchor_date(pred_sub: "models.DeliverableSubmission") -> date |
 
 def _get_submissions(db: Session, project_id: int, item_no: str, stage,
                       referring_department_id: int | None = None,
+                      referring_line_item_id: int | None = None,
                       lookup: dict[str, list] | None = None) -> list:
     """Every submission in the project matching this item_no — normally
     exactly one, except Operation Units' TBU/PBU/DBU/BBU split, where the
     same item_no ("2.1".."2.6") exists once per business unit a project
-    actually spans. When referring_department_id is given and at least one
-    match shares it, only those are returned — a within-department
-    reference (TBU's own 2.4 depending on TBU's own 2.2) must never pull in
-    a sibling BU's copy of the same item_no. A cross-department reference
-    (e.g. Supply Chain's 3.1 depending on Operation Units' 2.2) has no
-    same-department match, so it falls through to every active BU variant.
+    actually spans, and [PO Lifecycle] line-item-tracked items ("2.2",
+    "3.1".."3.7", etc.), which exist once per named PoLineItem. When
+    referring_department_id is given and at least one match shares it, only
+    those are returned — a within-department reference (TBU's own 2.4
+    depending on TBU's own 2.2) must never pull in a sibling BU's copy of
+    the same item_no. A cross-department reference (e.g. Supply Chain's 3.1
+    depending on Operation Units' 2.2) has no same-department match, so it
+    falls through to every active BU variant. referring_line_item_id
+    narrows the same way on top: GIS's 3.1 must anchor off GIS's own 2.2,
+    not the transformer's — but a predecessor that isn't itself line-item-
+    tracked (po_line_item_id always None, a single project-level row) still
+    resolves for every line item, since it has no line-item match to narrow
+    to and falls through unchanged.
     """
     if lookup is not None:
         candidates = lookup.get(item_no, [])
@@ -511,12 +519,17 @@ def _get_submissions(db: Session, project_id: int, item_no: str, stage,
     if referring_department_id is not None:
         same_dept = [s for s in candidates if s.definition.department_id == referring_department_id]
         if same_dept:
-            return same_dept
+            candidates = same_dept
+    if referring_line_item_id is not None:
+        same_item = [s for s in candidates if s.po_line_item_id == referring_line_item_id]
+        if same_item:
+            return same_item
     return candidates
 
 
 def _resolve_predecessor_anchor(db: Session, project: "models.Project", pred_item_no: str,
                                  referring_department_id: int | None = None,
+                                 referring_line_item_id: int | None = None,
                                  lookup: dict[str, list] | None = None) -> date | None:
     """Resolves `predecessor_item_no`, which may list several items
     comma-separated (an AND-dependency — e.g. "2.2,2.8" for an item that
@@ -530,7 +543,8 @@ def _resolve_predecessor_anchor(db: Session, project: "models.Project", pred_ite
     item_nos = [p.strip() for p in pred_item_no.split(",") if p.strip()]
     anchors = []
     for item_no in item_nos:
-        pred_subs = _get_submissions(db, project.id, item_no, project.stage, referring_department_id, lookup)
+        pred_subs = _get_submissions(db, project.id, item_no, project.stage,
+                                      referring_department_id, referring_line_item_id, lookup)
         if not pred_subs:
             return None
         item_anchors = []
@@ -576,7 +590,7 @@ def awaiting_milestone_note(db: Session, sub: "models.DeliverableSubmission",
         return None
     for item_no in [p.strip() for p in pred_item_no.split(",") if p.strip()]:
         for pred_sub in _get_submissions(db, sub.project_id, item_no, sub.definition.stage,
-                                          sub.definition.department_id, lookup):
+                                          sub.definition.department_id, sub.po_line_item_id, lookup):
             if pred_sub.status != models.SubmissionStatus.APPROVED:
                 if pred_sub.definition.is_milestone:
                     code = pred_sub.definition.milestone_code
@@ -589,9 +603,15 @@ def awaiting_milestone_note(db: Session, sub: "models.DeliverableSubmission",
     return None
 
 
-def compute_due_date(db: Session, definition: models.DeliverableDefinition, project: models.Project,
+def compute_due_date(db: Session, sub: "models.DeliverableSubmission", project: models.Project,
                       lookup: dict[str, list] | None = None) -> date | None:
-    """Resolves a deliverable definition's due date for a specific project."""
+    """Resolves a submission's due date for a specific project. Takes the
+    submission (not just its definition) so line-item-tracked items
+    ([PO Lifecycle]) can narrow predecessor lookups to their own line item
+    via sub.po_line_item_id — a bare definition has no way to know which
+    named item ("GIS" vs "Transformer") it's being computed for.
+    """
+    definition = sub.definition
     anchor_type = definition.anchor_type
 
     if anchor_type == "announcement":
@@ -632,7 +652,8 @@ def compute_due_date(db: Session, definition: models.DeliverableDefinition, proj
         # a fixed 1-day duration regardless of the item's own stored offset
         # (which only applies in the normal, non-PBU branch below).
         if is_l0 and item_no in PBU_CONDITIONAL_ITEMS and getattr(project, "scope_contains_pbu", False):
-            anchor = _resolve_predecessor_anchor(db, project, "4.4", definition.department_id, lookup)
+            anchor = _resolve_predecessor_anchor(db, project, "4.4", definition.department_id,
+                                                  sub.po_line_item_id, lookup)
             if anchor is None:
                 return None
             return next_workday_after(anchor)
@@ -650,7 +671,8 @@ def compute_due_date(db: Session, definition: models.DeliverableDefinition, proj
             start = next_workday_after(project.announcement_date)
             return duration_end(start, _scaled_duration(project, 3))  # the 3rd working day after announcement
 
-        anchor = _resolve_predecessor_anchor(db, project, pred_item_no, definition.department_id, lookup)
+        anchor = _resolve_predecessor_anchor(db, project, pred_item_no, definition.department_id,
+                                              sub.po_line_item_id, lookup)
         if anchor is None:
             return None
 
@@ -793,7 +815,7 @@ def _run_due_date_pass(db: Session, project: models.Project, subs: list, lookup:
                     s.status = models.SubmissionStatus.PENDING_TRIAGE
                     changed = True
                 continue
-            new_due = compute_due_date(db, s.definition, project, lookup)
+            new_due = compute_due_date(db, s, project, lookup)
             if new_due != s.due_date:
                 s.due_date = new_due
                 changed = True

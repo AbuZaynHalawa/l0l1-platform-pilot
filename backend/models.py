@@ -261,6 +261,13 @@ class DeliverableDefinition(Base):
     focal_point_emails = Column(JSON, nullable=True)
     default_sme_emails = Column(JSON, nullable=True)
     default_owner_emails = Column(JSON, nullable=True)
+    # [PO Lifecycle]: set for definitions that must be tracked once per named
+    # PoLineItem (e.g. "GIS", "Transformer") instead of once per project --
+    # comma-separated when one definition spans two line-item pools ("3.11"
+    # is the shared PO-issuance step for both early_activity and mep items).
+    # See rules.py's _get_submissions/_resolve_predecessor_anchor and
+    # routers/projects.py's _instantiate_deliverables fan-out.
+    line_item_category = Column(String, nullable=True)
 
     department = relationship("Department", back_populates="deliverable_definitions")
 
@@ -318,10 +325,16 @@ class DeliverableSubmission(Base):
     # thresholds already fired.
     due_soon_reminded_for_date = Column(Date, nullable=True)
     due_soon_reminded_offsets = Column(JSON, nullable=True)
+    # [PO Lifecycle]: set only for submissions of a line_item_category
+    # definition -- identifies which named PoLineItem (e.g. "GIS") this
+    # particular copy of the step belongs to. Null for every ordinary
+    # (non-fan-out) submission, same as today.
+    po_line_item_id = Column(Integer, ForeignKey("po_line_items.id"), nullable=True)
 
     project = relationship("Project", back_populates="submissions", foreign_keys=[project_id])
     definition = relationship("DeliverableDefinition")
     history = relationship("WorkflowHistory", back_populates="submission", cascade="all, delete-orphan")
+    po_line_item = relationship("PoLineItem", back_populates="submissions")
 
 
 class WorkflowHistory(Base):
@@ -334,6 +347,28 @@ class WorkflowHistory(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     submission = relationship("DeliverableSubmission", back_populates="history")
+
+
+class PoLineItem(Base):
+    """A single named PO deliverable line (e.g. "GIS", "Towers", "Topography
+    Survey") within one of the four PO Lifecycle tracks, tracked
+    independently through its category's shared step chain -- one item might
+    be at 3.2 while another is already at 3.4 on the same project.
+    """
+    __tablename__ = "po_line_items"
+    id = Column(Integer, primary_key=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    category = Column(String, nullable=False)  # long_lead | early_activity | mep | consultancy | sc
+    name = Column(String, nullable=False)
+    source = Column(String, nullable=False)  # excel | manual | checklist | fixed
+    # long_lead: {qty, unit, supplier, delivery_est, sheet}. early_activity/mep: {checklist_type}.
+    meta = Column(JSON, nullable=True)
+    status = Column(String, default="active")  # active | cancelled
+    created_at = Column(DateTime, default=datetime.utcnow)
+    created_by_email = Column(String, nullable=True)
+
+    project = relationship("Project")
+    submissions = relationship("DeliverableSubmission", back_populates="po_line_item")
 
 
 class Document(Base):

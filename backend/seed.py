@@ -81,6 +81,10 @@ ensure_column("deliverable_submissions", "due_soon_reminded_offsets", "JSON")
 ensure_column("projects", "duration_ratio", "FLOAT")
 ensure_column("projects", "duration_ratio_insufficient", "BOOLEAN")
 
+# [PO Lifecycle]
+ensure_column("deliverable_submissions", "po_line_item_id", "INTEGER")
+ensure_column("deliverable_definitions", "line_item_category", "VARCHAR")
+
 # [SME nominations, per-item rework]: sme_nominations shipped with a
 # single-blanket-request shape (email/name/reason, one row per submission
 # click) days ago with zero real usage, then got reworked into one row per
@@ -742,6 +746,142 @@ L1_SHORT_NAMES = {
     "15.1": "Equipment Availability",
     "16.1": "Camp Cost Estimates",
 }
+
+# [PO Lifecycle]: which L1 item_nos are tracked once per named PoLineItem
+# instead of once per project, and which category they belong to.
+# Comma-separated where one definition spans two pools -- "3.11" is the
+# shared PO-issuance step for both early_activity and mep items.
+LINE_ITEM_CATEGORY_BY_ITEM_NO = {
+    "4.5": "long_lead", "2.2": "long_lead", "3.1": "long_lead", "3.2": "long_lead",
+    "3.3": "long_lead", "3.4": "long_lead", "3.5": "long_lead", "3.6": "long_lead", "3.7": "long_lead",
+    "2.6": "early_activity", "2.14": "mep", "3.11": "early_activity,mep",
+    "2.7": "consultancy", "3.10": "consultancy",
+    "3.8": "sc", "2.18": "sc",
+}
+
+
+def _tag_line_item_categories(db):
+    """Every DeliverableDefinition row for a LINE_ITEM_CATEGORY_BY_ITEM_NO
+    item_no gets its category set -- filtered to L1 only, since several of
+    these item_nos (e.g. "2.2", "3.1", "6.1") mean something completely
+    different in the L0 catalog. Multiple department variants of the same
+    item_no (the TBU/PBU/DBU or Supply Chain/Procurement(PBU) split) all get
+    the same tag correctly -- _instantiate_deliverables' existing
+    is_bu_applicable/is_scope_variant_applicable filtering already narrows
+    which variant is actually active per project.
+    """
+    defs = (
+        db.query(models.DeliverableDefinition)
+        .filter(models.DeliverableDefinition.stage == models.Stage.L1,
+                models.DeliverableDefinition.item_no.in_(LINE_ITEM_CATEGORY_BY_ITEM_NO))
+        .all()
+    )
+    changed = 0
+    for d in defs:
+        cat = LINE_ITEM_CATEGORY_BY_ITEM_NO[d.item_no]
+        if d.line_item_category != cat:
+            d.line_item_category = cat
+            changed += 1
+    if changed:
+        db.commit()
+    return changed
+
+
+def _backfill_po_line_items(db):
+    """One-time (idempotent) migration for L1 projects that already had a
+    submission for one of these item_nos before line-item tracking existed
+    -- each gets a synthetic "Item 1 (migrated)" PoLineItem per category so
+    existing in-flight progress is preserved (attached, not orphaned) rather
+    than silently disappearing once the UI switches these items to
+    line-item-driven rendering. Safe to re-run: only ever touches
+    submissions whose po_line_item_id is still NULL.
+    """
+    projects = db.query(models.Project).filter(models.Project.stage == models.Stage.L1).all()
+    created = 0
+    for project in projects:
+        subs = (
+            db.query(models.DeliverableSubmission)
+            .join(models.DeliverableDefinition)
+            .filter(models.DeliverableSubmission.project_id == project.id,
+                    models.DeliverableDefinition.item_no.in_(LINE_ITEM_CATEGORY_BY_ITEM_NO),
+                    models.DeliverableSubmission.po_line_item_id.is_(None))
+            .all()
+        )
+        if not subs:
+            continue
+        by_category: dict[str, list] = {}
+        has_2_6 = any(s.definition.item_no == "2.6" for s in subs)
+        for s in subs:
+            cat = LINE_ITEM_CATEGORY_BY_ITEM_NO[s.definition.item_no]
+            if cat == "early_activity,mep":  # "3.11" — infer from whichever sibling this project actually has
+                cat = "early_activity" if has_2_6 else "mep"
+            by_category.setdefault(cat, []).append(s)
+        for cat, cat_subs in by_category.items():
+            item = models.PoLineItem(project_id=project.id, category=cat, name="Item 1 (migrated)",
+                                      source="manual", status="active")
+            db.add(item)
+            db.flush()
+            for s in cat_subs:
+                s.po_line_item_id = item.id
+            created += 1
+    if created:
+        db.commit()
+    return created
+
+
+def _has_line_item_gap(db, project) -> bool:
+    """Cheap pre-check so _fill_po_line_item_gaps only calls the real
+    (notification-firing) _instantiate_deliverables for a project that
+    actually needs it -- without this, every seed run (i.e. every deploy)
+    would re-notify every owner on every L1 project forever, not just once
+    during this migration.
+    """
+    line_items = db.query(models.PoLineItem).filter(
+        models.PoLineItem.project_id == project.id, models.PoLineItem.status == "active").all()
+    if not line_items:
+        return False
+    cats_present = {li.category for li in line_items}
+    defs = db.query(models.DeliverableDefinition).filter(
+        models.DeliverableDefinition.stage == models.Stage.L1,
+        models.DeliverableDefinition.line_item_category.isnot(None)).all()
+    # Same applicability filter _instantiate_deliverables itself applies --
+    # without it, a BU/scope variant that will never actually be created for
+    # this project (e.g. the "(PBU)" copy on a non-PBU project) reads as a
+    # permanent false-positive gap on every future deploy.
+    defs = [d for d in defs if rules.is_bu_applicable(d, project) and rules.is_scope_variant_applicable(d, project)]
+    existing_pairs = {
+        (s.deliverable_definition_id, s.po_line_item_id) for s in
+        db.query(models.DeliverableSubmission).filter(models.DeliverableSubmission.project_id == project.id).all()
+    }
+    for d in defs:
+        cats = [c.strip() for c in d.line_item_category.split(",")]
+        if not (set(cats) & cats_present):
+            continue
+        for li in line_items:
+            if li.category in cats and (d.id, li.id) not in existing_pairs:
+                return True
+    return False
+
+
+def _fill_po_line_item_gaps(db):
+    """"3.11" is shared by early_activity and mep, but a project's one
+    pre-existing (pre-migration) row can only attach to whichever of the two
+    synthetic items the backfill assigned it to -- the other one is left
+    missing its own 3.11 submission. Also the general catch-all for any
+    other line-item fan-out gap. _instantiate_deliverables is already the
+    idempotent, safe-to-re-run tool for exactly this (skip-set keyed by
+    (definition_id, line_item_id), only creates what's missing) -- same
+    function every project creation and scope resync already uses. Gated by
+    _has_line_item_gap so this is a true no-op (no owner-notification
+    side-effect) on every deploy after the gap's actually closed once.
+    """
+    from .routers.projects import _instantiate_deliverables
+    filled = 0
+    for project in db.query(models.Project).filter(models.Project.stage == models.Stage.L1).all():
+        if _has_line_item_gap(db, project):
+            _instantiate_deliverables(db, project)  # recomputes due dates + commits internally
+            filled += 1
+    return filled
 
 
 def run():
@@ -1779,6 +1919,16 @@ def run():
         if hist_added:
             db.commit()
             print(f"Item [performance history]: seeded {hist_added} historical monthly performance snapshot(s).")
+
+        tagged = _tag_line_item_categories(db)
+        if tagged:
+            print(f"[PO Lifecycle]: tagged {tagged} deliverable definition(s) with a line_item_category.")
+        migrated = _backfill_po_line_items(db)
+        if migrated:
+            print(f"[PO Lifecycle]: backfilled {migrated} synthetic PoLineItem(s) for pre-existing L1 progress.")
+        gap_filled = _fill_po_line_item_gaps(db)
+        if gap_filled:
+            print(f"[PO Lifecycle]: filled line-item fan-out gaps on {gap_filled} project(s).")
 
         print(f"Seed complete: {len(dept_map)} departments, {len(L0_ITEMS)} L0 items, {len(L1_ITEMS)} L1 items.")
     finally:

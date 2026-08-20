@@ -647,6 +647,7 @@
       <div class="subtab-row" id="dSubTabs">
         <button class="chip active" data-tab="deliverables">Deliverables</button>
         <button class="chip" data-tab="trail">Activity Trail</button>
+        <button class="chip" id="dPoTabBtn" data-tab="po-lifecycle" style="display:none;">PO Lifecycle</button>
       </div>
 
       <div class="card full-stepper" id="dStepperCard">
@@ -667,6 +668,11 @@
       <div class="card table-card" id="dTrailPane" style="display:none;">
         <div class="section-title"><span>Activity Trail</span></div>
         <div id="dTrailTimeline"></div>
+      </div>
+
+      <div class="card table-card" id="dPoLifecyclePane" style="display:none;">
+        <div class="section-title"><span>PO Lifecycle</span></div>
+        <div id="dPoLifecycleBody"></div>
       </div>
     </section>
 

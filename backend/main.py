@@ -6,7 +6,9 @@ from fastapi.responses import FileResponse, HTMLResponse
 
 from .database import engine
 from . import models
-from .routers import projects, deliverables, announcements_router, dashboard, departments, milestones, gantt, support
+from .routers import (
+    projects, deliverables, announcements_router, dashboard, departments, milestones, gantt, support, po_line_items,
+)
 from .scheduler import scheduler_loop
 
 models.Base.metadata.create_all(bind=engine)
@@ -28,6 +30,7 @@ app.include_router(departments.router)
 app.include_router(milestones.router)
 app.include_router(gantt.router)
 app.include_router(support.router)
+app.include_router(po_line_items.router)
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 LOCAL_FILES_DIR = Path(__file__).resolve().parent.parent / "data" / "local_storage"

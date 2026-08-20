@@ -2275,6 +2275,7 @@
     document.querySelectorAll("#dSubTabs .chip").forEach(function (b) { b.classList.toggle("active", b.dataset.tab === "deliverables"); });
     document.getElementById("dDeliverablesPane").style.display = "";
     document.getElementById("dTrailPane").style.display = "none";
+    document.getElementById("dPoLifecyclePane").style.display = "none";
     // Item 112: hide the triage banner/pill synchronously, before the
     // await below -- otherwise a just-completed triage's own re-render
     // (openDetail() called right after confirming) briefly shows the
@@ -2291,6 +2292,7 @@
     try {
     var p = await api("/api/projects/" + id);
     currentProjectStage = p.stage;
+    document.getElementById("dPoTabBtn").style.display = (p.stage === "L1") ? "" : "none";
     currentProjectTerminal = (p.stage === "L0" && (p.status === "Submitted" || p.status === "Cancelled")) ||
       (p.stage === "L1" && p.status === "Completed");
     document.getElementById("dTerminalBanner").hidden = !currentProjectTerminal;
@@ -4131,6 +4133,140 @@
       wrap.appendChild(row);
     });
   }
+  /* ================= PO LIFECYCLE ================= */
+  var PO_CATEGORY_META = {
+    long_lead: { title: "Long lead items", desc: "full award cycle, one per item" },
+    early_activity: { title: "Early activities & MEP consultancies", desc: "one PR/PO cycle per item" },
+    mep: { title: "MEP consultancies", desc: "one PR/PO cycle per item" },
+    consultancy: { title: "Consultancy PO", desc: "always exactly one" },
+    sc: { title: "S/C agreements", desc: "per item, depends on tender scope" },
+  };
+  function poPill(status) {
+    var map = { complete: ["good", "Complete"], in_progress: ["warn", "In progress"], blocked: ["crit", "Blocked"] };
+    var m = map[status] || ["neutral", "Not due yet"];
+    return '<span class="pill ' + m[0] + '"><span class="dot"></span>' + m[1] + "</span>";
+  }
+  function poStepDots(li) {
+    var total = li.total_steps || 0, filled = li.step_position || 0;
+    if (!total) return el("div");
+    var dots = "";
+    for (var i = 0; i < total; i++) dots += '<span class="po-step-dot' + (i < filled ? " filled" : "") + '"></span>';
+    return el("div", "po-step-track", dots);
+  }
+  async function renderPoLifecycle(projectId, containerId) {
+    var wrap = document.getElementById(containerId);
+    if (!projectId) { wrap.innerHTML = ""; return; }
+    wrap.innerHTML = '<div class="empty-state">Loading&hellip;</div>';
+    var summary, checklist;
+    try {
+      summary = await api("/api/projects/" + projectId + "/po-line-items/po-cycle-summary");
+      checklist = await api("/api/projects/" + projectId + "/po-line-items/checklist-options");
+    } catch (err) {
+      wrap.innerHTML = '<div class="empty-state">Couldn\'t load PO Lifecycle &#8211; ' + apiErrorDetail(err) + "</div>";
+      return;
+    }
+    wrap.innerHTML = "";
+    var row = el("div", "po-columns");
+    ["consultancy", "early_activity_mep", "long_lead", "sc"].forEach(function (key) {
+      var cats = key === "early_activity_mep" ? ["early_activity", "mep"] : [key];
+      var col = el("div", "po-column");
+      var primaryCat = cats[0];
+      var meta = PO_CATEGORY_META[key] || PO_CATEGORY_META[primaryCat];
+      col.appendChild(el("div", "po-col-title", meta.title));
+      col.appendChild(el("div", "po-col-desc", meta.desc));
+
+      var statsTotal = { complete: 0, in_progress: 0, blocked: 0, not_due: 0 };
+      cats.forEach(function (c) {
+        var s = (summary[c] || {}).stats || {};
+        statsTotal.complete += s.complete || 0;
+        statsTotal.in_progress += s.in_progress || 0;
+        statsTotal.blocked += s.blocked || 0;
+      });
+      var stats = el("div", "po-mini-stats");
+      stats.appendChild(el("div", "po-mini-stat", '<div class="lbl">Complete</div><div class="val">' + statsTotal.complete + "</div>"));
+      stats.appendChild(el("div", "po-mini-stat", '<div class="lbl">In progress</div><div class="val" style="color:var(--accent);">' + statsTotal.in_progress + "</div>"));
+      stats.appendChild(el("div", "po-mini-stat", '<div class="lbl">Blocked</div><div class="val" style="color:var(--crit);">' + statsTotal.blocked + "</div>"));
+      col.appendChild(stats);
+
+      col.appendChild(poRegistryControls(projectId, key, cats, checklist));
+
+      cats.forEach(function (c) {
+        var items = (summary[c] || {}).items || [];
+        items.forEach(function (li) {
+          var card = el("div", "po-item-row");
+          card.appendChild(el("div", "po-item-top",
+            "<b>" + li.name + "</b>" + poPill(li.status)));
+          card.appendChild(el("div", "po-item-meta",
+            (li.current_item_no ? "at " + li.current_item_no : "done") + " &middot; " + li.step_position + "/" + li.total_steps));
+          card.appendChild(poStepDots(li));
+          col.appendChild(card);
+        });
+        if (!items.length) col.appendChild(el("div", "po-item-empty", "No items yet"));
+      });
+      row.appendChild(col);
+    });
+    wrap.appendChild(row);
+  }
+  function poRegistryControls(projectId, key, cats, checklist) {
+    var box = el("div", "po-registry-box");
+    if (key === "long_lead") {
+      var fileInput = el("input"); fileInput.type = "file"; fileInput.accept = ".xlsx"; fileInput.style.display = "none";
+      var btn = el("button", "btn", "Upload Excel");
+      btn.addEventListener("click", function () { fileInput.click(); });
+      fileInput.addEventListener("change", async function () {
+        if (!fileInput.files[0]) return;
+        var fd = new FormData(); fd.append("file", fileInput.files[0]);
+        try {
+          var preview = await api("/api/projects/" + projectId + "/po-line-items/excel-preview", { method: "POST", body: fd });
+          if (!confirm("Found " + preview.rows.length + " item(s):\n" + preview.rows.map(function (r) { return "&#8226; " + r.name; }).join("\n").replace(/&#8226;/g, "-") + "\n\nAdd these to the registry?")) return;
+          await api("/api/projects/" + projectId + "/po-line-items/excel-commit", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ items: preview.rows, actor_email: actingEmail() }),
+          });
+          showToast("Added " + preview.rows.length + " long-lead item(s)");
+          renderPoLifecycle(projectId, "dPoLifecycleBody");
+        } catch (err) { showToast("Couldn't import &#8211; " + apiErrorDetail(err), true); }
+      });
+      var wrapEl = el("span"); wrapEl.appendChild(btn); wrapEl.appendChild(fileInput);
+      box.appendChild(wrapEl);
+    } else if (key === "early_activity_mep") {
+      cats.forEach(function (c) {
+        (checklist[c] || []).forEach(function (opt) {
+          var label = el("label", "po-checklist-opt");
+          var cb = el("input"); cb.type = "checkbox"; cb.checked = opt.checked;
+          cb.addEventListener("change", async function () {
+            try {
+              await api("/api/projects/" + projectId + "/po-line-items/checklist-toggle", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ category: c, checklist_type: opt.type, checked: cb.checked, actor_email: actingEmail() }),
+              });
+              renderPoLifecycle(projectId, "dPoLifecycleBody");
+            } catch (err) { showToast("Couldn't update &#8211; " + apiErrorDetail(err), true); cb.checked = !cb.checked; }
+          });
+          label.appendChild(cb);
+          label.appendChild(document.createTextNode(" " + opt.type));
+          box.appendChild(label);
+        });
+      });
+    } else if (key === "sc") {
+      var input = el("input"); input.type = "text"; input.placeholder = "Subcontract agreement name";
+      var addBtn = el("button", "btn", "Add");
+      addBtn.addEventListener("click", async function () {
+        if (!input.value.trim()) return;
+        try {
+          await api("/api/projects/" + projectId + "/po-line-items/manual", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ category: "sc", name: input.value.trim(), actor_email: actingEmail() }),
+          });
+          input.value = "";
+          renderPoLifecycle(projectId, "dPoLifecycleBody");
+        } catch (err) { showToast("Couldn't add &#8211; " + apiErrorDetail(err), true); }
+      });
+      box.appendChild(input); box.appendChild(addBtn);
+    }
+    return box;
+  }
+
   // Item 96: Activity Trail lives inside the project detail page itself now,
   // as a sub-tab next to Deliverables, instead of a picker on the L0/L1 list.
   document.querySelectorAll("#dSubTabs .chip").forEach(function (btn) {
@@ -4138,12 +4274,15 @@
       document.querySelectorAll("#dSubTabs .chip").forEach(function (b) { b.classList.remove("active"); });
       btn.classList.add("active");
       var isTrail = btn.dataset.tab === "trail";
+      var isPo = btn.dataset.tab === "po-lifecycle";
       // The stepper only ever applies to L1 projects (see openDetail) — don't
       // let switching back from the trail tab resurrect it for an L0 tender.
-      document.getElementById("dStepperCard").style.display = (isTrail || currentProjectStage !== "L1") ? "none" : "";
-      document.getElementById("dDeliverablesPane").style.display = isTrail ? "none" : "";
+      document.getElementById("dStepperCard").style.display = (isTrail || isPo || currentProjectStage !== "L1") ? "none" : "";
+      document.getElementById("dDeliverablesPane").style.display = (isTrail || isPo) ? "none" : "";
       document.getElementById("dTrailPane").style.display = isTrail ? "" : "none";
+      document.getElementById("dPoLifecyclePane").style.display = isPo ? "" : "none";
       if (isTrail) renderActivityTimeline(currentProjectId, "dTrailTimeline");
+      if (isPo) renderPoLifecycle(currentProjectId, "dPoLifecycleBody");
     });
   });
 

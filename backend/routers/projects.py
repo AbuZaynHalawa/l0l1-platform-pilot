@@ -50,8 +50,8 @@ def _instantiate_deliverables(db: Session, project: models.Project):
     """
     stage = project.stage
     folder_root = project.onedrive_folder_path
-    existing_def_ids = {
-        s.deliverable_definition_id for s in
+    existing_pairs = {
+        (s.deliverable_definition_id, s.po_line_item_id) for s in
         db.query(models.DeliverableSubmission).filter(models.DeliverableSubmission.project_id == project.id).all()
     }
     defs = (
@@ -59,12 +59,33 @@ def _instantiate_deliverables(db: Session, project: models.Project):
         .filter(models.DeliverableDefinition.stage == stage, models.DeliverableDefinition.active == True)  # noqa: E712
         .all()
     )
-    defs = [d for d in defs if rules.is_bu_applicable(d, project) and rules.is_scope_variant_applicable(d, project)
-            and d.id not in existing_def_ids]
+    defs = [d for d in defs if rules.is_bu_applicable(d, project) and rules.is_scope_variant_applicable(d, project)]
+    # [PO Lifecycle]: a line_item_category definition fans out one submission
+    # per active PoLineItem in that category (comma-separated when a
+    # definition spans two pools, e.g. "3.11" -> "early_activity,mep")
+    # instead of the usual one submission total. `targets` holds the
+    # PoLineItem to attach for each submission still needed (None for an
+    # ordinary, non-fan-out definition).
+    line_items_by_cat: dict[str, list] = {}
+    for li in (db.query(models.PoLineItem)
+               .filter(models.PoLineItem.project_id == project.id, models.PoLineItem.status == "active").all()):
+        line_items_by_cat.setdefault(li.category, []).append(li)
+    def _targets_for(d):
+        if d.line_item_category:
+            cats = [c.strip() for c in d.line_item_category.split(",")]
+            return [li for c in cats for li in line_items_by_cat.get(c, [])
+                    if (d.id, li.id) not in existing_pairs]
+        return [None] if (d.id, None) not in existing_pairs else []
+
     auto_done_fields = _L0_AUTO_DONE_FIELDS if stage == models.Stage.L0 else _L1_AUTO_DONE_FIELDS
     dept_seen = set()
+    new_depts = set()  # departments that actually got a new submission this call — notification uses this, not all of `defs`
     auto_done_subs = []  # (sub, definition) pairs — WorkflowHistory needs real ids, added after the commit below
     for d in defs:
+        targets = _targets_for(d)
+        if not targets:
+            continue
+        new_depts.add(d.department)
         if d.department_id not in dept_seen:
             _storage.create_folder(f"{folder_root}/{sanitize_segment(d.department.name)}")
             dept_seen.add(d.department_id)
@@ -94,24 +115,25 @@ def _instantiate_deliverables(db: Session, project: models.Project):
 
         sme_emails = d.default_sme_emails or ([d.default_sme_email] if d.default_sme_email else [])
         owner_emails = d.default_owner_emails or ([d.default_owner_email] if d.default_owner_email else [])
-        if auto_done_date:
-            sub = models.DeliverableSubmission(
-                project_id=project.id, deliverable_definition_id=d.id,
-                owner_emails=owner_emails, sme_emails=sme_emails,
-                applicability="applicable", status=models.SubmissionStatus.APPROVED,
-                auto_completed=True, due_date=auto_done_date,
-                submitted_at=datetime.combine(auto_done_date, datetime.min.time()),
-                reviewed_at=datetime.combine(auto_done_date, datetime.min.time()),
-                review_comment="Auto-completed from the project's own details.",
-            )
-            auto_done_subs.append(sub)
-        else:
-            sub = models.DeliverableSubmission(
-                project_id=project.id, deliverable_definition_id=d.id,
-                owner_emails=owner_emails, sme_emails=sme_emails,
-                applicability="pending" if needs_triage else "applicable",
-            )
-        db.add(sub)
+        for li in targets:
+            if auto_done_date:
+                sub = models.DeliverableSubmission(
+                    project_id=project.id, deliverable_definition_id=d.id, po_line_item_id=li.id if li else None,
+                    owner_emails=owner_emails, sme_emails=sme_emails,
+                    applicability="applicable", status=models.SubmissionStatus.APPROVED,
+                    auto_completed=True, due_date=auto_done_date,
+                    submitted_at=datetime.combine(auto_done_date, datetime.min.time()),
+                    reviewed_at=datetime.combine(auto_done_date, datetime.min.time()),
+                    review_comment="Auto-completed from the project's own details.",
+                )
+                auto_done_subs.append(sub)
+            else:
+                sub = models.DeliverableSubmission(
+                    project_id=project.id, deliverable_definition_id=d.id, po_line_item_id=li.id if li else None,
+                    owner_emails=owner_emails, sme_emails=sme_emails,
+                    applicability="pending" if needs_triage else "applicable",
+                )
+            db.add(sub)
     db.commit()
 
     for sub in auto_done_subs:
@@ -129,7 +151,7 @@ def _instantiate_deliverables(db: Session, project: models.Project):
     for s in subs:
         if s.owner_email:
             by_owner[s.owner_email] = by_owner.get(s.owner_email, 0) + 1
-    for dept in {d.department for d in defs}:
+    for dept in new_depts:
         if dept.focal_point_email:
             count = sum(1 for s in subs if s.definition.department_id == dept.id)
             if count:
