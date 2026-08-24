@@ -1220,30 +1220,26 @@
   });
   function closeDelivModal() { document.getElementById("delivModalOverlay").hidden = true; }
 
-  // Item [checkmark tofu fix]: the Unicode check mark character (U+2713)
-  // was rendering as a fallback "tofu" box in the bold .fs-dot font weight
-  // instead of an actual check -- not every font/weight combination ships
-  // a glyph for it. An inline SVG stroke path renders identically
-  // everywhere, no font glyph lookup involved. Sized in `em` (not a fixed
-  // px) so it scales with .fs-dot's own font-size, which is what already
-  // differs between the real 40px stepper and the tour's 26px mock version.
+  // Item [milestone icon parity]: the milestone timeline's "done" mark now
+  // reuses the exact same circle+checkmark glyph PO Lifecycle's poIcon("done")
+  // draws, instead of the fs-stepper's own separate checkmark design --
+  // same shape/stroke as poIcon, just `currentColor`/`em`-sized (rather than
+  // poIcon's hardcoded var(--good) stroke and fixed 14px) so it still
+  // inherits .fs-step.done .fs-dot's white text color and scales with
+  // .fs-dot's own font-size, which differs between the real 40px stepper
+  // and the tour's 26px mock version. poIcon() itself (defined later in this
+  // file) is left untouched -- it's used elsewhere against a plain
+  // background where its own hardcoded green stroke is exactly right; this
+  // is a matching but independent copy for use inside an already-green
+  // circular badge, where a second green-stroked circle outline would
+  // vanish into the badge's own background.
   // Declared here, before TOUR_STEPS, because TOUR_STEPS's array literal
   // calls milestoneMock() immediately at load time -- a plain `var` below
   // TOUR_STEPS would still be hoisted, but its assignment wouldn't have run
   // yet, so milestoneMock would see it as undefined the first time.
-  // Item [checkmark still boxy]: a *stroked* path (round caps + round join)
-  // was the culprit -- at the small rendered size the thick rounded ends
-  // and the joint blob together into something that reads as a chunky
-  // square rather than a crisp check. Switched to a *filled* checkmark
-  // shape (a single solid polygon, no stroke-width/cap/join at all to go
-  // wrong) -- but the Material check glyph turned out to have the same
-  // problem one level up: it's a stocky, near-square silhouette by design
-  // (built to fill a square icon grid solidly), so at ~14px it still read
-  // as a blob/box rather than a tick. Swapped for a thinner, more
-  // elongated checkmark (FontAwesome's, tall aspect ratio) whose silhouette
-  // doesn't approximate a square at any render size.
-  var FS_CHECK_SVG = '<svg width="0.95em" height="1.1em" viewBox="0 0 448 512" fill="currentColor">' +
-    '<path d="M438.6 105.4c12.5 12.5 12.5 32.8 0 45.3l-256 256c-12.5 12.5-32.8 12.5-45.3 0l-128-128c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0L160 338.7 393.4 105.4c12.5-12.5 32.8-12.5 45.3 0z"/></svg>';
+  var FS_CHECK_SVG = '<svg width="1em" height="1em" viewBox="0 0 16 16">' +
+    '<circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.4"/>' +
+    '<path d="M5 8.2L7 10.2L11 6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
   /* ================= ITEM 131: INTERACTIVE SYSTEM INTRODUCTION WALKTHROUGH =================
      Portal "screens" below are illustrative recreations built from the app's
