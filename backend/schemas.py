@@ -25,10 +25,27 @@ class ProjectCreateL1(BaseModel):
     l0_source_id: int
     announcement_date: date
     project_manager: str | None = None
+    bid_value: float | None = None  # [Bid Value] optional, BM/Admin-only visibility thereafter
 
 
 class ProjectManagerUpdate(BaseModel):
     project_manager: str | None = None
+
+
+class BidValueUpdate(BaseModel):
+    bid_value: float | None = None
+    actor_role: str = "Viewer"
+    actor_email: str = ""
+
+
+class BidValueAccessRequestCreate(BaseModel):
+    actor_name: str = ""
+    actor_email: str
+
+
+class BidValueAccessDecision(BaseModel):
+    approved: bool
+    actor_role: str = "Viewer"
 
 
 class ProjectStatusUpdate(BaseModel):

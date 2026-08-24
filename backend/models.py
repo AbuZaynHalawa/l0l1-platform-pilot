@@ -96,6 +96,10 @@ class AnnouncementType(str, enum.Enum):
     # both stays DEADLINE on purpose (still needs an Admin's action).
     REASSIGNMENT_DECISION = "reassignment_decision"
     SME_NOMINATION_DECISION = "sme_nomination_decision"
+    # [Bid Value]: request side stays DEADLINE (still needs an Admin's
+    # action, same convention as every other *_REQUEST above); this is only
+    # the decision half, back to whoever asked.
+    BID_VALUE_ACCESS_DECISION = "bid_value_access_decision"
 
 
 class Department(Base):
@@ -221,6 +225,13 @@ class Project(Base):
     # anyway (best effort), but this flags it so the overshoot is visible
     # rather than a silent surprise on a real deliverable's due date.
     duration_ratio_insufficient = Column(Boolean, default=False)
+    # [Bid Value]: optional, entered by the Bid Manager at L1 creation.
+    # Hidden by default -- ProjectOut never serializes this column, so the
+    # ordinary GET /{project_id} response every viewer already calls can't
+    # leak it. Visibility is decided per-viewer by the dedicated
+    # /{project_id}/bid-value endpoint: the BM or an Admin always sees it,
+    # anyone else needs a standing grant recorded in BidValueAccessRequest.
+    bid_value = Column(Float, nullable=True)
 
     submissions = relationship("DeliverableSubmission", back_populates="project", cascade="all, delete-orphan",
                                 foreign_keys="DeliverableSubmission.project_id")
@@ -479,6 +490,25 @@ class ReassignmentRequest(Base):
     decided_at = Column(DateTime, nullable=True)
 
     submission = relationship("DeliverableSubmission")
+
+
+class BidValueAccessRequest(Base):
+    """A Viewer's request to see one L1 project's hidden Bid Value, subject
+    to Admin approval -- once approved, that person keeps standing access
+    to that project's Bid Value permanently (no re-request, no expiry).
+    Same request/decide shape as ReassignmentRequest/DueDateRequest below.
+    """
+    __tablename__ = "bid_value_access_requests"
+    id = Column(Integer, primary_key=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    requested_by_email = Column(String, nullable=False)
+    requested_by_name = Column(String, nullable=True)
+    status = Column(String, default="pending")  # pending | approved | rejected
+    requested_at = Column(DateTime, default=datetime.utcnow)
+    decided_at = Column(DateTime, nullable=True)
+    decided_by_email = Column(String, nullable=True)
+
+    project = relationship("Project")
 
 
 class SmeNomination(Base):

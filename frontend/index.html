@@ -557,6 +557,15 @@
         <div id="smeNomHistory" hidden></div>
       </div>
 
+      <div class="card table-card" style="margin-bottom:18px;">
+        <div class="section-title">
+          <span>Bid Value Access Requests <span class="cnt" id="bidValueReqCount"></span></span>
+          <button class="btn" id="bidValueReqHistoryToggle" style="font-size:11px;padding:4px 10px;">Show History</button>
+        </div>
+        <div id="bidValueReqList"></div>
+        <div id="bidValueReqHistory" hidden></div>
+      </div>
+
       <div class="card table-card">
         <div class="section-title">
           <span>Due &amp; Overdue Deliverables</span>
@@ -883,6 +892,11 @@
             <div class="field">
               <label>Project Manager</label>
               <input type="text" id="cfL1PM" placeholder="optional" />
+            </div>
+            <div class="field">
+              <label>Bid Value</label>
+              <input type="number" id="cfL1BidValue" placeholder="optional" min="0" step="any" />
+              <span class="hint">Hidden from everyone except the Bid Manager and Admin &#8211; others must request Admin approval to view it.</span>
             </div>
           </div>
         </div>

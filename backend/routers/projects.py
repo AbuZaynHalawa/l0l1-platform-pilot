@@ -273,6 +273,7 @@ def create_l1_project(payload: schemas.ProjectCreateL1, db: Session = Depends(ge
         l0_source_id=l0.id, status=models.ProjectStatus.IN_PROGRESS,
         contract_status=models.ContractStatus.NOT_SIGNED,
         project_manager=payload.project_manager,
+        bid_value=payload.bid_value,
     )
     db.add(project)
     # Item 119: the L0 stage is done the moment its L1 exists -- close it
@@ -471,6 +472,122 @@ def get_bm_triage_status(actor_role: str = "Viewer", actor_email: str = "", db: 
             "created_at": p.created_at,  # item 145: lets the client compute the 24h hard-block deadline
         })
     return out
+
+
+def _can_view_bid_value(db: Session, project: models.Project, actor_role: str, actor_email: str) -> bool:
+    if rules.can_act(actor_role, actor_email, project.bid_manager):
+        return True
+    email = (actor_email or "").strip().lower()
+    if not email:
+        return False
+    return db.query(models.BidValueAccessRequest).filter(
+        models.BidValueAccessRequest.project_id == project.id,
+        models.BidValueAccessRequest.requested_by_email.ilike(email),
+        models.BidValueAccessRequest.status == "approved",
+    ).first() is not None
+
+
+# Static paths below must stay ahead of GET "/{project_id}" -- FastAPI/
+# Starlette matches routes in registration order, and a bare "{project_id}"
+# segment would otherwise swallow e.g. "bid-value-requests" as a literal
+# (non-numeric) project_id and 422 before ever reaching the real handler.
+# Same reasoning as deliverables.py's reassignment-requests/due-date-requests.
+@router.get("/bid-value-requests")
+def list_bid_value_requests(status: str = "pending", db: Session = Depends(get_db)):
+    q = db.query(models.BidValueAccessRequest)
+    if status:
+        q = q.filter(models.BidValueAccessRequest.status == status)
+    reqs = q.order_by(models.BidValueAccessRequest.requested_at.desc()).all()
+    return [
+        {
+            "id": r.id, "project_id": r.project_id, "est_no": r.project.est_no, "name": r.project.name,
+            "requested_by_email": r.requested_by_email, "requested_by_name": r.requested_by_name,
+            "status": r.status, "requested_at": r.requested_at, "decided_at": r.decided_at,
+        }
+        for r in reqs
+    ]
+
+
+@router.post("/bid-value-requests/{request_id}/decide")
+def decide_bid_value_request(request_id: int, decision: schemas.BidValueAccessDecision, db: Session = Depends(get_db)):
+    req = db.get(models.BidValueAccessRequest, request_id)
+    if not req:
+        raise HTTPException(404, "Request not found")
+    if req.status != "pending":
+        raise HTTPException(400, "This request has already been decided")
+    if decision.actor_role != "Admin":
+        raise HTTPException(403, "Only an Admin can decide a Bid Value access request")
+    req.status = "approved" if decision.approved else "rejected"
+    req.decided_at = datetime.utcnow()
+    db.commit()
+    announcements.bid_value_access_decision(db, req.project, req.requested_by_email, decision.approved)
+    return {"status": "ok"}
+
+
+@router.get("/{project_id}/bid-value")
+def get_bid_value(project_id: int, actor_role: str = "Viewer", actor_email: str = "", db: Session = Depends(get_db)):
+    project = db.get(models.Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    can_edit = rules.can_act(actor_role, actor_email, project.bid_manager)
+    visible = can_edit or _can_view_bid_value(db, project, actor_role, actor_email)
+    request_status = None
+    if not visible and actor_email:
+        existing = (
+            db.query(models.BidValueAccessRequest)
+            .filter(models.BidValueAccessRequest.project_id == project_id,
+                    models.BidValueAccessRequest.requested_by_email.ilike(actor_email.strip()))
+            .order_by(models.BidValueAccessRequest.requested_at.desc())
+            .first()
+        )
+        request_status = existing.status if existing else None
+    return {
+        "visible": visible, "can_edit": can_edit, "bid_value": project.bid_value if visible else None,
+        "has_value": project.bid_value is not None, "request_status": request_status,
+    }
+
+
+@router.patch("/{project_id}/bid-value", response_model=schemas.ProjectOut)
+def update_bid_value(project_id: int, payload: schemas.BidValueUpdate, db: Session = Depends(get_db)):
+    project = db.get(models.Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    if project.stage != models.Stage.L1:
+        raise HTTPException(400, "Bid Value only applies to L1 projects")
+    if not rules.can_act(payload.actor_role, payload.actor_email, project.bid_manager):
+        raise HTTPException(403, f"Only {project.bid_manager or 'the assigned Bid Manager'} or an Admin can edit the Bid Value")
+    project.bid_value = payload.bid_value
+    db.commit()
+    db.refresh(project)
+    return project
+
+
+@router.post("/{project_id}/bid-value/request-access")
+def request_bid_value_access(project_id: int, payload: schemas.BidValueAccessRequestCreate, db: Session = Depends(get_db)):
+    project = db.get(models.Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    email = payload.actor_email.strip()
+    if not email:
+        raise HTTPException(400, "Your email is required")
+    if _can_view_bid_value(db, project, "Viewer", email):
+        raise HTTPException(400, "You already have access")
+    existing = (
+        db.query(models.BidValueAccessRequest)
+        .filter(models.BidValueAccessRequest.project_id == project_id,
+                models.BidValueAccessRequest.requested_by_email.ilike(email),
+                models.BidValueAccessRequest.status == "pending")
+        .first()
+    )
+    if existing:
+        raise HTTPException(400, "A request is already pending")
+    req = models.BidValueAccessRequest(project_id=project_id, requested_by_email=email,
+                                        requested_by_name=payload.actor_name.strip() or None)
+    db.add(req)
+    db.commit()
+    db.refresh(req)
+    announcements.bid_value_access_requested(db, project, rules.admin_emails(db), email, payload.actor_name.strip() or None)
+    return {"status": "ok", "id": req.id}
 
 
 @router.get("/{project_id}", response_model=schemas.ProjectOut)

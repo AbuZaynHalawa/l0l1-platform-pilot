@@ -412,3 +412,29 @@ def sme_nomination_decision(db: Session, email: str, item_no: str, item_name: st
             body += f' &#8211; &quot;{comment}&quot;'
     return _create(db, type=models.AnnouncementType.SME_NOMINATION_DECISION, title=title, body=body,
                     recipients=[email] if email else [], greeting="Team")
+
+
+def bid_value_access_requested(db: Session, project: models.Project, admin_emails: list[str],
+                                requester_email: str, requester_name: str | None) -> models.Announcement:
+    """DEADLINE-typed like every other Follow Up tab request above -- still
+    needs an Admin's decision.
+    """
+    title = "Bid Value Access Requested &#8211; Admin Action Needed"
+    who = f"{_b(requester_name)} ({_b(requester_email)})" if requester_name else _b(requester_email)
+    body = f"{who} requested access to view {_b(project.est_no)}'s Bid Value. Awaiting your decision."
+    return _create(db, type=models.AnnouncementType.DEADLINE, title=title, body=body,
+                    recipients=sorted({e for e in admin_emails if e}), project=project,
+                    greeting="Admin", link_html=_project_link(project.id))
+
+
+def bid_value_access_decision(db: Session, project: models.Project, requester_email: str,
+                               approved: bool) -> models.Announcement:
+    if approved:
+        title = "Bid Value Access Approved"
+        body = f"Your request to view {_b(project.est_no)}'s Bid Value was {_hl('approved', 'good')}."
+    else:
+        title = "Bid Value Access Declined"
+        body = f"Your request to view {_b(project.est_no)}'s Bid Value was {_hl('declined', 'crit')}."
+    return _create(db, type=models.AnnouncementType.BID_VALUE_ACCESS_DECISION, title=title, body=body,
+                    recipients=[requester_email] if requester_email else [], project=project,
+                    greeting="Team", link_html=_project_link(project.id))

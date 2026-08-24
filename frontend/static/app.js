@@ -44,6 +44,9 @@
     var day = String(d.getDate()).padStart(2, "0");
     return day + "-" + MONTH_ABBR[d.getMonth()] + "-" + d.getFullYear();
   }
+  function fmtCurrency(n) {
+    return "SAR " + Number(n).toLocaleString("en-US", { maximumFractionDigits: 0 });
+  }
   // Item 169: a predecessor-gated deliverable's due_date/awaiting_note pair
   // covers two cases -- no date at all yet (awaiting_note replaces the
   // date entirely) and a date that's already computed but still only
@@ -217,6 +220,7 @@
     extension_request: ["&#8987;", "extension-request"], extension_decision: ["&#128197;", "extension-decision"],
     hold_request: ["&#9208;", "hold-request"], hold_decision: ["&#9208;", "hold-decision"],
     reassignment_decision: ["&#128101;", "reassignment-decision"], sme_nomination_decision: ["&#127891;", "sme-nomination-decision"],
+    bid_value_access_decision: ["&#128176;", "bid-value-access-decision"],
   };
   // Item 165: single source of truth for the Announcements type filter and
   // its legend -- audience: "all" means every role sees it as a filter
@@ -242,6 +246,7 @@
     { value: "hold_decision", label: "Hold Decision", sw: "var(--good)", audience: ["Owner"] },
     { value: "reassignment_decision", label: "Reassignment Decision", sw: "var(--good)", audience: ["Owner"] },
     { value: "sme_nomination_decision", label: "SME Nomination Decision", sw: "var(--good)", audience: "all" },
+    { value: "bid_value_access_decision", label: "Bid Value Access Decision", sw: "var(--good)", audience: "all" },
   ];
   // Item [announcement recipients]: the "To:" line used to list every
   // recipient email verbatim -- fine at a handful of test users, unreadable
@@ -1200,7 +1205,8 @@
         var reassigns = await api("/api/deliverables/reassignment-requests?status=pending");
         var dueDateReqs = await api("/api/deliverables/due-date-requests?status=pending");
         var smeNoms = await api("/api/departments/sme-nominations?status=pending");
-        document.getElementById("followupBadge").textContent = (reassigns.length + dueDateReqs.length + smeNoms.length) || "";
+        var bvReqs = await api("/api/projects/bid-value-requests?status=pending");
+        document.getElementById("followupBadge").textContent = (reassigns.length + dueDateReqs.length + smeNoms.length + bvReqs.length) || "";
       } catch (e) {}
     } else {
       document.getElementById("followupBadge").textContent = "";
@@ -2495,6 +2501,15 @@
     // point surfaces as a toast instead of a dead end.
     try {
     var p = await api("/api/projects/" + id);
+    // [Bid Value]: fetched separately from ProjectOut on purpose -- the
+    // ordinary project payload never carries this value at all, so a
+    // non-BM/Admin viewer's browser never even receives it to begin with.
+    var bidValueInfo = null;
+    if (p.stage === "L1") {
+      try {
+        bidValueInfo = await api("/api/projects/" + id + "/bid-value?actor_role=" + encodeURIComponent(CURRENT_ROLE) + "&actor_email=" + encodeURIComponent(actingEmail()));
+      } catch (e) {}
+    }
     currentProjectStage = p.stage;
     document.getElementById("dPoTabBtn").style.display = (p.stage === "L1") ? "" : "none";
     currentProjectTerminal = (p.stage === "L0" && (p.status === "Submitted" || p.status === "Cancelled")) ||
@@ -2768,6 +2783,69 @@
       mi.appendChild(mv);
       meta.appendChild(mi);
     });
+
+    // [Bid Value]: not a generic metaItems/tag row -- its Edit link is
+    // gated to the Bid Manager or Admin specifically (rules.can_act against
+    // project.bid_manager), not the blanket can("create") === Admin-only
+    // check every other Edit link above uses. A locked row instead offers
+    // Request Access, or shows the outstanding request's own status.
+    if (p.stage === "L1" && bidValueInfo && (bidValueInfo.can_edit || bidValueInfo.has_value)) {
+      var bvItem = el("div", "meta-item");
+      bvItem.appendChild(el("div", "mk", "Bid Value"));
+      var bvVal = el("div", "mv");
+      if (bidValueInfo.visible) {
+        bvVal.appendChild(document.createTextNode(
+          bidValueInfo.bid_value != null ? fmtCurrency(bidValueInfo.bid_value) : "&#8213;"
+        ));
+        if (bidValueInfo.can_edit && !currentProjectTerminal) {
+          var bvEdit = el("a", "meta-edit-link", "Edit");
+          bvEdit.href = "#";
+          bvEdit.addEventListener("click", function (e) {
+            e.preventDefault();
+            openChecklistEditModal({
+              type: "text",
+              title: "Edit Bid Value",
+              eyebrow: "Hidden from everyone except the Bid Manager and Admin — others must request Admin approval to view it.",
+              placeholder: "Bid Value",
+              selected: bidValueInfo.bid_value != null ? String(bidValueInfo.bid_value) : "",
+              onSave: function (nextVal) {
+                var num = (nextVal || "").trim() ? Number(nextVal) : null;
+                if (nextVal && nextVal.trim() && Number.isNaN(num)) { showToast("Enter a valid number", true); return; }
+                api("/api/projects/" + id + "/bid-value", {
+                  method: "PATCH", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ bid_value: num, actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
+                }).then(function () { closeChecklistEditModal(); showToast("Bid Value updated"); openDetail(id); })
+                  .catch(function (err) { showToast("Could not update &#8211; " + apiErrorDetail(err), true); });
+              },
+            });
+          });
+          bvVal.appendChild(document.createTextNode(" "));
+          bvVal.appendChild(bvEdit);
+        }
+      } else {
+        var lockPill = el("span", "pill neutral", '<span class="dot"></span>&#128274; Locked');
+        bvVal.appendChild(lockPill);
+        if (bidValueInfo.request_status === "pending") {
+          bvVal.appendChild(el("span", "meta-edit-link", " Request pending"));
+        } else {
+          var reqBtn = el("a", "meta-edit-link", " " + (bidValueInfo.request_status === "rejected" ? "Request again" : "Request access"));
+          reqBtn.href = "#";
+          reqBtn.addEventListener("click", function (e) {
+            e.preventDefault();
+            var email = actingEmail();
+            if (!email) { showToast("Enter your acting email first", true); return; }
+            api("/api/projects/" + id + "/bid-value/request-access", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ actor_email: email }),
+            }).then(function () { showToast("Access requested &#8211; an Admin will decide"); openDetail(id); })
+              .catch(function (err) { showToast("Could not request &#8211; " + apiErrorDetail(err), true); });
+          });
+          bvVal.appendChild(reqBtn);
+        }
+      }
+      bvItem.appendChild(bvVal);
+      meta.appendChild(bvItem);
+    }
 
     var stepperCard = document.getElementById("dStepperCard");
     if (p.stage === "L1") {
@@ -5337,6 +5415,45 @@
       });
     }
 
+    var bvReqs = await api("/api/projects/bid-value-requests?status=pending");
+    var bvReqWrap = document.getElementById("bidValueReqList");
+    document.getElementById("bidValueReqCount").textContent = bvReqs.length || "";
+    bvReqWrap.innerHTML = "";
+    if (!bvReqs.length) {
+      bvReqWrap.appendChild(el("div", "empty-state", "No pending Bid Value access requests."));
+    } else {
+      bvReqs.forEach(function (r) {
+        var row = el("div", "aq-row");
+        var main = el("div", "aq-main");
+        main.appendChild(el("div", "aq-title", r.est_no + " &middot; " + r.name));
+        main.appendChild(el("div", "aq-sub",
+          '<span>' + (r.requested_by_name ? r.requested_by_name + " (" + r.requested_by_email + ")" : r.requested_by_email) + '</span>'));
+        row.appendChild(main);
+        var actions = el("div", "deliv-actions");
+        var appr = el("button", "btn primary", "Approve");
+        appr.addEventListener("click", async function () {
+          await api("/api/projects/bid-value-requests/" + r.id + "/decide", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ approved: true, actor_role: CURRENT_ROLE }),
+          });
+          showToast("Access approved for " + r.requested_by_email);
+          loadFollowUp();
+        });
+        var rej = el("button", "btn ghost-crit", "Reject");
+        rej.addEventListener("click", async function () {
+          await api("/api/projects/bid-value-requests/" + r.id + "/decide", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ approved: false, actor_role: CURRENT_ROLE }),
+          });
+          showToast("Request rejected");
+          loadFollowUp();
+        });
+        actions.appendChild(appr); actions.appendChild(rej);
+        row.appendChild(actions);
+        bvReqWrap.appendChild(row);
+      });
+    }
+
     // Item [follow-up redesign]: was one flat, unsorted, ungrouped list --
     // confusing once more than a handful of items are overdue at once. Now
     // grouped by Department (collapsed accordion, so the page opens calm
@@ -5543,6 +5660,23 @@
         (n.decision_comment ? '<span class="sep">&middot;</span><span>&#8220;' + n.decision_comment + '&#8221;</span>' : "")));
       row.appendChild(main);
       row.appendChild(el("div", "", _historyStatusPill(n.status)));
+      container.appendChild(row);
+    });
+  });
+  _setupHistoryToggle("bidValueReqHistoryToggle", "bidValueReqHistory", async function (container) {
+    var all = await api("/api/projects/bid-value-requests?status=");
+    var decided = all.filter(function (r) { return r.status !== "pending"; });
+    container.innerHTML = "";
+    if (!decided.length) { container.appendChild(el("div", "empty-state", "No decided requests yet.")); return; }
+    decided.forEach(function (r) {
+      var row = el("div", "aq-row");
+      var main = el("div", "aq-main");
+      main.appendChild(el("div", "aq-title", r.est_no + " &middot; " + r.name));
+      main.appendChild(el("div", "aq-sub",
+        '<span>' + (r.requested_by_name ? r.requested_by_name + " (" + r.requested_by_email + ")" : r.requested_by_email) + '</span>' +
+        (r.decided_at ? '<span class="sep">&middot;</span><span>' + fmtDate(r.decided_at.slice(0, 10)) + '</span>' : "")));
+      row.appendChild(main);
+      row.appendChild(el("div", "", _historyStatusPill(r.status)));
       container.appendChild(row);
     });
   });
@@ -6202,6 +6336,7 @@
           body: JSON.stringify({
             l0_source_id: Number(l0Id), announcement_date: l1Announce,
             project_manager: document.getElementById("cfL1PM").value.trim() || null,
+            bid_value: document.getElementById("cfL1BidValue").value.trim() ? Number(document.getElementById("cfL1BidValue").value) : null,
           }),
         });
         showToast(p1.est_no + " created &#8211; announcement sent");

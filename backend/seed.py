@@ -94,6 +94,10 @@ ensure_column("projects", "is_international", "BOOLEAN")
 ensure_column("projects", "country", "VARCHAR")
 ensure_column("departments", "is_international", "BOOLEAN")
 
+# [Bid Value]
+ensure_column("projects", "bid_value", "FLOAT")
+ensure_enum_value("announcements", "type", "BID_VALUE_ACCESS_DECISION")
+
 # [SME nominations, per-item rework]: sme_nominations shipped with a
 # single-blanket-request shape (email/name/reason, one row per submission
 # click) days ago with zero real usage, then got reworked into one row per
@@ -118,6 +122,7 @@ models.Base.metadata.create_all(bind=engine)
 # reassignment_requests index above, which predates this table's existence).
 ensure_index("due_date_requests", "ix_due_date_requests_submission_id", "submission_id")
 ensure_index("sme_nominations", "ix_sme_nominations_definition_id", "deliverable_definition_id")
+ensure_index("bid_value_access_requests", "ix_bid_value_access_requests_project_id", "project_id")
 ensure_column("due_date_requests", "escalated_at", "TIMESTAMP")
 ensure_column("tender_documents", "folder_path", "VARCHAR")
 
