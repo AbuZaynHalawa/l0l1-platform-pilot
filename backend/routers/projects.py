@@ -702,9 +702,12 @@ def triage_l0_project(project_id: int, payload: schemas.TriageRequest, db: Sessi
             sub.applicability = "applicable" if item.applicable else "not_required"
             # Remember this BM's call per item_no (item 79) so it's the
             # pre-selected default the next time they triage a different
-            # tender — most BMs repeat the same applicable/not-required
-            # pattern project to project.
-            if bm:
+            # tender -- only when the BM explicitly asks to (save_as_default),
+            # via its own dedicated button. A bulk "Mark All Required"
+            # shortcut used to feed every item into this unconditionally,
+            # silently overwriting genuinely-considered per-item defaults
+            # with a one-off "get through this tender fast" pattern.
+            if bm and payload.save_as_default:
                 existing_pref = prefs_by_item.get(sub.definition.item_no)
                 if existing_pref:
                     existing_pref.applicable = item.applicable

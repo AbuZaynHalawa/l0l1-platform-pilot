@@ -1088,6 +1088,19 @@
         t.appBtn.classList.add("active"); t.notBtn.classList.remove("active");
       });
     };
+    // Off by default (item [BM triage defaults]) -- confirming a triage no
+    // longer silently rewrites this BM's remembered per-item defaults on
+    // its own (a "Mark All Required" shortcut used to do exactly that).
+    // This toggle is the one explicit way to actually update them.
+    var saveAsDefault = false;
+    var saveDefaultBtn = document.getElementById("triageSaveAsDefault");
+    saveDefaultBtn.classList.remove("active");
+    saveDefaultBtn.textContent = "Save as My Default: Off";
+    saveDefaultBtn.onclick = function () {
+      saveAsDefault = !saveAsDefault;
+      saveDefaultBtn.classList.toggle("active", saveAsDefault);
+      saveDefaultBtn.textContent = "Save as My Default: " + (saveAsDefault ? "On" : "Off");
+    };
     document.getElementById("triageConfirm").onclick = async function () {
       var payloadItems = Object.keys(state).map(function (sid) {
         return { submission_id: Number(sid), applicable: state[sid] };
@@ -1095,13 +1108,13 @@
       try {
         await api("/api/projects/" + projectId + "/triage", {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ items: payloadItems, actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
+          body: JSON.stringify({ items: payloadItems, actor_role: CURRENT_ROLE, actor_email: actingEmail(), save_as_default: saveAsDefault }),
         });
       } catch (err) {
         showToast("Could not save triage &#8211; " + apiErrorDetail(err), true);
         return;
       }
-      showToast("Triage confirmed");
+      showToast("Triage confirmed" + (saveAsDefault ? " &#8211; saved as your new default" : ""));
       refreshNavBadges();
       openDetail(projectId);
     };

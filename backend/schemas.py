@@ -120,6 +120,10 @@ class TriageRequest(BaseModel):
     items: list[TriageItem]
     actor_role: str = "Admin"
     actor_email: str = ""
+    # Explicit opt-in (a dedicated button, not a side effect of every
+    # confirm) -- a bulk "Mark All Required" shortcut for one tender must
+    # never silently overwrite the BM's remembered per-item defaults.
+    save_as_default: bool = False
 
 
 class SubmissionOut(BaseModel):
