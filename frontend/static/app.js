@@ -4471,7 +4471,7 @@
     "4.1": { label: "SC scope for early activities", needs: ["1.1"], note: "declares the early-activity items" },
     "4.5": { label: "Vendor offers review", needs: ["1.2"] },
     "2.2": { label: "Long-lead item PRs", needs: ["4.5", "6.1", "2.3"] },
-    "3.12": { label: "Prequalification of new vendors", needs: ["1.2"], note: "only blocks 3.1 if required" },
+    "3.12": { label: "Prequalification of new vendors", needs: ["1.2"], note: "per item -- mark complete directly if not needed for that vendor" },
     "3.1": { label: "Issue RFQ", needs: ["2.2", "3.12 (if required)"] },
     "3.2": { label: "Negotiation window", needs: ["3.1"], note: "opens 4.6, but can't finish until 4.6 does" },
     "4.6": { label: "Review SC vendor offers", needs: ["3.2 start"], note: "mutual gate with 3.2" },
@@ -4500,16 +4500,16 @@
   // that item's real progress through its chain.
   var PO_ANCHOR_ITEM_NOS = {
     "1.1": 1, "2.3": 1, "1.2": 1, "2.1": 1, "2.13": 1, "6.1": 1, "4.3": 1, "3.9": 1,
-    "4.4": 1, "4.1": 1, "3.12": 1, "1.6": 1, "6.2": 1, "2.11": 1, "2.17": 1,
+    "4.4": 1, "4.1": 1, "1.6": 1, "6.2": 1, "2.11": 1, "2.17": 1,
   };
   // Mirrors backend/routers/po_line_items.py's CATEGORY_STEP_SEQUENCE -- the
   // per-item fan-out chain each PoLineItem in a category actually walks.
   var PO_CATEGORY_STEP_SEQUENCE = {
-    long_lead: ["4.5", "2.2", "3.1", "3.2", "3.3", "3.4", "3.5", "3.6", "3.7"],
-    early_activity: ["2.6", "3.11"],
-    mep: ["2.14", "3.11"],
+    long_lead: ["3.12", "4.5", "2.2", "3.1", "3.2", "4.6", "3.3", "3.4", "3.5", "3.6", "3.7"],
+    early_activity: ["3.12", "2.6", "3.11"],
+    mep: ["3.12", "2.14", "3.11"],
     consultancy: ["2.7", "3.10"],
-    sc: ["3.8", "2.18"],
+    sc: ["3.12", "3.8", "2.18"],
   };
   // A fan-out item's own current_item_no (e.g. "2.6") only tells you where
   // that item sits in ITS OWN chain -- it says nothing about whether the
@@ -4562,9 +4562,9 @@
   // level) items interleaved with fan-out (per-item) ones exactly as shown.
   var PO_COLUMN_LAYOUT = {
     consultancy: ["1.1", "2.3", "1.2", "2.1", "6.1", "4.3", "3.9", "4.4", "2.7", "3.10"],
-    early_activity_mep: ["1.1", "2.3", "1.2", "2.1", "2.13", "6.1", "4.1", "2.6", "2.14", "3.11"],
-    long_lead: ["1.1", "2.3", "1.2", "2.1", "4.5", "6.1", "2.2", "3.12", "3.1", "3.2", "4.6", "1.6", "6.2", "3.3", "3.4", "3.5", "3.6", "3.7"],
-    sc: ["1.1", "2.3", "1.2", "2.11", "2.17", "1.6", "6.2", "3.8", "2.18"],
+    early_activity_mep: ["1.1", "2.3", "1.2", "2.1", "2.13", "6.1", "4.1", "3.12", "2.6", "2.14", "3.11"],
+    long_lead: ["1.1", "2.3", "1.2", "2.1", "3.12", "4.5", "6.1", "2.2", "3.1", "3.2", "4.6", "1.6", "6.2", "3.3", "3.4", "3.5", "3.6", "3.7"],
+    sc: ["1.1", "2.3", "1.2", "2.11", "2.17", "3.12", "1.6", "6.2", "3.8", "2.18"],
   };
   function poIcon(status) {
     var c = { done: "var(--good)", progress: "var(--warn)", blocked: "var(--crit)" }[status] || "var(--ink-500)";

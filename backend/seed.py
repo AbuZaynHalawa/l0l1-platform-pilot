@@ -970,11 +970,16 @@ L1_SHORT_NAMES = {
 # Comma-separated where one definition spans two pools -- "3.11" is the
 # shared PO-issuance step for both early_activity and mep items.
 LINE_ITEM_CATEGORY_BY_ITEM_NO = {
-    "4.5": "long_lead", "2.2": "long_lead", "3.1": "long_lead", "3.2": "long_lead",
+    "4.5": "long_lead", "2.2": "long_lead", "3.1": "long_lead", "3.2": "long_lead", "4.6": "long_lead",
     "3.3": "long_lead", "3.4": "long_lead", "3.5": "long_lead", "3.6": "long_lead", "3.7": "long_lead",
     "2.6": "early_activity", "2.14": "mep", "3.11": "early_activity,mep",
     "2.7": "consultancy", "3.10": "consultancy",
     "3.8": "sc", "2.18": "sc",
+    # [PO Lifecycle #13]: prequalification applies per-item across every
+    # real procurement pool -- long-lead, early activities, MEP, S/C.
+    # Deliberately excludes consultancy (always exactly one known firm, no
+    # real "which vendor" prequalification question there).
+    "3.12": "long_lead,early_activity,mep,sc",
 }
 
 
@@ -1028,11 +1033,23 @@ def _backfill_po_line_items(db):
         if not subs:
             continue
         by_category: dict[str, list] = {}
-        has_2_6 = any(s.definition.item_no == "2.6" for s in subs)
+        # A multi-category item_no (3.11 -> early_activity/mep; 3.12 ->
+        # all four pools) can't be filed under its own raw comma-joined
+        # string -- infer the real single category from whichever OTHER,
+        # single-category item_no this project's own subs already fall
+        # into (e.g. "2.6" present means "early_activity"). Falls back to
+        # the first listed candidate on a project with no such sibling yet
+        # (single-item-no-only edge case, rare in practice).
+        single_cats_present = {
+            LINE_ITEM_CATEGORY_BY_ITEM_NO[s.definition.item_no] for s in subs
+            if "," not in LINE_ITEM_CATEGORY_BY_ITEM_NO[s.definition.item_no]
+        }
         for s in subs:
             cat = LINE_ITEM_CATEGORY_BY_ITEM_NO[s.definition.item_no]
-            if cat == "early_activity,mep":  # "3.11" — infer from whichever sibling this project actually has
-                cat = "early_activity" if has_2_6 else "mep"
+            if "," in cat:
+                candidates = [c.strip() for c in cat.split(",")]
+                matched = [c for c in candidates if c in single_cats_present]
+                cat = matched[0] if matched else candidates[0]
             by_category.setdefault(cat, []).append(s)
         for cat, cat_subs in by_category.items():
             item = models.PoLineItem(project_id=project.id, category=cat, name="Item 1 (migrated)",

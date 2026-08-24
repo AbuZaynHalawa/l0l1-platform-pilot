@@ -19,11 +19,11 @@ router = APIRouter(prefix="/api/projects/{project_id}/po-line-items", tags=["po-
 # existing rules.is_bu_applicable), so listing both here is harmless: only
 # the one that was actually instantiated shows up in an item's own steps.
 CATEGORY_STEP_SEQUENCE = {
-    "long_lead": ["4.5", "2.2", "3.1", "3.2", "3.3", "3.4", "3.5", "3.6", "3.7"],
-    "early_activity": ["2.6", "3.11"],
-    "mep": ["2.14", "3.11"],
+    "long_lead": ["3.12", "4.5", "2.2", "3.1", "3.2", "4.6", "3.3", "3.4", "3.5", "3.6", "3.7"],
+    "early_activity": ["3.12", "2.6", "3.11"],
+    "mep": ["3.12", "2.14", "3.11"],
     "consultancy": ["2.7", "3.10"],
-    "sc": ["3.8", "2.18"],
+    "sc": ["3.12", "3.8", "2.18"],
 }
 
 EARLY_ACTIVITY_TYPES = [

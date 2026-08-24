@@ -615,6 +615,19 @@ def awaiting_milestone_note(db: Session, sub: "models.DeliverableSubmission",
     pred_item_no = sub.definition.predecessor_item_no
     if not pred_item_no:
         return None
+    # [4.6 <-> 3.2 mutual gate]: 4.6 (Review SC vendor offers) reviews
+    # whatever 3.2 (Negotiation window) has already put up for review --
+    # the Engineering owner can start reviewing/commenting the moment 3.2
+    # has any real progress (uploaded, sent for review), not only once 3.2
+    # is fully approved. A "Pending 3.2 completion" note here would read as
+    # a hard block it isn't, so it's suppressed once 3.2 (this same line
+    # item's own copy) has moved past NO_PROGRESS -- normal predecessor
+    # due-date math is untouched, this only affects the note.
+    if sub.definition.item_no == "4.6":
+        pred_subs_320 = _get_submissions(db, sub.project_id, "3.2", sub.definition.stage,
+                                          sub.definition.department_id, sub.po_line_item_id, lookup)
+        if pred_subs_320 and all(s.status != models.SubmissionStatus.NO_PROGRESS for s in pred_subs_320):
+            return None
     for item_no in [p.strip() for p in pred_item_no.split(",") if p.strip()]:
         for pred_sub in _get_submissions(db, sub.project_id, item_no, sub.definition.stage,
                                           sub.definition.department_id, sub.po_line_item_id, lookup):
