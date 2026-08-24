@@ -161,6 +161,13 @@ class SubmissionOut(BaseModel):
     # from "2.6 — Route Survey" as two separate, individually actionable rows.
     po_line_item_id: int | None = None
     line_item_name: str | None = None
+    # [PO Lifecycle placeholder visibility]: set only on a synthetic,
+    # non-persisted row (id is a negative sentinel, not a real submission)
+    # standing in for a fan-out item_no that has zero real submissions yet
+    # -- e.g. "2.6" before 4.1 has been approved and actually determined
+    # which early-activity items exist. Always visible instead of silently
+    # missing; not clickable, no action buttons.
+    pending_declaration_note: str | None = None
 
     class Config:
         from_attributes = True

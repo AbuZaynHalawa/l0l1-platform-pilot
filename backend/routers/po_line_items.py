@@ -37,6 +37,29 @@ MEP_TYPES = ["HCIS Consultancy", "Fire Fighting Consultancy"]
 # modal both key off.
 DECLARING_ITEM_NOS = ("1.2", "4.1", "2.11", "2.17")
 
+# The reverse direction -- which declaring item_no(s) a category's own items
+# won't exist without. "sc" has two candidates since which one actually
+# applies depends on project scope (OHTL/UGC vs SS); "consultancy" has none
+# -- it's auto-created at project creation (projects._ensure_consultancy_line_item),
+# never gated on a declaring item at all. Used by projects.get_deliverables
+# to name the right declaring item(s) in a placeholder's "Pending X" note.
+CATEGORY_DECLARING_ITEM_NOS = {
+    "long_lead": ["1.2"], "mep": ["1.2"], "early_activity": ["4.1"], "sc": ["2.11", "2.17"],
+}
+
+
+def declaring_item_nos_for(line_item_category: str) -> list[str]:
+    """line_item_category can be comma-separated (e.g. "early_activity,mep"
+    for 3.11, all four pools for 3.12) -- collect every distinct declaring
+    item_no across all of it, in a stable order.
+    """
+    result: list[str] = []
+    for cat in line_item_category.split(","):
+        for item_no in CATEGORY_DECLARING_ITEM_NOS.get(cat.strip(), []):
+            if item_no not in result:
+                result.append(item_no)
+    return result
+
 
 def _get_project(db: Session, project_id: int) -> models.Project:
     project = db.query(models.Project).filter(models.Project.id == project_id).first()

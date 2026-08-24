@@ -3071,8 +3071,14 @@
 
     function makeFolderRow(deptName, isChild) {
       var deptItems = allDelivs.filter(function (d) { return d.department === deptName; });
-      var approved = deptItems.filter(function (d) { return d.status === "approved"; }).length;
-      var pct = deptItems.length ? Math.round((approved / deptItems.length) * 100) : null;
+      // [PO Lifecycle placeholder visibility]: a pending-declaration
+      // placeholder isn't real trackable work yet -- excluded from the
+      // folder's own completion percentage the same way Not Required
+      // items already are, so it doesn't dilute the rate with something
+      // that can't be approved yet.
+      var realItems = deptItems.filter(function (d) { return !d.pending_declaration_note; });
+      var approved = realItems.filter(function (d) { return d.status === "approved"; }).length;
+      var pct = realItems.length ? Math.round((approved / realItems.length) * 100) : null;
       var row = el("div", "folder-row" + (isChild ? " folder-row-child" : ""));
       row.dataset.dept = deptName;
       var label = isChild ? deptName.replace(/^.* \(([^)]+)\)$/, "$1") : deptLabel(deptName, deptNumber[deptName]);
@@ -3657,8 +3663,24 @@
         wrap.appendChild(el("div", "deliv-subheader", subGroup === "PBU" ? "PBU-Specific Items" : "Main Business Unit"));
         lastSubGroup = subGroup;
       }
-      wrap.appendChild(subs.length > 1 ? buildFanoutDelivRow(subs) : buildDelivRow(d));
+      wrap.appendChild(d.pending_declaration_note ? buildPendingDeclarationRow(d) : (subs.length > 1 ? buildFanoutDelivRow(subs) : buildDelivRow(d)));
     });
+  }
+  // [PO Lifecycle placeholder visibility]: a fan-out item_no with zero real
+  // submissions yet (its declaring item hasn't been approved, so the named
+  // items don't exist to fan out against) -- shown as a locked, informational
+  // row instead of vanishing, so it reads as "not started yet" rather than
+  // "this item is gone". Never clickable -- there's no real submission id
+  // behind it to open a modal for.
+  function buildPendingDeclarationRow(d) {
+    var row = el("div", "deliv-row pending-declaration");
+    var body = el("div", "deliv-body");
+    body.appendChild(el("div", "deliv-name", d.name));
+    body.appendChild(el("div", "deliv-due", '<span class="pill neutral"><span class="dot"></span>' + d.pending_declaration_note + "</span>"));
+    row.appendChild(el("div", "deliv-num", d.item_no));
+    row.appendChild(body);
+    row.appendChild(el("div", "deliv-actions", '<span class="locked-note">Not yet determined</span>'));
+    return row;
   }
   // Item 138: a lighter refresh than openDetail() for the project detail
   // deliverables list -- re-fetches and re-renders just the currently-open

@@ -958,6 +958,7 @@ def get_deliverables(project_id: int, department: str | None = None, include_aut
     doc_counts = rules.document_counts(db, [s.id for s in subs])
     pending_kinds = rules.pending_due_date_request_kinds(db, [s.id for s in subs])
     out = []
+    sort_keys = []
     for s in subs:
         deadline_key, deadline_days = rules.deadline_status(s)
         points_earned = (
@@ -982,6 +983,53 @@ def get_deliverables(project_id: int, department: str | None = None, include_aut
             po_line_item_id=s.po_line_item_id,
             line_item_name=s.po_line_item.name if s.po_line_item_id else None,
         ))
+        sort_keys.append((s.definition.department.number or 0, rules.item_sort_key(s.definition.item_no)))
+
+    # [PO Lifecycle placeholder visibility]: a fan-out item (line_item_category
+    # set) has no submission at all until its declaring item (1.2/4.1/2.11/
+    # 2.17) is approved and creates the first PoLineItem for its category --
+    # before that it's invisible, reading as "this item vanished" rather
+    # than "not due yet". Surface one synthetic, non-persisted placeholder
+    # row per such definition instead (never a real submission -- id is a
+    # negative sentinel), replaced automatically the moment any real
+    # submission for it exists. General across every fan-out item_no, not
+    # just one -- 2.6, 2.14, 3.11 (gated on 4.1), 4.5/2.2/3.1-3.7/4.6 (1.2),
+    # 3.8/2.18 (2.11 or 2.17), 3.12 (whichever of those actually applies).
+    if project.stage == models.Stage.L1 and not include_auto_completed:
+        from . import po_line_items as _po_line_items
+        real_definition_ids = {s.deliverable_definition_id for s in subs}
+        fan_out_q = (
+            db.query(models.DeliverableDefinition)
+            .join(models.Department)
+            .filter(models.DeliverableDefinition.stage == models.Stage.L1,
+                    models.DeliverableDefinition.active == True,  # noqa: E712
+                    models.DeliverableDefinition.line_item_category.isnot(None))
+        )
+        if department:
+            fan_out_q = fan_out_q.filter(models.Department.name == department)
+        for d in fan_out_q.all():
+            if d.id in real_definition_ids:
+                continue
+            if not (rules.is_bu_applicable(d, project) and rules.is_scope_variant_applicable(d, project)):
+                continue
+            declaring = _po_line_items.declaring_item_nos_for(d.line_item_category)
+            note = (
+                f"Pending {' / '.join(declaring)} approval — the exact items will be determined then."
+                if declaring else "Pending scoping — the exact items aren't determined yet."
+            )
+            out.append(schemas.SubmissionOut(
+                id=-d.id, item_no=d.item_no, name=rules.display_name(d, project),
+                department=d.department.name, due_date=None, status="pending_declaration",
+                applicability="applicable", auto_completed=False,
+                owner_emails=[], sme_emails=[], file_name=None, file_url=None,
+                submitted_at=None, review_comment=None, completion_note=None,
+                is_milestone=False, milestone_code=None, doc_total=0,
+                awaiting_note=None, points_earned=None, pending_due_date_request_kind=None,
+                po_line_item_id=None, line_item_name=None, pending_declaration_note=note,
+            ))
+            sort_keys.append((d.department.number or 0, rules.item_sort_key(d.item_no)))
+
+    out = [o for _, o in sorted(zip(sort_keys, out), key=lambda pair: pair[0])]
     db.commit()
 
     rules.check_l1_completion(db, project)

@@ -492,6 +492,11 @@
   .deliv-list { display: flex; flex-direction: column; }
   .deliv-row { display: flex; align-items: center; gap: 12px; padding: 12px 18px; border-bottom: 1px solid var(--line); }
   .deliv-row.flash { animation: annFlash 1.8s ease; }
+  /* Item [PO Lifecycle placeholder visibility]: a fan-out item_no with no
+     real submission yet -- visibly present but distinct from an actionable
+     row, so it doesn't invite an upload/click that has nothing behind it. */
+  .deliv-row.pending-declaration { background: var(--surface-sunken); }
+  .deliv-row.pending-declaration .deliv-name { color: var(--ink-500); font-style: italic; }
   .triage-toggle { display: flex; gap: 6px; flex-shrink: 0; }
   /* Item 139: BM Triage can list 50+ items across every department --
      tighter row/header spacing here (only here, not the shared .deliv-row
