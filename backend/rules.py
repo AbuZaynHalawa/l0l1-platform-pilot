@@ -259,6 +259,22 @@ L0_THRESHOLD_DURATION_ITEMS = {"1.8", "1.9", "1.10"}
 # and HSSE's "12.1".
 L0_SITE_VISIT_FALLBACK_ITEMS = {"2.4", "3.1", "4.1", "5.1", "9.1", "10.1", "11.1", "12.1"}
 
+# [L0 International]: these items' own source-template formula is a genuine
+# two-branch "+N days from M1 OR M days from/before X" (not a single
+# shortcut like every other predecessor item) -- item_no -> (alt predecessor
+# item_no, alt offset_days, alt offset_direction). Confirmed with the user
+# (2026-08-24, reviewing the Est-1641 sample against this catalog): compute
+# both the item's own normal (predecessor_item_no/offset_days) branch AND
+# this alternate, and take whichever lands LATER. "4.5" doubles as both a
+# key here (its own OR is against submission/1.24) and the alt-predecessor
+# for 1.10/1.11/1.12 ("receiving engineering inputs") -- no circularity,
+# since 4.5's own resolution never depends on any of those three.
+L0_INTL_OR_ITEMS = {
+    "1.10": ("4.5", 2, "after"), "1.11": ("4.5", 2, "after"), "1.12": ("4.5", 2, "after"),
+    "4.4": ("1.24", 10, "before"), "4.5": ("1.24", 10, "before"),
+    "4.7": ("1.24", 10, "before"), "4.9": ("1.24", 7, "before"),
+}
+
 
 def _tender_window_days(project: "models.Project") -> int | None:
     if project.bsd is None or project.announcement_date is None:
@@ -743,7 +759,7 @@ def compute_due_date(db: Session, sub: "models.DeliverableSubmission", project: 
             # next-workday shift here. Not a "how long this takes" duration,
             # so the tight-BSD ratio below doesn't apply here either.
             result = anchor - timedelta(days=offset)
-            return _skip_weekend_backward(result)
+            primary = _skip_weekend_backward(result)
         else:
             # Genuine dependency: work starts the day after the predecessor
             # is due, then runs `offset` working days — offset counts the
@@ -752,7 +768,23 @@ def compute_due_date(db: Session, sub: "models.DeliverableSubmission", project: 
             # ratio]: on a tight-BSD L0 project this offset gets scaled down
             # first (floored at 1 workday) -- see Project.duration_ratio.
             start = next_workday_after(anchor)
-            return duration_end(start, _scaled_duration(project, offset) if is_l0 else offset)
+            primary = duration_end(start, _scaled_duration(project, offset) if is_l0 else offset)
+
+        # [L0 International OR-formula items]: a genuine second branch, not
+        # just the primary one above -- compute it too and take the later
+        # date. See L0_INTL_OR_ITEMS' own docstring for why.
+        if getattr(project, "is_international", False) and item_no in L0_INTL_OR_ITEMS:
+            alt_pred, alt_offset, alt_direction = L0_INTL_OR_ITEMS[item_no]
+            alt_anchor = _resolve_predecessor_anchor(db, project, alt_pred, definition.department_id,
+                                                      sub.po_line_item_id, lookup)
+            if alt_anchor is not None:
+                if alt_direction == "before":
+                    alt_result = _skip_weekend_backward(alt_anchor - timedelta(days=alt_offset))
+                else:
+                    alt_result = duration_end(next_workday_after(alt_anchor), alt_offset)
+                if alt_result > primary:
+                    return alt_result
+        return primary
 
     # "client_dependent" and library/on_request (anchor_type is None) both have no computable date.
     return None
