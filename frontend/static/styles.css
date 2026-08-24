@@ -642,6 +642,25 @@
   .tour-flow-strip { display: flex; align-items: center; gap: 10px; margin: 2px 0 16px; }
   .tour-flow-arrow { color: var(--ink-300); font-size: 16px; font-weight: 700; }
 
+  /* Item [L0/L1 general concept slide]: the flow-diagram shape vocabulary
+     for l0l1FlowDiagram() -- box/band/diamond/end-states, all themed off
+     the same tokens as the rest of the app so it re-themes with dark mode. */
+  .tgc-svg { width: 100%; max-width: 480px; height: auto; display: block; margin: 0 auto; }
+  .tgc-svg text { font-family: inherit; }
+  .tgc-box { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; }
+  .tgc-box-label { fill: var(--ink-900); font-size: 13px; font-weight: 700; }
+  .tgc-stage-band.l0 { fill: var(--l0-1); }
+  .tgc-stage-band.l1 { fill: #1f9d5c; }
+  .tgc-stage-text { fill: #fff; font-size: 11.5px; font-weight: 700; }
+  .tgc-arrow { stroke: var(--ink-500); stroke-width: 2; fill: none; }
+  .tgc-arrowhead { fill: var(--ink-500); }
+  .tgc-decision { fill: var(--surface-sunken); stroke: var(--ink-700); stroke-width: 1.5; }
+  .tgc-branch-label { fill: var(--ink-500); font-size: 11px; font-weight: 700; }
+  .tgc-end-crit { fill: var(--crit-bg); stroke: var(--crit); stroke-width: 1.5; }
+  .tgc-end-crit-text { fill: var(--crit); font-size: 12px; font-weight: 700; }
+  .tgc-end-good { fill: var(--good-bg); stroke: var(--good); stroke-width: 1.5; }
+  .tgc-end-good-text { fill: var(--good-2); font-size: 12.5px; font-weight: 700; }
+
   .tour-dot-ic { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; }
   .tour-dot-ic.good { background: var(--good); }
   .tour-dot-ic.warn { background: var(--warn); }

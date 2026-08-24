@@ -1280,8 +1280,8 @@
         "management visibility. The system now also supports <b>International</b> L0 tenders — their " +
         "own catalog and departments, same workflow.</p>" +
         '<p class="tour-step-text">This walkthrough covers where the system came from, how the two stages ' +
-        "work, and how to actually use this portal day to day. Seventeen short steps &#8212; use Next/Back " +
-        "or the dots below.</p>",
+        "work, and how to actually use this portal day to day. Twenty-one short steps &#8212; use " +
+        "Next/Back or the dots below.</p>",
     },
     {
       eyebrow: "The Story So Far",
@@ -1342,26 +1342,31 @@
         "</div>",
     },
     {
+      eyebrow: "How It Works",
+      title: "L0/L1 General Concept",
+      body:
+        '<p class="tour-step-text">Every tender moves through the same two stages, each with exactly ' +
+        "one owning department and its own duration profile:</p>" +
+        l0l1FlowDiagram() +
+        '<div class="tour-callout">&#127760; An <b>International</b> tender (outside Saudi Arabia) adds one ' +
+        "more stage before this: <b>New Opportunity &#8594; L-Pre Stage</b> (duration unknown), then " +
+        "the exact same L0 &#8594; L1 flow shown above.</div>",
+    },
+    {
       eyebrow: "How It Works · L0",
       title: "Tendering Stage",
       body:
-        '<p class="tour-step-text">A tender opens at <b>L0 Announcement (M1)</b>. Site visit, pre-bid meeting, ' +
-        "and pre-bid clarification deadlines get announced, and every department (Operations, " +
-        "Supply Chain, Engineering, Planning/Cost Control, Contract, HR, Finance, SHEQ, IT, Risk, " +
-        "Fleet/FM) prepares its own deliverables in parallel with predefined, agreed-upon due dates. " +
-        "The <b>Project Schedule (M3)</b> anchors most department due dates. Technical offers circulate " +
-        "once RFQs return (<b>M4</b>), and the tender closes with the <b>Proposal Submitted to " +
-        "client (M5)</b>, timed to the Bid Submission Date.</p>" +
+        '<p class="tour-step-text">When a <b>Go Approval</b> is received from management to bid for a ' +
+        "tender, <b>L0 Stage</b> begins with an <b>Announcement (M1)</b> to every concerned department " +
+        "(Operations, Supply Chain, Engineering, Planning/Cost Control, Contract, HR, Finance, SHEQ, " +
+        "IT, Risk, Fleet/FM) to prepare its own deliverables as per the agreed-upon due dates.</p>" +
+        '<p class="tour-step-text">The <b>Tendering Department</b> is the owner of this stage, and every ' +
+        "other department works as a supporting unit, in order to come up with a comprehensive and " +
+        "competitive proposal.</p>" +
         '<p class="tour-step-text">Checking <b>International tender</b> on the create form swaps in a ' +
         "separate catalog and department set built for tenders outside Saudi Arabia (its own new " +
         "departments, an auto-assigned IBU business unit, a Country field instead of Region) — " +
-        "everything downstream (triage, owner assignment, badges) still works exactly the same way.</p>" +
-        '<div class="mock-fs">' +
-        milestoneMock([
-          ["M1", "Announced", true], ["M2", "Site Visit", true], ["M3", "Schedule", true],
-          ["M4", "Tech Offers", false, true], ["M5", "Proposal", false],
-        ]) +
-        "</div>",
+        "everything downstream (triage, owner assignment, badges) still works exactly the same way.</p>",
     },
     {
       eyebrow: "How It Works · L1",
@@ -1534,8 +1539,8 @@
       title: "Dashboard",
       body:
         '<p class="tour-step-text">Your landing page &#8212; the org-wide snapshot of what needs attention ' +
-        'right now. Toggle <b>All / My Items</b> at the top to scope everything to just what you ' +
-        "own or review.</p>" +
+        'right now, split cleanly by stage throughout. Toggle <b>All / My Items</b> at the top to ' +
+        "scope everything to just what you own or review.</p>" +
         '<div class="mock-window"><div class="mock-titlebar"><div class="mock-dot-3"></div>' +
         '<div class="mock-dot-3"></div><div class="mock-dot-3"></div><span>Dashboard</span></div>' +
         '<div class="mock-body">' +
@@ -1549,9 +1554,40 @@
         statMock("No Progress Yet", "285", "neutral") + statMock("In Progress", "0", "warn") + statMock("Pending SME Review", "0", "warn") +
         statMock("Completed", "11", "good") + statMock("Rejected", "2", "crit") +
         "</div>" +
-        '<div class="tour-callout">&#128072; Click any of these tiles on the real Dashboard to jump ' +
-        "straight to that filtered slice of Assigned Deliverables.</div>" +
-        "</div></div>",
+        "</div></div>" +
+        '<ul class="tour-list">' +
+        "<li><b>Latest Announcements</b>, <b>Newest Milestones</b>, and &#9888; <b>Concerns</b> &#8212; " +
+        "each split into its own L0 feed and L1 feed, so tendering news never drowns out execution news</li>" +
+        "<li><b>Top Departments</b> &#8212; who's carrying the most active work right now, per stage</li>" +
+        "<li><b>Top Achievers</b> &#8212; the best-performing Owners and SMEs, right on the landing page</li>" +
+        "<li><b>Deliverables Matrix</b> &#8212; every active project &times; every deliverable, live, " +
+        "colored Not Due / Due / Completed &#8212; the fastest way to spot a pattern across the whole " +
+        "portfolio at a glance</li>" +
+        "</ul>" +
+        '<div class="tour-callout">&#128072; Click any stat tile, feed item, or matrix cell to jump ' +
+        "straight to that filtered slice or the exact deliverable.</div>",
+    },
+    {
+      eyebrow: "Around the Portal",
+      title: "Assigned Deliverables",
+      body:
+        '<p class="tour-step-text">Every deliverable currently assigned to you as <b>Owner</b> or ' +
+        "<b>SME</b>, across every active L0 and L1 project, in one filterable table &#8212; instead of " +
+        "hunting through each project's own folders one at a time.</p>" +
+        '<div class="mock-window"><div class="mock-titlebar"><div class="mock-dot-3"></div>' +
+        '<div class="mock-dot-3"></div><div class="mock-dot-3"></div><span>Assigned Deliverables</span></div>' +
+        '<div class="mock-deliv-list" style="margin:12px;">' +
+        deliverableMock("2.6", "Topography Survey (GIS Package)", "crit", "Due") +
+        deliverableMock("4.5", "Value Engineering Studies (Towers)", "warn", "In Progress") +
+        deliverableMock("1.3", "Announce Pre-bid Meeting", "good", "Completed") +
+        "</div></div>" +
+        '<ul class="tour-list">' +
+        "<li>Filter by <b>L0 / L1</b>, Deadline status, or Progress status</li>" +
+        "<li>A per-item PO Lifecycle deliverable shows which named line item it's actually for &#8212; " +
+        "\"2.6 &#8212; Topography Survey\" and \"2.6 &#8212; Route Survey\" read as two separate, " +
+        "independently actionable rows, not one confusing duplicate</li>" +
+        "<li>Click any row to open the exact same detail popup you'd get from inside the project itself</li>" +
+        "</ul>",
     },
     {
       eyebrow: "Around the Portal",
@@ -1575,7 +1611,60 @@
         deliverableMock("1.7", "Develop Estimate Program", "crit", "Due") +
         deliverableMock("1.9", "Float Materials RFQ", "neutral", "Not Due") +
         deliverableMock("1.5", "Assign Bid Manager", "warn", "Pending Review") +
-        "</div></div></div>",
+        "</div></div></div>" +
+        '<p class="tour-step-text">Every project also has an <b>Activity Trail</b> tab (its full history) ' +
+        "and, for L1, a <b>PO Lifecycle</b> tab (per-item procurement tracking) &#8212; both covered " +
+        "next.</p>",
+    },
+    {
+      eyebrow: "Around the Portal",
+      title: "Activity Trail",
+      body:
+        '<p class="tour-step-text">Every project has its own <b>Activity Trail</b> tab &#8212; a full ' +
+        "chronological log of every action taken on every one of its deliverables, in one place.</p>" +
+        '<div class="mock-window"><div class="mock-titlebar"><div class="mock-dot-3"></div>' +
+        '<div class="mock-dot-3"></div><div class="mock-dot-3"></div><span>Activity Trail</span></div>' +
+        '<div class="mock-deliv-list" style="margin:12px;">' +
+        deliverableMock("4.5 — GIS Unit", "Approved by S.Alotaibi", "good", "Approved") +
+        deliverableMock("3.2 — GIS Unit", "Submitted by A.Rahman", "warn", "Submitted") +
+        deliverableMock("1.5", "Auto-completed", "neutral", "Auto-Done") +
+        "</div></div>" +
+        '<ul class="tour-list">' +
+        "<li>Submitted, sent for review, approved, rejected, reopened, reassigned, extended, put on " +
+        "or resumed from hold, marked Not Required &#8212; every one of these is its own timestamped " +
+        "entry</li>" +
+        "<li>For a per-item PO Lifecycle deliverable, the entry names the specific line item (e.g. " +
+        "\"4.5 &#8212; GIS Unit\"), not just the bare item number</li>" +
+        "<li>Nothing here can ever be edited or deleted &#8212; it's the permanent record of who did " +
+        "what, and when</li>" +
+        "</ul>",
+    },
+    {
+      eyebrow: "Around the Portal · L1",
+      title: "PO Lifecycle",
+      body:
+        '<p class="tour-step-text">Long-lead items, early activities, MEP, subcontractor agreements, and ' +
+        "the Consultancy PO don't move as one blanket deliverable &#8212; each <b>named item</b> (e.g. " +
+        "\"GIS Unit\", \"Topography Survey\") walks its own copy of the same step chain independently, " +
+        "so one item can be at PO signature while another hasn't even started.</p>" +
+        '<div class="mock-window"><div class="mock-titlebar"><div class="mock-dot-3"></div>' +
+        '<div class="mock-dot-3"></div><div class="mock-dot-3"></div><span>PO Lifecycle &#8211; Long Lead Items</span></div>' +
+        '<div class="mock-deliv-list" style="margin:12px;">' +
+        deliverableMock("GIS Unit", "Skipped 4.5, 2.2 / Next 3.2", "warn", "82%") +
+        deliverableMock("Transformer", "3.5 Electronic PO Signature", "good", "100%") +
+        deliverableMock("Towers", "4.5 Value Engineering Studies", "crit", "Rejected") +
+        "</div></div>" +
+        '<ul class="tour-list">' +
+        "<li>Read-only here &#8212; every upload and review still happens on the item's own row in the " +
+        "normal Deliverables tab; this tab just shows the whole chain at a glance</li>" +
+        "<li>Steps can complete out of order (some real predecessors are parallel, not sequential) " +
+        "&#8212; shown honestly as <b>Skipped</b>, never silently marked done</li>" +
+        "<li>3.2 (Supply Chain negotiating terms) and 4.6 (Engineering's technical review) are linked " +
+        "&#8212; once 3.2 has real progress, 4.6 flips to In Progress with a direct link to whatever's " +
+        "been uploaded so far, so its owner can start reviewing right away</li>" +
+        "<li>Each named item earns its own pro-rata score, feeding the exact same Performance numbers " +
+        "as every other deliverable</li>" +
+        "</ul>",
     },
     {
       eyebrow: "Around the Portal",
@@ -1621,8 +1710,9 @@
         '<span class="fu-dept-tags"><span class="fu-dept-count">3 overdue</span></span></summary></details>' +
         "</div>" +
         '<ul class="tour-list">' +
-        "<li>Pending <b>Due-Date Requests</b> (Extensions &amp; Holds) awaiting a decision</li>" +
-        "<li>Pending <b>Reassignment Requests</b> &#8212; an Owner asking to hand an item to someone else</li>" +
+        "<li>Four pending-request queues, side by side: <b>Due-Date Requests</b> (Extensions &amp; " +
+        "Holds), <b>Reassignment Requests</b>, <b>SME Nominations</b> (someone self-nominating to be " +
+        "an item's SME), and <b>Bid Value Access Requests</b></li>" +
         "<li>Every <b>overdue deliverable</b> across the whole portal, grouped by department, most " +
         "overdue first, with a Critical (15+ days) severity filter</li>" +
         "</ul>" +
@@ -1716,6 +1806,44 @@
   function announcementRowMock(icon, title, body) {
     return '<div class="mock-ann-row"><div class="mock-ann-ic">' + icon + '</div>' +
       '<div><div class="mock-ann-title">' + title + '</div><div class="mock-ann-body">' + body + "</div></div></div>";
+  }
+  // Item [L0/L1 general concept slide]: recreates the flow diagram from the
+  // source "L0 L1 general concept.xlsx" (Standard sheet) -- who owns each
+  // stage, and its duration profile -- as inline SVG rather than an image,
+  // so it re-themes with dark mode the same way every other tour visual
+  // does. Unlike the other mock-* helpers, this isn't a recreation of a
+  // live app screen -- it's a new conceptual diagram, so it gets its own
+  // shape vocabulary (box/band/diamond) instead of reusing .mock-window etc.
+  function l0l1FlowDiagram() {
+    return '<svg class="tgc-svg" viewBox="0 0 620 490" xmlns="http://www.w3.org/2000/svg">' +
+      '<defs><marker id="tgcArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto">' +
+      '<path d="M0,0 L10,5 L0,10 z" class="tgc-arrowhead"/></marker></defs>' +
+      '<rect class="tgc-box" x="155" y="15" width="310" height="38" rx="8"/>' +
+      '<text class="tgc-box-label" x="310" y="39" text-anchor="middle">Receive Tender Documents</text>' +
+      '<line class="tgc-arrow" x1="310" y1="53" x2="310" y2="76" marker-end="url(#tgcArrow)"/>' +
+      '<rect class="tgc-stage-band l0" x="40" y="78" width="540" height="32" rx="6"/>' +
+      '<text class="tgc-stage-text" x="310" y="98" text-anchor="middle">L0 STAGE &#183; Owner: Tendering Department &#183; Fixed Duration</text>' +
+      '<line class="tgc-arrow" x1="310" y1="110" x2="310" y2="133" marker-end="url(#tgcArrow)"/>' +
+      '<rect class="tgc-box" x="155" y="135" width="310" height="38" rx="8"/>' +
+      '<text class="tgc-box-label" x="310" y="159" text-anchor="middle">Submit Proposal to Client</text>' +
+      '<line class="tgc-arrow" x1="310" y1="173" x2="310" y2="199" marker-end="url(#tgcArrow)"/>' +
+      '<polygon class="tgc-decision" points="310,201 385,243 310,285 235,243"/>' +
+      '<text class="tgc-box-label" x="310" y="248" text-anchor="middle">Lowest Price?</text>' +
+      '<line class="tgc-arrow" x1="385" y1="243" x2="466" y2="243" marker-end="url(#tgcArrow)"/>' +
+      '<text class="tgc-branch-label" x="424" y="234" text-anchor="middle">No</text>' +
+      '<rect class="tgc-end-crit" x="470" y="222" width="130" height="42" rx="8"/>' +
+      '<text class="tgc-end-crit-text" x="535" y="248" text-anchor="middle">Tender Closed</text>' +
+      '<line class="tgc-arrow" x1="310" y1="285" x2="310" y2="308" marker-end="url(#tgcArrow)"/>' +
+      '<text class="tgc-branch-label" x="328" y="301">Yes</text>' +
+      '<rect class="tgc-box" x="140" y="310" width="340" height="38" rx="8"/>' +
+      '<text class="tgc-box-label" x="310" y="334" text-anchor="middle">Receive L1 Notification from Client</text>' +
+      '<line class="tgc-arrow" x1="310" y1="348" x2="310" y2="371" marker-end="url(#tgcArrow)"/>' +
+      '<rect class="tgc-stage-band l1" x="40" y="373" width="540" height="32" rx="6"/>' +
+      '<text class="tgc-stage-text" x="310" y="393" text-anchor="middle">L1 STAGE &#183; Owner: Operation Unit &#183; Duration Unknown (~4 months typical)</text>' +
+      '<line class="tgc-arrow" x1="310" y1="405" x2="310" y2="428" marker-end="url(#tgcArrow)"/>' +
+      '<rect class="tgc-end-good" x="180" y="430" width="260" height="42" rx="8"/>' +
+      '<text class="tgc-end-good-text" x="310" y="456" text-anchor="middle">Contract Signing</text>' +
+      "</svg>";
   }
 
   var tourStep = 0;
