@@ -998,6 +998,18 @@ def get_deliverables(project_id: int, department: str | None = None, include_aut
     if project.stage == models.Stage.L1 and not include_auto_completed:
         from . import po_line_items as _po_line_items
         real_definition_ids = {s.deliverable_definition_id for s in subs}
+        # Real names for the four possible declaring items (1.2/4.1/2.11/
+        # 2.17), so a placeholder's note names the actual predecessor --
+        # "Pending 1.2 Provide Early mobilization Plan, Long lead items &
+        # MEP consultancy needs approval" -- the same "item_no + name"
+        # label every other predecessor-gated note in this app already
+        # uses (see rules.awaiting_milestone_note), not a bare item number.
+        declaring_names: dict[str, str] = {}
+        for item_no, name in db.query(models.DeliverableDefinition.item_no, models.DeliverableDefinition.name).filter(
+            models.DeliverableDefinition.stage == models.Stage.L1,
+            models.DeliverableDefinition.item_no.in_(_po_line_items.DECLARING_ITEM_NOS),
+        ).all():
+            declaring_names.setdefault(item_no, name)
         fan_out_q = (
             db.query(models.DeliverableDefinition)
             .join(models.Department)
@@ -1013,9 +1025,10 @@ def get_deliverables(project_id: int, department: str | None = None, include_aut
             if not (rules.is_bu_applicable(d, project) and rules.is_scope_variant_applicable(d, project)):
                 continue
             declaring = _po_line_items.declaring_item_nos_for(d.line_item_category)
+            labels = [f"{item_no} {declaring_names[item_no]}" for item_no in declaring if item_no in declaring_names]
             note = (
-                f"Pending {' / '.join(declaring)} approval — the exact items will be determined then."
-                if declaring else "Pending scoping — the exact items aren't determined yet."
+                f"Pending {' / '.join(labels)} approval — the exact items will be determined then."
+                if labels else "Pending scoping — the exact items aren't determined yet."
             )
             out.append(schemas.SubmissionOut(
                 id=-d.id, item_no=d.item_no, name=rules.display_name(d, project),
