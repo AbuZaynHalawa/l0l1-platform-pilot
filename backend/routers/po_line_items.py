@@ -249,6 +249,11 @@ def po_cycle_summary(project_id: int, db: Session = Depends(get_db)):
                 "id": li.id, "name": li.name, "source": li.source, "status": item_status,
                 "step_position": passed, "total_steps": len(item_seq),
                 "current_item_no": current_item_no, "open_submission_id": open_submission_id,
+                # [PO Lifecycle clickable items] one submission id per step in
+                # THIS line item's own chain -- lets each segment of its
+                # progress bar open its own real submission, not just the
+                # single current/last one open_submission_id points at.
+                "step_submission_ids": {item_no: s.id for item_no, s in item_subs.items()},
                 "approved_item_nos": approved_item_nos, "skipped_item_nos": skipped_item_nos,
                 # [PO Lifecycle] the raw status of whichever step is
                 # currently blocking this item -- lets the UI show e.g.

@@ -4997,7 +4997,17 @@
       var stateLabel = cls === "done" ? "Done" : cls === "rejected" ? "Rejected" : cls === "skipped" ? "Skipped" : cls === "current" ? "Current" : "Pending";
       var label = (PO_ITEM_META[itemNo] || {}).label || "";
       var title = itemNo + (label ? " – " + label : "") + " – " + stateLabel;
-      dots += '<span class="dot' + (cls ? " " + cls : "") + '" data-tooltip="' + title.replace(/"/g, "&quot;") + '"></span>';
+      // [PO Lifecycle clickable items] every segment opens its own real
+      // submission, not just the row's overall current/last one -- an
+      // anchor item_no (1.2/4.1/2.11/2.17 etc.) is one shared project-level
+      // submission (singleByItemNo), everything else is this line item's
+      // own step (li.step_submission_ids).
+      var dotSubId = PO_ANCHOR_ITEM_NOS[itemNo]
+        ? (singleByItemNo[itemNo] ? singleByItemNo[itemNo].id : null)
+        : ((li.step_submission_ids || {})[itemNo] || null);
+      var dotAttr = dotSubId ? ' data-open-submission="' + dotSubId + '"' : "";
+      var dotCls = "dot" + (cls ? " " + cls : "") + (dotSubId ? " clickable" : "");
+      dots += '<span class="' + dotCls + '" data-tooltip="' + title.replace(/"/g, "&quot;") + '"' + dotAttr + '></span>';
     }
     return '<div class="po-item-track">' + dots + "</div>";
   }
@@ -5035,6 +5045,15 @@
     });
     box.querySelectorAll(".po-item-row[data-open-submission]").forEach(function (rowEl) {
       rowEl.addEventListener("click", function () { openDelivModal(parseInt(rowEl.dataset.openSubmission, 10)); });
+    });
+    // Each segment of a line item's own progress bar opens its own
+    // submission -- stopPropagation so this doesn't also fire the row's
+    // own click (which would open the row's current/last step instead).
+    box.querySelectorAll(".po-item-track .dot[data-open-submission]").forEach(function (dotEl) {
+      dotEl.addEventListener("click", function (e) {
+        e.stopPropagation();
+        openDelivModal(parseInt(dotEl.dataset.openSubmission, 10));
+      });
     });
     return box;
   }
