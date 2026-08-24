@@ -1261,7 +1261,7 @@
         '<span class="tour-flow-arrow">&#8594;</span>' +
         '<span class="stage-badge l1">&#128294; L1 &middot; Early Execution</span>' +
         "</div>" +
-        '<p class="tour-step-text">The <b>L0/L1 System</b> is Algihaz\'s control framework for managing the ' +
+        '<p class="tour-step-text">The <b>Project Readiness (L0/L1) Platform</b> is Algihaz\'s control framework for managing the ' +
         "full tender-to-early-execution lifecycle, from tender announcement at <b>L0</b>, through " +
         "lowest-price notification, and into the early project execution stage at <b>L1</b>.</p>" +
         '<p class="tour-step-text">Since its official launch in <b>December 2024</b>, the system has evolved ' +
@@ -5226,7 +5226,28 @@
       var tr = el("tr");
       tr.appendChild(el("td", "", u.name));
       tr.appendChild(el("td", "", u.email));
-      tr.appendChild(el("td", "", u.role));
+      var roleSel = document.createElement("select");
+      ["Viewer", "Owner", "SME", "Admin"].forEach(function (r) {
+        var o = el("option", "", r); o.value = r; if (r === u.role) o.selected = true;
+        roleSel.appendChild(o);
+      });
+      roleSel.addEventListener("change", async function () {
+        var nextRole = roleSel.value;
+        try {
+          await api("/api/departments/users", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: u.name, email: u.email, role: nextRole, manager_email: u.manager_email || null }),
+          });
+        } catch (err) {
+          showToast("Could not update role &#8211; " + apiErrorDetail(err), true);
+          roleSel.value = u.role;
+          return;
+        }
+        showToast(u.email + " is now " + nextRole);
+        u.role = nextRole;
+      });
+      var roleTd = el("td"); roleTd.appendChild(roleSel);
+      tr.appendChild(roleTd);
       tr.appendChild(el("td", "", u.manager_email || "&#8213;"));
       var removeBtn = el("button", "btn ghost-crit", "Remove");
       removeBtn.addEventListener("click", async function () {

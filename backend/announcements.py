@@ -55,7 +55,7 @@ def _signature_html() -> str:
         '<div style="margin-top:24px;padding-top:16px;border-top:1px solid #e2e5ee;'
         'font-family:Segoe UI,Arial,sans-serif;">'
         f'<img src="{APP_BASE_URL}/static/logo.png" alt="Algihaz" style="height:26px;display:block;margin-bottom:6px;">'
-        '<div style="font-size:12px;color:#65718c;">Algihaz &#8211; Integrated Program (L0/L1) Platform</div>'
+        '<div style="font-size:12px;color:#65718c;">Algihaz &#8211; Project Readiness (L0/L1) Platform</div>'
         '</div>'
     )
 

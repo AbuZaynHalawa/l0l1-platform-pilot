@@ -13,7 +13,7 @@ from .scheduler import scheduler_loop
 
 models.Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Algihaz L0/L1 Platform (Pilot)")
+app = FastAPI(title="Project Readiness (L0/L1) Platform (Pilot)")
 
 
 @app.on_event("startup")
