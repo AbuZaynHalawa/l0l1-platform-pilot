@@ -4490,7 +4490,10 @@
       var cls = "";
       if (done) cls = "done";
       else if (!currentFound) { cls = "current"; currentFound = true; }
-      dots += '<span class="dot' + (cls ? " " + cls : "") + '"></span>';
+      var stateLabel = cls === "done" ? "Done" : cls === "current" ? "Current" : "Pending";
+      var label = (PO_ITEM_META[itemNo] || {}).label || "";
+      var title = itemNo + (label ? " – " + label : "") + " – " + stateLabel;
+      dots += '<span class="dot' + (cls ? " " + cls : "") + '" title="' + title.replace(/"/g, "&quot;") + '"></span>';
     }
     return '<div class="po-item-track">' + dots + "</div>";
   }
