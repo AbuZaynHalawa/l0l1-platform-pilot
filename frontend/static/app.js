@@ -3673,7 +3673,14 @@
     var row = el("div", "deliv-row pending-declaration");
     var body = el("div", "deliv-body");
     body.appendChild(el("div", "deliv-name", d.name));
-    body.appendChild(el("div", "deliv-due", '<span class="pill neutral"><span class="dot"></span>' + d.pending_declaration_note + "</span>"));
+    // Same .pending-note treatment (color, plain wrapping text) 3.9's own
+    // "Pending X completion" note already uses -- a .pill here was wrong on
+    // two counts: pills are neutral-grey, not the warn/orange every other
+    // "Pending" note in this app uses, and .pill is white-space:nowrap, so
+    // this one (much longer -- it names a full predecessor description,
+    // not just an item number) ran off the row's right edge instead of
+    // wrapping.
+    body.appendChild(el("div", "deliv-due", '<span class="pending-note">' + d.pending_declaration_note + "</span>"));
     row.appendChild(el("div", "deliv-num", d.item_no));
     row.appendChild(body);
     row.appendChild(el("div", "deliv-actions", '<span class="locked-note">Not yet determined</span>'));
