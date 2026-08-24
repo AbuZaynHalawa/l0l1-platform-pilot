@@ -1347,10 +1347,7 @@
       body:
         '<p class="tour-step-text">Every tender moves through the same two stages, each with exactly ' +
         "one owning department and its own duration profile:</p>" +
-        l0l1FlowDiagram() +
-        '<div class="tour-callout">&#127760; An <b>International</b> tender (outside Saudi Arabia) adds one ' +
-        "more stage before this: <b>New Opportunity &#8594; L-Pre Stage</b> (duration unknown), then " +
-        "the exact same L0 &#8594; L1 flow shown above.</div>",
+        l0l1FlowDiagram(),
     },
     {
       eyebrow: "How It Works · L0",
