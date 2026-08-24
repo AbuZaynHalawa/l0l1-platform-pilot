@@ -286,10 +286,10 @@ def _finalize_approval(db: Session, sub: "models.DeliverableSubmission", comment
     db.add(models.WorkflowHistory(submission_id=sub.id, action="approved", actor_name=actor_name, note=comment))
     db.commit()
 
-    announcements.sme_decision(db, sub.project, rules.resolve_owners(sub), sub.definition.item_no, sub.definition.name,
+    announcements.sme_decision(db, sub.project, rules.resolve_owners(sub), sub.definition.item_no, rules.submission_display_name(sub),
                                 True, comment, submission_id=sub.id)
     announcements.followers_notified(db, sub.project, _follower_emails(db, sub.id), sub.definition.item_no,
-                                      sub.definition.name, "approved", submission_id=sub.id)
+                                      rules.submission_display_name(sub), "approved", submission_id=sub.id)
 
     if sub.definition.is_milestone:
         recipients = sorted({d.focal_point_email for d in db.query(models.Department).all() if d.focal_point_email} | rules.system_group_emails(db))
@@ -436,10 +436,10 @@ async def review_deliverable(submission_id: int, approved: bool = Form(...), com
     db.add(models.WorkflowHistory(submission_id=sub.id, action="rejected", actor_name=reviewer_name, note=comment or None))
     db.commit()
 
-    announcements.sme_decision(db, sub.project, rules.resolve_owners(sub), sub.definition.item_no, sub.definition.name,
+    announcements.sme_decision(db, sub.project, rules.resolve_owners(sub), sub.definition.item_no, rules.submission_display_name(sub),
                                 False, comment or None, submission_id=sub.id)
     announcements.followers_notified(db, sub.project, _follower_emails(db, sub.id), sub.definition.item_no,
-                                      sub.definition.name, "rejected", submission_id=sub.id)
+                                      rules.submission_display_name(sub), "rejected", submission_id=sub.id)
 
     return {"status": "ok"}
 

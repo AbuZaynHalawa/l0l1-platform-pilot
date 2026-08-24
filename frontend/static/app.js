@@ -3279,10 +3279,21 @@
     nameEl.title = displayName;
     body.appendChild(nameEl);
     var complete = subs.filter(function (s) { return s.status === "approved"; }).length;
+    var inProgress = subs.filter(function (s) { return s.status === "in_progress" || s.status === "pending_review"; }).length;
+    var noProgress = subs.length - complete - inProgress;
     var pending = subs.filter(function (s) { return s.status !== "approved" && s.due_date; });
     var soonest = pending.reduce(function (min, s) { return (!min || s.due_date < min.due_date) ? s : min; }, null);
-    var dueHtml = soonest ? '<span class="deliv-due-date">Next due ' + dueDateHtml(soonest) + '</span> ' : "";
-    var countHtml = '<span class="pill neutral"><span class="dot"></span>' + complete + "/" + subs.length + " complete</span>";
+    // Item [PO Lifecycle per-item notes]: soonest.awaiting_note explains
+    // ONE item's own due-date anchor -- at the aggregate "N items" level
+    // that reads as a single blanket blocker for the whole group, which
+    // isn't right (each item's own predecessor chain is independent; see
+    // the PO Lifecycle tab's own per-item "Pending X" for the real
+    // conceptual blocker). Plain date only here; the full note still shows
+    // correctly once you open a specific item via the switcher.
+    var dueHtml = soonest ? '<span class="deliv-due-date">Next due ' + fmtDate(soonest.due_date) + '</span> ' : "";
+    var countHtml = '<span class="pill neutral"><span class="dot"></span>' + complete + "/" + subs.length + " complete</span>"
+      + (inProgress ? ' <span class="pill warn"><span class="dot"></span>' + inProgress + " in progress</span>" : "")
+      + (noProgress ? ' <span class="pill neutral"><span class="dot"></span>' + noProgress + " no progress</span>" : "");
     body.appendChild(el("div", "deliv-due", dueHtml + countHtml));
     body.style.cursor = "pointer";
     body.addEventListener("click", function () { openDelivModal(first.id); });
@@ -4340,13 +4351,17 @@
   }
 
   /* ================= ACTIVITY TRAIL (L0 Tenders / L1 Projects tab) ================= */
+  // "Done" marks reuse the exact same checkmark-circle SVG the PO Lifecycle
+  // tab uses (poIcon("done"), defined below -- function declarations are
+  // hoisted, so it's already callable here) instead of a plain emoji, for
+  // one consistent "this is complete" visual across the whole app.
   var HISTORY_ACTION_ICON = {
     submitted: "&#128228;", assigned: "&#128100;", review_requested: "&#128269;",
-    approved: "&#9989;", rejected: "&#10060;", unlocked: "&#128275;",
-    document_added: "&#128206;", document_approved: "&#9989;", document_rejected: "&#10060;",
-    reopened: "&#128257;", auto_done: "&#9989;",
-    extension_requested: "&#8987;", extension_approved: "&#9989;", extension_rejected: "&#10060;",
-    hold_requested: "&#9208;", hold_approved: "&#9989;", hold_rejected: "&#10060;", resumed: "&#9654;",
+    approved: poIcon("done"), rejected: "&#10060;", unlocked: "&#128275;",
+    document_added: "&#128206;", document_approved: poIcon("done"), document_rejected: "&#10060;",
+    reopened: "&#128257;", auto_done: poIcon("done"),
+    extension_requested: "&#8987;", extension_approved: poIcon("done"), extension_rejected: "&#10060;",
+    hold_requested: "&#9208;", hold_approved: poIcon("done"), hold_rejected: "&#10060;", resumed: "&#9654;",
     completion_date_edited: "&#128197;",
     po_selection_updated: "&#128203;",
   };
@@ -4387,6 +4402,16 @@
   // resolves to (rules.is_bu_applicable), so "TBU/PBU/DBU" as three
   // generic chips would be misleading. poDeptTag() below reads the real
   // department off the real submission instead.
+  // These `needs` lists are the real conceptual workflow dependencies (per
+  // Yasser, established during PO Lifecycle design) -- NOT always a literal
+  // mirror of the single predecessor_item_no field the due-date engine
+  // uses. The two can genuinely differ: 3.2's own due date is anchored on
+  // 1.3+10 workdays (the confirmed formula in seed.py, unrelated to this
+  // list), but the real thing gating whether 3.2 can *start* is 3.1 (issue
+  // RFQ, the next workday) -- the due-date anchor is a tentative-deadline
+  // ceiling, not the actionable blocker shown here. Don't "correct" these
+  // to match predecessor_item_no 1:1 without checking with Yasser first --
+  // that was tried and was wrong (see conversation).
   var PO_ITEM_META = {
     "1.1": { label: "Announcement", needs: [] },
     "2.3": { label: "PM assigned", needs: ["1.1"] },
@@ -4496,7 +4521,7 @@
     sc: ["1.1", "2.3", "1.2", "2.11", "2.17", "1.6", "6.2", "3.8", "2.18"],
   };
   function poIcon(status) {
-    var c = { done: "var(--good)", progress: "var(--accent)", blocked: "var(--crit)" }[status] || "var(--ink-500)";
+    var c = { done: "var(--good)", progress: "var(--warn)", blocked: "var(--crit)" }[status] || "var(--ink-500)";
     if (status === "done") return '<svg width="14" height="14" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="none" stroke="' + c + '" stroke-width="1.4"/><path d="M5 8.2L7 10.2L11 6" fill="none" stroke="' + c + '" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     if (status === "progress") return '<svg width="14" height="14" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="none" stroke="' + c + '" stroke-width="1.4"/><path d="M8 4.5V8L10.5 9.5" fill="none" stroke="' + c + '" stroke-width="1.4" stroke-linecap="round"/></svg>';
     if (status === "blocked") return '<svg width="14" height="14" viewBox="0 0 16 16"><rect x="4" y="7.5" width="8" height="6" rx="1.3" fill="none" stroke="' + c + '" stroke-width="1.4"/><path d="M5.5 7.5V5.3A2.5 2.5 0 0 1 10.5 5.3V7.5" fill="none" stroke="' + c + '" stroke-width="1.4"/></svg>';
@@ -4508,27 +4533,44 @@
     return '<span class="pill ' + m[0] + '"><span class="dot"></span>' + m[1] + "</span>";
   }
   // Walks the item's FULL chain (anchors + its own fan-out steps) and marks
-  // each segment done/current/pending -- an anchor's status comes from its
-  // own single submission (shared by every item in the category); a
-  // fan-out step's status comes from this item's own step_position within
-  // PO_CATEGORY_STEP_SEQUENCE. The first not-done segment overall is
-  // "current"; this is deliberately the same rule poEffectiveNextItemNo
-  // uses to pick the "Next" label, so the bar and the label always agree.
+  // each segment done/skipped/current/pending -- an anchor's status comes
+  // from its own single submission (shared by every item in the category);
+  // a fan-out step's status comes from this item's own real
+  // approved_item_nos/skipped_item_nos/current_item_no (backend-computed,
+  // handles out-of-order completion correctly since some real predecessor
+  // chains are parallel, not sequential). Matches poRegistryBox's own
+  // "Next"/"Skipped" label so the bar and the label always agree.
   function poItemTrack(li, category, singleByItemNo) {
     var chain = poFullChainFor(category);
     if (!chain.length) return "";
-    var seqIndex = {};
-    (PO_CATEGORY_STEP_SEQUENCE[category] || []).forEach(function (no, i) { seqIndex[no] = i; });
+    var approved = li.approved_item_nos || [];
+    var skipped = li.skipped_item_nos || [];
     var currentFound = false, dots = "";
     for (var i = 0; i < chain.length; i++) {
       var itemNo = chain[i];
-      var done = PO_ANCHOR_ITEM_NOS[itemNo]
-        ? poSingleStatus(singleByItemNo[itemNo]) === "done"
-        : seqIndex[itemNo] < (li.step_position || 0);
       var cls = "";
-      if (done) cls = "done";
-      else if (!currentFound) { cls = "current"; currentFound = true; }
-      var stateLabel = cls === "done" ? "Done" : cls === "current" ? "Current" : "Pending";
+      if (PO_ANCHOR_ITEM_NOS[itemNo]) {
+        // Anchors are plain project-level items -- no out-of-order concept,
+        // strictly "done or not" in chain order.
+        if (poSingleStatus(singleByItemNo[itemNo]) === "done") cls = "done";
+        else if (!currentFound) { cls = "current"; currentFound = true; }
+      } else if (approved.indexOf(itemNo) !== -1) {
+        cls = "done";
+      } else if (skipped.indexOf(itemNo) !== -1) {
+        // [PO Lifecycle out-of-order completion] a later step in this
+        // item's own chain already got approved while this earlier one
+        // didn't -- some real predecessor chains are parallel, not
+        // sequential (2.2 and 3.1 both gate on 4.5 directly, not on each
+        // other), so this can legitimately happen. Reads as "still open,
+        // bypassed" rather than either done or the current blocker.
+        cls = "skipped";
+      } else if (itemNo === li.current_item_no) {
+        // [PO Lifecycle] a rejected step reads as a real problem, not just
+        // "in progress" -- its own segment goes red like a blocked step,
+        // distinct from the normal orange "current" state.
+        cls = li.current_item_status === "rejected" ? "rejected" : "current";
+      }
+      var stateLabel = cls === "done" ? "Done" : cls === "rejected" ? "Rejected" : cls === "skipped" ? "Skipped" : cls === "current" ? "Current" : "Pending";
       var label = (PO_ITEM_META[itemNo] || {}).label || "";
       var title = itemNo + (label ? " – " + label : "") + " – " + stateLabel;
       dots += '<span class="dot' + (cls ? " " + cls : "") + '" title="' + title.replace(/"/g, "&quot;") + '"></span>';
@@ -4547,9 +4589,19 @@
       // chain -- drill through any unmet single-item prerequisite (budget,
       // cost center, PM assignment...) so "Next" names the real blocker.
       var nextItemNo = li.current_item_no ? poEffectiveNextItemNo(li.current_item_no, singleByItemNo) : null;
-      var stepLabel = nextItemNo ? "Next " + nextItemNo : (li.total_steps ? "Done" : "");
+      // [PO Lifecycle] a rejected current step is a real status worth
+      // naming outright, not just "Next X" as if it were still ahead.
+      var isRejected = li.current_item_no === nextItemNo && li.current_item_status === "rejected";
+      // [PO Lifecycle out-of-order completion] a later step already passed
+      // while an earlier one in this item's own chain didn't -- name it
+      // rather than silently hiding that it's still technically open.
+      var skippedPrefix = (li.skipped_item_nos && li.skipped_item_nos.length)
+        ? "Skipped " + li.skipped_item_nos.join(", ") + " / " : "";
+      var stepLabel = isRejected ? skippedPrefix + nextItemNo + " Rejected"
+        : nextItemNo ? skippedPrefix + "Next " + nextItemNo : (li.total_steps ? "Done" : "");
+      var stepStyle = isRejected ? ' style="color:var(--crit);"' : "";
       box.insertAdjacentHTML("beforeend",
-        '<div class="po-item-row"><div class="iname">' + li.name + '<span class="istep">' + stepLabel + "</span></div>"
+        '<div class="po-item-row"><div class="iname">' + li.name + '<span class="istep"' + stepStyle + '>' + stepLabel + "</span></div>"
         + poItemTrack(li, li._cat, singleByItemNo) + "</div>");
     });
     return box;
@@ -4580,7 +4632,7 @@
       if (/^\d+\.\d+$/.test(token) && poSingleStatus(singleByItemNo[token]) === "done") {
         return "predecessor " + token + " is completed";
       }
-      return "needs " + token;
+      return "Pending " + token + ".";
     }).join(" · ");
   }
   function poCard(itemNo, kind, ctx, fixedCount, singleByItemNo) {
@@ -4595,6 +4647,8 @@
       // separate "per item" label is needed alongside it.
       if (!fixedCount) {
         prog = ctx.counts.total ? '<span class="chip" style="color:var(--ink-900);font-weight:500;">' + ctx.counts.passed + "/" + ctx.counts.total + " completed</span>" : "";
+        if (ctx.counts.in_progress) prog += '<span class="chip" style="color:var(--warn);font-weight:500;">' + ctx.counts.in_progress + " in progress</span>";
+        if (ctx.counts.no_progress) prog += '<span class="chip" style="color:var(--ink-500);">' + ctx.counts.no_progress + " no progress</span>";
         if (ctx.counts.score !== null && ctx.counts.score !== undefined) {
           score = '<span class="chip" style="color:var(--ink-900);font-weight:500;" title="pro-rata score across this item\'s own due-and-done cohort">' + ctx.counts.score + "%</span>";
         }
@@ -4670,7 +4724,7 @@
           '<div class="mini-stats">'
           + '<div class="mini-stat"><div class="label">Total POs</div><div class="val">' + allItems.length + "</div></div>"
           + '<div class="mini-stat"><div class="label">Complete</div><div class="val">' + statsTotal.complete + "</div></div>"
-          + '<div class="mini-stat"><div class="label">In progress</div><div class="val" style="color:var(--accent);">' + statsTotal.in_progress + "</div></div>"
+          + '<div class="mini-stat"><div class="label">In progress</div><div class="val" style="color:var(--warn);">' + statsTotal.in_progress + "</div></div>"
           + '<div class="mini-stat"><div class="label">Blocked</div><div class="val" style="color:var(--crit);">' + statsTotal.blocked + "</div></div>"
           + "</div>");
         col.appendChild(poRegistryBox(allItems, allItems.length, registrySource[key], singleByItemNo));

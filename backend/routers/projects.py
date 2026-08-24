@@ -368,8 +368,8 @@ def delete_tender_document_folder(project_id: int, path: str, actor_role: str = 
     project = db.get(models.Project, project_id)
     if not project:
         raise HTTPException(404, "Project not found")
-    if not rules.can_act(actor_role, actor_email, [project.bid_manager, project.project_manager]):
-        raise HTTPException(403, "Only the assigned Bid Manager/Project Manager or an Admin can remove tender documents")
+    if actor_role != "Admin":
+        raise HTTPException(403, "Only an Admin can delete files/folders")
     path = path.strip("/")
     if not path:
         raise HTTPException(400, "No folder specified")
@@ -391,8 +391,8 @@ def delete_tender_document(project_id: int, doc_id: int, actor_role: str = "View
     doc = db.get(models.TenderDocument, doc_id)
     if not doc or doc.project_id != project_id:
         raise HTTPException(404, "Document not found")
-    if not rules.can_act(actor_role, actor_email, [project.bid_manager, project.project_manager]):
-        raise HTTPException(403, "Only the assigned Bid Manager/Project Manager or an Admin can remove tender documents")
+    if actor_role != "Admin":
+        raise HTTPException(403, "Only an Admin can delete files/folders")
     db.delete(doc)
     db.commit()
     return {"status": "ok"}
@@ -729,7 +729,10 @@ def get_project_history(project_id: int, db: Session = Depends(get_db)):
     return [
         {
             "action": h.action, "actor": h.actor_name, "note": h.note, "at": h.created_at,
-            "item_no": h.submission.definition.item_no, "name": h.submission.definition.name,
+            # [PO Lifecycle] names the specific line item (e.g. "GIS Unit")
+            # for a fan-out submission -- several rows can otherwise share
+            # one bare item_no/name and read as indistinguishable.
+            "item_no": h.submission.definition.item_no, "name": rules.submission_display_name(h.submission),
         }
         for h in rows
     ]

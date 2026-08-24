@@ -158,27 +158,54 @@ def po_cycle_summary(project_id: int, db: Session = Depends(get_db)):
     for category, sequence in CATEGORY_STEP_SEQUENCE.items():
         cat_items = [li for li in line_items if li.category == category]
         items_out = []
-        step_counts = {item_no: {"passed": 0, "total": 0} for item_no in sequence}
+        step_counts = {item_no: {"passed": 0, "total": 0, "in_progress": 0, "no_progress": 0} for item_no in sequence}
         subs_per_step: dict[str, list] = {item_no: [] for item_no in sequence}  # [PO Lifecycle pro-rata]
         counts = {"complete": 0, "in_progress": 0, "blocked": 0}
         for li in cat_items:
             item_subs = subs_by_item.get(li.id, {})
             item_seq = [item_no for item_no in sequence if item_no in item_subs]
             passed = 0
-            current_item_no = None
-            for item_no in item_seq:
+            approved_item_nos = []
+            highest_approved_index = -1
+            for idx, item_no in enumerate(item_seq):
                 sub = item_subs[item_no]
                 step_counts[item_no]["total"] += 1
                 subs_per_step[item_no].append(sub)
                 if sub.status == models.SubmissionStatus.APPROVED:
                     passed += 1
                     step_counts[item_no]["passed"] += 1
-                elif current_item_no is None:
+                    approved_item_nos.append(item_no)
+                    highest_approved_index = idx
+                elif sub.status in (models.SubmissionStatus.IN_PROGRESS, models.SubmissionStatus.PENDING_REVIEW):
+                    step_counts[item_no]["in_progress"] += 1
+                else:
+                    step_counts[item_no]["no_progress"] += 1
+            # [PO Lifecycle out-of-order completion] some real predecessor
+            # chains are parallel, not strictly sequential (e.g. 2.2 and 3.1
+            # both gate on 4.5 directly, not on each other) -- a later step
+            # can genuinely get approved while an earlier one in the display
+            # sequence hasn't. "Skipped" names those bypassed earlier steps
+            # explicitly instead of miscounting them as done (position <
+            # count would silently mark them complete) or hiding that
+            # they're still technically open. "Next" is the real frontier:
+            # the first not-approved step after the furthest actual
+            # progress, not just the first not-approved step overall.
+            skipped_item_nos = [
+                item_no for idx, item_no in enumerate(item_seq)
+                if idx < highest_approved_index and item_no not in approved_item_nos
+            ]
+            current_item_no = None
+            for idx, item_no in enumerate(item_seq):
+                if idx > highest_approved_index and item_no not in approved_item_nos:
                     current_item_no = item_no
+                    break
             fully_done = bool(item_seq) and passed == len(item_seq)
+            current_status = item_subs[current_item_no].status if current_item_no else None
             if fully_done:
                 item_status = "complete"
-            elif current_item_no and item_subs[current_item_no].status == models.SubmissionStatus.NO_PROGRESS \
+            elif current_status == models.SubmissionStatus.REJECTED:
+                item_status = "blocked"
+            elif current_status == models.SubmissionStatus.NO_PROGRESS \
                     and rules.awaiting_milestone_note(db, item_subs[current_item_no]):
                 item_status = "blocked"
             else:
@@ -188,6 +215,11 @@ def po_cycle_summary(project_id: int, db: Session = Depends(get_db)):
                 "id": li.id, "name": li.name, "source": li.source, "status": item_status,
                 "step_position": passed, "total_steps": len(item_seq),
                 "current_item_no": current_item_no,
+                "approved_item_nos": approved_item_nos, "skipped_item_nos": skipped_item_nos,
+                # [PO Lifecycle] the raw status of whichever step is
+                # currently blocking this item -- lets the UI show e.g.
+                # "Rejected" specifically instead of a generic "blocked".
+                "current_item_status": item_subs[current_item_no].status.value if current_item_no else None,
             })
         for item_no, item_subs in subs_per_step.items():
             step_counts[item_no]["score"] = rules.item_group_kpi_pct(item_subs) if item_subs else None

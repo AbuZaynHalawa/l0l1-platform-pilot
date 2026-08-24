@@ -1493,7 +1493,9 @@
 .po-column .po-item-track { display: flex; gap: 2px; margin-top: 2px; }
 .po-column .po-item-track .dot { flex: 1; height: 4px; border-radius: 2px; background: var(--line); }
 .po-column .po-item-track .dot.done { background: var(--good); }
-.po-column .po-item-track .dot.current { background: var(--accent); }
+.po-column .po-item-track .dot.current { background: var(--warn); }
+.po-column .po-item-track .dot.rejected { background: var(--crit); }
+.po-column .po-item-track .dot.skipped { background: var(--crit); opacity: 0.45; }
 .po-column .rail { border-left: 1.5px solid var(--line); }
 .po-column .card { display: flex; gap: 8px; align-items: flex-start; padding: 7px 10px; }
 .po-column .card .icon { flex-shrink: 0; margin-top: 1px; }

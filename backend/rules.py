@@ -319,6 +319,19 @@ def display_name(definition: models.DeliverableDefinition, project: models.Proje
     return name
 
 
+def submission_display_name(sub: "models.DeliverableSubmission") -> str:
+    """display_name(), plus the named PO line item when this is a
+    [PO Lifecycle] fan-out submission -- announcements/activity trail/
+    reminders need to say *which* long-lead item (etc.) an approval or
+    rejection is actually about, not just the shared item_no/definition
+    name every sibling line item's own submission also carries.
+    """
+    name = display_name(sub.definition, sub.project)
+    if sub.po_line_item_id:
+        return f"{name} — {sub.po_line_item.name}"
+    return name
+
+
 def system_group_emails(db: Session) -> set[str]:
     """The "L0-L1 Group" (item 75) — every admin-added email in the system
     roster, CC'd on portal-wide broadcasts (new project, milestone reached)
