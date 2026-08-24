@@ -556,10 +556,10 @@ L1_ITEMS = [
     ("3.1", "Issue RFQ to vendors including technical SOW, contractual and commercial baselines", "supply", "predecessor", "4.5", 7, "after", None),
     ("3.2", "Allowable time for negotiating commercial and technical terms", "supply", "predecessor", "1.3", 10, "after", None),
     ("3.3", "Award Approval on System (Buyer -> SCM -> Cost Control -> Operation)", "supply", "predecessor", "1.6", 5, "after", None),
-    ("3.4", "Top Management approval of awarding, if required as per Authority Matrix", "supply", "predecessor", "3.3", 5, "after", None),
-    ("3.5", "PO Approval on Oracle following Award Approval", "supply", "predecessor", "3.4", 3, "after", None),
-    ("3.6", "Electronic Internal PO Signature (SCM Director and VP Technical)", "supply", "predecessor", "3.5", 2, "after", None),
-    ("3.7", "Electronic PO Signature by Vendor", "supply", "predecessor", "3.6", 2, "after", None),
+    ("3.4", "Top Management approval of awarding, if required as per Authority Matrix", "supply", "predecessor", "3.3", 6, "after", None),
+    ("3.5", "PO Approval on Oracle following Award Approval", "supply", "predecessor", "3.4", 4, "after", None),
+    ("3.6", "Electronic Internal PO Signature (SCM Director and VP Technical)", "supply", "predecessor", "3.5", 3, "after", None),
+    ("3.7", "Electronic PO Signature by Vendor", "supply", "predecessor", "3.6", 3, "after", None),
     ("3.8", "Finalize Subcontract Agreement for OHTL/UGC Projects", "supply", "predecessor", "1.6", 10, "after", None),
     ("3.9", "Share Design Firm Technical Offers received from vendors with Engineering", "supply", "predecessor", "4.3", 5, "after", None),
     ("3.10", "Prepare and Issue Engineering/Design Agreement/PO", "supply", "predecessor", "2.7", 8, "after", None),
@@ -572,10 +572,10 @@ L1_ITEMS = [
     ("3.1", "Issue RFQ to vendors including technical SOW, contractual and commercial baselines", "supply_pbu", "predecessor", "4.5", 7, "after", None),
     ("3.2", "Allowable time for negotiating commercial and technical terms", "supply_pbu", "predecessor", "1.3", 10, "after", None),
     ("3.3", "Award Approval on System (Buyer -> SCM -> Cost Control -> Operation)", "supply_pbu", "predecessor", "1.6", 5, "after", None),
-    ("3.4", "Top Management approval of awarding, if required as per Authority Matrix", "supply_pbu", "predecessor", "3.3", 5, "after", None),
-    ("3.5", "PO Approval on Oracle following Award Approval", "supply_pbu", "predecessor", "3.4", 3, "after", None),
-    ("3.6", "Electronic Internal PO Signature (SCM Director and VP Technical)", "supply_pbu", "predecessor", "3.5", 2, "after", None),
-    ("3.7", "Electronic PO Signature by Vendor", "supply_pbu", "predecessor", "3.6", 2, "after", None),
+    ("3.4", "Top Management approval of awarding, if required as per Authority Matrix", "supply_pbu", "predecessor", "3.3", 6, "after", None),
+    ("3.5", "PO Approval on Oracle following Award Approval", "supply_pbu", "predecessor", "3.4", 4, "after", None),
+    ("3.6", "Electronic Internal PO Signature (SCM Director and VP Technical)", "supply_pbu", "predecessor", "3.5", 3, "after", None),
+    ("3.7", "Electronic PO Signature by Vendor", "supply_pbu", "predecessor", "3.6", 3, "after", None),
     ("3.8", "Finalize Subcontract Agreement for OHTL/UGC Projects", "supply_pbu", "predecessor", "1.6", 10, "after", None),
     ("3.9", "Share Design Firm Technical Offers received from vendors with Engineering", "supply_pbu", "predecessor", "4.3", 5, "after", None),
     ("3.10", "Prepare and Issue Engineering/Design Agreement/PO", "supply_pbu", "predecessor", "2.7", 8, "after", None),
@@ -1479,8 +1479,9 @@ def run():
         # existing projects (recompute_project_due_dates otherwise skips a
         # project already computed today, per its own once-a-day gate).
         # Naturally idempotent: a no-op on every run after the first, once
-        # the DB already matches L1_ITEMS.
-        _due_fix_items = ["2.2", "2.8", "3.2", "4.4", "7.1", "14.1"]
+        # the DB already matches L1_ITEMS. 3.4-3.7 added for the PO
+        # Lifecycle duration correction (3.3 unchanged, listed anyway).
+        _due_fix_items = ["2.2", "2.8", "3.2", "4.4", "7.1", "14.1", "3.3", "3.4", "3.5", "3.6", "3.7"]
         _due_fix_before = {
             (d.item_no, d.department_id): (d.anchor_type, d.predecessor_item_no, d.offset_days)
             for d in db.query(models.DeliverableDefinition)
