@@ -721,7 +721,7 @@
   .tour-table td b { color: var(--ink-900); }
   .tour-table tr:last-child td { border-bottom: none; }
   .modal-section-title { font-size: 12px; font-weight: 700; color: var(--ink-700); margin: 18px 0 8px; text-transform: uppercase; letter-spacing: .04em; }
-  .modal-actions-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+  .modal-actions-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; margin-bottom: 16px; }
   .modal-actions-row .btn { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
   .modal-actions-row .btn:hover { filter: brightness(0.97); }
   .modal-actions-row .btn.primary { background: linear-gradient(135deg, var(--purple-1), var(--purple-2)); color: #fff; }
@@ -783,6 +783,21 @@
 
   .section-title { font-size: 13px; font-weight: 700; padding: 14px 18px; border-bottom: 1px solid var(--line); display:flex; justify-content:space-between; align-items:center; gap: 10px; }
   .section-title .cnt { color: var(--ink-500); font-weight: 600; font-size: 12px; }
+
+  /* Item [Follow Up compact grid]: the request-queue cards (Due-Date,
+     Reassignment, SME Nominations, Bid Value Access) used to stack one per
+     row at full page width, each mostly empty once there are only 1-2
+     pending items -- a responsive grid lets several sit side by side
+     instead, and .fu-compact tightens each card's own padding/row height
+     so a short list doesn't read as oversized inside its own column. */
+  .fu-requests-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 14px; margin-bottom: 18px; }
+  .fu-compact .section-title { padding: 10px 14px; font-size: 12.5px; }
+  .fu-compact .aq-row { padding: 9px 14px; gap: 10px; }
+  .fu-compact .aq-title { font-size: 12.5px; }
+  .fu-compact .aq-sub { font-size: 11px; }
+  .fu-compact .empty-state { padding: 16px 14px; font-size: 12px; }
+  .fu-compact .deliv-actions { gap: 6px; }
+  .fu-compact .deliv-actions .btn { font-size: 11px; padding: 5px 9px; }
 
   .digest-row { display: flex; align-items: flex-start; gap: 12px; padding: 12px 18px; border-bottom: 1px solid var(--line); }
   .digest-row:last-child { border-bottom: none; }
@@ -1386,6 +1401,20 @@
     padding: 6px 10px; border-radius: 6px; white-space: nowrap;
   }
   .pc2-pct-clickable:hover::before, .pc2-pct-clickable:hover::after { opacity: 1; }
+  /* Item [instant tooltips]: a generic replacement for the native `title`
+     attribute wherever a tooltip needs to be legible and immediate --
+     `title`'s own OS-level ~1s hover delay and small grey box (used e.g. by
+     the PO Lifecycle step-track dots) read as sluggish and easy to miss.
+     Same instant-opacity mechanism as .pc2-pct-clickable above, generalized
+     via attr() so any element just needs a data-tooltip="..." attribute. */
+  [data-tooltip] { position: relative; }
+  [data-tooltip]::after {
+    content: attr(data-tooltip); position: absolute; bottom: calc(100% + 6px); left: 50%;
+    transform: translateX(-50%); background: var(--ink-900); color: #fff; font-size: 11px; font-weight: 600;
+    white-space: nowrap; padding: 5px 9px; border-radius: 6px; opacity: 0; pointer-events: none;
+    transition: opacity .05s linear; z-index: 30; box-shadow: 0 2px 8px rgba(20,25,50,.25);
+  }
+  [data-tooltip]:hover::after { opacity: 1; }
   .pbd-note { font-size: 12px; color: var(--ink-500); margin: 0 0 12px; }
   .pbd-table { margin-bottom: 16px; }
   .pbd-table th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-500); padding: 6px 14px; border-bottom: 2px solid var(--line); white-space: nowrap; }

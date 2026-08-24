@@ -264,9 +264,22 @@
   // derives the tag from the announcement's actual `recipients` emails via
   // a real email->role lookup, falling back to the static per-type label
   // only when recipients is empty/unresolvable.
+  // Item [bid value / SME nomination "To: All Users" bug]: audience:"all"
+  // on a type means two different things that got conflated -- "show this
+  // type in the filter dropdown for every role" (legitimate for
+  // sme_nomination_decision/bid_value_access_decision, since the nominee/
+  // requester could hold any role) vs. "this announcement's real recipients
+  // list IS everyone" (only true for genuine portal-wide broadcasts). The
+  // fast-path below used the same flag for both, so a private, single-
+  // recipient decision notice was mislabeled "All Users" in its own To:
+  // line. Only the types the backend's _ALWAYS_VISIBLE_TYPES actually
+  // broadcasts to everyone get the shortcut; everything else always
+  // resolves from the real `recipients` list.
+  var _BROADCAST_ANN_TYPES = { broadcast: true, milestone: true, bsd_extended: true, doc_added: true,
+                                deliverable_approved: true, unlock: true, closed: true };
   function annAudienceTag(a, roleMap) {
     var meta = ANN_TYPE_META.find(function (t) { return t.value === a.type; });
-    if (meta && meta.audience === "all") return "All Users";
+    if (_BROADCAST_ANN_TYPES[a.type]) return "All Users";
     var emails = (a.recipients || "").split(",").map(function (s) { return s.trim().toLowerCase(); }).filter(Boolean);
     if (emails.length && roleMap) {
       var roles = {};
@@ -276,6 +289,7 @@
     }
     if (emails.length) return emails.length + " recipient" + (emails.length === 1 ? "" : "s");
     if (!meta) return "&#8213;";
+    if (meta.audience === "all") return "All Users";
     return meta.audience.map(function (r) { return _ROLE_PLURAL[r] || r; }).join(" &amp; ");
   }
   var _emailRoleMap = null;
@@ -1951,6 +1965,18 @@
       body.appendChild(poBlock);
     }
 
+    // [4.6 doc reference]: 4.6's owner is reviewing whatever 3.2's owner
+    // has uploaded -- show it directly here instead of making them go find
+    // 3.2's own row on the Deliverables list.
+    if (d.item_no === "4.6" && d.reference_document) {
+      var refBlock = el("div", "po-selection-block");
+      refBlock.appendChild(el("div", "po-selection-title", "Reference: 3.2 Uploaded Document"));
+      var refLink = el("a", "", d.reference_document.file_name);
+      refLink.href = d.reference_document.file_url; refLink.target = "_blank"; refLink.rel = "noopener";
+      refBlock.appendChild(refLink);
+      body.appendChild(refBlock);
+    }
+
     // [2.3 <-> PM two-way sync]: picking someone here calls the exact same
     // endpoint the project detail page's own "Project Manager" field edit
     // uses (PATCH .../project-manager), which auto-completes every "2.3"
@@ -2047,21 +2073,35 @@
       if (CURRENT_ROLE === "Admin") actionsRow.appendChild(markNotRequiredButton(d.id, refreshModal));
       var reassignBtn = el("button", "btn", "Reassign");
       reassignBtn.addEventListener("click", async function () {
-        var toEmail = prompt("Reassign " + d.item_no + " to (email):", "");
-        if (!toEmail) return;
-        toEmail = toEmail.trim();
-        if (!toEmail) return;
-        var reason = prompt("Reason (optional):", "") || null;
-        try {
-          await api("/api/deliverables/" + d.id + "/reassign-request", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ to_email: toEmail, reason: reason, from_email: (d.owner_emails || []).join(", ") }),
-          });
-        } catch (err) {
-          showToast("Could not request reassignment – " + apiErrorDetail(err), true);
-          return;
-        }
-        showToast("Reassignment requested — pending admin approval");
+        // Item [reassign dropdown]: was a native prompt() for a raw typed
+        // email -- easy to typo, and the backend already rejects anything
+        // that isn't a real Owner/Admin roster member, so a dropdown of
+        // exactly those candidates is both friendlier and matches what's
+        // actually allowed.
+        var roster = await _getRoster();
+        var candidates = roster.filter(function (u) { return u.role === "Owner" || u.role === "Admin"; });
+        openChecklistEditModal({
+          type: "select-text",
+          title: "Reassign " + d.item_no,
+          eyebrow: "Only Owners and Admins in the L0/L1 Group can be reassigned to.",
+          placeholder: "Select from L0/L1 Group…",
+          textPlaceholder: "Reason (optional)",
+          options: candidates.map(function (u) { return { label: u.name + " (" + u.email + ")", value: u.email }; }),
+          onSave: async function (toEmail, reason) {
+            if (!toEmail) { showToast("Pick a person first", true); return; }
+            try {
+              await api("/api/deliverables/" + d.id + "/reassign-request", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ to_email: toEmail, reason: reason || null, from_email: (d.owner_emails || []).join(", ") }),
+              });
+            } catch (err) {
+              showToast("Could not request reassignment – " + apiErrorDetail(err), true);
+              return;
+            }
+            closeChecklistEditModal();
+            showToast("Reassignment requested — pending admin approval");
+          },
+        });
       });
       actionsRow.appendChild(reassignBtn);
     }
@@ -2790,9 +2830,9 @@
       bvItem.appendChild(el("div", "mk", "Bid Value"));
       var bvVal = el("div", "mv");
       if (bidValueInfo.visible) {
-        bvVal.appendChild(document.createTextNode(
+        bvVal.insertAdjacentHTML("beforeend",
           bidValueInfo.bid_value != null ? fmtCurrency(bidValueInfo.bid_value) : "&#8213;"
-        ));
+        );
         if (bidValueInfo.can_edit && !currentProjectTerminal) {
           var bvEdit = el("a", "meta-edit-link", "Edit");
           bvEdit.href = "#";
@@ -3053,6 +3093,7 @@
       textEl.value = cfg.selected || "";
       textEl.placeholder = cfg.placeholder || "";
       textEl.style.display = "";
+      textEl.style.marginTop = "";
       _checklistEditSave = function () { cfg.onSave(textEl.value.trim()); };
     } else if (cfg.type === "select") {
       selectEl.innerHTML = "";
@@ -3066,6 +3107,24 @@
       dateEl.value = cfg.selected || "";
       dateEl.style.display = "";
       _checklistEditSave = function () { cfg.onSave(dateEl.value); };
+    } else if (cfg.type === "select-text") {
+      // Item [reassign dropdown]: a roster picker (value != label, e.g.
+      // "Name (email)" shown but the email is what's saved) plus an
+      // optional free-text field shown together -- Reassign needs both
+      // "who" and an optional reason in one step, unlike every other
+      // select/text caller here which only ever needs one.
+      selectEl.innerHTML = "";
+      selectEl.appendChild(el("option", "", cfg.placeholder || "Select…")).value = "";
+      cfg.options.forEach(function (opt) {
+        var o = el("option", "", opt.label); o.value = opt.value; selectEl.appendChild(o);
+      });
+      selectEl.value = cfg.selected || "";
+      selectEl.style.display = "";
+      textEl.value = "";
+      textEl.placeholder = cfg.textPlaceholder || "";
+      textEl.style.display = "";
+      textEl.style.marginTop = "10px";
+      _checklistEditSave = function () { cfg.onSave(selectEl.value, textEl.value.trim()); };
     } else {
       grid.style.display = "";
       grid.innerHTML = "";
@@ -3398,10 +3457,14 @@
     var nameEl = el("div", "deliv-name", displayName);
     nameEl.title = displayName;
     body.appendChild(nameEl);
-    var complete = subs.filter(function (s) { return s.status === "approved"; }).length;
-    var inProgress = subs.filter(function (s) { return s.status === "in_progress" || s.status === "pending_review"; }).length;
+    // [3.12 not-required]: an item marked Not Required (no prequalification
+    // needed for that vendor) counts as complete here, same as a real
+    // approval -- it's done, not stuck open forever waiting on work that
+    // was never going to happen.
+    var complete = subs.filter(function (s) { return s.status === "approved" || s.applicability === "not_required"; }).length;
+    var inProgress = subs.filter(function (s) { return s.applicability !== "not_required" && (s.status === "in_progress" || s.status === "pending_review"); }).length;
     var noProgress = subs.length - complete - inProgress;
-    var pending = subs.filter(function (s) { return s.status !== "approved" && s.due_date; });
+    var pending = subs.filter(function (s) { return s.status !== "approved" && s.applicability !== "not_required" && s.due_date; });
     var soonest = pending.reduce(function (min, s) { return (!min || s.due_date < min.due_date) ? s : min; }, null);
     // Item [PO Lifecycle per-item notes]: soonest.awaiting_note explains
     // ONE item's own due-date anchor -- at the aggregate "N items" level
@@ -3419,7 +3482,28 @@
     body.addEventListener("click", function () { openDelivModal(first.id); });
     row.appendChild(el("div", "deliv-num", first.item_no));
     row.appendChild(body);
-    row.appendChild(el("div", "deliv-actions"));
+    var actions = el("div", "deliv-actions");
+    // Item [3.12 bulk not-required]: most named items on a given project
+    // often don't need prequalification at all -- ticking "Not Required"
+    // one by one across 10+ line items is real Admin busywork this bulk
+    // action skips.
+    if (first.item_no === "3.12" && CURRENT_ROLE === "Admin" && noProgress > 0) {
+      var bulkBtn = el("button", "btn", "Mark All Not Required");
+      bulkBtn.addEventListener("click", async function (e) {
+        e.stopPropagation();
+        if (!(await customConfirm("Marks every 3.12 item on this project that hasn't started yet as Not Required.", { title: "Mark All Not Required?" }))) return;
+        try {
+          var res = await api("/api/projects/" + currentProjectId + "/po-line-items/mark-all-not-required/3.12?actor_role=" + encodeURIComponent(CURRENT_ROLE), { method: "POST" });
+        } catch (err) {
+          showToast("Could not update &#8211; " + apiErrorDetail(err), true);
+          return;
+        }
+        showToast(res.count + " item(s) marked Not Required");
+        refreshCurrentFolder();
+      });
+      actions.appendChild(bulkBtn);
+    }
+    row.appendChild(actions);
     return row;
   }
   function renderDeliverables(items) {
@@ -4693,7 +4777,7 @@
       var stateLabel = cls === "done" ? "Done" : cls === "rejected" ? "Rejected" : cls === "skipped" ? "Skipped" : cls === "current" ? "Current" : "Pending";
       var label = (PO_ITEM_META[itemNo] || {}).label || "";
       var title = itemNo + (label ? " – " + label : "") + " – " + stateLabel;
-      dots += '<span class="dot' + (cls ? " " + cls : "") + '" title="' + title.replace(/"/g, "&quot;") + '"></span>';
+      dots += '<span class="dot' + (cls ? " " + cls : "") + '" data-tooltip="' + title.replace(/"/g, "&quot;") + '"></span>';
     }
     return '<div class="po-item-track">' + dots + "</div>";
   }
@@ -6253,6 +6337,12 @@
       document.querySelectorAll("#cfScopeGrid input").forEach(function (cb) {
         cb.addEventListener("change", refreshBuFieldVisibility);
       });
+      var pmSel = document.getElementById("cfL1PM");
+      var roster = await _getRoster();
+      roster.forEach(function (u) {
+        var o = el("option", "", u.name + " (" + u.email + ")"); o.value = u.name;
+        pmSel.appendChild(o);
+      });
       createOptionsLoaded = true;
     }
     var l0List = await api("/api/projects?stage=L0&status=" + encodeURIComponent("In Progress"));
@@ -6281,6 +6371,13 @@
   document.getElementById("cfInternational").addEventListener("change", applyInternationalToggle);
   document.getElementById("cfEstNo").addEventListener("input", function () {
     this.value = this.value.replace(/\D/g, "");
+  });
+  // Item [Bid Value decimals]: a bare whole number ("4250000") reads as
+  // ambiguous next to a currency prefix -- fill in ".00" on blur so the
+  // field always shows a real amount, the same way a price field would.
+  document.getElementById("cfL1BidValue").addEventListener("blur", function () {
+    if (this.value.trim() === "" || this.value.indexOf(".") !== -1) return;
+    this.value = Number(this.value).toFixed(2);
   });
 
   document.getElementById("cfSubmit").addEventListener("click", async function () {

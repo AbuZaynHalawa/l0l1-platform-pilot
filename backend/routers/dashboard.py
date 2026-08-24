@@ -552,7 +552,7 @@ def _level_stats(subs: list, stage: models.Stage) -> dict:
     for s in sorted(overdue, key=lambda s: rules.deadline_status(s)[1] or 0):
         delay_days = abs(rules.deadline_status(s)[1] or 0)
         due_items.append({
-            "item_no": s.definition.item_no, "name": s.definition.name,
+            "item_no": s.definition.item_no, "name": rules.submission_display_name(s),
             "project": s.project.est_no, "project_id": s.project_id, "delay_days": delay_days,
         })
 
@@ -787,7 +787,7 @@ def get_performance_breakdown(department: str, stage: str, db: Session = Depends
         submitted_date = s.submitted_at.date() if s.submitted_at else None
         points = rules.kpi_points(s.due_date, submitted_date) or 0.0
         items.append({
-            "item_no": s.definition.item_no, "name": s.definition.name, "project": s.project.est_no,
+            "item_no": s.definition.item_no, "name": rules.submission_display_name(s), "project": s.project.est_no,
             "due_date": s.due_date.isoformat() if s.due_date else None,
             "submitted_date": submitted_date.isoformat() if submitted_date else None,
             "status": s.status.value, "points": points,

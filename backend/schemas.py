@@ -129,6 +129,7 @@ class SubmissionOut(BaseModel):
     department: str
     due_date: date | None
     status: str
+    applicability: str = "applicable"  # applicable | not_required | pending -- see models.DeliverableSubmission
     # Item 143 (2nd revision): Deadline standing is a separate axis from
     # Progress (`status` above) -- see rules.deadline_status(). deadline_days
     # is None for not_due/on_time, otherwise the signed day count to show.

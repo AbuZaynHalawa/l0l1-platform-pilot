@@ -163,6 +163,31 @@ def _instantiate_deliverables(db: Session, project: models.Project):
                 announcements.owner_assigned(db, project, dept.focal_point_email, dept.name, count)
 
 
+def _ensure_consultancy_line_item(db: Session, project: models.Project) -> None:
+    """Consultancy PO is the one PO Lifecycle pool with no declaring item --
+    unlike long-lead/early-activity/MEP/S-C (each fanned out from an
+    owner's 1.2/4.1/2.11/2.17 selection), it always has exactly one known
+    item (the project's Design & Engineering firm) per the original spec,
+    so it needs to just always exist rather than waiting on an owner
+    action that was never wired up to create it -- without this, "2.7"/
+    "3.10" (both category="consultancy") have no PoLineItem to fan out
+    against and simply never appear anywhere, including the Deliverables
+    list.
+    """
+    if project.stage != models.Stage.L1:
+        return
+    existing = (
+        db.query(models.PoLineItem)
+        .filter(models.PoLineItem.project_id == project.id, models.PoLineItem.category == "consultancy",
+                models.PoLineItem.status == "active")
+        .first()
+    )
+    if not existing:
+        db.add(models.PoLineItem(project_id=project.id, category="consultancy", name="Design & Engineering",
+                                  source="fixed", status="active"))
+        db.commit()
+
+
 def _provision_and_instantiate(db: Session, project: models.Project):
     """Called once at L0/L1 creation: provision folders, then instantiate
     every active deliverable for this stage via _instantiate_deliverables.
@@ -172,6 +197,7 @@ def _provision_and_instantiate(db: Session, project: models.Project):
     _storage.create_folder(folder_root)
     _storage.create_folder(f"{folder_root}/Tender Documents")
     project.onedrive_folder_path = folder_root
+    _ensure_consultancy_line_item(db, project)
     _instantiate_deliverables(db, project)
 
 
@@ -254,6 +280,47 @@ def create_l0_project(payload: schemas.ProjectCreateL0, db: Session = Depends(ge
     return project
 
 
+def _auto_complete_2_3(db: Session, project: models.Project) -> None:
+    """[2.3 <-> PM two-way sync]: setting a real PM (from any of three
+    entry points -- L1 creation's own PM field, the project-manager PATCH
+    endpoint, or 2.3's own picker, which calls that same endpoint)
+    auto-completes "2.3" (Assignment of Temporary Project Manager &
+    Project Engineer) -- this data already lives on the project, no one
+    should have to redo it as a separate deliverable. Unlike items 115/116
+    (which this was originally modeled on), 2.3 stays a fully ordinary
+    completed submission -- NOT auto_completed=True -- since that flag
+    hides a row from the Deliverables list/Gantt/performance entirely,
+    right for a pure form-restatement but wrong here: a real PM was really
+    assigned, and hiding it read as the deliverable having vanished rather
+    than completed. Only ever completes forward (clearing PM never
+    un-completes 2.3 -- that's a genuine Reopen, not something this should
+    do silently). Every BU-variant "2.3" (TBU/PBU/DBU) gets it, in case
+    more than one is active on a mixed-scope project.
+    """
+    if not project.project_manager:
+        return
+    subs = (
+        db.query(models.DeliverableSubmission)
+        .join(models.DeliverableDefinition)
+        .filter(models.DeliverableSubmission.project_id == project.id,
+                models.DeliverableDefinition.item_no == "2.3",
+                models.DeliverableSubmission.status != models.SubmissionStatus.APPROVED)
+        .all()
+    )
+    for sub in subs:
+        sub.status = models.SubmissionStatus.APPROVED
+        sub.due_date = sub.due_date or date.today()
+        sub.submitted_at = sub.submitted_at or datetime.utcnow()
+        sub.reviewed_at = datetime.utcnow()
+        sub.review_comment = f"Auto-completed: Project Manager set to {project.project_manager}."
+        db.add(models.WorkflowHistory(submission_id=sub.id, action="auto_done", actor_name="system",
+                                       note=sub.review_comment))
+    if subs:
+        db.commit()
+        rules.recompute_project_due_dates(db, project, force=True)
+        db.commit()
+
+
 @router.post("/l1", response_model=schemas.ProjectOut)
 def create_l1_project(payload: schemas.ProjectCreateL1, db: Session = Depends(get_db)):
     l0 = db.get(models.Project, payload.l0_source_id)
@@ -284,6 +351,8 @@ def create_l1_project(payload: schemas.ProjectCreateL1, db: Session = Depends(ge
     db.refresh(project)
 
     _provision_and_instantiate(db, project)
+    _auto_complete_2_3(db, project)
+    db.refresh(project)
 
     # Folder 0: an L1 gets its own copies of the L0's tender documents (not a
     # shared reference) so a later addition on one side doesn't silently
@@ -702,40 +771,7 @@ def update_project_manager(project_id: int, payload: schemas.ProjectManagerUpdat
     project.project_manager = (payload.project_manager or "").strip() or None
     db.commit()
 
-    # [2.3 <-> PM two-way sync]: setting a real PM here (from either
-    # direction -- this endpoint's own field, or 2.3's own picker below,
-    # which also calls this same endpoint) auto-completes "2.3" (Assignment
-    # of Temporary Project Manager & Project Engineer) the same way items
-    # 115/116 auto-complete Tendering items that just restate a project
-    # field -- 2.3 isn't Tendering's own department, but the same
-    # "this data already lives on the project, don't make someone redo it
-    # as a separate deliverable" reasoning applies. Only ever completes
-    # forward (clearing PM never un-completes 2.3 -- that's a genuine
-    # Reopen, not something this endpoint should do silently). Every
-    # BU-variant "2.3" (TBU/PBU/DBU) gets it, in case more than one is
-    # active on a mixed-scope project.
-    if project.project_manager:
-        subs = (
-            db.query(models.DeliverableSubmission)
-            .join(models.DeliverableDefinition)
-            .filter(models.DeliverableSubmission.project_id == project_id,
-                    models.DeliverableDefinition.item_no == "2.3",
-                    models.DeliverableSubmission.status != models.SubmissionStatus.APPROVED)
-            .all()
-        )
-        for sub in subs:
-            sub.status = models.SubmissionStatus.APPROVED
-            sub.auto_completed = True
-            sub.due_date = sub.due_date or date.today()
-            sub.submitted_at = sub.submitted_at or datetime.utcnow()
-            sub.reviewed_at = datetime.utcnow()
-            sub.review_comment = f"Auto-completed: Project Manager set to {project.project_manager}."
-            db.add(models.WorkflowHistory(submission_id=sub.id, action="auto_done", actor_name="system",
-                                           note=sub.review_comment))
-        if subs:
-            db.commit()
-            rules.recompute_project_due_dates(db, project, force=True)
-            db.commit()
+    _auto_complete_2_3(db, project)
 
     db.refresh(project)
     return project
@@ -931,6 +967,7 @@ def get_deliverables(project_id: int, department: str | None = None, include_aut
         out.append(schemas.SubmissionOut(
             id=s.id, item_no=s.definition.item_no, name=rules.display_name(s.definition, project),
             department=s.definition.department.name, due_date=s.due_date, status=s.status.value,
+            applicability=s.applicability or "applicable",
             deadline_status=deadline_key, deadline_days=deadline_days, auto_completed=s.auto_completed,
             owner_emails=rules.resolve_owners(s),
             sme_emails=rules.resolve_smes(s),

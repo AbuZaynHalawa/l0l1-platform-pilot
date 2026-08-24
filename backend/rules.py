@@ -161,21 +161,31 @@ def resolve_focal_emails(definition: "models.DeliverableDefinition", project: "m
 
 def is_bu_applicable(definition: models.DeliverableDefinition, project: models.Project) -> bool:
     """Whether a deliverable definition should be instantiated for this
-    project's Business Unit(s). Ungated (True) when business_units is empty
-    or TBA — an unknown BU shouldn't hide anything.
+    project's Business Unit(s). Ungated (True) when business_units is
+    empty. TBA (business unit not yet decided) specifically blocks the
+    Operation Units department -- showing every possible variant (TBU/
+    PBU/DBU/BBU) at once until someone actually decides read as confusing
+    duplicate folders, not helpful, so a TBA project now instantiates none
+    of them until the BU is actually set (editable anytime after, same as
+    any other business unit change, which re-instantiates normally).
+    Everything else -- including the separate L1_BBU_ONLY_DEPARTMENTS
+    concern below -- stays ungated for TBA, since only Operation Units is
+    what "operation deliverables" refers to.
     """
     bus = project.business_units or []
-    if not bus or "TBA" in bus:
+    if not bus:
         return True
     if definition.stage == models.Stage.L0:
         required = L0_OPERATION_BU_DEPARTMENTS.get(definition.department.name)
         if required:
-            return required in bus
+            return required in bus  # TBA correctly excludes every variant here
         return True
     required = L1_OPERATION_BU_DEPARTMENTS.get(definition.department.name)
     if required:
-        return required in bus
+        return required in bus  # TBA correctly excludes every variant here
     if definition.department.name in L1_BBU_ONLY_DEPARTMENTS:
+        if "TBA" in bus:
+            return True
         return "BBU" in bus
     return True
 

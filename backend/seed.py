@@ -1124,6 +1124,28 @@ def _fill_po_line_item_gaps(db):
     return filled
 
 
+def _ensure_consultancy_line_items(db):
+    """Backfill for pre-existing L1 projects -- see
+    routers.projects._ensure_consultancy_line_item's docstring for why this
+    has to exist at all. New projects get it at creation from that same
+    function; this is the one-time catch-up for every project created
+    before it existed, since "2.7"/"3.10" (consultancy) had no PoLineItem
+    to fan out against on any of them until now.
+    """
+    from .routers.projects import _instantiate_deliverables, _ensure_consultancy_line_item
+    created = 0
+    for project in db.query(models.Project).filter(models.Project.stage == models.Stage.L1).all():
+        had = db.query(models.PoLineItem).filter(
+            models.PoLineItem.project_id == project.id, models.PoLineItem.category == "consultancy",
+            models.PoLineItem.status == "active",
+        ).first()
+        if not had:
+            _ensure_consultancy_line_item(db, project)
+            _instantiate_deliverables(db, project)  # recomputes due dates + commits internally
+            created += 1
+    return created
+
+
 def run():
     db = SessionLocal()
     try:
@@ -2199,6 +2221,9 @@ def run():
         gap_filled = _fill_po_line_item_gaps(db)
         if gap_filled:
             print(f"[PO Lifecycle]: filled line-item fan-out gaps on {gap_filled} project(s).")
+        consultancy_created = _ensure_consultancy_line_items(db)
+        if consultancy_created:
+            print(f"[PO Lifecycle]: created the missing Consultancy PO line item on {consultancy_created} project(s) -- 2.7/3.10 now instantiate.")
 
         print(f"Seed complete: {len(dept_map)} departments, {len(L0_ITEMS)} L0 items, {len(L1_ITEMS)} L1 items.")
     finally:

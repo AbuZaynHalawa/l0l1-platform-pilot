@@ -530,40 +530,42 @@
         </div>
       </div>
 
-      <div class="card table-card" style="margin-bottom:18px;">
-        <div class="section-title">
-          <span>Due-Date Requests <span class="cnt" id="dueDateReqCount"></span></span>
-          <button class="btn" id="dueDateHistoryToggle" style="font-size:11px;padding:4px 10px;">Show History</button>
+      <div class="fu-requests-grid">
+        <div class="card table-card fu-compact">
+          <div class="section-title">
+            <span>Due-Date Requests <span class="cnt" id="dueDateReqCount"></span></span>
+            <button class="btn" id="dueDateHistoryToggle" style="font-size:11px;padding:4px 10px;">Show History</button>
+          </div>
+          <div id="dueDateReqList"></div>
+          <div id="dueDateReqHistory" hidden></div>
         </div>
-        <div id="dueDateReqList"></div>
-        <div id="dueDateReqHistory" hidden></div>
-      </div>
 
-      <div class="card table-card" style="margin-bottom:18px;">
-        <div class="section-title">
-          <span>Reassignment Requests <span class="cnt" id="reassignCount"></span></span>
-          <button class="btn" id="reassignHistoryToggle" style="font-size:11px;padding:4px 10px;">Show History</button>
+        <div class="card table-card fu-compact">
+          <div class="section-title">
+            <span>Reassignment Requests <span class="cnt" id="reassignCount"></span></span>
+            <button class="btn" id="reassignHistoryToggle" style="font-size:11px;padding:4px 10px;">Show History</button>
+          </div>
+          <div id="reassignList"></div>
+          <div id="reassignHistory" hidden></div>
         </div>
-        <div id="reassignList"></div>
-        <div id="reassignHistory" hidden></div>
-      </div>
 
-      <div class="card table-card" style="margin-bottom:18px;">
-        <div class="section-title">
-          <span>SME Nominations <span class="cnt" id="smeNomCount"></span></span>
-          <button class="btn" id="smeNomHistoryToggle" style="font-size:11px;padding:4px 10px;">Show History</button>
+        <div class="card table-card fu-compact">
+          <div class="section-title">
+            <span>SME Nominations <span class="cnt" id="smeNomCount"></span></span>
+            <button class="btn" id="smeNomHistoryToggle" style="font-size:11px;padding:4px 10px;">Show History</button>
+          </div>
+          <div id="smeNomList"></div>
+          <div id="smeNomHistory" hidden></div>
         </div>
-        <div id="smeNomList"></div>
-        <div id="smeNomHistory" hidden></div>
-      </div>
 
-      <div class="card table-card" style="margin-bottom:18px;">
-        <div class="section-title">
-          <span>Bid Value Access Requests <span class="cnt" id="bidValueReqCount"></span></span>
-          <button class="btn" id="bidValueReqHistoryToggle" style="font-size:11px;padding:4px 10px;">Show History</button>
+        <div class="card table-card fu-compact">
+          <div class="section-title">
+            <span>Bid Value Access Requests <span class="cnt" id="bidValueReqCount"></span></span>
+            <button class="btn" id="bidValueReqHistoryToggle" style="font-size:11px;padding:4px 10px;">Show History</button>
+          </div>
+          <div id="bidValueReqList"></div>
+          <div id="bidValueReqHistory" hidden></div>
         </div>
-        <div id="bidValueReqList"></div>
-        <div id="bidValueReqHistory" hidden></div>
       </div>
 
       <div class="card table-card">
@@ -891,11 +893,12 @@
             </div>
             <div class="field">
               <label>Project Manager</label>
-              <input type="text" id="cfL1PM" placeholder="optional" />
+              <select id="cfL1PM"><option value="">Select from L0/L1 Group&#8230; (optional)</option></select>
+              <span class="hint">Picking someone here also auto-completes 2.3 (Assignment of Temporary Project Manager &amp; Project Engineer).</span>
             </div>
             <div class="field">
               <label>Bid Value</label>
-              <input type="number" id="cfL1BidValue" placeholder="optional" min="0" step="any" />
+              <div class="est-num-input"><span class="est-num-prefix">SAR</span><input type="number" id="cfL1BidValue" placeholder="0.00" min="0" step="0.01" /></div>
               <span class="hint">Hidden from everyone except the Bid Manager and Admin &#8211; others must request Admin approval to view it.</span>
             </div>
           </div>

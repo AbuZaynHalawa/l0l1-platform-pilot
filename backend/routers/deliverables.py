@@ -177,11 +177,34 @@ async def upload_deliverable(submission_id: int, file: UploadFile = File(...),
             selection["long_lead_items"] = rows
             sub.po_selection = selection
 
+    # [4.6 mutual gate]: 3.2's own upload is the real-world trigger the
+    # Engineering owner is waiting on -- once Supply Chain has something to
+    # show, flip the paired "4.6" line item forward from No Progress to In
+    # Progress too (not just suppress its "Pending 3.2" note, which
+    # rules.awaiting_milestone_note already does) so it reads as genuinely
+    # actionable in the ordinary Deliverables list, not just on the PO
+    # Lifecycle tab's own summary. get_deliverable_detail separately surfaces
+    # 3.2's uploaded file as a read-only reference on 4.6's own modal.
+    if sub.definition.item_no == "3.2" and sub.po_line_item_id:
+        sibling_4_6 = (
+            db.query(models.DeliverableSubmission)
+            .join(models.DeliverableDefinition)
+            .filter(models.DeliverableSubmission.project_id == sub.project_id,
+                    models.DeliverableSubmission.po_line_item_id == sub.po_line_item_id,
+                    models.DeliverableDefinition.item_no == "4.6",
+                    models.DeliverableSubmission.status == models.SubmissionStatus.NO_PROGRESS)
+            .first()
+        )
+        if sibling_4_6:
+            sibling_4_6.status = models.SubmissionStatus.IN_PROGRESS
+            db.add(models.WorkflowHistory(submission_id=sibling_4_6.id, action="auto_in_progress", actor_name="system",
+                                           note=f"3.2 {rules.submission_display_name(sub)} now has real progress -- ready to review."))
+
     db.commit()
 
     announcements.followers_notified(db, sub.project, _follower_emails(db, sub.id),
-                                      sub.definition.item_no, sub.definition.name, "uploaded", submission_id=sub.id)
-    announcements.document_added(db, sub.project, rules.resolve_smes(sub), sub.definition.item_no, sub.definition.name,
+                                      sub.definition.item_no, rules.submission_display_name(sub), "uploaded", submission_id=sub.id)
+    announcements.document_added(db, sub.project, rules.resolve_smes(sub), sub.definition.item_no, rules.submission_display_name(sub),
                                   file.filename, submission_id=sub.id)
 
     return {"status": "ok", "file_ref": file_ref}
@@ -311,12 +334,12 @@ def _finalize_approval(db: Session, sub: "models.DeliverableSubmission", comment
     rules.recompute_project_due_dates(db, sub.project, force=True)
     db.commit()
     after_subs = db.query(models.DeliverableSubmission).filter(models.DeliverableSubmission.project_id == sub.project_id).all()
-    trigger_label = f"{sub.definition.item_no} {sub.definition.name}"
+    trigger_label = f"{sub.definition.item_no} {rules.submission_display_name(sub)}"
     for s2 in after_subs:
         if s2.id == sub.id:
             continue
         if before.get(s2.id) is None and s2.due_date is not None:
-            announcements.cross_department_unlock(db, sub.project, rules.resolve_owners(s2), trigger_label, s2.definition.item_no, s2.definition.name,
+            announcements.cross_department_unlock(db, sub.project, rules.resolve_owners(s2), trigger_label, s2.definition.item_no, rules.submission_display_name(s2),
                                                     submission_id=s2.id)
             db.add(models.WorkflowHistory(submission_id=s2.id, action="unlocked",
                                            actor_name="system", note=f"Unlocked by approval of {trigger_label}"))
@@ -382,13 +405,13 @@ def mark_complete(submission_id: int, payload: schemas.MarkCompleteRequest, db: 
     db.commit()
 
     if sme_emails:
-        announcements.sme_review_requested(db, sub.project, sme_emails, sub.definition.item_no, sub.definition.name,
+        announcements.sme_review_requested(db, sub.project, sme_emails, sub.definition.item_no, rules.submission_display_name(sub),
                                             submission_id=sub.id, owner_emails=owner_emails)
         db.add(models.WorkflowHistory(submission_id=sub.id, action="review_requested",
                                        actor_name="system", note=f"Sent to {', '.join(sme_emails)}"))
         db.commit()
     announcements.followers_notified(db, sub.project, _follower_emails(db, sub.id),
-                                      sub.definition.item_no, sub.definition.name, "marked completed")
+                                      sub.definition.item_no, rules.submission_display_name(sub), "marked completed")
 
     return {"status": "ok", "completed": False}
 
@@ -520,7 +543,7 @@ def mark_not_required(submission_id: int, actor_role: str = "Viewer", actor_emai
     db.commit()
 
     announcements.followers_notified(db, sub.project, _follower_emails(db, sub.id), sub.definition.item_no,
-                                      sub.definition.name, "marked Not Required", submission_id=sub.id)
+                                      rules.submission_display_name(sub), "marked Not Required", submission_id=sub.id)
     return {"status": "ok"}
 
 
@@ -578,7 +601,7 @@ def request_reassignment(submission_id: int, payload: schemas.ReassignRequestCre
     db.commit()
     db.refresh(req)
     announcements.reassignment_requested(db, sub.project, rules.admin_emails(db), sub.definition.item_no,
-                                          sub.definition.name, req.from_email, to_email, payload.reason,
+                                          rules.submission_display_name(sub), req.from_email, to_email, payload.reason,
                                           submission_id=submission_id)
     return {"status": "ok", "id": req.id}
 
@@ -594,7 +617,7 @@ def list_reassignment_requests(status: str = "pending", db: Session = Depends(ge
         {
             "id": r.id, "submission_id": r.submission_id,
             "est_no": r.submission.project.est_no, "item_no": r.submission.definition.item_no,
-            "name": r.submission.definition.name,
+            "name": rules.submission_display_name(r.submission),
             "from_email": r.from_email, "to_email": r.to_email, "reason": r.reason,
             "status": r.status, "requested_at": r.requested_at, "decided_at": r.decided_at,
         }
@@ -622,7 +645,7 @@ def decide_reassignment(request_id: int, decision: schemas.ReassignmentDecision,
     db.commit()
     requester_emails = [e.strip() for e in (req.from_email or "").split(",") if e.strip()]
     announcements.reassignment_decision(db, req.submission.project, requester_emails,
-                                         req.submission.definition.item_no, req.submission.definition.name,
+                                         req.submission.definition.item_no, rules.submission_display_name(req.submission),
                                          decision.approved, req.to_email, submission_id=req.submission_id)
     return {"status": "ok"}
 
@@ -665,7 +688,7 @@ def _create_due_date_request(submission_id: int, payload: schemas.DueDateRequest
 
     sme_emails = rules.resolve_smes(sub)
     announcements.due_date_request(db, sub.project, sme_emails, owner_emails, sub.definition.item_no,
-                                    sub.definition.name, kind, reason, submission_id=sub.id)
+                                    rules.submission_display_name(sub), kind, reason, submission_id=sub.id)
     return {"status": "ok", "id": req.id}
 
 
@@ -694,7 +717,7 @@ def list_due_date_requests(status: str = "pending", db: Session = Depends(get_db
         {
             "id": r.id, "submission_id": r.submission_id, "kind": r.kind,
             "est_no": r.submission.project.est_no, "item_no": r.submission.definition.item_no,
-            "name": r.submission.definition.name,
+            "name": rules.submission_display_name(r.submission),
             "requested_by_email": r.requested_by_email, "reason": r.reason,
             "requested_due_date": r.requested_due_date, "current_due_date": r.submission.due_date,
             "status": r.status, "requested_at": r.requested_at, "decided_at": r.decided_at,
@@ -743,7 +766,7 @@ def decide_due_date_request(request_id: int, decision: schemas.DueDateRequestDec
         db.commit()
 
     announcements.due_date_decision(db, sub.project, rules.resolve_owners(sub), sub.definition.item_no,
-                                     sub.definition.name, req.kind, decision.approved,
+                                     rules.submission_display_name(sub), req.kind, decision.approved,
                                      comment=decision.comment, submission_id=sub.id)
     return {"status": "ok"}
 
@@ -777,7 +800,7 @@ def resume_deliverable(submission_id: int, actor_role: str = "Viewer", actor_ema
     db.commit()
 
     announcements.followers_notified(db, sub.project, _follower_emails(db, sub.id), sub.definition.item_no,
-                                      sub.definition.name, "resumed from hold", submission_id=sub.id)
+                                      rules.submission_display_name(sub), "resumed from hold", submission_id=sub.id)
     return {"status": "ok"}
 
 
@@ -856,7 +879,7 @@ def bulk_remind(payload: schemas.BulkRemindRequest, db: Session = Depends(get_db
                 u = users_by_email.get(primary.strip().lower())
                 if u and u.manager_email:
                     cc.append(u.manager_email)
-            announcements.reminder_sent(db, s.project, primary, s.definition.item_no, s.definition.name, s.due_date,
+            announcements.reminder_sent(db, s.project, primary, s.definition.item_no, rules.submission_display_name(s), s.due_date,
                                          submission_id=s.id, custom_message=payload.message, cc=cc)
             sent += 1
     return {"sent": sent}
@@ -932,13 +955,32 @@ def get_deliverable_detail(submission_id: int, actor_email: str | None = None, d
                 {"id": s.id, "line_item_name": s.po_line_item.name if s.po_line_item_id else None, "status": s.status.value}
                 for s in sib_subs
             ]
+    # [4.6 doc reference]: 4.6's owner is reviewing whatever 3.2's owner
+    # just uploaded -- surface it directly on 4.6's own modal instead of
+    # making them go find 3.2's row themselves, the same "read what's
+    # happening in 3.2" idea behind the mutual-gate status flip on upload.
+    reference_document = None
+    if sub.definition.item_no == "4.6" and sub.po_line_item_id:
+        ref_sub = (
+            db.query(models.DeliverableSubmission)
+            .join(models.DeliverableDefinition)
+            .filter(models.DeliverableSubmission.project_id == sub.project_id,
+                    models.DeliverableSubmission.po_line_item_id == sub.po_line_item_id,
+                    models.DeliverableDefinition.item_no == "3.2")
+            .first()
+        )
+        if ref_sub and ref_sub.file_ref:
+            reference_document = {
+                "item_no": "3.2", "file_name": ref_sub.file_name,
+                "file_url": _storage.file_url(ref_sub.file_ref), "submission_id": ref_sub.id,
+            }
     return {
         "id": sub.id, "item_no": sub.definition.item_no, "name": rules.display_name(sub.definition, sub.project),
         "department": sub.definition.department.name, "department_number": sub.definition.department.number,
         "est_no": sub.project.est_no, "project_id": sub.project_id, "project_name": sub.project.name,
         "project_terminal": rules.is_project_terminal(sub.project),
         "project_manager": sub.project.project_manager,  # [2.3 <-> PM sync] pre-fills 2.3's own person-picker
-        "due_date": sub.due_date, "status": sub.status.value,
+        "due_date": sub.due_date, "status": sub.status.value, "applicability": sub.applicability or "applicable",
         "deadline_status": deadline_key, "deadline_days": deadline_days, "auto_completed": sub.auto_completed,
         "on_hold": sub.on_hold, "hold_reason": sub.hold_reason,
         "pending_due_date_request": {
@@ -957,6 +999,7 @@ def get_deliverable_detail(submission_id: int, actor_email: str | None = None, d
         "po_line_item_id": sub.po_line_item_id,
         "line_item_name": sub.po_line_item.name if sub.po_line_item_id else None,
         "siblings": siblings,
+        "reference_document": reference_document,
         "history": [
             {"action": h.action, "actor": h.actor_name, "note": h.note, "at": h.created_at}
             for h in history

@@ -171,7 +171,12 @@ def po_cycle_summary(project_id: int, db: Session = Depends(get_db)):
                 sub = item_subs[item_no]
                 step_counts[item_no]["total"] += 1
                 subs_per_step[item_no].append(sub)
-                if sub.status == models.SubmissionStatus.APPROVED:
+                # [3.12 not-required]: an item that doesn't need prequalification
+                # (S/C too small, vendor already qualified, etc.) is marked
+                # Not Required rather than actually approved -- counts exactly
+                # like a real approval here so it doesn't sit forever as a
+                # phantom blocker on this line item's chain.
+                if sub.status == models.SubmissionStatus.APPROVED or sub.applicability == "not_required":
                     passed += 1
                     step_counts[item_no]["passed"] += 1
                     approved_item_nos.append(item_no)
@@ -225,3 +230,37 @@ def po_cycle_summary(project_id: int, db: Session = Depends(get_db)):
             step_counts[item_no]["score"] = rules.item_group_kpi_pct(item_subs) if item_subs else None
         result[category] = {"items": items_out, "step_counts": step_counts, "stats": counts}
     return result
+
+
+@router.post("/mark-all-not-required/{item_no}")
+def mark_all_not_required(project_id: int, item_no: str, actor_role: str = "Viewer", db: Session = Depends(get_db)):
+    """Bulk version of deliverables.mark_not_required, scoped to one item_no
+    across every one of this project's fan-out line items at once -- built
+    for 3.12 (prequalification), where most named items on a given project
+    often don't need it at all and ticking "Not Required" one by one across
+    10+ line items is real, repetitive Admin busywork.
+    """
+    if actor_role != "Admin":
+        raise HTTPException(403, "Only an Admin can bulk mark deliverables Not Required")
+    project = _get_project(db, project_id)
+    subs = (
+        db.query(models.DeliverableSubmission)
+        .join(models.DeliverableDefinition)
+        .filter(models.DeliverableSubmission.project_id == project_id,
+                models.DeliverableDefinition.item_no == item_no,
+                models.DeliverableSubmission.applicability != "not_required",
+                models.DeliverableSubmission.status.notin_([
+                    models.SubmissionStatus.IN_PROGRESS, models.SubmissionStatus.PENDING_REVIEW,
+                    models.SubmissionStatus.APPROVED,
+                ]))
+        .all()
+    )
+    for sub in subs:
+        sub.applicability = "not_required"
+        db.add(models.WorkflowHistory(submission_id=sub.id, action="not_required", actor_name="Admin",
+                                       note="Marked Not Required (bulk)"))
+    if subs:
+        db.commit()
+        rules.recompute_project_due_dates(db, project, force=True)
+        db.commit()
+    return {"status": "ok", "count": len(subs)}
