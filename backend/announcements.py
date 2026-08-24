@@ -23,17 +23,6 @@ APP_BASE_URL = os.environ.get("APP_BASE_URL", "https://l0l1-platform.onrender.co
 # white email background.
 _COLORS = {"good": "#1e7e42", "crit": "#c0392b", "warn": "#b9770e"}
 
-# Item [email test mode]: while the real send path (MAIL_BACKEND=graph) is
-# still being validated, every actual email is redirected to one inbox
-# instead of its real recipients, so what gets delivered can be checked
-# without notifying real roster members. On by default -- flip it off with
-# MAIL_TEST_MODE=0 once ready to broadcast for real; the redirect target is
-# itself overridable via MAIL_TEST_REDIRECT_TO. Only the outbound mail is
-# redirected -- the Announcement row persisted below (and shown in-app)
-# still records the real intended recipients, so "To:" stays accurate.
-MAIL_TEST_MODE = os.environ.get("MAIL_TEST_MODE", "1") != "0"
-MAIL_TEST_REDIRECT_TO = os.environ.get("MAIL_TEST_REDIRECT_TO", "Yasser.Halawa@Algihaz.com")
-
 
 def _b(text) -> str:
     """Neutral emphasis -- item numbers and Est numbers, the reference keys
@@ -93,11 +82,7 @@ def _create(db: Session, *, type: models.AnnouncementType, title: str, body: str
     # actually gets mailed.
     display_body = f'<p style="margin:0 0 14px;">Dear {greeting},</p>' + body
     email_body = display_body + (f"<br><br>{link_html}" if link_html else "") + _signature_html()
-    send_to, send_title = recipients, title
-    if recipients and MAIL_TEST_MODE and MAIL_TEST_REDIRECT_TO:
-        send_to = [MAIL_TEST_REDIRECT_TO]
-        send_title = f"[TEST — intended for: {', '.join(recipients)}] {title}"
-    status = _mail.send_mail(send_to, send_title, email_body) if recipients else "simulated"
+    status = _mail.send_mail(recipients, title, email_body) if recipients else "simulated"
     ann = models.Announcement(
         type=type, title=title, body=display_body,
         recipients=", ".join(recipients) if recipients else "",
