@@ -24,6 +24,24 @@ def _follower_emails(db: Session, submission_id: int) -> list[str]:
     ]
 
 
+def _sibling_submission(db: Session, sub: "models.DeliverableSubmission", item_no: str) -> "models.DeliverableSubmission | None":
+    """The other named item_no's submission for the same PO line item (e.g.
+    3.2's own row for the same "GIS Unit" that this 4.6 belongs to). None
+    for a non-fan-out submission (no po_line_item_id) or if that item_no
+    was never instantiated for this line item.
+    """
+    if not sub.po_line_item_id:
+        return None
+    return (
+        db.query(models.DeliverableSubmission)
+        .join(models.DeliverableDefinition)
+        .filter(models.DeliverableSubmission.project_id == sub.project_id,
+                models.DeliverableSubmission.po_line_item_id == sub.po_line_item_id,
+                models.DeliverableDefinition.item_no == item_no)
+        .first()
+    )
+
+
 @router.get("")
 def list_all_deliverables(status: str | None = None, actor_email: str | None = None,
                            actor_role: str | None = None, db: Session = Depends(get_db)):
@@ -357,6 +375,48 @@ def _finalize_approval(db: Session, sub: "models.DeliverableSubmission", comment
     if sub.definition.item_no in po_line_items.DECLARING_ITEM_NOS and sub.project.stage == models.Stage.L1:
         po_line_items.sync_from_submission(db, sub)
 
+    # [4.6 <-> 3.2 mutual close]: 4.6 is Engineering's technical review of
+    # whatever 3.2 (Supply Chain) negotiated for the same named item --
+    # once Engineering signs off, that IS the final word on the negotiated
+    # terms, so 3.2 closes alongside it instead of needing its own separate,
+    # redundant approval. Skipped for a 3.2 that's already Approved (nothing
+    # to do) or Not Required (deliberately excluded, don't resurrect it).
+    if sub.definition.item_no == "4.6":
+        sib = _sibling_submission(db, sub, "3.2")
+        if sib and sib.status != models.SubmissionStatus.APPROVED and sib.applicability != "not_required":
+            _finalize_approval(db, sib, f"Auto-approved: 4.6 {rules.submission_display_name(sub)} was approved.",
+                                "system", actor_email=None)
+
+
+def _finalize_rejection(db: Session, sub: "models.DeliverableSubmission", comment: str | None, actor_name: str,
+                         actor_email: str | None = None) -> None:
+    """The one place a submission actually becomes Rejected -- extracted
+    from review_deliverable's own inline reject branch so the 4.6<->3.2
+    mutual-close hook below can reuse it the same way _finalize_approval
+    is reused for the approve side.
+    """
+    sub.status = models.SubmissionStatus.REJECTED
+    sub.review_comment = comment
+    sub.reviewed_at = datetime.utcnow()
+    sub.reviewed_by_email = (actor_email or "").strip() or None
+    db.add(models.WorkflowHistory(submission_id=sub.id, action="rejected", actor_name=actor_name, note=comment))
+    db.commit()
+
+    announcements.sme_decision(db, sub.project, rules.resolve_owners(sub), sub.definition.item_no, rules.submission_display_name(sub),
+                                False, comment, submission_id=sub.id)
+    announcements.followers_notified(db, sub.project, _follower_emails(db, sub.id), sub.definition.item_no,
+                                      rules.submission_display_name(sub), "rejected", submission_id=sub.id)
+
+    # [4.6 <-> 3.2 mutual close]: same reasoning as the approve side in
+    # _finalize_approval -- Engineering rejecting the reviewed terms in 4.6
+    # sends 3.2 back too, not just 4.6, since they're reviewing the same
+    # negotiated terms. Skipped for a 3.2 already Rejected or Not Required.
+    if sub.definition.item_no == "4.6":
+        sib = _sibling_submission(db, sub, "3.2")
+        if sib and sib.status != models.SubmissionStatus.REJECTED and sib.applicability != "not_required":
+            _finalize_rejection(db, sib, f"Auto-rejected: 4.6 {rules.submission_display_name(sub)} was rejected.",
+                                 "system", actor_email=None)
+
 
 @router.post("/{submission_id}/mark-complete")
 def mark_complete(submission_id: int, payload: schemas.MarkCompleteRequest, db: Session = Depends(get_db)):
@@ -452,18 +512,7 @@ async def review_deliverable(submission_id: int, approved: bool = Form(...), com
         _finalize_approval(db, sub, comment or None, reviewer_name, actor_email=actor_email)
         return {"status": "ok"}
 
-    sub.status = models.SubmissionStatus.REJECTED
-    sub.review_comment = comment or None
-    sub.reviewed_at = datetime.utcnow()
-    sub.reviewed_by_email = (actor_email or "").strip() or None
-    db.add(models.WorkflowHistory(submission_id=sub.id, action="rejected", actor_name=reviewer_name, note=comment or None))
-    db.commit()
-
-    announcements.sme_decision(db, sub.project, rules.resolve_owners(sub), sub.definition.item_no, rules.submission_display_name(sub),
-                                False, comment or None, submission_id=sub.id)
-    announcements.followers_notified(db, sub.project, _follower_emails(db, sub.id), sub.definition.item_no,
-                                      rules.submission_display_name(sub), "rejected", submission_id=sub.id)
-
+    _finalize_rejection(db, sub, comment or None, reviewer_name, actor_email=actor_email)
     return {"status": "ok"}
 
 
