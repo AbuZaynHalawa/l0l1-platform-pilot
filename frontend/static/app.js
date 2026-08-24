@@ -4393,6 +4393,15 @@
     "1.1": 1, "2.3": 1, "1.2": 1, "2.1": 1, "2.13": 1, "6.1": 1, "4.3": 1, "3.9": 1,
     "4.4": 1, "4.1": 1, "3.12": 1, "1.6": 1, "6.2": 1, "2.11": 1, "2.17": 1,
   };
+  // Mirrors backend/routers/po_line_items.py's CATEGORY_STEP_SEQUENCE -- the
+  // per-item fan-out chain each PoLineItem in a category actually walks.
+  var PO_CATEGORY_STEP_SEQUENCE = {
+    long_lead: ["4.5", "2.2", "3.1", "3.2", "3.3", "3.4", "3.5", "3.6", "3.7"],
+    early_activity: ["2.6", "3.11"],
+    mep: ["2.14", "3.11"],
+    consultancy: ["2.7", "3.10"],
+    sc: ["3.8", "2.18"],
+  };
   // A fan-out item's own current_item_no (e.g. "2.6") only tells you where
   // that item sits in ITS OWN chain -- it says nothing about whether the
   // single-item prerequisites that chain step itself depends on (temp
@@ -4411,6 +4420,34 @@
       }
     }
     return itemNo;
+  }
+  // The full real causal chain behind a category's fan-out sequence --
+  // every anchor prerequisite (budget, cost center, PM assignment...)
+  // interleaved ahead of the fan-out step it actually blocks, so the
+  // per-item progress track can show real granular progress instead of a
+  // misleadingly coarse 2-segment bar where "at step 1 of 2" always reads
+  // as roughly 50% even when neither step has actually started.
+  var PO_FULL_CHAIN_CACHE = {};
+  function poFullChainFor(category) {
+    if (PO_FULL_CHAIN_CACHE[category]) return PO_FULL_CHAIN_CACHE[category];
+    var seen = {}, chain = [];
+    function addAnchors(itemNo) {
+      var meta = PO_ITEM_META[itemNo];
+      if (!meta) return;
+      meta.needs.forEach(function (token) {
+        if (PO_ANCHOR_ITEM_NOS[token] && !seen[token]) {
+          addAnchors(token);
+          seen[token] = true;
+          chain.push(token);
+        }
+      });
+    }
+    (PO_CATEGORY_STEP_SEQUENCE[category] || []).forEach(function (itemNo) {
+      addAnchors(itemNo);
+      if (!seen[itemNo]) { seen[itemNo] = true; chain.push(itemNo); }
+    });
+    PO_FULL_CHAIN_CACHE[category] = chain;
+    return chain;
   }
   // Exact card order per column, matching the artifact -- single (project-
   // level) items interleaved with fan-out (per-item) ones exactly as shown.
@@ -4432,12 +4469,27 @@
     var m = PO_PILL_MAP[status] || ["neutral", "Not due yet"];
     return '<span class="pill ' + m[0] + '"><span class="dot"></span>' + m[1] + "</span>";
   }
-  function poItemTrack(li) {
-    var total = li.total_steps || 0, pos = li.step_position || 0;
-    if (!total) return "";
-    var dots = "";
-    for (var i = 0; i < total; i++) {
-      var cls = i < pos ? "done" : (i === pos ? "current" : "");
+  // Walks the item's FULL chain (anchors + its own fan-out steps) and marks
+  // each segment done/current/pending -- an anchor's status comes from its
+  // own single submission (shared by every item in the category); a
+  // fan-out step's status comes from this item's own step_position within
+  // PO_CATEGORY_STEP_SEQUENCE. The first not-done segment overall is
+  // "current"; this is deliberately the same rule poEffectiveNextItemNo
+  // uses to pick the "Next" label, so the bar and the label always agree.
+  function poItemTrack(li, category, singleByItemNo) {
+    var chain = poFullChainFor(category);
+    if (!chain.length) return "";
+    var seqIndex = {};
+    (PO_CATEGORY_STEP_SEQUENCE[category] || []).forEach(function (no, i) { seqIndex[no] = i; });
+    var currentFound = false, dots = "";
+    for (var i = 0; i < chain.length; i++) {
+      var itemNo = chain[i];
+      var done = PO_ANCHOR_ITEM_NOS[itemNo]
+        ? poSingleStatus(singleByItemNo[itemNo]) === "done"
+        : seqIndex[itemNo] < (li.step_position || 0);
+      var cls = "";
+      if (done) cls = "done";
+      else if (!currentFound) { cls = "current"; currentFound = true; }
       dots += '<span class="dot' + (cls ? " " + cls : "") + '"></span>';
     }
     return '<div class="po-item-track">' + dots + "</div>";
@@ -4457,7 +4509,7 @@
       var stepLabel = nextItemNo ? "Next " + nextItemNo : (li.total_steps ? "Done" : "");
       box.insertAdjacentHTML("beforeend",
         '<div class="po-item-row"><div class="iname">' + li.name + '<span class="istep">' + stepLabel + "</span></div>"
-        + poItemTrack(li) + "</div>");
+        + poItemTrack(li, li._cat, singleByItemNo) + "</div>");
     });
     return box;
   }
@@ -4558,6 +4610,10 @@
         statsTotal.complete += cd.stats.complete || 0;
         statsTotal.in_progress += cd.stats.in_progress || 0;
         statsTotal.blocked += cd.stats.blocked || 0;
+        // early_activity_mep combines two underlying categories -- tag each
+        // item with which one it actually belongs to, so poItemTrack knows
+        // which fan-out chain (and which full causal chain) applies to it.
+        cd.items.forEach(function (it) { it._cat = c; });
         allItems = allItems.concat(cd.items);
         Object.keys(cd.step_counts || {}).forEach(function (itemNo) {
           fanoutData[itemNo] = { items: cd.items, counts: cd.step_counts[itemNo] };
