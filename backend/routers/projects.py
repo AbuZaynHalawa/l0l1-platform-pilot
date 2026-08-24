@@ -584,6 +584,42 @@ def update_project_manager(project_id: int, payload: schemas.ProjectManagerUpdat
         raise HTTPException(404, "Project not found")
     project.project_manager = (payload.project_manager or "").strip() or None
     db.commit()
+
+    # [2.3 <-> PM two-way sync]: setting a real PM here (from either
+    # direction -- this endpoint's own field, or 2.3's own picker below,
+    # which also calls this same endpoint) auto-completes "2.3" (Assignment
+    # of Temporary Project Manager & Project Engineer) the same way items
+    # 115/116 auto-complete Tendering items that just restate a project
+    # field -- 2.3 isn't Tendering's own department, but the same
+    # "this data already lives on the project, don't make someone redo it
+    # as a separate deliverable" reasoning applies. Only ever completes
+    # forward (clearing PM never un-completes 2.3 -- that's a genuine
+    # Reopen, not something this endpoint should do silently). Every
+    # BU-variant "2.3" (TBU/PBU/DBU) gets it, in case more than one is
+    # active on a mixed-scope project.
+    if project.project_manager:
+        subs = (
+            db.query(models.DeliverableSubmission)
+            .join(models.DeliverableDefinition)
+            .filter(models.DeliverableSubmission.project_id == project_id,
+                    models.DeliverableDefinition.item_no == "2.3",
+                    models.DeliverableSubmission.status != models.SubmissionStatus.APPROVED)
+            .all()
+        )
+        for sub in subs:
+            sub.status = models.SubmissionStatus.APPROVED
+            sub.auto_completed = True
+            sub.due_date = sub.due_date or date.today()
+            sub.submitted_at = sub.submitted_at or datetime.utcnow()
+            sub.reviewed_at = datetime.utcnow()
+            sub.review_comment = f"Auto-completed: Project Manager set to {project.project_manager}."
+            db.add(models.WorkflowHistory(submission_id=sub.id, action="auto_done", actor_name="system",
+                                           note=sub.review_comment))
+        if subs:
+            db.commit()
+            rules.recompute_project_due_dates(db, project, force=True)
+            db.commit()
+
     db.refresh(project)
     return project
 

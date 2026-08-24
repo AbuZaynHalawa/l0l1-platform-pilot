@@ -1949,6 +1949,45 @@
       body.appendChild(poBlock);
     }
 
+    // [2.3 <-> PM two-way sync]: picking someone here calls the exact same
+    // endpoint the project detail page's own "Project Manager" field edit
+    // uses (PATCH .../project-manager), which auto-completes every "2.3"
+    // submission on the project -- so this is really just that same field,
+    // surfaced on the one deliverable that's actually about assigning it,
+    // not a separate parallel value to keep in sync by hand.
+    if (d.item_no === "2.3" && !d.project_terminal && d.status !== "approved") {
+      var pmBlock = el("div", "po-selection-block");
+      pmBlock.appendChild(el("div", "po-selection-title", "Assign Project Manager"));
+      var pmSelect = el("select");
+      pmSelect.appendChild(el("option", "", "Select from L0/L1 Group…")).value = "";
+      var roster = await _getRoster();
+      roster.forEach(function (u) {
+        var opt = el("option", "", u.name + " (" + u.email + ")");
+        opt.value = u.name;
+        if (d.project_manager && u.name === d.project_manager) opt.selected = true;
+        pmSelect.appendChild(opt);
+      });
+      pmBlock.appendChild(pmSelect);
+      var pmSaveBtn = el("button", "btn primary", "Save");
+      pmSaveBtn.style.marginTop = "8px";
+      pmSaveBtn.addEventListener("click", async function () {
+        if (!pmSelect.value) { showToast("Pick a person first", true); return; }
+        try {
+          await api("/api/projects/" + d.project_id + "/project-manager", {
+            method: "PATCH", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ project_manager: pmSelect.value }),
+          });
+        } catch (err) {
+          showToast("Could not assign &#8211; " + apiErrorDetail(err), true);
+          return;
+        }
+        showToast("Project Manager assigned &#8211; 2.3 completed");
+        refreshModal();
+      });
+      pmBlock.appendChild(pmSaveBtn);
+      body.appendChild(pmBlock);
+    }
+
     var actionsRow = el("div", "modal-actions-row");
     var shareBtn = el("button", "btn", "Share");
     shareBtn.addEventListener("click", async function () {
@@ -2592,13 +2631,20 @@
         editLink.addEventListener("click", async function (e) {
           e.preventDefault();
           if (tag === "pm") {
-            var nextPm = prompt("Project Manager name:", p.project_manager || "");
-            if (nextPm === null) return;
-            api("/api/projects/" + id + "/project-manager", {
-              method: "PATCH", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ project_manager: nextPm.trim() || null }),
-            }).then(function () { showToast("Project Manager updated"); openDetail(id); })
-              .catch(function (err) { showToast("Could not update &#8211; " + apiErrorDetail(err), true); });
+            openChecklistEditModal({
+              type: "text",
+              title: "Edit Project Manager",
+              eyebrow: "Setting this also auto-completes 2.3 (Assignment of Temporary Project Manager & Project Engineer) if it isn't already.",
+              placeholder: "Project Manager name",
+              selected: p.project_manager || "",
+              onSave: function (nextPm) {
+                api("/api/projects/" + id + "/project-manager", {
+                  method: "PATCH", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ project_manager: (nextPm || "").trim() || null }),
+                }).then(function () { closeChecklistEditModal(); showToast("Project Manager updated"); openDetail(id); })
+                  .catch(function (err) { showToast("Could not update &#8211; " + apiErrorDetail(err), true); });
+              },
+            });
           } else if (tag === "bm") {
             var opts = await getCreateOptions();
             openChecklistEditModal({

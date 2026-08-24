@@ -937,6 +937,7 @@ def get_deliverable_detail(submission_id: int, actor_email: str | None = None, d
         "department": sub.definition.department.name, "department_number": sub.definition.department.number,
         "est_no": sub.project.est_no, "project_id": sub.project_id, "project_name": sub.project.name,
         "project_terminal": rules.is_project_terminal(sub.project),
+        "project_manager": sub.project.project_manager,  # [2.3 <-> PM sync] pre-fills 2.3's own person-picker
         "due_date": sub.due_date, "status": sub.status.value,
         "deadline_status": deadline_key, "deadline_days": deadline_days, "auto_completed": sub.auto_completed,
         "on_hold": sub.on_hold, "hold_reason": sub.hold_reason,
