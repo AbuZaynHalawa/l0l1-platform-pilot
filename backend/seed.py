@@ -89,6 +89,11 @@ ensure_column("deliverable_definitions", "line_item_category", "VARCHAR")
 ensure_column("deliverable_submissions", "po_selection", "JSON")
 ensure_column("po_line_items", "source_submission_id", "INTEGER")
 
+# [L0 International]
+ensure_column("projects", "is_international", "BOOLEAN")
+ensure_column("projects", "country", "VARCHAR")
+ensure_column("departments", "is_international", "BOOLEAN")
+
 # [SME nominations, per-item rework]: sme_nominations shipped with a
 # single-blanket-request shape (email/name/reason, one row per submission
 # click) days ago with zero real usage, then got reworked into one row per
@@ -178,6 +183,22 @@ DEPARTMENTS = [
     # progress -- see the one-time cleanup in run() below).
 ]
 
+# [L0 International]: every department L0_INTERNATIONAL_DEPT names, flagged
+# is_international=True below in run() -- own rows, never shared with a
+# standard-L0/L1 department (see L0_INTERNATIONAL_ITEMS's own comment for why).
+INTERNATIONAL_DEPARTMENTS = [
+    "Tendering Department (International)", "Operation Units (International)",
+    "Supply Chain (International)", "Engineering Department (International)",
+    "Planning (International)", "Cost Control (International)",
+    "Contract (International)", "Human Resources (International)",
+    "Treasury (International)", "Finance (International)",
+    "Quality (International)", "HSSE (International)",
+    "IT Department (International)", "Risk (International)",
+    "Fleet (International)", "FM (International)", "Legal (International)",
+    "International Business Development", "Document & Data Governance",
+]
+DEPARTMENTS = DEPARTMENTS + INTERNATIONAL_DEPARTMENTS
+
 # Renames existing production department rows in place (preserving id and
 # every deliverable_definition/submission already linked to them) — a plain
 # name change in DEPARTMENTS above only affects newly-created rows.
@@ -234,6 +255,20 @@ DEPARTMENT_NUMBERS = {
     "Risk": 14, "Risk Department": 14,
     "Fleet": 15, "Fleet and Facility Management Department": 15,
     "FM": 16,
+    # [L0 International]: own numbering sequence (1-19), independent of the
+    # standard L0/L1 numbers above -- these are separate department rows so
+    # there's no collision even where a number repeats (e.g. both "Treasury"
+    # and "Treasury (International)" are 9, in their own respective names).
+    "Tendering Department (International)": 1, "Operation Units (International)": 2,
+    "Supply Chain (International)": 3, "Engineering Department (International)": 4,
+    "Planning (International)": 5, "Cost Control (International)": 6,
+    "Contract (International)": 7, "Human Resources (International)": 8,
+    "Treasury (International)": 9, "Finance (International)": 10,
+    "Quality (International)": 11, "HSSE (International)": 12,
+    "IT Department (International)": 13, "Risk (International)": 14,
+    "Fleet (International)": 15, "FM (International)": 16,
+    "Legal (International)": 17, "International Business Development": 18,
+    "Document & Data Governance": 19,
 }
 
 # ---------------------------------------------------------------------------
@@ -466,6 +501,185 @@ L0_ITEMS = [
     ("15.1", "Recent Equipment Cost Estimates, Consumptions and Maintenance", "fleet", None, None, 0, "after", "library", None),
     ("15.2", "Provide recent information on Equipment availability, location and release dates", "fleet", None, None, 0, "after", "library", None),
     ("16.1", "Provide Camp Cost Estimates, Consumptions and Maintenance based on manning", "fm", "predecessor", "5.3", 5, "after", "date_driven", None),
+]
+
+# ---------------------------------------------------------------------------
+# [L0 International] catalog — from "L0 Template International Projects.xlsx"
+# (International/ folder), sheet "L0 International". Same stage as regular
+# L0 (still Stage.L0 -- there is no separate "International" Stage), but an
+# entirely separate item catalog, on its own departments, gated by
+# rules.is_international_applicable so it only ever instantiates on a
+# project with is_international=True and never mixes with the standard L0
+# catalog above.
+#
+# Every department here is its own new Department row (never a standard-L0
+# department reused) -- Department.name is unique at the DB level and the
+# upsert() key is (stage, item_no, department_id), so reusing a standard-L0
+# department id would silently overwrite its real catalog text with these
+# international items sharing the same item_no (both catalogs use "1.1"-
+# "1.24", "4.1"-"4.9", etc.).
+#
+# Financial Department and SHEQ Department split into Treasury/Finance and
+# Quality/HSSE, same as standard L0 already does (see L0_DEPT above) --
+# renumbered under their own new department numbers, not just relabeled in
+# place. Applying that same "does every item have one clean single-owner
+# Action-By?" test surfaced two more splits: Fleet and FM Department (into
+# Fleet/FM, matching standard L0's own precedent) and Control Department
+# (into Planning/Cost Control) -- Planning keeps all 4 original Control
+# items (including the one whose Action-By was "QS", folded in rather than
+# given its own department), Cost Control gets a duplicated copy of just
+# the Risk Register and Pre-bid-clarifications items, the same "every split
+# department keeps its own copy of these two" convention Treasury/Finance
+# and Quality/HSSE items also follow below.
+L0_INTERNATIONAL_DEPT = {
+    "tendering_intl": "Tendering Department (International)",
+    "operation_intl": "Operation Units (International)",
+    "supply_intl": "Supply Chain (International)",
+    "eng_intl": "Engineering Department (International)",
+    "planning_intl": "Planning (International)",
+    "costctrl_intl": "Cost Control (International)",
+    "contract_intl": "Contract (International)",
+    "hr_intl": "Human Resources (International)",
+    "treasury_intl": "Treasury (International)",
+    "finance_intl": "Finance (International)",
+    "quality_intl": "Quality (International)",
+    "hsse_intl": "HSSE (International)",
+    "it_intl": "IT Department (International)",
+    "risk_intl": "Risk (International)",
+    "fleet_intl": "Fleet (International)",
+    "fm_intl": "FM (International)",
+    "legal_intl": "Legal (International)",
+    "bd_intl": "International Business Development",
+    "docgov_intl": "Document & Data Governance",
+}
+
+# (item_no, name, dept_key, anchor_type, pred, offset, direction, dtype, milestone_code)
+# Milestones: M1=1.1 (announcement), M2=2.2 (site visit report), M3=5.3
+# (project schedule, now under Planning), M4=1.13 (technical offers
+# circulated), M5=1.24 (submit proposal, = BSD). A few formulas in the
+# source template are conditional ("+N days from M1 or +M days after X") --
+# simplified to their primary/first branch (the literal "+N days from M1"),
+# same simplification noted in the plan; easy to add a real conditional
+# later if the actual trigger condition is clarified.
+L0_INTERNATIONAL_ITEMS = [
+    ("1.1", "Receive Approval for GO approach & Circulate Tender Documents", "tendering_intl", "announcement", None, 0, "after", "date_driven", "M1"),
+    ("1.2", "Announce the date of the site visit", "tendering_intl", "predecessor", "1.1", 2, "after", "date_driven", None),
+    ("1.3", "Announce the date of the Pre-bid Meetings and circulate related instructions (if applicable)", "tendering_intl", "predecessor", "1.1", 2, "after", "date_driven", None),
+    ("1.4", "Announce the deadlines of the Pre-bid clarifications", "tendering_intl", "predecessor", "1.1", 2, "after", "date_driven", None),
+    ("1.5", "Assign BID Manager / Calculation Engineer (focal for all communications)", "tendering_intl", "predecessor", "1.1", 2, "after", "date_driven", None),
+    ("1.6", "Arrange for Bid Bond if applicable (reference to agreement with partner if needed)", "tendering_intl", "predecessor", "1.24", 10, "before", "date_driven", None),
+    ("1.7", "Develop Estimate Program and circulate with all departments, External consultant, SME's", "tendering_intl", "predecessor", "1.1", 5, "after", "date_driven", None),
+    ("1.8", "IBU to determine whether to participate in the tender as AGC Holding or through one of AGH's affiliates, based on the project scope and pre-qualification (PQ) requirements from either the SFD or the client.", "tendering_intl", "predecessor", "1.1", 2, "after", "date_driven", None),
+    ("1.9", "Communicate and align with the selected partner after selection", "tendering_intl", "predecessor", "1.1", 3, "after", "date_driven", None),
+    ("1.10", "Float SC RFQ's", "tendering_intl", "predecessor", "1.1", 7, "after", "date_driven", None),
+    ("1.11", "Float Materials RFQ's", "tendering_intl", "predecessor", "1.1", 7, "after", "date_driven", None),
+    ("1.12", "Float RFQ's - Consultant Services", "tendering_intl", "predecessor", "1.1", 7, "after", "date_driven", None),
+    ("1.13", "Circulate technical offers & Terms received from Vendors & SC & Consultant to Tender & Engineering", "tendering_intl", "predecessor", "1.12", 10, "after", "date_driven", "M4"),
+    ("1.14", "BD to Align with the suitable subsidiary/affiliate to jointly participate with the tender department for the preparation of high level DOR", "tendering_intl", "predecessor", "1.1", 3, "after", "date_driven", None),
+    ("1.15", "Review Project Schedule and provide feedback (item 5.3 provided from Planning Department)", "tendering_intl", "predecessor", "5.3", 2, "after", "date_driven", None),
+    ("1.16", "Review Project Execution Plan (item 2.5 Methodology) and provide feedback", "tendering_intl", "predecessor", "1.1", 8, "after", "date_driven", None),
+    ("1.17", "Incorporate Consultant findings (if applicable)", "tendering_intl", None, None, 0, "after", "on_request", None),
+    ("1.18", "Incorporate SME's findings (if applicable)", "tendering_intl", None, None, 0, "after", "on_request", None),
+    ("1.19", "Share Updated Manpower Manning schedules with HR & IT", "tendering_intl", "predecessor", "5.3", 3, "after", "date_driven", None),
+    ("1.20", "Provide estimated filled BOQ and Price breakdown to finanical department for Cash flow calculations", "tendering_intl", "predecessor", "1.24", 7, "before", "date_driven", None),
+    ("1.21", "Develop a comprehensive Technical proposal according to ITB (See ATTACHMENT NO. 4 TO FORM OF TENDER)", "tendering_intl", "predecessor", "1.24", 3, "before", "date_driven", None),
+    ("1.22", "Develop a comprehensive Commercial proposal", "tendering_intl", "predecessor", "1.24", 3, "before", "date_driven", None),
+    ("1.23", "Adjust Proposals base on Tender Committee and /or VC Comments", "tendering_intl", "predecessor", "1.24", 3, "before", "date_driven", None),
+    ("1.24", "Submit Proposal to client", "tendering_intl", "bsd", None, 0, "before", "date_driven", "M5"),
+
+    ("2.1", "Attend Site Visit", "operation_intl", "site_visit", None, 0, "after", "date_driven", None),
+    ("2.2", "Prepare and circulate Site Visit Report to understand terrain, accessibility, logistics, local suppliers, labor availability, and infrastructure includes Site visit certificate", "operation_intl", "site_visit", None, 3, "after", "date_driven", "M2"),
+    ("2.3", "Assign Focal Point during L0 stage", "operation_intl", "predecessor", "1.1", 3, "after", "date_driven", None),
+    ("2.4", "Review any local construction codes, safety standards, taxes, and permitting processes that may impact cost or timeline.", "operation_intl", "site_visit", None, 3, "after", "date_driven", None),
+    ("2.5", "Check the Security & Stability requirements such as security services or additional insurance.", "operation_intl", "site_visit", None, 3, "after", "date_driven", None),
+    ("2.6", "Provide recommendations on Site Establishment requirment: Fencing, signage, utilities, access roads, Supervision & Admin Staff", "operation_intl", "site_visit", None, 3, "after", "date_driven", None),
+    ("2.7", "Highlight points require Pre-bid clarifications", "operation_intl", "pre_bid", None, 3, "before", "date_driven", None),
+    ("2.8", "Prepare Risk Register", "operation_intl", "predecessor", "2.2", 1, "after", "date_driven", None),
+    ("2.9", "Provide Subcontracting Strategy", "operation_intl", "predecessor", "1.1", 14, "after", "date_driven", None),
+    ("2.10", "Prepare Project Execution Plan (Methodology)", "operation_intl", "predecessor", "1.1", 14, "after", "date_driven", None),
+    ("2.11", "Review and comments on Project schedule", "operation_intl", "predecessor", "5.3", 2, "after", "date_driven", None),
+
+    ("3.1", "Prepare Risk Register", "supply_intl", "predecessor", "2.2", 1, "after", "date_driven", None),
+    ("3.2", "Highlight points require Pre-bid clarifications", "supply_intl", "pre_bid", None, 3, "before", "date_driven", None),
+    ("3.3", "Prepare Pre-bid agreements such as; handling main material linked to LME Pricing", "supply_intl", "predecessor", "1.1", 10, "after", "date_driven", None),
+    ("3.4", "Provide P.O.'s and Procurement Historical Data", "supply_intl", None, None, 0, "after", "on_request", None),
+    ("3.5", "Prepare List of long lead items, key materials and items fall on critical path in collaboration with Tender and Planning team (including Spare Parts / Special Tools And Test Equipment )", "supply_intl", "predecessor", "1.13", 2, "after", "date_driven", None),
+    ("3.6", "Support tendering with required logistics pricing and provide backup details (Sea Freight, Land Transportation..)", "supply_intl", "predecessor", "1.13", 2, "after", "date_driven", None),
+    ("3.7", "Complete Internal Prequalification of Potential Vendors (where applicable for any new vendor)", "supply_intl", "predecessor", "1.13", 2, "after", "date_driven", None),
+    ("3.8", "Participate in negotiation rounds at bidding stage (if required) and provide feedback to tender team", "supply_intl", None, None, 0, "after", "on_request", None),
+
+    ("4.1", "Prepare Risk Register", "eng_intl", "predecessor", "2.2", 1, "after", "date_driven", None),
+    ("4.2", "Highlight points require Pre-bid clarifications", "eng_intl", "pre_bid", None, 3, "before", "date_driven", None),
+    ("4.3", "Provide List of required Site Investigations, Studies or any Special Technical Reports", "eng_intl", "predecessor", "1.1", 3, "after", "date_driven", None),
+    ("4.4", "Generate equipment technical RFP for main equipment", "eng_intl", "predecessor", "1.1", 10, "after", "date_driven", None),
+    ("4.5", "Generate Design, technical scope & BOQ's for all disciplines", "eng_intl", "predecessor", "1.1", 14, "after", "date_driven", None),
+    ("4.6", "Hire 3rd Party Engineering Firm with required experience (if needed)", "eng_intl", "predecessor", "1.1", 7, "after", "date_driven", None),
+    ("4.7", "Provide Studies of Value Engineering and Optimized design (wherever needed for All Disciplines)", "eng_intl", "predecessor", "1.1", 10, "after", "date_driven", None),
+    ("4.8", "Review and evaluate technical offers received from Vendors", "eng_intl", "predecessor", "1.13", 2, "after", "date_driven", None),
+    ("4.9", "Support Technical Proposals with required Technical deliverables (if needed)", "eng_intl", "predecessor", "1.1", 14, "after", "date_driven", None),
+
+    ("5.1", "Prepare Risk Register", "planning_intl", "predecessor", "2.2", 1, "after", "date_driven", None),
+    ("5.2", "Highlight points require Pre-bid clarifications", "planning_intl", "pre_bid", None, 3, "before", "date_driven", None),
+    ("5.3", "Prepare Project schedule loaded with resources (based on AGC norms) (level according to client requirement, up to L3) - Schedule is Mandatory for every tender even if it was not requested by client", "planning_intl", "predecessor", "1.1", 15, "after", "date_driven", "M3"),
+    ("5.4", "Verify Quantities for remeasured Contracts (if applicable)", "planning_intl", "predecessor", "1.1", 10, "after", "date_driven", None),
+
+    ("6.1", "Prepare Risk Register", "costctrl_intl", "predecessor", "2.2", 1, "after", "date_driven", None),
+    ("6.2", "Highlight points require Pre-bid clarifications", "costctrl_intl", "pre_bid", None, 3, "before", "date_driven", None),
+
+    ("7.1", "Prepare Risk Register", "contract_intl", "predecessor", "1.24", 7, "before", "date_driven", None),
+    ("7.2", "Highlight points require Pre-bid clarifications (Review Contracts and submit comments, and clarification that need to be addressed to client during this stage)", "contract_intl", "pre_bid", None, 3, "before", "date_driven", None),
+    ("7.3", "Prepare Non Disclosure Agreements (NDA's) (if applicable)", "contract_intl", None, None, 0, "after", "on_request", None),
+    ("7.4", "Review Pre-bid agreements and provide Contractual comments as needed (if applicable)", "contract_intl", None, None, 0, "after", "on_request", None),
+    ("7.5", "Joint Venture Agreement / Consortium Agreement (if applicable)", "contract_intl", "predecessor", "1.24", 7, "before", "date_driven", None),
+
+    ("8.1", "Provide report on Local Content regulations", "hr_intl", "predecessor", "5.3", 5, "after", "date_driven", None),
+    ("8.2", "Updated HR Cost Estimates (Salaries / Wages / Benefits) for targeted country", "hr_intl", "predecessor", "2.2", 7, "after", "date_driven", None),
+    ("8.3", "Provide updated information on Workforce availability, nationality, release dates, relocate/ requirements of new hiring", "hr_intl", "predecessor", "5.3", 5, "after", "date_driven", None),
+    ("8.4", "Provide Supporting documents, such as team CV's, certificates and Qualifications for technical proposal (If Applicable )", "hr_intl", "predecessor", "1.1", 5, "after", "date_driven", None),
+
+    ("9.1", "Prepare Risk Register", "treasury_intl", "predecessor", "2.2", 1, "after", "date_driven", None),
+    ("9.2", "Issue Bid Bonds reference to item no. 1.6 (request must be received within 14 days before bond submission deadline)", "treasury_intl", "predecessor", "1.24", 3, "before", "date_driven", None),
+    ("9.3", "Financial Capacity / Financial Situation / Annual Turnover - Updated on Yearly Bases (on request)", "treasury_intl", "predecessor", "1.1", 5, "after", "date_driven", None),
+
+    ("10.1", "Prepare Risk Register", "finance_intl", "predecessor", "2.2", 1, "after", "date_driven", None),
+    ("10.2", "Audited Financial Statements (last 3 years - Arabic & English) - Updated on Yearly Bases", "finance_intl", "predecessor", "1.1", 5, "after", "date_driven", None),
+    ("10.3", "Insurance Certificates (if required) - Updated on Yearly Bases", "finance_intl", "predecessor", "1.1", 5, "after", "date_driven", None),
+    ("10.4", "Provide Insurance Cost, and additional clients req. such as current policies (when required)", "finance_intl", "predecessor", "1.24", 5, "before", "date_driven", None),
+    ("10.5", "Provide Proposed Business Units, Corporate , Finance and Insurance Overheads (%) and provide backup details", "finance_intl", "predecessor", "1.24", 5, "before", "date_driven", None),
+    ("10.6", "Provide Proposed Cash Flow & Finance Cost and Parameters required to calculate the finance cost - based on input availablilty", "finance_intl", "predecessor", "1.24", 7, "before", "date_driven", None),
+
+    ("11.1", "Prepare Risk Register", "quality_intl", "predecessor", "2.2", 1, "after", "date_driven", None),
+    ("11.2", "Highlight points require Pre-bid clarifications", "quality_intl", "pre_bid", None, 3, "before", "date_driven", None),
+    ("11.3", "Prepare QA/QC Plan - Tender Level", "quality_intl", "predecessor", "1.1", 7, "after", "date_driven", None),
+
+    ("12.1", "Prepare Risk Register", "hsse_intl", "predecessor", "2.2", 1, "after", "date_driven", None),
+    ("12.2", "Highlight points require Pre-bid clarifications", "hsse_intl", "pre_bid", None, 3, "before", "date_driven", None),
+    ("12.3", "List of Safety req. & PPE", "hsse_intl", "predecessor", "1.1", 7, "after", "date_driven", None),
+    ("12.4", "Prepare HSE Plan - Tender Level", "hsse_intl", "predecessor", "1.1", 7, "after", "date_driven", None),
+    ("12.5", "Weather & Environment: Check for weather conditions, seasonal impacts, or environmental risks that may affect construction or logistics.", "hsse_intl", "predecessor", "2.2", 5, "after", "date_driven", None),
+
+    ("13.1", "Cost for Staff and offices Requirments (Hardware, Software, Infrastructure)", "it_intl", "predecessor", "5.3", 3, "after", "date_driven", None),
+
+    ("14.1", "Compile risk registers received from all departments, Evaluate and prepare final register that shall be considered by tendering", "risk_intl", "predecessor", "2.2", 3, "after", "date_driven", None),
+
+    ("15.1", "Recent Equipment Availability, Cost Estimates, Consumptions and Maintenance in targeted country", "fleet_intl", "predecessor", "5.3", 5, "after", "date_driven", None),
+
+    ("16.1", "Provide Camp Cost Estimates, Consumptions and Maintenance based on manpower histogram", "fm_intl", "predecessor", "5.3", 5, "after", "date_driven", None),
+
+    ("17.1", "Power of Attorney (authenticated by Chamber of Commerce)", "legal_intl", "predecessor", "1.1", 5, "after", "date_driven", None),
+    ("17.2", "History of non-execution of contracts / Litigation / Legal Disputes Declaration (if required / as per client request)", "legal_intl", "predecessor", "1.1", 5, "after", "date_driven", None),
+
+    ("18.1", "Lead communications with potential partners (DOR, agreements)", "bd_intl", "predecessor", "1.1", 1, "after", "date_driven", None),
+    ("18.2", "Arrange for a site visit and align with all departments on the required attendees, prerequisit forms and Prepare visit agenda (meeting client, contractors, suppliers, logistics..) (Forms Attached)", "bd_intl", "predecessor", "1.1", 1, "after", "date_driven", None),
+    ("18.3", "Analyze the market and study competitors' portfolios", "bd_intl", "predecessor", "2.2", 7, "after", "date_driven", None),
+    ("18.4", "List of Ongoing & Completed Projects", "bd_intl", "predecessor", "1.1", 5, "after", "date_driven", None),
+    ("18.5", "International Experience Reference Projects", "bd_intl", "predecessor", "1.1", 5, "after", "date_driven", None),
+
+    ("19.1", "Commercial Registration (CR)", "docgov_intl", "predecessor", "1.1", 5, "after", "date_driven", None),
+    ("19.2", "Zakat, Tax, and VAT Certificates (ZATCA-compliant)", "docgov_intl", "predecessor", "1.1", 5, "after", "date_driven", None),
+    ("19.3", "GOSI Certificate (if required)", "docgov_intl", "predecessor", "1.1", 5, "after", "date_driven", None),
+    ("19.4", "Saudi Chamber of Commerce Membership Certificate", "docgov_intl", "predecessor", "1.1", 5, "after", "date_driven", None),
+    ("19.5", "Updated Company Profile", "docgov_intl", "predecessor", "1.1", 5, "after", "date_driven", None),
 ]
 
 # ---------------------------------------------------------------------------
@@ -1445,6 +1659,10 @@ def run():
             dept.focal_point_email = dept.focal_point_email or TEST_EMAIL
             dept.focal_point_name = dept.focal_point_name or f"TEST focal ({name})"
             dept.number = DEPARTMENT_NUMBERS.get(name)
+            # [L0 International]: flags these department rows so Performance/
+            # Focal Points can show them only in their own International
+            # subtab, hidden from the standard L0 view.
+            dept.is_international = name in INTERNATIONAL_DEPARTMENTS
             dept_map[name] = dept
         db.commit()
 
@@ -1509,6 +1727,15 @@ def run():
         for item_no, name, dkey, anchor, pred, offset, direction, ms in L1_ITEMS:
             dept = dept_map[L1_DEPT[dkey]]
             upsert("L1", item_no, name, L1_SHORT_NAMES.get(item_no, name), dept.id, anchor, pred, offset, direction, "date_driven", bool(ms), ms)
+
+        # [L0 International]: still Stage.L0 (no separate Stage value), on its
+        # own departments -- no short-name catalog of its own yet, so
+        # short_name just falls back to the full name (matches how any
+        # standard L0/L1 item without an L0_SHORT_NAMES/L1_SHORT_NAMES entry
+        # already behaves).
+        for item_no, name, dkey, anchor, pred, offset, direction, dtype, ms in L0_INTERNATIONAL_ITEMS:
+            dept = dept_map[L0_INTERNATIONAL_DEPT[dkey]]
+            upsert("L0", item_no, name, name, dept.id, anchor, pred, offset, direction, dtype, bool(ms), ms)
 
         db.commit()
 
@@ -1837,6 +2064,22 @@ def run():
         if auto_completed_fixed:
             db.commit()
             print(f"Item [old projects 500]: backfilled {auto_completed_fixed} submission(s) with a NULL auto_completed to False.")
+
+        # [L0 International]: same NULL-boolean-on-existing-rows issue as
+        # auto_completed above -- ProjectOut/is_international requires a
+        # real bool, so every project created before this column existed
+        # 500'd on any endpoint returning it (GET /api/projects, etc.).
+        intl_fixed = (
+            db.query(models.Project).filter(models.Project.is_international.is_(None))
+            .update({models.Project.is_international: False}, synchronize_session=False)
+        )
+        dept_intl_fixed = (
+            db.query(models.Department).filter(models.Department.is_international.is_(None))
+            .update({models.Department.is_international: False}, synchronize_session=False)
+        )
+        if intl_fixed or dept_intl_fixed:
+            db.commit()
+            print(f"[L0 International]: backfilled {intl_fixed} project(s) and {dept_intl_fixed} department(s) with a NULL is_international to False.")
 
         # Item [points backfill]: mark_complete's SME-immediate-finalize
         # branch used to skip setting submitted_at (fixed separately), so

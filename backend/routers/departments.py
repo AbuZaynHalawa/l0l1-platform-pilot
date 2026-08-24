@@ -53,11 +53,12 @@ def get_create_options(db: Session = Depends(get_db)):
 # above each department's own focal_point_email.
 # ---------------------------------------------------------------------------
 @router.get("/deliverable-focal")
-def list_deliverable_focal(stage: str, db: Session = Depends(get_db)):
+def list_deliverable_focal(stage: str, international: bool = False, db: Session = Depends(get_db)):
     defs = (
         db.query(models.DeliverableDefinition)
         .join(models.Department)
-        .filter(models.DeliverableDefinition.stage == stage, models.DeliverableDefinition.active == True)  # noqa: E712
+        .filter(models.DeliverableDefinition.stage == stage, models.DeliverableDefinition.active == True,  # noqa: E712
+                models.Department.is_international == international)
         .order_by(models.Department.number)
         .all()
     )
@@ -74,7 +75,9 @@ def list_deliverable_focal(stage: str, db: Session = Depends(get_db)):
             "owner_emails": d.default_owner_emails or ([d.default_owner_email] if d.default_owner_email else []),
             "department_focal_email": d.department.focal_point_email,
             "default_sme_emails": d.default_sme_emails or ([d.default_sme_email] if d.default_sme_email else []),
-            "is_tendering_bm": d.department.name == "Tendering Department",
+            # [L0 International]: "Tendering Department (International)" gets
+            # the same BM-owns-it treatment as the standard department.
+            "is_tendering_bm": d.department.name.startswith("Tendering Department"),
         }
         for d in defs
     ]
@@ -111,10 +114,11 @@ def update_deliverable_focal(definition_id: int, payload: DeliverableFocalUpdate
     d = db.get(models.DeliverableDefinition, definition_id)
     if not d:
         raise HTTPException(404, "Deliverable definition not found")
-    if d.department.name != "Tendering Department":
+    if not d.department.name.startswith("Tendering Department"):
         # Tendering Department's Owner is always that project's own Bid
         # Manager — not editable here, but its SME still is (below,
-        # unconditional).
+        # unconditional). Prefix match also covers "Tendering Department
+        # (International)" -- [L0 International].
         d.default_owner_emails = _validate_roster_emails(db, payload.default_owner_emails, require_role="Owner") or None
     d.default_sme_emails = _validate_roster_emails(db, payload.default_sme_emails, require_role="SME") or None
     # A catalog default only feeds *new* submissions by itself -- without
@@ -133,7 +137,7 @@ def update_deliverable_focal(definition_id: int, payload: DeliverableFocalUpdate
         .all()
     )
     for s in untouched:
-        if d.department.name != "Tendering Department":
+        if not d.department.name.startswith("Tendering Department"):
             s.owner_emails = d.default_owner_emails
         s.sme_emails = d.default_sme_emails
     db.commit()

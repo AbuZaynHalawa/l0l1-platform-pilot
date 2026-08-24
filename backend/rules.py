@@ -146,7 +146,9 @@ def resolve_focal_emails(definition: "models.DeliverableDefinition", project: "m
     """List form of deliverable_focal() below, for building real recipient
     lists rather than a single display string.
     """
-    if definition.department.name == "Tendering Department" and project is not None and project.bid_manager:
+    # [L0 International]: "Tendering Department (International)" gets the
+    # same BM-as-focal treatment as the standard one.
+    if definition.department.name.startswith("Tendering Department") and project is not None and project.bid_manager:
         return [project.bid_manager]
     if definition.focal_point_emails:
         return definition.focal_point_emails
@@ -220,6 +222,18 @@ def is_scope_variant_applicable(definition: models.DeliverableDefinition, projec
     if kind == "pbu":
         return any(s in trigger_scopes for s in scope)
     return any(s not in trigger_scopes for s in scope)
+
+
+def is_international_applicable(definition: models.DeliverableDefinition, project: models.Project) -> bool:
+    """Companion to is_bu_applicable/is_scope_variant_applicable: an
+    international-only department (Department.is_international) only ever
+    instantiates on an international project, and a standard-L0 department
+    never instantiates on one -- the two catalogs never mix. L1 has no
+    international concept at all, so this is always True there (every L1
+    department has is_international False, matching project.is_international
+    always False for an L1 project too).
+    """
+    return bool(definition.department.is_international) == bool(getattr(project, "is_international", False))
 
 # L0: these three items' duration is 3 working days if the tender window
 # (BSD - announcement) is under 30 calendar days, else 7 — independent of
@@ -644,7 +658,12 @@ def compute_due_date(db: Session, sub: "models.DeliverableSubmission", project: 
 
     if anchor_type == "predecessor":
         item_no = definition.item_no
-        is_l0 = definition.stage == models.Stage.L0
+        # [L0 International]: an international tender's durations are
+        # literal (no tight-BSD compression, no standard-L0 tiered/threshold/
+        # PBU-conditional special cases) -- same math L1 already uses. Every
+        # is_l0-gated branch below stays off for these, even though
+        # definition.stage is still plain "L0".
+        is_l0 = definition.stage == models.Stage.L0 and not getattr(project, "is_international", False)
         window = _tender_window_days(project) if is_l0 else None
 
         # PBU-conditional branch (L0 items 1.8/1.9/1.10): if scope includes PBU,
@@ -895,7 +914,9 @@ def recompute_project_due_dates(db: Session, project: models.Project, force: boo
     for s in subs:
         lookup.setdefault(s.definition.item_no, []).append(s)
 
-    if project.stage == models.Stage.L0:
+    # [L0 International]: no tight-BSD compression search for these -- same
+    # plain pass L1 already uses, literal durations throughout.
+    if project.stage == models.Stage.L0 and not project.is_international:
         _apply_duration_ratio(db, project, subs, lookup)
     else:
         project.duration_ratio = 1.0

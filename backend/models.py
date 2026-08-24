@@ -106,6 +106,12 @@ class Department(Base):
     number = Column(Integer, nullable=True)  # the "4" in item "4.5" — display-only, kept out of `name`
     focal_point_name = Column(String, nullable=True)
     focal_point_email = Column(String, nullable=True)
+    # [L0 International]: every international-only department (its own row,
+    # never shared with a standard-L0 department of the same conceptual
+    # name -- see rules.is_international_applicable) is flagged here so
+    # Performance/Focal Points can show it only in their International
+    # subtab, and hide it from the standard L0 view.
+    is_international = Column(Boolean, default=False)
 
     deliverable_definitions = relationship("DeliverableDefinition", back_populates="department")
 
@@ -173,7 +179,18 @@ class Project(Base):
     scope_other = Column(String, nullable=True)
     rfx_number = Column(String, nullable=True)
     scope_contains_pbu = Column(Boolean, default=False)  # drives the 1.8/1.9/1.10 conditional in rules.py
-    business_units = Column(JSON, nullable=True)  # list of "TBU"/"PBU"/"DBU"/"BBU"/"TBA", see rules.compute_business_units
+    business_units = Column(JSON, nullable=True)  # list of "TBU"/"PBU"/"DBU"/"BBU"/"IBU"/"TBA", see rules.compute_business_units
+    # [L0 International]: L0 only, set once at creation, never toggled after.
+    # Drives which DeliverableDefinition catalog _instantiate_deliverables
+    # pulls from (rules.is_international_applicable) and which due-date
+    # formulas apply (compute_due_date's is_l0 gate) -- an international
+    # tender uses its own item catalog and literal (L1-style) durations,
+    # not standard L0's tight-BSD compression.
+    is_international = Column(Boolean, default=False)
+    # Free-text country, collected instead of the KSA-only Region checkboxes
+    # when is_international is set -- region/region_other stay unused for
+    # these projects.
+    country = Column(String, nullable=True)
     bid_manager = Column(String, nullable=True)
     project_manager = Column(String, nullable=True)
     status = Column(Enum(ProjectStatus), default=ProjectStatus.IN_PROGRESS)
@@ -623,3 +640,9 @@ class Announcement(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     project = relationship("Project", foreign_keys=[project_id])
+
+    @property
+    def project_international(self) -> bool:
+        # [L0 International]: Announcement has no stage/international column
+        # of its own -- badging a row is always resolved through its project.
+        return bool(self.project.is_international) if self.project else False

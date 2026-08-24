@@ -457,6 +457,7 @@
       <div class="subtab-row" id="fpSubTabs">
         <button class="chip active" data-fp="L0">L0 Deliverables</button>
         <button class="chip" data-fp="L1">L1 Deliverables</button>
+        <button class="chip" data-fp="intl">International</button>
         <button class="chip" data-fp="bm">Bid Managers</button>
         <button class="chip" data-fp="group">L0-L1 Group</button>
       </div>
@@ -625,6 +626,7 @@
       <div class="detail-head">
         <div class="detail-head-main">
           <span class="stage-badge" id="dStageBadge"></span>
+          <span class="pill neutral" id="dIntlBadge" hidden><span class="dot"></span>International</span>
           <h1 class="detail-title" id="dTitle"></h1>
         </div>
         <div class="detail-head-actions">
@@ -690,6 +692,7 @@
       </div>
       <div class="subtab-row" id="perfSubTabs">
         <button class="chip active" data-pane="overview">Overview</button>
+        <button class="chip" data-pane="international">International</button>
         <button class="chip" data-pane="triage" id="perfTriageTabBtn" hidden>Manage Tracking</button>
       </div>
       <div id="perfOverviewPane">
@@ -791,6 +794,9 @@
 
         <!-- L0 FORM -->
         <div id="cfL0Form">
+          <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;margin-bottom:16px;">
+            <input type="checkbox" id="cfInternational" /> International tender
+          </label>
           <div class="form-grid">
             <div class="field">
               <label>Tender Name <span class="req">*</span></label>
@@ -833,10 +839,14 @@
               <span class="hint">If left blank, treated as immediate.</span>
             </div>
           </div>
-          <div class="field" style="margin-top:8px;">
+          <div class="field" id="cfRegionField" style="margin-top:8px;">
             <label>Region <span class="req">*</span></label>
             <div class="scope-grid" id="cfRegionGrid"></div>
             <input type="text" id="cfRegionOther" placeholder="If Other, specify&#8230;" style="display:none;margin-top:6px;" />
+          </div>
+          <div class="field" id="cfCountryField" style="margin-top:8px;display:none;">
+            <label>Country <span class="req">*</span></label>
+            <input type="text" id="cfCountry" placeholder="e.g. Jordan" />
           </div>
           <div class="field" style="margin-top:14px;">
             <label>Scope <span class="req">*</span></label>

@@ -59,7 +59,8 @@ def _instantiate_deliverables(db: Session, project: models.Project):
         .filter(models.DeliverableDefinition.stage == stage, models.DeliverableDefinition.active == True)  # noqa: E712
         .all()
     )
-    defs = [d for d in defs if rules.is_bu_applicable(d, project) and rules.is_scope_variant_applicable(d, project)]
+    defs = [d for d in defs if rules.is_bu_applicable(d, project) and rules.is_scope_variant_applicable(d, project)
+            and rules.is_international_applicable(d, project)]
     # [PO Lifecycle]: a line_item_category definition fans out one submission
     # per active PoLineItem in that category (comma-separated when a
     # definition spans two pools, e.g. "3.11" -> "early_activity,mep")
@@ -96,8 +97,12 @@ def _instantiate_deliverables(db: Session, project: models.Project):
         # Tendering Department items are the BM's own department's work —
         # there's no "is this applicable to my project" call to make on
         # your own department's items, so they're excluded too (item 85).
+        # [L0 International]: "Tendering Department (International)" is the
+        # same self-department exemption, just a differently-named row --
+        # prefix match covers both without hardcoding the international name.
+        is_tendering_dept = d.department.name.startswith("Tendering Department")
         needs_triage = stage == models.Stage.L0 and not d.is_milestone and (
-            d.department.name != "Tendering Department" or d.item_no in _L0_TENDERING_TRIAGE_ITEMS
+            not is_tendering_dept or d.item_no in _L0_TENDERING_TRIAGE_ITEMS
         )
 
         # Items 115/116: auto-complete Tendering items that just restate a
@@ -108,7 +113,7 @@ def _instantiate_deliverables(db: Session, project: models.Project):
         # this was auto- rather than human-completed. auto_completed is
         # the flag that actually drives hiding it from tracking.
         auto_done_date = None
-        if d.department.name == "Tendering Department":
+        if is_tendering_dept:
             field = auto_done_fields.get(d.item_no)
             if field:
                 auto_done_date = getattr(project, field, None)
@@ -188,11 +193,16 @@ def _active_bid_manager_emails(db: Session) -> set[str]:
 def create_l0_project(payload: schemas.ProjectCreateL0, db: Session = Depends(get_db)):
     if (payload.bid_manager or "").lower() not in _active_bid_manager_emails(db):
         raise HTTPException(400, "Bid Manager must be selected from the directory")
-    if not payload.region:
+    # [L0 International]: Country replaces the KSA Region checkboxes for
+    # these projects -- Region stays required (and unused) for a standard one.
+    if payload.international:
+        if not (payload.country or "").strip():
+            raise HTTPException(400, "Country is required")
+    elif not payload.region:
         raise HTTPException(400, "Region is required")
     if not payload.scope:
         raise HTTPException(400, "Scope is required")
-    if "Other" in payload.region and not (payload.region_other or "").strip():
+    if not payload.international and "Other" in payload.region and not (payload.region_other or "").strip():
         raise HTTPException(400, "Specify the Other region")
     if "Other" in payload.scope and not (payload.scope_other or "").strip():
         raise HTTPException(400, "Specify the Other scope")
@@ -205,16 +215,26 @@ def create_l0_project(payload: schemas.ProjectCreateL0, db: Session = Depends(ge
     if db.query(models.Project).filter(models.Project.est_no == est_no, models.Project.stage == models.Stage.L0).first():
         raise HTTPException(400, f"Est-No {est_no} is already in use")
 
-    business_units, needs_manual = rules.compute_business_units(payload.scope)
-    if needs_manual:
-        chosen = [b for b in (payload.business_units or []) if b in ("TBU", "PBU", "DBU", "BBU", "TBA")]
-        if not chosen:
-            raise HTTPException(400, "Business Unit is required for this scope (choose TBU/PBU/DBU/BBU, or TBA)")
-        business_units = chosen
+    if payload.international:
+        # Every international tender's Operation Unit work is done by IBU
+        # (the template's own Action-By column, universally) -- auto-assigned
+        # rather than derived from scope, editable later like any other
+        # project's business unit via the existing Edit Business Unit flow.
+        business_units = ["IBU"]
+    else:
+        business_units, needs_manual = rules.compute_business_units(payload.scope)
+        if needs_manual:
+            chosen = [b for b in (payload.business_units or []) if b in ("TBU", "PBU", "DBU", "BBU", "TBA")]
+            if not chosen:
+                raise HTTPException(400, "Business Unit is required for this scope (choose TBU/PBU/DBU/BBU, or TBA)")
+            business_units = chosen
 
     project = models.Project(
         est_no=est_no, name=payload.name, stage=models.Stage.L0,
-        region=payload.region, region_other=payload.region_other,
+        region=None if payload.international else payload.region,
+        region_other=None if payload.international else payload.region_other,
+        is_international=payload.international,
+        country=(payload.country or "").strip() if payload.international else None,
         scope=payload.scope, scope_other=payload.scope_other,
         rfx_number=payload.rfx_number, bid_manager=payload.bid_manager,
         announcement_date=payload.announcement_date, bsd=payload.bsd,
@@ -589,6 +609,8 @@ def update_project_details(project_id: int, payload: schemas.ProjectDetailsUpdat
         project.region = data["region"]
     if "region_other" in data:
         project.region_other = data["region_other"]
+    if "country" in data:
+        project.country = data["country"]
     if "scope" in data or "business_units" in data or "scope_other" in data:
         real_subs = (
             db.query(models.DeliverableSubmission)
@@ -611,19 +633,26 @@ def update_project_details(project_id: int, payload: schemas.ProjectDetailsUpdat
         if "Other" in new_scope and not (new_scope_other or "").strip():
             raise HTTPException(400, "Specify the Other scope")
 
-        computed_bus, needs_manual = rules.compute_business_units(new_scope)
-        if needs_manual:
-            chosen = [b for b in (data.get("business_units") or []) if b in ("TBU", "PBU", "DBU", "BBU", "TBA")]
-            if not chosen:
-                raise HTTPException(400, "Business Unit is required for this scope (choose TBU/PBU/DBU/BBU, or TBA)")
-            new_bus = chosen
-        elif "business_units" in data:
-            # A manual override even though scope alone would auto-classify --
-            # the same correction escape hatch the create form offers.
-            chosen = [b for b in (data.get("business_units") or []) if b in ("TBU", "PBU", "DBU", "BBU", "TBA")]
-            new_bus = chosen or computed_bus
+        if project.is_international:
+            # [L0 International]: IBU is auto-assigned, not scope-derived --
+            # a scope edit here must never silently strip it back out via
+            # compute_business_units (which has no concept of IBU at all).
+            chosen = [b for b in (data.get("business_units") or []) if b == "IBU"]
+            new_bus = chosen or ["IBU"]
         else:
-            new_bus = computed_bus
+            computed_bus, needs_manual = rules.compute_business_units(new_scope)
+            if needs_manual:
+                chosen = [b for b in (data.get("business_units") or []) if b in ("TBU", "PBU", "DBU", "BBU", "TBA")]
+                if not chosen:
+                    raise HTTPException(400, "Business Unit is required for this scope (choose TBU/PBU/DBU/BBU, or TBA)")
+                new_bus = chosen
+            elif "business_units" in data:
+                # A manual override even though scope alone would auto-classify --
+                # the same correction escape hatch the create form offers.
+                chosen = [b for b in (data.get("business_units") or []) if b in ("TBU", "PBU", "DBU", "BBU", "TBA")]
+                new_bus = chosen or computed_bus
+            else:
+                new_bus = computed_bus
 
         # Nothing real exists on these rows (guaranteed by the No Progress
         # check above), so they're safe to drop and regenerate from the new

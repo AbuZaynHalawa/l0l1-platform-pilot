@@ -456,8 +456,9 @@
         } else {
           recent.forEach(function (p) {
             var row = el("div", "dpc-recent-row");
+            var intlTag = p.is_international ? ' <span class="pill neutral" style="padding:1px 7px;"><span class="dot"></span>Intl</span>' : "";
             row.innerHTML = '<span class="dpc-recent-est">' + p.est_no + '</span>' +
-              '<span class="dpc-recent-name">' + p.name + '</span>' +
+              '<span class="dpc-recent-name">' + p.name + intlTag + '</span>' +
               '<span class="dpc-recent-date">' + fmtDate(p.announcement_date) + "</span>";
             row.addEventListener("click", function () { openDetail(p.id); });
             body.appendChild(row);
@@ -575,7 +576,7 @@
         var row = el("div", "digest-row");
         row.appendChild(el("div", "digest-ic", meta[0]));
         var body = el("div", "digest-body");
-        body.appendChild(el("b", "", a.title));
+        body.appendChild(el("b", "", a.title + (a.project_international ? " (International)" : "")));
         body.appendChild(el("div", "sub", a.body.replace(/<[^>]+>/g, "")));
         digest.appendChild(row);
         row.appendChild(body);
@@ -682,7 +683,7 @@
   function deptLabel(name, number) {
     return (number ? number + ". " : "") + name;
   }
-  var _BU_ORDER = ["TBU", "PBU", "DBU", "BBU"];
+  var _BU_ORDER = ["TBU", "PBU", "DBU", "BBU", "IBU"];
   function sortBusinessUnits(bus) {
     return bus.slice().sort(function (a, b) {
       var ai = _BU_ORDER.indexOf(a), bi = _BU_ORDER.indexOf(b);
@@ -942,9 +943,13 @@
       var tr2 = el("tr");
       var statusPill = '<span class="pill ' + (PROJECT_STATUS_CLASS[p.status] || "neutral") + '"><span class="dot"></span>' + p.status + '</span>';
       var estClass = "est-no " + stage.toLowerCase();
+      // [L0 International]: reused everywhere a badge is called for --
+      // same small pill style as statusPill above.
+      var intlPill = p.is_international ? '<span class="pill neutral"><span class="dot"></span>International</span>' : "";
       if (stage === "L0") {
-        tr2.innerHTML = '<td class="' + estClass + '">' + p.est_no + '</td><td><span class="proj-name">' + p.name + '</span></td>' +
-          '<td>' + (p.rfx_number || "&#8213;") + '</td><td>' + joinList(p.region) + '</td><td>' + joinList(p.scope) + '</td><td>' + (p.bid_manager || "&#8213;") + '</td>' +
+        var regionCell = p.is_international ? (p.country || "International") : joinList(p.region);
+        tr2.innerHTML = '<td class="' + estClass + '">' + p.est_no + ' ' + intlPill + '</td><td><span class="proj-name">' + p.name + '</span></td>' +
+          '<td>' + (p.rfx_number || "&#8213;") + '</td><td>' + regionCell + '</td><td>' + joinList(p.scope) + '</td><td>' + (p.bid_manager || "&#8213;") + '</td>' +
           '<td class="num">' + fmtDate(p.bsd) + '</td><td>' + statusPill + '</td>';
       } else {
         var mini = '<div class="mini-stepper" data-pid="' + p.id + '">&#8230;</div>';
@@ -1256,8 +1261,8 @@
         '<p class="tour-step-text">Since its official launch in <b>December 2024</b>, the system has evolved ' +
         "from a set of Excel-based tracking sheets into a structured, cross-functional framework for " +
         "deliverable ownership, deadline control, stakeholder coordination, performance monitoring, and " +
-        "management visibility. The system is now also expanding to support international L0/L1 " +
-        "tenders.</p>" +
+        "management visibility. The system now also supports <b>International</b> L0 tenders — their " +
+        "own catalog and departments, same workflow.</p>" +
         '<p class="tour-step-text">This walkthrough covers where the system came from, how the two stages ' +
         "work, and how to actually use this portal day to day. Seventeen short steps &#8212; use Next/Back " +
         "or the dots below.</p>",
@@ -1267,8 +1272,8 @@
       title: "System Implementation Timeline",
       body:
         '<p class="tour-step-text">Rolled out in stages since <b>Aug 2024</b>, official operation launched ' +
-        "<b>Dec 2024</b>, now running <b>343 L0 tenders</b> and <b>45 L1 projects</b> through it, with " +
-        "International L0/L1 Development and a New L1 Model both already underway.</p>" +
+        "<b>Dec 2024</b>, now running <b>343 L0 tenders</b> and <b>45 L1 projects</b> through it. " +
+        "International L0 support has since shipped, and a New L1 Model is still underway.</p>" +
         '<div class="tt-layout">' +
         '<div class="tt-steps">' +
         '<div class="tt-step">Developed new Procedure along with a defined scheme</div>' +
@@ -1295,7 +1300,7 @@
         '<div class="tt-bar row0 orange" style="left:0%;width:18%;" title="Standard L0/L1 Development">Standard L0/L1 Development</div>' +
         '<div class="tt-bar row1 green" style="left:3%;width:13%;" title="Pilot &#8211; NAJRAN BSP (L1 Stage)">Pilot &#8211; NAJRAN BSP (L1)</div>' +
         '<div class="tt-marker" style="left:18%;"><div class="tt-dot"></div><div class="tt-lbl">Official Operation Launched</div></div>' +
-        '<div class="tt-bar row0 orange" style="left:40%;width:15%;" title="International L0/L1 Development">International L0/L1 Development</div>' +
+        '<div class="tt-bar row0 orange" style="left:40%;width:15%;" title="International L0 Development">International L0 Development</div>' +
         '<div class="tt-bar row0 green" style="left:75%;width:13%;" title="New L1 Model Development">New L1 Model Development</div>' +
         "</div>" +
         '<div class="tt-detail-grid">' +
@@ -1305,12 +1310,12 @@
         "<li>Shared folder set up with a tree matching the deliverables</li>" +
         "<li>Follow-up framework implemented to address delays or lack of response</li>" +
         "</ul></div>" +
-        '<div class="tt-detail orange"><b>International L0/L1 Development</b><ul>' +
-        "<li>Initiated development of the International Projects System</li>" +
-        "<li>Prepared a new version of the L0/L1 stages for international projects</li>" +
-        "<li>Introduced a new stage &#8212; &quot;L-Pre Stage&quot;</li>" +
+        '<div class="tt-detail orange"><b>International L0 Development</b><ul>' +
+        "<li>Built the International Projects catalog from AGC Holding's real template</li>" +
+        "<li>Added International-only departments (Business Development, Document &amp; Data " +
+        "Governance, Legal) and a new IBU business unit</li>" +
         "<li>Conducted workshops with every involved department</li>" +
-        "<li>Gathering feedback and refining the final outputs</li>" +
+        "<li>Live now &#8212; a single checkbox on tender creation, same L0 workflow throughout</li>" +
         "</ul></div>" +
         "</div>" +
         '<div class="tt-stats">' +
@@ -1331,6 +1336,10 @@
         "The <b>Project Schedule (M3)</b> anchors most department due dates. Technical offers circulate " +
         "once RFQs return (<b>M4</b>), and the tender closes with the <b>Proposal Submitted to " +
         "client (M5)</b>, timed to the Bid Submission Date.</p>" +
+        '<p class="tour-step-text">Checking <b>International tender</b> on the create form swaps in a ' +
+        "separate catalog and department set built for tenders outside Saudi Arabia (its own new " +
+        "departments, an auto-assigned IBU business unit, a Country field instead of Region) — " +
+        "everything downstream (triage, owner assignment, badges) still works exactly the same way.</p>" +
         '<div class="mock-fs">' +
         milestoneMock([
           ["M1", "Announced", true], ["M2", "Site Visit", true], ["M3", "Schedule", true],
@@ -2510,6 +2519,7 @@
     var stageBadge = document.getElementById("dStageBadge");
     stageBadge.textContent = p.stage + " Stage";
     stageBadge.className = "stage-badge " + (p.stage === "L0" ? "l0" : "l1");
+    document.getElementById("dIntlBadge").hidden = !p.is_international;
     document.getElementById("dTitle").textContent = p.est_no.toUpperCase() + " – " + p.name;
     var l0LinkBtn = document.getElementById("dL0LinkBtn");
     if (p.stage === "L1" && p.l0_source_id) {
@@ -2550,8 +2560,11 @@
     var meta = document.getElementById("dMeta");
     meta.innerHTML = "";
     var buLabel = (p.business_units && p.business_units.length) ? sortBusinessUnits(p.business_units).join(" / ") : "&#8213;";
+    // [L0 International]: Country replaces Region in this row for these
+    // projects -- there is no region data to show for them.
+    var regionRow = p.is_international ? ["Country", p.country || "&#8213;", "country"] : ["Region", joinList(p.region), "region"];
     var metaItems = p.stage === "L0"
-      ? [["Bid Manager", p.bid_manager || "&#8213;", "bm"], ["RFX", p.rfx_number || "&#8213;", "rfx"], ["Region", joinList(p.region), "region"], ["Scope", joinList(p.scope), "scope"],
+      ? [["Bid Manager", p.bid_manager || "&#8213;", "bm"], ["RFX", p.rfx_number || "&#8213;", "rfx"], regionRow, ["Scope", joinList(p.scope), "scope"],
          ["Business Unit", buLabel, "bu"],
          ["Announced", fmtDate(p.announcement_date), "date:announcement_date:Announcement Date"],
          ["Site Visit", fmtDate(p.site_visit_date), "date:site_visit_date:Site Visit Date"],
@@ -2616,6 +2629,21 @@
                   .catch(function (err) { showToast("Could not update &#8211; " + apiErrorDetail(err), true); });
               },
             });
+          } else if (tag === "country") {
+            openChecklistEditModal({
+              type: "text",
+              title: "Edit Country",
+              placeholder: "Country",
+              selected: p.country || "",
+              onSave: function (nextCountry) {
+                if (!nextCountry) { showToast("Country is required", true); return; }
+                api("/api/projects/" + id + "/details", {
+                  method: "PATCH", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ country: nextCountry, actor_role: CURRENT_ROLE }),
+                }).then(function () { closeChecklistEditModal(); showToast("Country updated"); openDetail(id); })
+                  .catch(function (err) { showToast("Could not update &#8211; " + apiErrorDetail(err), true); });
+              },
+            });
           } else if (tag === "scope") {
             var sopts = await getCreateOptions();
             openChecklistEditModal({
@@ -2638,7 +2666,7 @@
             openChecklistEditModal({
               eyebrow: "Only allowed before this tender has any real progress — changing it regenerates the deliverable list to match.",
               title: "Edit Business Unit",
-              options: ["TBU", "PBU", "DBU", "BBU", "TBA"],
+              options: ["TBU", "PBU", "DBU", "BBU", "IBU", "TBA"],
               selected: p.business_units || [],
               hasOther: false,
               onSave: function (buArr) {
@@ -3452,7 +3480,10 @@
     var scopeSel = document.getElementById("ganttScope");
     scopeSel.innerHTML = '<option value="">Pooled Timeline (all active ' + ganttStage + ' projects)</option>';
     list.forEach(function (p) {
-      var o = el("option", "", p.est_no + " &#8211; " + p.name); o.value = p.id;
+      // [L0 International]: <option> can't hold markup, so a plain text
+      // suffix stands in for the pill badge used everywhere else.
+      var label = p.est_no + " &#8211; " + p.name + (p.is_international ? " (International)" : "");
+      var o = el("option", "", label); o.value = p.id;
       scopeSel.appendChild(o);
     });
     document.getElementById("ganttDeadlineFilter").value = "";
@@ -3744,6 +3775,7 @@
   /* ================= PERFORMANCE / REPORTS ================= */
   var perfTriageStage = "L0";
   var perfData = null;
+  var perfInternational = false; // [L0 International]: which subtab's data perfData currently holds
   var perfSearchTerm = "";
   var perfCompareSelected = {};  // department name -> true
   var perfChipSelected = {};  // department name -> true, independent multi-select
@@ -4201,7 +4233,7 @@
     });
   }
   async function loadPerformance() {
-    perfData = await api("/api/dashboard/performance");
+    perfData = await api("/api/dashboard/performance" + (perfInternational ? "?international=true" : ""));
     document.getElementById("perfFreshness").textContent = "Data as of " + fmtDate(perfData.data_as_of);
     renderPerfSummaryCards();
     renderPerfChips();
@@ -4221,9 +4253,15 @@
       document.querySelectorAll("#perfSubTabs .chip").forEach(function (b) { b.classList.remove("active"); });
       btn.classList.add("active");
       var pane = btn.dataset.pane;
-      document.getElementById("perfOverviewPane").hidden = pane !== "overview";
+      // [L0 International]: its own subtab, but reuses the exact same
+      // Overview pane/card-grid machinery -- just re-fetched with
+      // international=true, same pattern as Manage Tracking's own L0/L1
+      // stage toggle re-fetching with a different `stage`.
+      document.getElementById("perfOverviewPane").hidden = pane === "triage";
       document.getElementById("perfTriagePane").hidden = pane !== "triage";
-      if (pane === "triage") loadPerfTriage();
+      if (pane === "triage") { loadPerfTriage(); return; }
+      var wantIntl = pane === "international";
+      if (wantIntl !== perfInternational) { perfInternational = wantIntl; loadPerformance(); }
     });
   });
   document.querySelectorAll("#perfTriageStageToggle .chip").forEach(function (btn) {
@@ -4727,10 +4765,13 @@
   });
 
   async function loadFocalPoints() {
-    document.getElementById("fpDeliverablePanel").hidden = (fpTab !== "L0" && fpTab !== "L1");
+    document.getElementById("fpDeliverablePanel").hidden = (fpTab !== "L0" && fpTab !== "L1" && fpTab !== "intl");
     document.getElementById("fpBmPanel").hidden = fpTab !== "bm";
     document.getElementById("fpGroupPanel").hidden = fpTab !== "group";
-    if (fpTab === "L0" || fpTab === "L1") return loadFocalDeliverables(fpTab);
+    // [L0 International]: its own subtab, but reuses the exact same
+    // deliverable-focal table -- always stage=L0, international=true.
+    if (fpTab === "intl") return loadFocalDeliverables("L0", true);
+    if (fpTab === "L0" || fpTab === "L1") return loadFocalDeliverables(fpTab, false);
     if (fpTab === "bm") return loadBidManagers();
     return loadSystemGroup();
   }
@@ -4939,8 +4980,8 @@
     _fpRenderRows(_fpApplyFilters());
   });
 
-  async function loadFocalDeliverables(stage) {
-    _fpRows = await api("/api/departments/deliverable-focal?stage=" + stage);
+  async function loadFocalDeliverables(stage, international) {
+    _fpRows = await api("/api/departments/deliverable-focal?stage=" + stage + (international ? "&international=true" : ""));
     _fpRoster = await _getRoster();
     _fpPopulateFilterOptions();
     _fpRenderRows(_fpApplyFilters());
@@ -5834,7 +5875,8 @@
     row.appendChild(el("div", "ann-ic " + meta[1], meta[0]));
     var main = el("div", "ann-main");
     var when = new Date(a.created_at).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
-    main.appendChild(el("div", "ann-top", '<span class="ann-title">' + a.title + '</span><span class="ann-time">' + when + '</span>'));
+    var intlTag = a.project_international ? ' <span class="pill neutral" style="padding:1px 7px;"><span class="dot"></span>Intl</span>' : "";
+    main.appendChild(el("div", "ann-top", '<span class="ann-title">' + a.title + intlTag + '</span><span class="ann-time">' + when + '</span>'));
     main.appendChild(el("div", "ann-body", a.body));
     main.appendChild(el("div", "ann-meta", "To: <b>" + annAudienceTag(a, _emailRoleMap) + "</b> &middot; " + a.email_status));
     row.appendChild(main);
@@ -5919,6 +5961,12 @@
   }
   var buUncoveredScopes = [];
   function refreshBuFieldVisibility() {
+    // [L0 International]: IBU is auto-assigned, not manually chosen -- the
+    // manual TBU/PBU/DBU/BBU/TBA picker never applies to these projects.
+    if (document.getElementById("cfInternational").checked) {
+      document.getElementById("cfBuField").style.display = "none";
+      return;
+    }
     var scope = checkedValues("cfScopeGrid");
     var needed = scope.some(function (s) { return buUncoveredScopes.indexOf(s) !== -1; });
     document.getElementById("cfBuField").style.display = needed ? "" : "none";
@@ -5970,7 +6018,16 @@
     document.getElementById("cfL0Form").hidden = stage !== "L0";
     document.getElementById("cfL1Form").hidden = stage !== "L1";
   }
+  // [L0 International]: Country replaces the KSA Region checkboxes for an
+  // international tender -- everything else in the L0 form stays as-is.
+  function applyInternationalToggle() {
+    var intl = document.getElementById("cfInternational").checked;
+    document.getElementById("cfRegionField").style.display = intl ? "none" : "";
+    document.getElementById("cfCountryField").style.display = intl ? "" : "none";
+    refreshBuFieldVisibility();
+  }
   document.getElementById("cfStage").addEventListener("change", applyStageToggle);
+  document.getElementById("cfInternational").addEventListener("change", applyInternationalToggle);
   document.getElementById("cfEstNo").addEventListener("input", function () {
     this.value = this.value.replace(/\D/g, "");
   });
@@ -5990,11 +6047,13 @@
         var announce = document.getElementById("cfAnnounce").value;
         var bsd = document.getElementById("cfBsd").value;
         var bidManager = document.getElementById("cfBid").value;
-        var region = checkedValues("cfRegionGrid");
+        var international = document.getElementById("cfInternational").checked;
+        var region = international ? [] : checkedValues("cfRegionGrid");
+        var country = document.getElementById("cfCountry").value.trim();
         var scope = checkedValues("cfScopeGrid");
         var regionOtherVal = document.getElementById("cfRegionOther").value.trim();
         var scopeOtherVal = document.getElementById("cfScopeOther").value.trim();
-        var needsManualBu = scope.some(function (s) { return buUncoveredScopes.indexOf(s) !== -1; });
+        var needsManualBu = !international && scope.some(function (s) { return buUncoveredScopes.indexOf(s) !== -1; });
         var businessUnits = checkedValues("cfBuGrid");
         var errors = [];
         if (!name) errors.push("Tender name is required");
@@ -6003,9 +6062,13 @@
         if (!bidManager) errors.push("Bid Manager is required");
         if (!announce) errors.push("Announcement Date is required");
         if (!bsd) errors.push("Bid Submission Date is required");
-        if (!region.length) errors.push("Select at least one Region");
+        if (international) {
+          if (!country) errors.push("Country is required");
+        } else if (!region.length) {
+          errors.push("Select at least one Region");
+        }
         if (!scope.length) errors.push("Select at least one Scope");
-        if (region.indexOf("Other") !== -1 && !regionOtherVal) errors.push("Specify the Other region");
+        if (!international && region.indexOf("Other") !== -1 && !regionOtherVal) errors.push("Specify the Other region");
         if (scope.indexOf("Other") !== -1 && !scopeOtherVal) errors.push("Specify the Other scope");
         if (needsManualBu && !businessUnits.length) errors.push("Business Unit is required for this scope");
         if (errors.length) { showToast(errors.join("<br>"), true); return; }
@@ -6013,6 +6076,7 @@
         var payload = {
           name: name, est_no: estNo,
           region: region, region_other: regionOtherVal || null,
+          international: international, country: international ? country : null,
           scope: scope, scope_other: scopeOtherVal || null,
           rfx_number: document.getElementById("cfRfx").value || null,
           announcement_date: announce, site_visit_date: document.getElementById("cfSiteVisit").value || null,

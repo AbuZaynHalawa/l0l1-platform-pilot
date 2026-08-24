@@ -173,7 +173,8 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
                 return []
             q = q.filter(models.Project.id.in_(focus_project_ids))
         rows = q.order_by(models.Project.created_at.desc()).limit(3).all()
-        return [{"id": p.id, "est_no": p.est_no, "name": p.name, "announcement_date": p.announcement_date} for p in rows]
+        return [{"id": p.id, "est_no": p.est_no, "name": p.name, "announcement_date": p.announcement_date,
+                 "is_international": p.is_international} for p in rows]
 
     recent_l0 = _recent_projects(models.Stage.L0)
     recent_l1 = _recent_projects(models.Stage.L1)
@@ -685,7 +686,7 @@ def _history_and_ytd(db: Session, department_id: int, stage: models.Stage, curre
 
 
 @router.get("/performance")
-def get_performance(db: Session = Depends(get_db)):
+def get_performance(international: bool = False, db: Session = Depends(get_db)):
     """Item 42: the Performance tab's real data source -- per department, a
     tracked-level (L1/L0) card with a live percentage, a due-items list, a
     month-over-month trend, and (item [performance history]) a real Excellent/
@@ -704,6 +705,11 @@ def get_performance(db: Session = Depends(get_db)):
     departments = []
     for dept in db.query(models.Department).order_by(models.Department.number).all():
         if dept.name in _PERF_EXCLUDED_DEPTS:
+            continue
+        # [L0 International]: its own subtab, never mixed into the main
+        # Overview -- every international department only ever has L0 data,
+        # so its "l1" side would just render an empty, unused column there.
+        if bool(dept.is_international) != international:
             continue
         dept_subs = _kpi_cohort([s for s in all_subs if s.definition.department_id == dept.id])
         l1 = _level_stats(dept_subs, models.Stage.L1)

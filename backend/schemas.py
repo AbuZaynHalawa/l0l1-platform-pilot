@@ -5,7 +5,7 @@ from pydantic import BaseModel
 class ProjectCreateL0(BaseModel):
     est_no: str  # manual entry until auto-numbering exists
     name: str
-    region: list[str]
+    region: list[str] = []  # ignored when international=True (Country replaces it)
     region_other: str | None = None
     scope: list[str]
     scope_other: str | None = None
@@ -17,6 +17,8 @@ class ProjectCreateL0(BaseModel):
     bid_manager: str
     bsd: date
     business_units: list[str] | None = None  # required (TBU/PBU/DBU/BBU/TBA) only when scope can't be auto-classified
+    international: bool = False  # [L0 International]
+    country: str | None = None   # required when international=True, replaces region
 
 
 class ProjectCreateL1(BaseModel):
@@ -48,6 +50,7 @@ class ProjectDetailsUpdate(BaseModel):
     rfx_number: str | None = None
     region: list[str] | None = None
     region_other: str | None = None
+    country: str | None = None  # [L0 International]
     scope: list[str] | None = None
     scope_other: str | None = None
     business_units: list[str] | None = None
@@ -84,6 +87,8 @@ class ProjectOut(BaseModel):
     created_at: datetime | None = None  # item [nav badges]: L0/L1 "new project" counts read this
     duration_ratio: float | None = 1.0  # [tight-BSD duration ratio], L0 only -- 1.0 = standard, no compression
     duration_ratio_insufficient: bool | None = False  # True if even the 50% floor still overshoots BSD
+    is_international: bool = False  # [L0 International]
+    country: str | None = None
 
     class Config:
         from_attributes = True
@@ -217,6 +222,7 @@ class AnnouncementOut(BaseModel):
     created_at: datetime
     project_id: int | None = None
     submission_id: int | None = None
+    project_international: bool = False  # [L0 International]
 
     class Config:
         from_attributes = True
