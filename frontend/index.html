@@ -85,6 +85,7 @@
              work, instead of guessing an email that matches nothing. -->
         <select class="role-select" id="actingEmailQuickPick" style="display:none;"><option value="">Quick pick&#8230;</option></select>
         <button class="theme-btn" id="becomeSmeBtn">Become an SME</button>
+        <button class="theme-btn" id="groupInviteBtn">Add to L0-L1 Group</button>
         <button class="theme-btn" id="themeToggle">Dark mode</button>
         <div class="avatar">YH</div>
       </div>
@@ -566,6 +567,15 @@
           <div id="bidValueReqList"></div>
           <div id="bidValueReqHistory" hidden></div>
         </div>
+
+        <div class="card table-card fu-compact">
+          <div class="section-title">
+            <span>Group Add Requests <span class="cnt" id="groupAddReqCount"></span></span>
+            <button class="btn" id="groupAddReqHistoryToggle" style="font-size:11px;padding:4px 10px;">Show History</button>
+          </div>
+          <div id="groupAddReqList"></div>
+          <div id="groupAddReqHistory" hidden></div>
+        </div>
       </div>
 
       <div class="card table-card">
@@ -1011,6 +1021,43 @@
         <div class="modal-actions-row" style="margin-top:20px;">
           <button class="btn" id="smeNomCancel">Cancel</button>
           <button class="btn primary" id="smeNomSubmit">Submit Nomination</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Anyone already in the L0-L1 Group roster can request a new email be
+     added to it -- an Admin approves/rejects (Follow Up -> Group Add
+     Requests), same request-then-decide shape as Become an SME above. -->
+<div class="modal-overlay" id="groupInviteOverlay" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <div class="eyebrow">L0-L1 Group</div>
+        <h2>Add Someone to the Group</h2>
+        <div class="sub" id="groupInviteIdentityLine" style="margin-top:2px;"></div>
+      </div>
+      <button class="modal-close" id="groupInviteClose">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <div id="groupInviteNotInRoster" class="empty-state" hidden>
+        You need to be added to the L0-L1 Group first &#8212; ask an Admin
+        (Focal Points &#8594; L0-L1 Group), then come back and try again.
+      </div>
+      <div id="groupInviteForm">
+        <p class="tour-step-text" style="margin-top:0;">Submitted requests go to an Admin for approval before the
+          email becomes a real member.</p>
+        <input type="text" id="groupInviteName" placeholder="Name" style="width:100%;padding:8px 12px;border-radius:9px;border:1px solid var(--line);background:var(--surface-sunken);color:var(--ink-900);font-size:13px;margin-bottom:10px;box-sizing:border-box;" />
+        <input type="text" id="groupInviteEmail" placeholder="email@algihaz.com" style="width:100%;padding:8px 12px;border-radius:9px;border:1px solid var(--line);background:var(--surface-sunken);color:var(--ink-900);font-size:13px;margin-bottom:10px;box-sizing:border-box;" />
+        <select id="groupInviteRole" style="width:100%;padding:8px 12px;border-radius:9px;border:1px solid var(--line);background:var(--surface-sunken);color:var(--ink-900);font-size:13px;box-sizing:border-box;">
+          <option value="Viewer">Viewer</option>
+          <option value="Owner">Owner</option>
+          <option value="SME">SME</option>
+        </select>
+        <div class="modal-actions-row" style="margin-top:20px;">
+          <button class="btn" id="groupInviteCancel">Cancel</button>
+          <button class="btn primary" id="groupInviteSubmit">Submit Request</button>
         </div>
       </div>
     </div>

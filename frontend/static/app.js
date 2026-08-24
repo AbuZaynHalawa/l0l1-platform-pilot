@@ -220,7 +220,7 @@
     extension_request: ["&#8987;", "extension-request"], extension_decision: ["&#128197;", "extension-decision"],
     hold_request: ["&#9208;", "hold-request"], hold_decision: ["&#9208;", "hold-decision"],
     reassignment_decision: ["&#128101;", "reassignment-decision"], sme_nomination_decision: ["&#127891;", "sme-nomination-decision"],
-    bid_value_access_decision: ["&#128176;", "bid-value-access-decision"],
+    bid_value_access_decision: ["&#128176;", "bid-value-access-decision"], group_add_decision: ["&#128101;", "group-add-decision"],
   };
   // Item 165: single source of truth for the Announcements type filter and
   // its legend -- audience: "all" means every role sees it as a filter
@@ -247,6 +247,7 @@
     { value: "reassignment_decision", label: "Reassignment Decision", sw: "var(--good)", audience: ["Owner"] },
     { value: "sme_nomination_decision", label: "SME Nomination Decision", sw: "var(--good)", audience: "all" },
     { value: "bid_value_access_decision", label: "Bid Value Access Decision", sw: "var(--good)", audience: "all" },
+    { value: "group_add_decision", label: "L0-L1 Group Request Decision", sw: "var(--good)", audience: "all" },
   ];
   // Item [announcement recipients]: the "To:" line used to list every
   // recipient email verbatim -- fine at a handful of test users, unreadable
@@ -1220,7 +1221,8 @@
         var dueDateReqs = await api("/api/deliverables/due-date-requests?status=pending");
         var smeNoms = await api("/api/departments/sme-nominations?status=pending");
         var bvReqs = await api("/api/projects/bid-value-requests?status=pending");
-        document.getElementById("followupBadge").textContent = (reassigns.length + dueDateReqs.length + smeNoms.length + bvReqs.length) || "";
+        var groupReqs = await api("/api/departments/user-add-requests?status=pending");
+        document.getElementById("followupBadge").textContent = (reassigns.length + dueDateReqs.length + smeNoms.length + bvReqs.length + groupReqs.length) || "";
       } catch (e) {}
     } else {
       document.getElementById("followupBadge").textContent = "";
@@ -1707,9 +1709,10 @@
         '<span class="fu-dept-tags"><span class="fu-dept-count">3 overdue</span></span></summary></details>' +
         "</div>" +
         '<ul class="tour-list">' +
-        "<li>Four pending-request queues, side by side: <b>Due-Date Requests</b> (Extensions &amp; " +
+        "<li>Five pending-request queues, side by side: <b>Due-Date Requests</b> (Extensions &amp; " +
         "Holds), <b>Reassignment Requests</b>, <b>SME Nominations</b> (someone self-nominating to be " +
-        "an item's SME), and <b>Bid Value Access Requests</b></li>" +
+        "an item's SME), <b>Bid Value Access Requests</b>, and <b>Group Add Requests</b> (anyone in " +
+        "the L0-L1 Group requesting a new email be added to it)</li>" +
         "<li>Every <b>overdue deliverable</b> across the whole portal, grouped by department, most " +
         "overdue first, with a Critical (15+ days) severity filter</li>" +
         "</ul>" +
@@ -2635,6 +2638,56 @@
     } else {
       showToast("Already SME or already pending for everything you picked", true);
     }
+  });
+
+  // Self-service "add someone to the L0-L1 Group" request -- open to
+  // everyone already in the roster themselves (same gate as Become an SME
+  // above); an Admin approves/rejects in Follow Up -> Group Add Requests.
+  var groupInviteRequesterEmail = "", groupInviteRequesterName = "";
+  async function openGroupInviteModal() {
+    var overlay = document.getElementById("groupInviteOverlay");
+    var notInRoster = document.getElementById("groupInviteNotInRoster");
+    var form = document.getElementById("groupInviteForm");
+    var identityLine = document.getElementById("groupInviteIdentityLine");
+    var email = passiveIdentity();
+    var users = await api("/api/departments/users");
+    var match = email && users.find(function (u) { return u.email.trim().toLowerCase() === email.trim().toLowerCase(); });
+    if (!match) {
+      notInRoster.hidden = false;
+      form.hidden = true;
+      identityLine.textContent = email ? ("We don't recognize " + email + " in the roster.") : "";
+      overlay.hidden = false;
+      return;
+    }
+    notInRoster.hidden = true;
+    form.hidden = false;
+    groupInviteRequesterEmail = match.email; groupInviteRequesterName = match.name;
+    identityLine.textContent = "Requesting as " + (match.name || match.email) + " (" + match.email + ")";
+    document.getElementById("groupInviteName").value = "";
+    document.getElementById("groupInviteEmail").value = "";
+    document.getElementById("groupInviteRole").value = "Viewer";
+    overlay.hidden = false;
+  }
+  document.getElementById("groupInviteBtn").addEventListener("click", openGroupInviteModal);
+  function closeGroupInviteModal() { document.getElementById("groupInviteOverlay").hidden = true; }
+  document.getElementById("groupInviteClose").addEventListener("click", closeGroupInviteModal);
+  document.getElementById("groupInviteCancel").addEventListener("click", closeGroupInviteModal);
+  document.getElementById("groupInviteSubmit").addEventListener("click", async function () {
+    var name = document.getElementById("groupInviteName").value.trim();
+    var email = document.getElementById("groupInviteEmail").value.trim();
+    var role = document.getElementById("groupInviteRole").value;
+    if (!email) { showToast("Email is required", true); return; }
+    try {
+      await api("/api/departments/user-add-requests", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email, name: name || null, role: role, requested_by_email: groupInviteRequesterEmail }),
+      });
+    } catch (err) {
+      showToast("Could not submit &#8211; " + apiErrorDetail(err), true);
+      return;
+    }
+    closeGroupInviteModal();
+    showToast("Request submitted &#8211; pending admin approval");
   });
 
   /* ================= PROJECT DETAIL ================= */
@@ -4958,9 +5011,17 @@
       var stepLabel = isRejected ? skippedPrefix + nextItemNo + " Rejected"
         : nextItemNo ? skippedPrefix + "Next " + nextItemNo : (li.total_steps ? "Done" : "");
       var stepStyle = isRejected ? ' style="color:var(--crit);"' : "";
+      // [PO Lifecycle clickable items] each named line item opens the one
+      // submission that's actually worth looking at -- its current blocker,
+      // or its last (approved) step once fully done.
+      var rowCls = "po-item-row" + (li.open_submission_id ? " clickable" : "");
+      var rowAttr = li.open_submission_id ? ' data-open-submission="' + li.open_submission_id + '"' : "";
       box.insertAdjacentHTML("beforeend",
-        '<div class="po-item-row"><div class="iname">' + li.name + '<span class="istep"' + stepStyle + '>' + stepLabel + "</span></div>"
+        '<div class="' + rowCls + '"' + rowAttr + '><div class="iname">' + li.name + '<span class="istep"' + stepStyle + '>' + stepLabel + "</span></div>"
         + poItemTrack(li, li._cat, singleByItemNo) + "</div>");
+    });
+    box.querySelectorAll(".po-item-row[data-open-submission]").forEach(function (rowEl) {
+      rowEl.addEventListener("click", function () { openDelivModal(parseInt(rowEl.dataset.openSubmission, 10)); });
     });
     return box;
   }
@@ -5018,7 +5079,13 @@
     var needs = poNeedsText(meta.needs, singleByItemNo);
     var noteText = dynamicNote || meta.note;
     var note = noteText ? '<div class="note" style="color:' + (status === "blocked" ? "var(--crit)" : "var(--ink-500)") + ';">&#8617; ' + noteText + "</div>" : "";
-    return '<div class="card">'
+    // [PO Lifecycle clickable items] a "single" card maps to exactly one
+    // real submission (ctx.id) -- a "fanout" card summarizes many line
+    // items at once, so it has no one submission to open; its own items
+    // are individually clickable in the registry box above instead.
+    var openAttr = (kind === "single" && ctx && ctx.id) ? ' data-open-submission="' + ctx.id + '"' : "";
+    var cardCls = "card" + (openAttr ? " clickable" : "");
+    return '<div class="' + cardCls + '"' + openAttr + '>'
       + '<span class="icon">' + poIcon(status) + "</span>"
       + '<div class="body">'
       + '<div class="top"><span class="name"><b>' + itemNo + "</b>" + meta.label + "</span>" + poPill(status) + "</div>"
@@ -5096,6 +5163,9 @@
       });
       railHtml += "</div>";
       col.insertAdjacentHTML("beforeend", railHtml);
+      col.querySelectorAll(".card[data-open-submission]").forEach(function (cardEl) {
+        cardEl.addEventListener("click", function () { openDelivModal(parseInt(cardEl.dataset.openSubmission, 10)); });
+      });
       row.appendChild(col);
     });
     wrap.appendChild(row);
@@ -5709,6 +5779,46 @@
       });
     }
 
+    var groupReqs = await api("/api/departments/user-add-requests?status=pending");
+    var groupReqWrap = document.getElementById("groupAddReqList");
+    document.getElementById("groupAddReqCount").textContent = groupReqs.length || "";
+    groupReqWrap.innerHTML = "";
+    if (!groupReqs.length) {
+      groupReqWrap.appendChild(el("div", "empty-state", "No pending group add requests."));
+    } else {
+      groupReqs.forEach(function (r) {
+        var row = el("div", "aq-row");
+        var main = el("div", "aq-main");
+        main.appendChild(el("div", "aq-title", (r.name || r.email) + " &middot; " + r.role));
+        main.appendChild(el("div", "aq-sub",
+          '<span>' + r.email + '</span><span class="sep">&middot;</span>' +
+          '<span>Requested by ' + (r.requested_by_name ? r.requested_by_name + " (" + r.requested_by_email + ")" : r.requested_by_email) + '</span>'));
+        row.appendChild(main);
+        var actions = el("div", "deliv-actions");
+        var appr = el("button", "btn primary", "Approve");
+        appr.addEventListener("click", async function () {
+          await api("/api/departments/user-add-requests/" + r.id + "/decide", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ approved: true, comment: "", actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
+          });
+          showToast(r.email + " added to the L0-L1 Group");
+          loadFollowUp();
+        });
+        var rej = el("button", "btn ghost-crit", "Reject");
+        rej.addEventListener("click", async function () {
+          await api("/api/departments/user-add-requests/" + r.id + "/decide", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ approved: false, comment: "", actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
+          });
+          showToast("Request rejected");
+          loadFollowUp();
+        });
+        actions.appendChild(appr); actions.appendChild(rej);
+        row.appendChild(actions);
+        groupReqWrap.appendChild(row);
+      });
+    }
+
     // Item [follow-up redesign]: was one flat, unsorted, ungrouped list --
     // confusing once more than a handful of items are overdue at once. Now
     // grouped by Department (collapsed accordion, so the page opens calm
@@ -5915,6 +6025,24 @@
         (n.decision_comment ? '<span class="sep">&middot;</span><span>&#8220;' + n.decision_comment + '&#8221;</span>' : "")));
       row.appendChild(main);
       row.appendChild(el("div", "", _historyStatusPill(n.status)));
+      container.appendChild(row);
+    });
+  });
+  _setupHistoryToggle("groupAddReqHistoryToggle", "groupAddReqHistory", async function (container) {
+    var all = await api("/api/departments/user-add-requests?status=");
+    var decided = all.filter(function (r) { return r.status !== "pending"; });
+    container.innerHTML = "";
+    if (!decided.length) { container.appendChild(el("div", "empty-state", "No decided requests yet.")); return; }
+    decided.forEach(function (r) {
+      var row = el("div", "aq-row");
+      var main = el("div", "aq-main");
+      main.appendChild(el("div", "aq-title", (r.name || r.email) + " &middot; " + r.role));
+      main.appendChild(el("div", "aq-sub",
+        '<span>' + r.email + '</span><span class="sep">&middot;</span>' +
+        '<span>Requested by ' + (r.requested_by_name || r.requested_by_email) + '</span>' +
+        (r.decided_at ? '<span class="sep">&middot;</span><span>' + fmtDate(r.decided_at.slice(0, 10)) + '</span>' : "")));
+      row.appendChild(main);
+      row.appendChild(el("div", "", _historyStatusPill(r.status)));
       container.appendChild(row);
     });
   });

@@ -228,6 +228,12 @@ def po_cycle_summary(project_id: int, db: Session = Depends(get_db)):
                     current_item_no = item_no
                     break
             fully_done = bool(item_seq) and passed == len(item_seq)
+            # [PO Lifecycle clickable items]: the one submission worth opening
+            # for this line item -- whichever step is currently blocking it,
+            # or (once fully done) the last step in its chain, so clicking a
+            # completed item still lands on its real, approved submission.
+            open_submission_id = item_subs[current_item_no].id if current_item_no else \
+                (item_subs[item_seq[-1]].id if item_seq else None)
             current_status = item_subs[current_item_no].status if current_item_no else None
             if fully_done:
                 item_status = "complete"
@@ -242,7 +248,7 @@ def po_cycle_summary(project_id: int, db: Session = Depends(get_db)):
             items_out.append({
                 "id": li.id, "name": li.name, "source": li.source, "status": item_status,
                 "step_position": passed, "total_steps": len(item_seq),
-                "current_item_no": current_item_no,
+                "current_item_no": current_item_no, "open_submission_id": open_submission_id,
                 "approved_item_nos": approved_item_nos, "skipped_item_nos": skipped_item_nos,
                 # [PO Lifecycle] the raw status of whichever step is
                 # currently blocking this item -- lets the UI show e.g.

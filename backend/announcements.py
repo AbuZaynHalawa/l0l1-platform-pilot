@@ -23,6 +23,17 @@ APP_BASE_URL = os.environ.get("APP_BASE_URL", "https://l0l1-platform.onrender.co
 # white email background.
 _COLORS = {"good": "#1e7e42", "crit": "#c0392b", "warn": "#b9770e"}
 
+# Item [email test mode]: while the real send path (MAIL_BACKEND=graph) is
+# still being validated, every actual email is redirected to one inbox
+# instead of its real recipients, so what gets delivered can be checked
+# without notifying real roster members. On by default -- flip it off with
+# MAIL_TEST_MODE=0 once ready to broadcast for real; the redirect target is
+# itself overridable via MAIL_TEST_REDIRECT_TO. Only the outbound mail is
+# redirected -- the Announcement row persisted below (and shown in-app)
+# still records the real intended recipients, so "To:" stays accurate.
+MAIL_TEST_MODE = os.environ.get("MAIL_TEST_MODE", "1") != "0"
+MAIL_TEST_REDIRECT_TO = os.environ.get("MAIL_TEST_REDIRECT_TO", "Yasser.Halawa@Algihaz.com")
+
 
 def _b(text) -> str:
     """Neutral emphasis -- item numbers and Est numbers, the reference keys
@@ -82,7 +93,11 @@ def _create(db: Session, *, type: models.AnnouncementType, title: str, body: str
     # actually gets mailed.
     display_body = f'<p style="margin:0 0 14px;">Dear {greeting},</p>' + body
     email_body = display_body + (f"<br><br>{link_html}" if link_html else "") + _signature_html()
-    status = _mail.send_mail(recipients, title, email_body) if recipients else "simulated"
+    send_to, send_title = recipients, title
+    if recipients and MAIL_TEST_MODE and MAIL_TEST_REDIRECT_TO:
+        send_to = [MAIL_TEST_REDIRECT_TO]
+        send_title = f"[TEST — intended for: {', '.join(recipients)}] {title}"
+    status = _mail.send_mail(send_to, send_title, email_body) if recipients else "simulated"
     ann = models.Announcement(
         type=type, title=title, body=display_body,
         recipients=", ".join(recipients) if recipients else "",
@@ -438,3 +453,30 @@ def bid_value_access_decision(db: Session, project: models.Project, requester_em
     return _create(db, type=models.AnnouncementType.BID_VALUE_ACCESS_DECISION, title=title, body=body,
                     recipients=[requester_email] if requester_email else [], project=project,
                     greeting="Team", link_html=_project_link(project.id))
+
+
+def user_add_requested(db: Session, admin_emails: list[str], email: str, name: str | None,
+                        requester_email: str, requester_name: str | None) -> models.Announcement:
+    """Not tied to a project -- DEADLINE-typed like every other Follow Up
+    tab request so it lands in Admin's Reminders tab, same reasoning as
+    sme_nomination_requested above.
+    """
+    title = "L0-L1 Group Request &#8211; Admin Action Needed"
+    who = f"{_b(requester_name)} ({_b(requester_email)})" if requester_name else _b(requester_email)
+    body = f"{who} requested that {_b(name or email)} ({_b(email)}) be added to the L0-L1 Group. Awaiting your decision."
+    return _create(db, type=models.AnnouncementType.DEADLINE, title=title, body=body,
+                    recipients=sorted({e for e in admin_emails if e}), greeting="Admin")
+
+
+def user_add_decision(db: Session, requester_email: str, email: str, approved: bool,
+                       comment: str | None = None) -> models.Announcement:
+    if approved:
+        title = "L0-L1 Group Request Approved"
+        body = f"Your request to add {_b(email)} to the L0-L1 Group was {_hl('approved', 'good')}."
+    else:
+        title = "L0-L1 Group Request Declined"
+        body = f"Your request to add {_b(email)} to the L0-L1 Group was {_hl('declined', 'crit')}."
+        if comment:
+            body += f' &#8211; &quot;{comment}&quot;'
+    return _create(db, type=models.AnnouncementType.GROUP_ADD_DECISION, title=title, body=body,
+                    recipients=[requester_email] if requester_email else [], greeting="Team")

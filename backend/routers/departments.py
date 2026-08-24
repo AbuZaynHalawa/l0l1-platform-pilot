@@ -443,3 +443,98 @@ def decide_sme_nomination(nomination_id: int, payload: SmeNominationDecision, db
 
     announcements.sme_nomination_decision(db, nom.email, d.item_no, d.name, payload.approved, payload.comment)
     return _serialize_nomination(nom)
+
+
+# ---------------------------------------------------------------------------
+# Group Add Requests -- anyone already in the L0-L1 Group roster can request
+# that a new email be added to it; an Admin approves/rejects before the
+# email becomes a real roster member (mirrors SmeNomination's request-then-
+# decide shape one row above, just targeting the roster itself instead of a
+# specific catalog item).
+# ---------------------------------------------------------------------------
+_GROUP_REQUEST_ROLES = {"Owner", "SME", "Viewer"}  # Admin is never self-service
+
+
+def _serialize_user_add_request(r: models.UserAddRequest) -> dict:
+    return {
+        "id": r.id, "email": r.email, "name": r.name, "role": r.role,
+        "requested_by_email": r.requested_by_email, "requested_by_name": r.requested_by_name,
+        "status": r.status, "requested_at": r.requested_at, "decided_at": r.decided_at,
+        "decided_by_email": r.decided_by_email, "decision_comment": r.decision_comment,
+    }
+
+
+class UserAddRequestCreate(BaseModel):
+    email: str
+    name: str | None = None
+    role: str = "Viewer"
+    requested_by_email: str
+
+
+@router.post("/user-add-requests")
+def create_user_add_request(payload: UserAddRequestCreate, db: Session = Depends(get_db)):
+    email = payload.email.strip()
+    requested_by_email = payload.requested_by_email.strip()
+    role = (payload.role or "Viewer").strip()
+    if not email or not requested_by_email:
+        raise HTTPException(400, "Email is required")
+    if role not in _GROUP_REQUEST_ROLES:
+        raise HTTPException(400, f"Role must be one of: {', '.join(sorted(_GROUP_REQUEST_ROLES))}")
+    requester = db.query(models.User).filter(models.User.email.ilike(requested_by_email)).first()
+    if not requester:
+        raise HTTPException(400, "You need to be in the L0-L1 Group yourself to invite someone")
+    if db.query(models.User).filter(models.User.email.ilike(email)).first():
+        raise HTTPException(400, f"{email} is already in the L0-L1 Group")
+    already_pending = db.query(models.UserAddRequest).filter(
+        models.UserAddRequest.email.ilike(email), models.UserAddRequest.status == "pending",
+    ).first()
+    if already_pending:
+        raise HTTPException(400, f"{email} already has a pending request")
+    req = models.UserAddRequest(
+        email=email, name=(payload.name or "").strip() or None, role=role,
+        requested_by_email=requester.email, requested_by_name=requester.name,
+    )
+    db.add(req)
+    db.commit()
+    db.refresh(req)
+    announcements.user_add_requested(db, sorted(rules.admin_emails(db)), req.email, req.name,
+                                      requester.email, requester.name)
+    return _serialize_user_add_request(req)
+
+
+@router.get("/user-add-requests")
+def list_user_add_requests(status: str | None = "pending", db: Session = Depends(get_db)):
+    q = db.query(models.UserAddRequest).order_by(models.UserAddRequest.requested_at.desc())
+    if status:
+        q = q.filter(models.UserAddRequest.status == status)
+    return [_serialize_user_add_request(r) for r in q.all()]
+
+
+class UserAddRequestDecision(BaseModel):
+    approved: bool
+    comment: str = ""
+    actor_role: str = "Admin"
+    actor_email: str = ""
+
+
+@router.post("/user-add-requests/{request_id}/decide")
+def decide_user_add_request(request_id: int, payload: UserAddRequestDecision, db: Session = Depends(get_db)):
+    if payload.actor_role != "Admin":
+        raise HTTPException(403, "Only an Admin can decide a group add request")
+    req = db.get(models.UserAddRequest, request_id)
+    if not req:
+        raise HTTPException(404, "Request not found")
+    if req.status != "pending":
+        raise HTTPException(400, "This request has already been decided")
+    if payload.approved:
+        existing = db.query(models.User).filter(models.User.email.ilike(req.email)).first()
+        if not existing:
+            db.add(models.User(name=req.name or req.email, email=req.email, role=req.role))
+    req.status = "approved" if payload.approved else "rejected"
+    req.decided_at = datetime.utcnow()
+    req.decided_by_email = payload.actor_email or None
+    req.decision_comment = payload.comment or None
+    db.commit()
+
+    announcements.user_add_decision(db, req.requested_by_email, req.email, payload.approved, payload.comment)
+    return _serialize_user_add_request(req)

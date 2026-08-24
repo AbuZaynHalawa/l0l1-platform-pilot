@@ -100,6 +100,10 @@ class AnnouncementType(str, enum.Enum):
     # action, same convention as every other *_REQUEST above); this is only
     # the decision half, back to whoever asked.
     BID_VALUE_ACCESS_DECISION = "bid_value_access_decision"
+    # [L0-L1 Group requests]: request side stays DEADLINE (still needs an
+    # Admin's action, same convention as every other *_REQUEST above); this
+    # is only the decision half, back to whoever asked.
+    GROUP_ADD_DECISION = "group_add_decision"
 
 
 class Department(Base):
@@ -532,6 +536,29 @@ class SmeNomination(Base):
     decision_comment = Column(Text, nullable=True)
 
     definition = relationship("DeliverableDefinition")
+
+
+class UserAddRequest(Base):
+    """Anyone already in the L0-L1 Group roster can request that a new
+    email be added to it -- an Admin approves/rejects before it becomes a
+    real roster member (mirrors SmeNomination's request-then-decide shape:
+    a request alone never changes the roster by itself). `role` is capped
+    to non-Admin roles at request time (see departments._GROUP_REQUEST_ROLES)
+    -- granting Admin still requires an Admin to do it directly via the
+    roster's own role dropdown, not through self-service.
+    """
+    __tablename__ = "user_add_requests"
+    id = Column(Integer, primary_key=True)
+    email = Column(String, nullable=False)
+    name = Column(String, nullable=True)
+    role = Column(String, default="Viewer")
+    requested_by_email = Column(String, nullable=False)
+    requested_by_name = Column(String, nullable=True)
+    status = Column(String, default="pending")  # pending | approved | rejected
+    requested_at = Column(DateTime, default=datetime.utcnow)
+    decided_at = Column(DateTime, nullable=True)
+    decided_by_email = Column(String, nullable=True)
+    decision_comment = Column(Text, nullable=True)
 
 
 class DueDateRequest(Base):

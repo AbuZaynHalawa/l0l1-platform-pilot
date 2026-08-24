@@ -1559,6 +1559,8 @@
 .po-column .card .meta { font-size: 10.5px; color: var(--ink-500); margin-top: 2px; }
 .po-column .card .meta .chip { font-size: 10.5px; color: var(--ink-700); margin-left: 6px; }
 .po-column .card .note { font-size: 10.5px; margin-top: 2px; }
+.po-column .card.clickable, .po-column .po-item-row.clickable { cursor: pointer; border-radius: 8px; transition: background .12s ease; }
+.po-column .card.clickable:hover, .po-column .po-item-row.clickable:hover { background: var(--surface-sunken); }
 
 /* [PO Lifecycle] declaring-item selection block, inside the normal deliverable modal */
 .po-selection-block { background: var(--surface-sunken); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 10px 0; }
