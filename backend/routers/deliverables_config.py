@@ -35,6 +35,18 @@ def _branch_out(b: "models.DeliverableFormulaBranch") -> dict:
     }
 
 
+def _branch_compare_key(b: dict) -> tuple:
+    # Excludes "id" -- _apply_branches deletes and recreates branch rows on
+    # every save, so ids always differ even when nothing meaningful did;
+    # comparing raw dicts (including id) makes every re-save look like a
+    # content change. Used both to detect a genuine formula edit
+    # (_formula_actually_changed) and to skip a no-op "Formula" line in a
+    # Change History diff (_diff_definition_snapshots) when only ids moved.
+    return (b.get("branch_order"), b.get("condition_type"), b.get("condition_value"), b.get("anchor_type"),
+            b.get("predecessor_item_no"), b.get("offset_days"), b.get("offset_direction"),
+            bool(b.get("workday_duration")), b.get("tie_break"))
+
+
 def _definition_snapshot(d: "models.DeliverableDefinition") -> dict:
     return {
         "item_no": d.item_no, "name": d.name, "short_name": d.short_name,
@@ -45,7 +57,7 @@ def _definition_snapshot(d: "models.DeliverableDefinition") -> dict:
     }
 
 
-def _normalized_weight_pct(d: "models.DeliverableDefinition") -> float | None:
+def _normalized_weight_pct(d: "models.DeliverableDefinition", override_weight: float | None = None) -> float | None:
     """[Deliverable weights]: what % of d's department+stage's scoring d's
     own weight currently represents, given every sibling item's weight --
     the same population dashboard.py's _kpi_pct_weighted groups at
@@ -53,6 +65,13 @@ def _normalized_weight_pct(d: "models.DeliverableDefinition") -> float | None:
     stage). None only when d itself is excluded from scoring entirely
     (inactive or kpi_relevant=False) -- a % of a cohort it's not part of is
     meaningless.
+
+    override_weight: compute the % d WOULD have if its weight were this
+    value instead of its actual stored kpi_weight -- every sibling's own
+    weight is still read live, so a suggestion (create_formula_change_request/
+    _serialize_formula_request) or a Change History diff can show "what %
+    would this be" without writing anything. Never None-vs-0 ambiguous:
+    only a real number overrides; None means "use d's own current weight".
     """
     if not d.active or d.kpi_relevant is False:
         return None
@@ -65,10 +84,79 @@ def _normalized_weight_pct(d: "models.DeliverableDefinition") -> float | None:
                 models.DeliverableDefinition.kpi_relevant.is_not(False))
         .all()
     )
-    total_weight = sum((s.kpi_weight or 1.0) for s in siblings)
+    own_weight = override_weight if override_weight is not None else (d.kpi_weight or 1.0)
+    total_weight = sum((own_weight if s.id == d.id else (s.kpi_weight or 1.0)) for s in siblings)
     if not total_weight:
         return None
-    return round(((d.kpi_weight or 1.0) / total_weight) * 100, 1)
+    return round((own_weight / total_weight) * 100, 1)
+
+
+_SNAPSHOT_FIELD_LABELS = {
+    "item_no": "Item No", "name": "Name", "short_name": "Short Name",
+    "deliverable_type": "Type", "is_milestone": "Milestone",
+    "milestone_code": "Milestone Code", "active": "Status",
+}
+_DELIVERABLE_TYPE_LABELS = {"date_driven": "Date-driven", "library": "Library", "on_request": "On Request"}
+
+
+def _fmt_snapshot_value(field: str, value) -> str:
+    if field == "deliverable_type":
+        return _DELIVERABLE_TYPE_LABELS.get(value, value or "—")
+    if field == "is_milestone":
+        return "Yes" if value else "No"
+    if field == "active":
+        return "Active" if value else "Inactive"
+    if value in (None, ""):
+        return "—"
+    return str(value)
+
+
+def _diff_definition_snapshots(d: "models.DeliverableDefinition | None", before: dict | None, after: dict | None,
+                                db: Session) -> list[dict]:
+    """[Change History detail]: before_snapshot/after_snapshot are already
+    stored in full on every log row (see DeliverableDefinitionChangeLog's
+    docstring) but were never diffed for display -- the UI only ever showed
+    the terse server-written summary line. Computed at READ time (not
+    write time) so this applies uniformly to every existing history row,
+    not just ones logged after this was added.
+    """
+    if not before or not after:
+        return []
+    changes = []
+    for field, label in _SNAPSHOT_FIELD_LABELS.items():
+        b, a = before.get(field), after.get(field)
+        if b != a:
+            changes.append({"field": label, "before": _fmt_snapshot_value(field, b), "after": _fmt_snapshot_value(field, a)})
+    if before.get("department_id") != after.get("department_id"):
+        dept_ids = [i for i in (before.get("department_id"), after.get("department_id")) if i is not None]
+        dept_lookup = {dep.id: dep.name for dep in db.query(models.Department).filter(models.Department.id.in_(dept_ids)).all()}
+        changes.append({
+            "field": "Department",
+            "before": dept_lookup.get(before.get("department_id"), "—"),
+            "after": dept_lookup.get(after.get("department_id"), "—"),
+        })
+    if before.get("kpi_weight") != after.get("kpi_weight") and d is not None:
+        # None (unset) always means "default 1.0" here -- never fall through
+        # to override_weight=None, which would mean "use d's actual current
+        # weight" instead of the hypothetical snapshot value being diffed.
+        before_pct = _normalized_weight_pct(d, override_weight=before.get("kpi_weight") if before.get("kpi_weight") is not None else 1.0)
+        after_pct = _normalized_weight_pct(d, override_weight=after.get("kpi_weight") if after.get("kpi_weight") is not None else 1.0)
+        before_label = _fmt_snapshot_value("kpi_weight", before.get("kpi_weight")) if before.get("kpi_weight") is not None else "1 (default)"
+        after_label = _fmt_snapshot_value("kpi_weight", after.get("kpi_weight")) if after.get("kpi_weight") is not None else "1 (default)"
+        changes.append({
+            "field": "Scoring Weight",
+            "before": before_label + (f" (≈{before_pct}%)" if before_pct is not None else ""),
+            "after": after_label + (f" (≈{after_pct}%)" if after_pct is not None else ""),
+        })
+    before_branches = sorted((before.get("branches") or []), key=lambda b: b.get("branch_order") or 0)
+    after_branches = sorted((after.get("branches") or []), key=lambda b: b.get("branch_order") or 0)
+    if [_branch_compare_key(b) for b in before_branches] != [_branch_compare_key(b) for b in after_branches]:
+        changes.append({
+            "field": "Formula",
+            "before": rules.describe_proposed_branches(before_branches),
+            "after": rules.describe_proposed_branches(after_branches),
+        })
+    return changes
 
 
 def _definition_out(d: "models.DeliverableDefinition") -> dict:
@@ -492,7 +580,8 @@ def list_admin_change_history(deliverable_definition_id: int | None = None, limi
          "item_name": r.definition.name if r.definition else None,
          "changed_at": r.changed_at, "actor_email": r.actor_email, "actor_name": r.actor_name,
          "source": r.source, "change_type": r.change_type, "summary": r.summary,
-         "origin_request_id": r.origin_request_id}
+         "origin_request_id": r.origin_request_id,
+         "field_changes": _diff_definition_snapshots(r.definition, r.before_snapshot, r.after_snapshot, db)}
         for r in rows
     ]
 
@@ -558,9 +647,25 @@ def list_formulas(stage: str | None = None, international: bool | None = None,
          "is_international": bool(d.department.is_international),
          "branches": [_branch_out(b) for b in sorted(d.branches, key=lambda b: b.branch_order)],
          "formula_text": rules.describe_formula_branches(d),
-         "kpi_weight": d.kpi_weight, "kpi_weight_pct": _normalized_weight_pct(d)}
+         "kpi_weight": d.kpi_weight, "kpi_weight_pct": _normalized_weight_pct(d),
+         "kpi_relevant": d.kpi_relevant is not False}
         for d in defs
     ]
+
+
+def _formula_actually_changed(d: "models.DeliverableDefinition | None", proposed_branches: list[dict]) -> bool:
+    """[Suggest formula/weight/both]: a suggestion can now carry only a
+    weight change, with proposed_branches submitted as the item's own
+    unchanged current branches (the branch editor requires SOME non-empty
+    list -- see _validate_branches). Compare against what's live today so
+    the UI can skip an empty/no-op "Proposed change" line for a weight-only
+    suggestion instead of always claiming the formula changed.
+    """
+    if not d:
+        return True
+    current = [_branch_compare_key(_branch_out(b)) for b in sorted(d.branches, key=lambda b: b.branch_order)]
+    proposed = [_branch_compare_key(b) for b in proposed_branches]
+    return current != proposed
 
 
 def _serialize_formula_request(r: "models.FormulaChangeRequest") -> dict:
@@ -572,7 +677,10 @@ def _serialize_formula_request(r: "models.FormulaChangeRequest") -> dict:
         "requested_by_email": r.requested_by_email, "requested_by_name": r.requested_by_name,
         "current_summary": r.current_summary, "proposed_branches": r.proposed_branches,
         "proposed_formula_text": rules.describe_proposed_branches(r.proposed_branches),
+        "formula_changed": _formula_actually_changed(d, r.proposed_branches),
         "current_weight": d.kpi_weight if d else None, "proposed_weight": r.proposed_weight,
+        "current_weight_pct": _normalized_weight_pct(d) if d else None,
+        "proposed_weight_pct": _normalized_weight_pct(d, override_weight=r.proposed_weight) if d and r.proposed_weight is not None else None,
         "comment": r.comment, "status": r.status,
         "requested_at": r.requested_at, "decided_at": r.decided_at,
         "decided_by_email": r.decided_by_email, "decision_comment": r.decision_comment,

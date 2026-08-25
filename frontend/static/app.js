@@ -6473,11 +6473,9 @@
             ["Department", r.department],
             ["Requested by", r.requested_by_name ? r.requested_by_name + " (" + r.requested_by_email + ")" : r.requested_by_email],
             ["Currently", r.current_summary],
-            ["Proposed change", r.proposed_formula_text],
           ];
-          if (r.proposed_weight != null) {
-            reqFields.push(["Scoring weight", (r.current_weight != null ? r.current_weight : "1 (default)") + " &rarr; " + r.proposed_weight]);
-          }
+          if (r.formula_changed) reqFields.push(["Proposed change", r.proposed_formula_text]);
+          if (r.proposed_weight != null) reqFields.push(["Scoring weight", _formatWeightSuggestion(r)]);
           reqFields.push(["Reason", r.comment]);
           openFuDetailModal({
             eyebrow: "Formula Change Request", title: r.item_no + " &middot; " + r.item_name,
@@ -6941,7 +6939,9 @@
       var row = el("div", "aq-row");
       var main = el("div", "aq-main");
       main.appendChild(el("div", "aq-title", r.item_no + " &middot; " + r.item_name +
-        (r.proposed_weight != null ? ' <span style="color:var(--ink-500);font-size:11px;">&middot; weight &rarr; ' + r.proposed_weight + '</span>' : "")));
+        (r.proposed_weight != null ? ' <span style="color:var(--ink-500);font-size:11px;">&middot; weight: ' +
+          (r.current_weight_pct != null ? "≈" + r.current_weight_pct + "%" : (r.current_weight || "1 (default)")) + " &rarr; " +
+          (r.proposed_weight_pct != null ? "≈" + r.proposed_weight_pct + "%" : r.proposed_weight) + '</span>' : "")));
       main.appendChild(el("div", "aq-sub", '<span>&#8220;' + r.comment + '&#8221;</span>'));
       row.appendChild(main);
       row.appendChild(el("div", "", r.status === "pending"
@@ -6951,16 +6951,59 @@
     });
   }
 
+  // [Suggest formula/weight/both]: a target percentage is the only thing a
+  // non-admin can reason about ("this should count for about a quarter of
+  // the department's score") -- the raw kpi_weight number the backend
+  // actually stores is meaningless without knowing every sibling's own
+  // weight. _otherSiblingsWeightSum/_pctToWeight solve the same equation
+  // _normalized_weight_pct (deliverables_config.py) computes forward, in
+  // reverse: given a target % and everyone else's weight held fixed, what
+  // weight would THIS item need? dfItems already carries every sibling's
+  // live kpi_weight (and kpi_relevant, matching the backend's own cohort
+  // filter) for whichever stage tab is loaded.
+  function _otherSiblingsWeightSum(d) {
+    return dfItems
+      .filter(function (it) { return it.department_id === d.department_id && it.id !== d.id && it.kpi_relevant !== false; })
+      .reduce(function (sum, it) { return sum + (it.kpi_weight || 1.0); }, 0);
+  }
+  function _pctToWeight(targetPct, othersSum) {
+    var frac = targetPct / 100;
+    if (frac <= 0 || frac >= 1 || othersSum <= 0) return null;
+    return (frac * othersSum) / (1 - frac);
+  }
+  // Shared by the Follow Up detail modal and My Requests -- shows the
+  // percentage first (what the requester actually reasoned about), with
+  // the raw weight number as parenthetical detail for an admin who wants
+  // it, instead of leading with a bare number nobody asked for.
+  function _formatWeightSuggestion(r) {
+    var before = r.current_weight_pct != null ? "≈" + r.current_weight_pct + "%" : (r.current_weight != null ? r.current_weight : "1 (default)");
+    var after = r.proposed_weight_pct != null ? "≈" + r.proposed_weight_pct + "%" : String(r.proposed_weight);
+    return before + " &rarr; " + after + " of department score <span class=\"muted\">(raw weight " +
+      (r.current_weight != null ? r.current_weight : "1") + " &rarr; " + r.proposed_weight + ")</span>";
+  }
+
   var _suggestFormulaTarget = null;
+  var _suggestFormulaKind = "formula";
+  function _setSuggestFormulaKind(kind) {
+    _suggestFormulaKind = kind;
+    document.querySelectorAll("#suggestFormulaKind .chip").forEach(function (b) { b.classList.toggle("active", b.dataset.kind === kind); });
+    document.getElementById("suggestFormulaFormulaSection").style.display = (kind === "formula" || kind === "both") ? "" : "none";
+    document.getElementById("suggestFormulaWeightSection").style.display = (kind === "weight" || kind === "both") ? "" : "none";
+  }
+  document.querySelectorAll("#suggestFormulaKind .chip").forEach(function (btn) {
+    btn.addEventListener("click", function () { _setSuggestFormulaKind(btn.dataset.kind); });
+  });
   function openSuggestFormulaModal(d) {
     _suggestFormulaTarget = d;
     document.getElementById("suggestFormulaTitle").textContent = d.item_no + " · " + d.name;
     document.getElementById("suggestFormulaCurrent").textContent = "Currently: " + d.formula_text;
     renderBranchEditorRows(document.getElementById("suggestFormulaBranchList"), d.branches);
-    document.getElementById("suggestFormulaWeight").value = "";
+    document.getElementById("suggestFormulaWeightDept").textContent = d.department;
+    document.getElementById("suggestFormulaWeightPct").value = "";
     document.getElementById("suggestFormulaWeightCurrent").textContent =
-      d.kpi_weight_pct != null ? "(currently ≈ " + d.kpi_weight_pct + "% of department score)" : "";
+      d.kpi_weight_pct != null ? "(currently ≈ " + d.kpi_weight_pct + "%)" : "";
     document.getElementById("suggestFormulaReason").value = "";
+    _setSuggestFormulaKind("formula");
     document.getElementById("suggestFormulaOverlay").hidden = false;
   }
   function closeSuggestFormulaModal() { document.getElementById("suggestFormulaOverlay").hidden = true; }
@@ -6974,12 +7017,22 @@
     if (!reason) { showToast("A reason is required", true); return; }
     var branches = collectBranchesFromEditor(document.getElementById("suggestFormulaBranchList"));
     if (!branches.length) { showToast("At least one branch is required", true); return; }
-    var weightRaw = document.getElementById("suggestFormulaWeight").value.trim();
+
     var proposedWeight = null;
-    if (weightRaw !== "") {
-      proposedWeight = parseFloat(weightRaw);
-      if (!isFinite(proposedWeight) || proposedWeight <= 0) { showToast("Suggested weight must be a number greater than 0", true); return; }
+    if (_suggestFormulaKind === "weight" || _suggestFormulaKind === "both") {
+      var pctRaw = document.getElementById("suggestFormulaWeightPct").value.trim();
+      if (_suggestFormulaKind === "weight" && pctRaw === "") {
+        showToast('Enter a target percentage, or switch to "Formula"', true); return;
+      }
+      if (pctRaw !== "") {
+        var pct = parseFloat(pctRaw);
+        if (!isFinite(pct) || pct <= 0 || pct >= 100) { showToast("Percentage must be between 1 and 99", true); return; }
+        var othersSum = _otherSiblingsWeightSum(_suggestFormulaTarget);
+        if (othersSum <= 0) { showToast("This item has no sibling items in its department to weigh against", true); return; }
+        proposedWeight = Math.round(_pctToWeight(pct, othersSum) * 100) / 100;
+      }
     }
+
     var email = passiveIdentity();
     if (!email) { showToast("Enter your acting email first", true); return; }
     try {
@@ -7381,6 +7434,13 @@
         '<span>' + r.summary + '</span><span class="sep">&middot;</span>' +
         '<span>' + (r.actor_name || r.actor_email || "system") + '</span><span class="sep">&middot;</span>' +
         '<span>' + fmtDate((r.changed_at || "").slice(0, 10)) + '</span>'));
+      if (r.field_changes && r.field_changes.length) {
+        var diffList = el("ul", "dc-history-diff");
+        r.field_changes.forEach(function (fc) {
+          diffList.appendChild(el("li", "", "<b>" + fc.field + ":</b> " + fc.before + " &rarr; " + fc.after));
+        });
+        main.appendChild(diffList);
+      }
       row.appendChild(main);
       var revertBtn = el("button", "btn", "Revert");
       revertBtn.addEventListener("click", async function () {
@@ -7510,13 +7570,9 @@
       });
     });
     formulaReqs.forEach(function (r) {
-      var fields = [
-        ["Department", r.department], ["Currently", r.current_summary],
-        ["Proposed change", r.proposed_formula_text],
-      ];
-      if (r.proposed_weight != null) {
-        fields.push(["Scoring weight", (r.current_weight != null ? r.current_weight : "1 (default)") + " &rarr; " + r.proposed_weight]);
-      }
+      var fields = [["Department", r.department], ["Currently", r.current_summary]];
+      if (r.formula_changed) fields.push(["Proposed change", r.proposed_formula_text]);
+      if (r.proposed_weight != null) fields.push(["Scoring weight", _formatWeightSuggestion(r)]);
       fields.push(["Reason", r.comment], ["Decision note", r.decision_comment]);
       rows.push({
         type: "Formula Change", title: r.item_no + " &middot; " + r.item_name, status: r.status, at: r.requested_at,

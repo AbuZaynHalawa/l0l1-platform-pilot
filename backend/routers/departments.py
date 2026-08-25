@@ -52,6 +52,28 @@ def _dept_snapshot(d: "models.Department") -> dict:
             "is_international": bool(d.is_international), "active": d.active is not False}
 
 
+_DEPT_SNAPSHOT_FIELD_LABELS = {"name": "Name", "number": "Number", "is_international": "International", "active": "Status"}
+
+
+def _diff_department_snapshots(before: dict | None, after: dict | None) -> list[dict]:
+    """[Change History detail]: same idea as deliverables_config.py's
+    _diff_definition_snapshots -- before_snapshot/after_snapshot were
+    already stored in full, just never diffed for display."""
+    if not before or not after:
+        return []
+    changes = []
+    for field, label in _DEPT_SNAPSHOT_FIELD_LABELS.items():
+        b, a = before.get(field), after.get(field)
+        if b == a:
+            continue
+        if field in ("is_international", "active"):
+            fmt = (lambda v, f=field: ("Yes" if v else "No") if f == "is_international" else ("Active" if v else "Inactive"))
+            changes.append({"field": label, "before": fmt(b), "after": fmt(a)})
+        else:
+            changes.append({"field": label, "before": str(b) if b not in (None, "") else "—", "after": str(a) if a not in (None, "") else "—"})
+    return changes
+
+
 def _log_department_change(db: Session, dept: "models.Department", change_type: str,
                             before: dict | None, after: dict, actor_email: str | None,
                             actor_name: str | None, summary: str) -> None:
@@ -173,7 +195,8 @@ def list_department_change_history(department_id: int | None = None, limit: int 
         {"id": r.id, "department_id": r.department_id,
          "department_name": r.department.name if r.department else None,
          "changed_at": r.changed_at, "actor_email": r.actor_email, "actor_name": r.actor_name,
-         "change_type": r.change_type, "summary": r.summary}
+         "change_type": r.change_type, "summary": r.summary,
+         "field_changes": _diff_department_snapshots(r.before_snapshot, r.after_snapshot)}
         for r in rows
     ]
 
