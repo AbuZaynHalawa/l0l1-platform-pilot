@@ -2063,16 +2063,38 @@ def run():
                         s.file_ref = None
                         print(f"Cleared known test blocker on Est-1711 item {s.definition.item_no} so the Operation Units removal below can proceed.")
                 db.commit()
+            # Est-1711 kept re-blocking this on every deploy even after being
+            # cleared once before -- it's a general-purpose test project
+            # people keep poking at, so the clearing above alone can't stay
+            # ahead of it. Confirmed with Yasser and archived (2026-08-25),
+            # which is what actually breaks the cycle: an archived project's
+            # leftover submission data no longer counts as "real progress"
+            # for this safety check, matching how archived projects are
+            # already invisible everywhere else in the app (Project.archived).
             op_subs = (
                 db.query(models.DeliverableSubmission)
                 .join(models.DeliverableDefinition)
-                .filter(models.DeliverableDefinition.department_id == old_operation_dept.id)
+                .join(models.Project)
+                .filter(models.DeliverableDefinition.department_id == old_operation_dept.id,
+                        models.Project.archived.is_not(True))
                 .all()
             )
             if any(s.status != models.SubmissionStatus.NO_PROGRESS or s.file_name for s in op_subs):
                 print("WARNING: old flat 'Operation Units' has a submission with real progress -- skipped removal, left in place.")
             else:
-                op_sub_ids = [s.id for s in op_subs]
+                # Deletion itself must cover EVERY submission under this
+                # department, archived project or not -- op_subs above is
+                # deliberately narrowed to only what the safety check should
+                # see, but an archived project's own (harmless) submissions
+                # still FK-reference the definitions getting deleted below
+                # and would 500 on Postgres if left behind.
+                all_op_subs = (
+                    db.query(models.DeliverableSubmission)
+                    .join(models.DeliverableDefinition)
+                    .filter(models.DeliverableDefinition.department_id == old_operation_dept.id)
+                    .all()
+                )
+                op_sub_ids = [s.id for s in all_op_subs]
                 if op_sub_ids:
                     db.query(models.WorkflowHistory).filter(models.WorkflowHistory.submission_id.in_(op_sub_ids)).delete(synchronize_session=False)
                     db.query(models.Document).filter(models.Document.submission_id.in_(op_sub_ids)).delete(synchronize_session=False)
