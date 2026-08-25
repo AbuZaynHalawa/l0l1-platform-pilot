@@ -484,57 +484,65 @@ def _kpi_cohort(subs: list) -> list:
     return [s for s in subs if not s.auto_completed and s.definition.kpi_relevant is not False]
 
 
-def _kpi_pct_pooled(cohort: list) -> float | None:
-    """L1 aggregation per architecture_map.md section 3.4/4.3: SUM(points for
-    due items) / COUNT(due items), one pooled ratio across every submission.
+def _kpi_pct_weighted(cohort: list, allow_fan_out: bool) -> float | None:
+    """[Deliverable weights] Shared engine behind both L1's and L0's
+    Performance % -- group the cohort by item_no first (a fan-out item_no,
+    allow_fan_out=True, L1 only since L0 never has PO Lifecycle data, pools
+    its own PoLineItem-tagged copies into ONE group entry via
+    item_group_kpi_pct first, exactly as before -- otherwise a project with
+    more named items would silently outweigh one with fewer), then take a
+    WEIGHTED average across those per-item-no ratios instead of either a
+    flat pool (L1's old behavior) or an equal average (L0's old behavior).
 
-    [PO Lifecycle pro-rata]: a fan-out item_no (multiple submissions sharing
-    one item_no, one per named PoLineItem -- e.g. ten long-lead items all
-    filing under "2.2") counts as ONE pool entry, scored by its own
-    item_group_kpi_pct, instead of each line item's copy counting
-    separately -- otherwise a project with more named items would silently
-    outweigh one with fewer. Every ordinary (non-fan-out) submission is
-    still pooled individually, exactly as before.
+    Each item_no's own weight is its DeliverableDefinition.kpi_weight,
+    defaulting to 1.0 when unset (never required to sum to 100 with
+    siblings -- see models.py's kpi_weight docstring). With every item in a
+    department left at the default weight, this reproduces L0's previous
+    equal-average result bit-for-bit; L1's previous flat-pooled result only
+    where every item_no in the cohort happens to have the same submission
+    count (confirmed acceptable with Yasser -- L1's old pooling secretly
+    let a more-frequently-due item outweigh a rarer one, which per-item
+    grouping now corrects regardless of weights).
     """
     if not cohort:
         return None
-    flat = [s for s in cohort if s.po_line_item_id is None]
+    flat: dict[str, list] = {}
     fan_out: dict[str, list] = {}
     for s in cohort:
-        if s.po_line_item_id is not None:
+        if allow_fan_out and s.po_line_item_id is not None:
             fan_out.setdefault(s.definition.item_no, []).append(s)
+        else:
+            flat.setdefault(s.definition.item_no, []).append(s)
 
-    total_points = sum((rules.kpi_points(s.due_date, s.submitted_at.date() if s.submitted_at else None) or 0.0) for s in flat)
-    count = len(flat)
+    ratios_weights: list[tuple[float, float]] = []
+    for item_subs in flat.values():
+        total_points = sum((rules.kpi_points(s.due_date, s.submitted_at.date() if s.submitted_at else None) or 0.0) for s in item_subs)
+        ratios_weights.append((total_points / len(item_subs), item_subs[0].definition.kpi_weight or 1.0))
     for item_subs in fan_out.values():
         group_pct = rules.item_group_kpi_pct(item_subs)
         if group_pct is not None:
-            total_points += group_pct / 100.0  # this item_no's own ratio, contributing as ONE unit
-            count += 1
+            ratios_weights.append((group_pct / 100.0, item_subs[0].definition.kpi_weight or 1.0))
 
-    if not count:
+    if not ratios_weights:
         return None
+    total_weight = sum(w for _, w in ratios_weights)
+    weighted_sum = sum(r * w for r, w in ratios_weights)
     # Item [early bonus]: capped at 100 -- individual items can earn more
     # than a full point for being early, the reported score can't.
-    return round(min((total_points / count) * 100, 100.0), 1)
+    return round(min((weighted_sum / total_weight) * 100, 100.0), 1)
+
+
+def _kpi_pct_pooled(cohort: list) -> float | None:
+    """L1's own entry point -- see _kpi_pct_weighted. Kept as its own name
+    (rather than inlined at every call site) so _level_stats and every
+    other existing caller stays unchanged.
+    """
+    return _kpi_pct_weighted(cohort, allow_fan_out=True)
 
 
 def _kpi_pct_per_item_averaged(cohort: list) -> float | None:
-    """L0 aggregation per architecture_map.md section 3.4: AVERAGE(per-
-    deliverable-type submission ratio across all projects) -- each distinct
-    item_no gets its own pooled ratio first, then those ratios are averaged
-    equally, so a rarely-due item counts the same as a frequently-due one.
-    """
-    if not cohort:
-        return None
-    groups: dict[str, list] = {}
-    for s in cohort:
-        groups.setdefault(s.definition.item_no, []).append(s)
-    ratios = []
-    for item_subs in groups.values():
-        total_points = sum((rules.kpi_points(s.due_date, s.submitted_at.date() if s.submitted_at else None) or 0.0) for s in item_subs)
-        ratios.append(total_points / len(item_subs))
-    return round(min((sum(ratios) / len(ratios)) * 100, 100.0), 1)  # item [early bonus]: capped, see kpi_points
+    """L0's own entry point -- see _kpi_pct_weighted."""
+    return _kpi_pct_weighted(cohort, allow_fan_out=False)
 
 
 def _level_stats(subs: list, stage: models.Stage) -> dict:

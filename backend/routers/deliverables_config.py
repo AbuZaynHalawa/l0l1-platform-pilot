@@ -14,7 +14,7 @@ regardless of router registration order in main.py.
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from .. import models, rules, announcements
 from ..database import get_db
@@ -40,9 +40,35 @@ def _definition_snapshot(d: "models.DeliverableDefinition") -> dict:
         "item_no": d.item_no, "name": d.name, "short_name": d.short_name,
         "department_id": d.department_id, "deliverable_type": d.deliverable_type,
         "is_milestone": d.is_milestone, "milestone_code": d.milestone_code,
-        "active": d.active,
+        "active": d.active, "kpi_weight": d.kpi_weight,
         "branches": [_branch_out(b) for b in sorted(d.branches, key=lambda b: b.branch_order)],
     }
+
+
+def _normalized_weight_pct(d: "models.DeliverableDefinition") -> float | None:
+    """[Deliverable weights]: what % of d's department+stage's scoring d's
+    own weight currently represents, given every sibling item's weight --
+    the same population dashboard.py's _kpi_pct_weighted groups at
+    aggregation time (active, kpi_relevant != False, same department_id +
+    stage). None only when d itself is excluded from scoring entirely
+    (inactive or kpi_relevant=False) -- a % of a cohort it's not part of is
+    meaningless.
+    """
+    if not d.active or d.kpi_relevant is False:
+        return None
+    session = object_session(d)
+    siblings = (
+        session.query(models.DeliverableDefinition)
+        .filter(models.DeliverableDefinition.department_id == d.department_id,
+                models.DeliverableDefinition.stage == d.stage,
+                models.DeliverableDefinition.active == True,  # noqa: E712
+                models.DeliverableDefinition.kpi_relevant.is_not(False))
+        .all()
+    )
+    total_weight = sum((s.kpi_weight or 1.0) for s in siblings)
+    if not total_weight:
+        return None
+    return round(((d.kpi_weight or 1.0) / total_weight) * 100, 1)
 
 
 def _definition_out(d: "models.DeliverableDefinition") -> dict:
@@ -51,6 +77,7 @@ def _definition_out(d: "models.DeliverableDefinition") -> dict:
         "department_number": d.department.number, "is_international": bool(d.department.is_international),
         "is_customized": bool(d.is_customized), "can_restore": bool(d.seed_key),
         "formula_text": rules.describe_formula_branches(d),
+        "kpi_weight_pct": _normalized_weight_pct(d),
     }
 
 
@@ -187,6 +214,7 @@ class DefinitionFieldsUpdate(BaseModel):
     deliverable_type: str | None = None
     is_milestone: bool | None = None
     milestone_code: str | None = None
+    kpi_weight: float | None = None
     actor_role: str = "Admin"
     actor_email: str = ""
     actor_name: str = ""
@@ -219,6 +247,15 @@ def update_admin_definition(definition_id: int, payload: DefinitionFieldsUpdate,
     if payload.milestone_code is not None:
         d.milestone_code = payload.milestone_code.strip() or None
         d.milestone_name = d.milestone_code
+    if payload.kpi_weight is not None:
+        # A weight of 0 (or negative) would divide-by-zero if every sibling
+        # in the department also ended up at 0 -- "this item shouldn't
+        # count at all" is already kpi_relevant=False's job, not a
+        # near-zero weight, so reject it outright rather than let the
+        # degenerate case reach _kpi_pct_weighted.
+        if payload.kpi_weight <= 0:
+            raise HTTPException(400, "Weight must be greater than 0 -- use the Deactivate toggle to exclude an item from scoring entirely")
+        d.kpi_weight = payload.kpi_weight
 
     cascaded: list[str] = []
     if payload.item_no is not None and d.item_no != old_item_no:
@@ -480,6 +517,9 @@ def revert_admin_change(log_id: int, payload: DefinitionActorOnly, db: Session =
     d.milestone_code = snap["milestone_code"]
     d.milestone_name = snap["milestone_code"]
     d.active = snap["active"]
+    # .get(), not [] -- change-history rows logged before kpi_weight existed
+    # have no such key in their stored before_snapshot JSON at all.
+    d.kpi_weight = snap.get("kpi_weight")
     d.is_customized = True
     branch_payloads = [BranchIn(**{k: v for k, v in b.items() if k != "id"}) for b in snap["branches"]]
     if branch_payloads:
@@ -517,7 +557,8 @@ def list_formulas(stage: str | None = None, international: bool | None = None,
          "department": d.department.name, "department_number": d.department.number,
          "is_international": bool(d.department.is_international),
          "branches": [_branch_out(b) for b in sorted(d.branches, key=lambda b: b.branch_order)],
-         "formula_text": rules.describe_formula_branches(d)}
+         "formula_text": rules.describe_formula_branches(d),
+         "kpi_weight": d.kpi_weight, "kpi_weight_pct": _normalized_weight_pct(d)}
         for d in defs
     ]
 

@@ -35,7 +35,7 @@
            nav rather than the admin-only group. -->
       <button class="nav-item" id="bmTriageNavItem" data-view="bmtriage"><span class="ic">&#9989;</span> BM Triage Status <span class="nav-badge" id="bmTriageBadge"></span></button>
       <button class="nav-item" data-view="performance"><span class="ic">&#128200;</span> Performance</button>
-      <button class="nav-item" data-view="deliverableformulas"><span class="ic">&#128220;</span> Deliverable Formulas</button>
+      <button class="nav-item" data-view="deliverableformulas"><span class="ic">&#128220;</span> Deliverables Catalog</button>
       <button class="nav-item" data-view="myrequests"><span class="ic">&#128203;</span> My Requests</button>
       <button class="nav-item" data-view="support"><span class="ic">&#128172;</span> Q/A - Ask the Team</button>
     </nav>
@@ -811,8 +811,13 @@
                 <span class="tier-chip" style="color:var(--crit)">&gt;28 Days Delay &rarr; -100% (0 Point / Considered not Submitted)</span>
               </div>
             </li>
-            <li><b>L1</b> Performance % = Total Points for Submitted items / Overall Due Items</li>
-            <li><b>L0</b> Performance % = Average of (Submitted items for each deliverable / Due Items for each deliverable)</li>
+            <li><b>L0</b> and <b>L1</b> Performance % = weighted average, across each catalog item in the
+              department, of (Submitted items for that item / Due items for that item) &#8212; each item's own
+              average counts once, so an item due on more projects doesn't automatically outweigh one due on
+              fewer.</li>
+            <li>Every item counts equally by default. An Admin can give one item more <b>Scoring Weight</b> than
+              its siblings via Deliverables Configuration (e.g. weighting BOQ higher than a less critical item) &#8212;
+              see the item's weight on <b>Deliverables Catalog</b>.</li>
             <li>A department's overall % is capped at <b>100%</b> &#8212; early-submission bonus points can offset lates within a department, but can't push the reported score past fully on track.</li>
           </ol>
         </div>
@@ -872,10 +877,11 @@
       <div class="view-head">
         <div>
           <div class="eyebrow">Reference</div>
-          <h1>Deliverable Formulas</h1>
-          <p class="sub">Every deliverable's due-date formula, in plain English. See something that should be
-            different &#8212; e.g. "M3+5 days" should really be "M3+10 days" because it needs more time? Suggest a
-            change with your reasoning; an Admin reviews it.</p>
+          <h1>Deliverables Catalog</h1>
+          <p class="sub">Every deliverable's due-date formula and scoring weight, in plain English. See something
+            that should be different &#8212; e.g. "M3+5 days" should really be "M3+10 days" because it needs more
+            time? Suggest a change with your reasoning; an Admin reviews it. (Scoring weight is admin-only to
+            change &#8212; see Deliverables Configuration.)</p>
         </div>
       </div>
       <div class="filter-chips" id="dfStageToggle" style="margin-bottom:12px;">
@@ -1401,6 +1407,10 @@
         </div>
         <div><label class="fe-label"><input type="checkbox" id="adminDefMilestone" /> Milestone</label>
           <input type="text" id="adminDefMilestoneCode" placeholder="e.g. M3" style="width:100%;margin-top:4px;" />
+        </div>
+        <div><label class="fe-label">Scoring Weight <span id="adminDefWeightPct" class="muted" style="font-weight:400;"></span></label>
+          <input type="number" id="adminDefWeight" min="0.01" step="0.1" placeholder="1 (default)" style="width:100%;" />
+          <div class="muted" style="font-size:11px;margin-top:3px;">How much this item counts vs. its siblings in the same department when scoring L0/L1 Performance %. Leave blank for equal weight (1).</div>
         </div>
       </div>
       <div id="adminDefBranchSection">

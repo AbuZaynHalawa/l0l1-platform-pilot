@@ -1507,7 +1507,10 @@
         "</div>" +
         '<div class="tour-callout">&#9881; An Admin can turn individual catalog items on or off for scoring ' +
         "via <b>Manage Tracking</b> &#8212; not every item should count toward the same on-time-rate " +
-        "(a milestone-linked date, for instance, might not). International L0 tenders count toward " +
+        "(a milestone-linked date, for instance, might not), and can give one item more <b>Scoring " +
+        "Weight</b> than its siblings via <b>Deliverables Configuration</b> so it counts for more " +
+        "toward the department's score (e.g. weighting BOQ higher than a less critical item). " +
+        "International L0 tenders count toward " +
         "the same department score as standard L0 &#8212; Overview shows one combined L0 number; " +
         "Manage Tracking still has its own L0 International tab so the two catalogs stay toggleable " +
         "independently.</div>",
@@ -1789,7 +1792,7 @@
         featureRowMock("&#9200;", "warn", "Reminders", "Everything that needs your action: due-soon/overdue nudges, request updates.") +
         featureRowMock("&#9989;", "good", "BM Triage Status", "Every active tender's applicable/not-required progress.") +
         featureRowMock("&#128200;", "accent", "Performance", "On-time-rate tracking by department, feeding Top Achievers.") +
-        featureRowMock("&#128220;", "accent", "Deliverable Formulas", "Every due-date formula in plain English &#8212; suggest a change with your reasoning.") +
+        featureRowMock("&#128220;", "accent", "Deliverables Catalog", "Every due-date formula and scoring weight in plain English &#8212; suggest a formula change with your reasoning.") +
         featureRowMock("&#128203;", "accent", "My Requests", "Every request you've sent to an Admin &#8212; due-dates, reassignments, SME nominations, and more &#8212; and where each stands.") +
         featureRowMock("&#128172;", "accent", "Q/A &#8211; Ask the Team", "Raise a question, track your own requests.") +
         featureRowMock("&#128736;", "crit", "Admin Only", "Reports (4 filterable/printable report types), Top Achievers, Focal Points, Deliverables Configuration, Follow Up, Open Questions, Archived Projects.") +
@@ -6898,7 +6901,8 @@
       }
       var row = el("div", "deliv-row");
       var body = el("div", "deliv-body");
-      body.appendChild(el("div", "deliv-name", d.item_no + " &middot; " + d.name));
+      body.appendChild(el("div", "deliv-name", d.item_no + " &middot; " + d.name +
+        (d.kpi_weight_pct != null ? ' <span style="color:var(--ink-500);font-size:11px;">&middot; weight &asymp;' + d.kpi_weight_pct + '% of department score</span>' : "")));
       body.appendChild(el("div", "", '<span style="font-size:11.5px;color:var(--ink-500);">' + d.formula_text + '</span>'));
       row.appendChild(body);
       var btn = el("button", "btn", "Suggest a Change");
@@ -7028,7 +7032,8 @@
       var body = el("div", "deliv-body");
       body.appendChild(el("div", "deliv-name", d.item_no + " &middot; " + d.name +
         (d.is_customized ? ' <span style="color:var(--ink-500);font-size:11px;">(customized)</span>' : "") +
-        (!d.active ? ' <span style="color:var(--crit);font-size:11px;">(inactive)</span>' : "")));
+        (!d.active ? ' <span style="color:var(--crit);font-size:11px;">(inactive)</span>' : "") +
+        (d.kpi_weight_pct != null ? ' <span style="color:var(--ink-500);font-size:11px;">&middot; weight &asymp;' + d.kpi_weight_pct + '%</span>' : "")));
       body.appendChild(el("div", "", '<span style="font-size:11.5px;color:var(--ink-500);">' + d.formula_text + '</span>'));
       row.appendChild(body);
       var btn = el("button", "btn", "Edit");
@@ -7058,6 +7063,7 @@
       document.getElementById("adminDefType").value = d.deliverable_type;
       document.getElementById("adminDefMilestone").checked = d.is_milestone;
       document.getElementById("adminDefMilestoneCode").value = d.milestone_code || "";
+      document.getElementById("adminDefWeight").value = d.kpi_weight != null ? d.kpi_weight : "";
       renderBranchEditorRows(document.getElementById("adminDefBranchList"), d.branches);
       document.getElementById("adminDefRestoreBtn").style.display = d.can_restore ? "" : "none";
       document.getElementById("adminDefDeactivateBtn").style.display = "";
@@ -7070,12 +7076,33 @@
       document.getElementById("adminDefType").value = "date_driven";
       document.getElementById("adminDefMilestone").checked = false;
       document.getElementById("adminDefMilestoneCode").value = "";
+      document.getElementById("adminDefWeight").value = "";
       renderBranchEditorRows(document.getElementById("adminDefBranchList"), []);
       document.getElementById("adminDefRestoreBtn").style.display = "none";
       document.getElementById("adminDefDeactivateBtn").style.display = "none";
     }
+    updateAdminDefWeightReadout();
     document.getElementById("adminDefModalOverlay").hidden = false;
   }
+  function _adminDefWeightSiblings(deptId, excludeId) {
+    return dcItems.filter(function (it) {
+      return it.department_id === deptId && it.id !== excludeId &&
+        it.active !== false && it.kpi_relevant !== false;
+    });
+  }
+  function updateAdminDefWeightReadout() {
+    var out = document.getElementById("adminDefWeightPct");
+    var deptId = parseInt(document.getElementById("adminDefDept").value, 10);
+    var raw = document.getElementById("adminDefWeight").value.trim();
+    var w = raw === "" ? 1.0 : parseFloat(raw);
+    if (!deptId || !isFinite(w) || w <= 0) { out.textContent = ""; return; }
+    var excludeId = _adminDefTarget ? _adminDefTarget.id : null;
+    var siblings = _adminDefWeightSiblings(deptId, excludeId);
+    var total = w + siblings.reduce(function (sum, it) { return sum + (it.kpi_weight || 1.0); }, 0);
+    out.textContent = "(≈ " + (Math.round((w / total) * 1000) / 10) + "% of department score)";
+  }
+  document.getElementById("adminDefWeight").addEventListener("input", updateAdminDefWeightReadout);
+  document.getElementById("adminDefDept").addEventListener("change", updateAdminDefWeightReadout);
   function closeAdminDefModal() { document.getElementById("adminDefModalOverlay").hidden = true; }
   document.getElementById("adminDefClose").addEventListener("click", closeAdminDefModal);
   document.getElementById("adminDefCancel").addEventListener("click", closeAdminDefModal);
@@ -7089,15 +7116,22 @@
     var dtype = document.getElementById("adminDefType").value;
     var isMs = document.getElementById("adminDefMilestone").checked;
     var msCode = document.getElementById("adminDefMilestoneCode").value.trim() || null;
+    var weightRaw = document.getElementById("adminDefWeight").value.trim();
+    // Blank field means "no custom weight" -- send 1.0 explicitly (not null,
+    // which the backend PATCH endpoint treats as "field omitted, leave
+    // unchanged") so clearing a previously-customized weight actually
+    // resets it, matching what the live "≈X%" readout already implied.
+    var weight = weightRaw === "" ? 1.0 : parseFloat(weightRaw);
     var branches = collectBranchesFromEditor(document.getElementById("adminDefBranchList"));
     if (!itemNo || !name) { showToast("Item number and name are required", true); return; }
+    if (!isFinite(weight) || weight <= 0) { showToast("Weight must be a number greater than 0", true); return; }
     try {
       if (_adminDefTarget) {
         await api("/api/deliverables/admin/definitions/" + _adminDefTarget.id, {
           method: "PATCH", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             item_no: itemNo, name: name, department_id: deptId, deliverable_type: dtype,
-            is_milestone: isMs, milestone_code: msCode,
+            is_milestone: isMs, milestone_code: msCode, kpi_weight: weight,
             actor_role: CURRENT_ROLE, actor_email: actingEmail(), actor_name: passiveIdentity(),
           }),
         });

@@ -297,6 +297,15 @@ class DeliverableDefinition(Base):
     milestone_code = Column(String, nullable=True)   # M1..M6 when is_milestone
     milestone_name = Column(String, nullable=True)
     kpi_relevant = Column(Boolean, default=True)
+    # [Deliverable weights]: relative importance vs. sibling items in the
+    # same department+stage when averaging into that department's L0/L1
+    # Performance % -- NULL means the default weight of 1.0 (equal split
+    # among default-weighted siblings), not "unset/broken". Never required
+    # to sum to 100 with siblings -- normalized by dividing by the sum of
+    # weights actually present in whatever cohort is being scored, so an
+    # Admin only ever touches the one item they want to re-weight. See
+    # dashboard.py's _kpi_pct_weighted.
+    kpi_weight = Column(Float, nullable=True)
     default_owner_email = Column(String, nullable=True)  # legacy single value, superseded by default_owner_emails below
     default_sme_email = Column(String, nullable=True)  # legacy single value, superseded by default_sme_emails below
     active = Column(Boolean, default=True)
