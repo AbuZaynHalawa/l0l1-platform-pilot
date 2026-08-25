@@ -1507,7 +1507,10 @@
         "</div>" +
         '<div class="tour-callout">&#9881; An Admin can turn individual catalog items on or off for scoring ' +
         "via <b>Manage Tracking</b> &#8212; not every item should count toward the same on-time-rate " +
-        "(a milestone-linked date, for instance, might not).</div>",
+        "(a milestone-linked date, for instance, might not). International L0 tenders count toward " +
+        "the same department score as standard L0 &#8212; Overview shows one combined L0 number; " +
+        "Manage Tracking still has its own L0 International tab so the two catalogs stay toggleable " +
+        "independently.</div>",
     },
     {
       eyebrow: "Requests & Reminders",
@@ -1743,16 +1746,19 @@
         '<span class="fu-dept-tags"><span class="fu-dept-count">3 overdue</span></span></summary></details>' +
         "</div>" +
         '<ul class="tour-list">' +
-        "<li>Five pending-request queues, side by side: <b>Due-Date Requests</b> (Extensions &amp; " +
+        "<li>Six pending-request queues, side by side: <b>Due-Date Requests</b> (Extensions &amp; " +
         "Holds), <b>Reassignment Requests</b>, <b>SME Nominations</b> (someone self-nominating to be " +
-        "an item's SME), <b>Bid Value Access Requests</b>, and <b>Group Add Requests</b> (anyone in " +
-        "the L0-L1 Group requesting a new email be added to it)</li>" +
+        "an item's SME), <b>Bid Value Access Requests</b>, <b>Group Add Requests</b> (anyone in " +
+        "the L0-L1 Group requesting a new email be added to it), and <b>Formula Change Requests</b> " +
+        "(someone suggesting a different due-date formula for a deliverable)</li>" +
         "<li>Every <b>overdue deliverable</b> across the whole portal, grouped by department, most " +
         "overdue first, with a Critical (15+ days) severity filter</li>" +
         "</ul>" +
-        '<div class="tour-callout">&#128276; Remind one stubborn item, or send to everyone currently shown ' +
-        "&#8212; both are one click, and each department's group stays collapsed until you open it so " +
-        "the page isn't a wall of rows.</div>",
+        '<div class="tour-callout">&#128276; Click any pending request for its full details before deciding ' +
+        "&#8212; a formula request shows exactly what it'd change the formula to, not just what it is " +
+        "today. Remind one stubborn item, or send to everyone currently shown &#8212; both are one " +
+        "click, and each department's group stays collapsed until you open it so the page isn't a " +
+        "wall of rows.</div>",
     },
     {
       eyebrow: "Around the Portal",
@@ -1783,8 +1789,10 @@
         featureRowMock("&#9200;", "warn", "Reminders", "Everything that needs your action: due-soon/overdue nudges, request updates.") +
         featureRowMock("&#9989;", "good", "BM Triage Status", "Every active tender's applicable/not-required progress.") +
         featureRowMock("&#128200;", "accent", "Performance", "On-time-rate tracking by department, feeding Top Achievers.") +
+        featureRowMock("&#128220;", "accent", "Deliverable Formulas", "Every due-date formula in plain English &#8212; suggest a change with your reasoning.") +
+        featureRowMock("&#128203;", "accent", "My Requests", "Every request you've sent to an Admin &#8212; due-dates, reassignments, SME nominations, and more &#8212; and where each stands.") +
         featureRowMock("&#128172;", "accent", "Q/A &#8211; Ask the Team", "Raise a question, track your own requests.") +
-        featureRowMock("&#128736;", "crit", "Admin Only", "Reports, Top Achievers, Focal Points, Follow Up, Open Questions.") +
+        featureRowMock("&#128736;", "crit", "Admin Only", "Reports (4 filterable/printable report types), Top Achievers, Focal Points, Deliverables Configuration, Follow Up, Open Questions, Archived Projects.") +
         "</div>" +
         '<div class="tour-callout">&#127881; That\'s the full picture &#8212; close this and start ' +
         "exploring. You can reopen this walkthrough anytime from the nav.</div>",
