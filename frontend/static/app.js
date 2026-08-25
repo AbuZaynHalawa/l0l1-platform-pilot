@@ -1775,6 +1775,38 @@
     },
     {
       eyebrow: "Around the Portal",
+      title: "AI Support",
+      body:
+        '<p class="tour-step-text">A little &#129302; bubble sits in the bottom-right corner of every page &#8212; ' +
+        "click it any time for a faster first stop than Ask the Team, for the kind of question that " +
+        "doesn't need a person: how the platform works, or what's on your own plate right now:</p>" +
+        '<div class="mock-window" style="position:relative;">' +
+        '<div class="mock-titlebar"><div class="mock-dot-3"></div><div class="mock-dot-3"></div>' +
+        '<div class="mock-dot-3"></div><span>Any page in the app</span></div>' +
+        '<div style="height:64px;"></div>' +
+        '<div style="position:absolute;right:14px;bottom:14px;width:42px;height:42px;border-radius:50%;' +
+        "background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;" +
+        'font-size:21px;box-shadow:0 5px 16px color-mix(in srgb, var(--accent) 45%, transparent);">&#129302;</div>' +
+        "</div>" +
+        '<div class="tour-callout" style="margin:10px 0;">&#128071; That bubble, on every page &#8212; click it and a chat panel opens:</div>' +
+        '<div class="mock-window"><div class="mock-titlebar"><div class="mock-dot-3"></div>' +
+        '<div class="mock-dot-3"></div><div class="mock-dot-3"></div><span>&#129302; AI Support</span></div>' +
+        '<div style="padding:14px;display:flex;flex-direction:column;gap:8px;">' +
+        '<div style="align-self:flex-end;max-width:75%;background:var(--accent);color:#fff;border-radius:13px;border-bottom-right-radius:3px;padding:8px 12px;font-size:12.5px;">What\'s the difference between L0 and L1?</div>' +
+        '<div style="align-self:flex-start;max-width:75%;background:var(--surface-sunken);border-radius:13px;border-bottom-left-radius:3px;padding:8px 12px;font-size:12.5px;">L0 is the tender/bidding stage; L1 is the project after it\'s won.</div>' +
+        "</div></div>" +
+        '<ul class="tour-list">' +
+        "<li>Knows how the platform works &#8212; roles, deliverables, scoring, PO Lifecycle, Requests, and " +
+        "where to find things in the nav</li>" +
+        "<li>Can also answer questions about <b>your own</b> assigned deliverables (Owner or SME), by name</li>" +
+        "<li>Won't make judgment calls that are really an Admin's decision, and won't invent facts about a " +
+        "specific project it wasn't given</li>" +
+        "</ul>" +
+        '<div class="tour-callout">&#129302; Not what you needed? A permanent <b>Ask the Team</b> button sits ' +
+        "right below the chat, and the assistant will point you there itself whenever it isn't confident.</div>",
+    },
+    {
+      eyebrow: "Around the Portal",
       title: "Ask the Team",
       body:
         '<p class="tour-step-text">A question about a specific tender, project or deliverable doesn\'t have ' +
@@ -1789,29 +1821,6 @@
         '<p class="tour-step-text">Admins see every open thread in one place under <b>Open Questions</b>, ' +
         "reply (optionally pulling in a saved Knowledge Base answer instead of retyping the same " +
         "explanation), and mark it resolved &#8212; you get notified the moment they do.</p>",
-    },
-    {
-      eyebrow: "Around the Portal",
-      title: "AI Support",
-      body:
-        '<p class="tour-step-text">A little &#129302; bubble sits in the bottom-right corner of every page &#8212; ' +
-        "click it any time for a faster first stop than Ask the Team, for the kind of question that " +
-        "doesn't need a person: how the platform works, or what's on your own plate right now:</p>" +
-        '<div class="mock-window"><div class="mock-titlebar"><div class="mock-dot-3"></div>' +
-        '<div class="mock-dot-3"></div><div class="mock-dot-3"></div><span>AI Support</span></div>' +
-        '<div style="padding:14px;display:flex;flex-direction:column;gap:8px;">' +
-        '<div style="align-self:flex-end;max-width:75%;background:var(--accent);color:#fff;border-radius:13px;border-bottom-right-radius:3px;padding:8px 12px;font-size:12.5px;">What\'s the difference between L0 and L1?</div>' +
-        '<div style="align-self:flex-start;max-width:75%;background:var(--surface-sunken);border-radius:13px;border-bottom-left-radius:3px;padding:8px 12px;font-size:12.5px;">L0 is the tender/bidding stage; L1 is the project after it\'s won.</div>' +
-        "</div></div>" +
-        '<ul class="tour-list">' +
-        "<li>Knows how the platform works &#8212; roles, deliverables, scoring, PO Lifecycle, Requests, and " +
-        "where to find things in the nav</li>" +
-        "<li>Can also answer questions about <b>your own</b> assigned deliverables (Owner or SME), by name</li>" +
-        "<li>Won't make judgment calls that are really an Admin's decision, and won't invent facts about a " +
-        "specific project it wasn't given</li>" +
-        "</ul>" +
-        '<div class="tour-callout">&#129302; Not what you needed? A permanent <b>Ask the Team</b> button sits ' +
-        "right below the chat, and the assistant will point you there itself whenever it isn't confident.</div>",
     },
     {
       eyebrow: "You're Ready",
