@@ -55,7 +55,7 @@ ensure_column("projects", "archived", "BOOLEAN")
 # table yet, so this only applies on a database that already had projects.
 if inspect(engine).has_table("projects"):
     with engine.connect() as _archive_backfill_conn:
-        _archive_backfill_conn.execute(text("UPDATE projects SET archived = 0 WHERE archived IS NULL"))
+        _archive_backfill_conn.execute(text("UPDATE projects SET archived = FALSE WHERE archived IS NULL"))
         _archive_backfill_conn.commit()
 
 # Load-bearing indexes: every one of these columns is filtered or joined on
