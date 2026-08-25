@@ -165,7 +165,7 @@ DEPARTMENTS = [
     # Contract are genuinely shared with L1 (same department, same folder,
     # same focal point across both stages) — only listed once here; L1_DEPT
     # below just points its own dept_key at these same names.
-    "Tendering Department", "Operation Units", "Supply Chain", "Engineering Department",
+    "Tendering Department", "Supply Chain", "Engineering Department",
     "Contract", "Human Resources", "IT Department",
     # [PBU scope routing]: Engineering and Supply Chain each get a second,
     # PBU-focal variant -- own copy of that department's items, gated by
@@ -184,11 +184,13 @@ DEPARTMENTS = [
     # been folded into (or split across) the shared Planning/Cost Control,
     # Risk, and Fleet/FM departments below by the migration in run(), so
     # they'd otherwise just come back empty on every seed run.
-    # Operation Units BU sub-folders (item 69) — "Operation Units" above stays
-    # in place (existing projects still point at its old flat 2.1-2.12 items,
-    # deactivated below so it's never handed to new ones); new L0 projects
-    # instead get one of these four, matching whichever business unit(s) the
-    # project's scope actually selected.
+    # Operation Units BU sub-folders (item 69) — the old flat "Operation
+    # Units" department (pre-split, items 2.1-2.6) no longer gets created
+    # here either, same reasoning as the removals above: confirmed zero
+    # submissions left pointing at it (Yasser's request), so it'd otherwise
+    # just come back empty on every seed run. Every L0 project instead gets
+    # one of these four, matching whichever business unit(s) the project's
+    # scope actually selected.
     "Operation Units (TBU)", "Operation Units (PBU)", "Operation Units (DBU)", "Operation Units (BBU)",
     # L1-only (additional real breakdown, no "L1 " prefix)
     # Items 123/124/126: Insurance and HSSE / Quality no longer get created
@@ -355,18 +357,14 @@ L0_ITEMS = [
     # only Supply Chain/Quality's own downstream items chained off it).
     ("1.21", "Circulate commercial offers & Terms received from Vendors & SC & Consultant to Supply chain", "tendering", "predecessor", "1.9", 10, "after", "date_driven", None),
 
-    # NOTE: the flat "operation" rows below are the OLD, pre-split Operation
-    # Units structure — kept (and kept in sync by upsert) only because
-    # existing in-progress projects already have submissions pointing at
-    # them. They're deactivated for new projects in the backfill near the
-    # bottom of this file; every new L0 project instead gets one or more of
-    # the per-BU blocks that follow (item 69).
-    ("2.1", "Attend Site Visit (in coordination with BBU)", "operation", "site_visit", None, 0, "after", "date_driven", None),
-    ("2.2", "Prepare and circulate Site Visit Report (in coordination with BBU)", "operation", "predecessor", "2.1", 1, "after", "date_driven", "M2"),
-    ("2.3", "Highlight points require Pre-bid clarifications", "operation", "pre_bid", None, 3, "before", "date_driven", None),
-    ("2.4", "Prepare Risk Register", "operation", "predecessor", "2.2", 1, "after", "date_driven", None),
-    ("2.5", "Prepare Project Execution Plan (Methodology) - (in coordination with BBU)", "operation", "predecessor", "1.1", 7, "after", "date_driven", None),
-    ("2.6", "Review and comments on Project schedule (Execution and Productivities)", "operation", "predecessor", "5.3", 2, "after", "date_driven", None),
+    # The old flat "operation" rows (2.1-2.6, pre-split Operation Units)
+    # used to live here -- kept in sync by upsert only because existing
+    # in-progress projects still had submissions pointing at them. Removed
+    # (Yasser's request, confirmed zero submissions left referencing them --
+    # see seed.py's one-time removal migration below) now that every real
+    # project has long since moved to one of the per-BU blocks that follow
+    # (item 69); the old "Operation Units" department itself is deleted by
+    # that same migration since it has nothing else in it.
 
     # Operation Units (TBU) — own copy of 2.1-2.6 (item 69). BBU stays named
     # in the text since a TBU-scoped project can still involve BBU in a
@@ -1824,10 +1822,10 @@ def run():
             print(f"Cleaned up {cleaned} duplicate deliverable definition(s) from the missing-flush bug.")
 
         dept_map = {}
-        for i, name in enumerate(DEPARTMENTS):
+        for name in DEPARTMENTS:
             dept = db.query(models.Department).filter_by(name=name).first()
             if not dept:
-                dept = models.Department(name=name, order=i)
+                dept = models.Department(name=name)
                 db.add(dept)
                 db.flush()
             dept.focal_point_email = dept.focal_point_email or TEST_EMAIL
@@ -2027,6 +2025,62 @@ def run():
             if deactivated:
                 db.commit()
                 print(f"Deactivated {deactivated} old flat Operation Units item(s) — superseded by TBU/PBU/DBU/BBU split.")
+
+        # One-time full removal (Yasser's request): the old flat "Operation
+        # Units" L0 department deactivated just above is permanently dead --
+        # fully superseded by the TBU/PBU/DBU/BBU split, so nothing will
+        # ever reactivate or reference it again -- and it was only ever
+        # cluttering the Deliverables Configuration admin views (its 6 items
+        # showed up as a grayed-out "(inactive)" group in the L0 Formulas
+        # tab, and the empty department itself still listed in the
+        # Departments tab). Same zero-progress safety check as the L1
+        # TBU/PBU removal right below: only deletes if genuinely unused.
+        old_operation_dept = db.query(models.Department).filter_by(name="Operation Units").first()
+        if old_operation_dept:
+            op_subs = (
+                db.query(models.DeliverableSubmission)
+                .join(models.DeliverableDefinition)
+                .filter(models.DeliverableDefinition.department_id == old_operation_dept.id)
+                .all()
+            )
+            if any(s.status != models.SubmissionStatus.NO_PROGRESS or s.file_name for s in op_subs):
+                print("WARNING: old flat 'Operation Units' has a submission with real progress -- skipped removal, left in place.")
+            else:
+                op_sub_ids = [s.id for s in op_subs]
+                if op_sub_ids:
+                    db.query(models.WorkflowHistory).filter(models.WorkflowHistory.submission_id.in_(op_sub_ids)).delete(synchronize_session=False)
+                    db.query(models.Document).filter(models.Document.submission_id.in_(op_sub_ids)).delete(synchronize_session=False)
+                    db.query(models.Follower).filter(models.Follower.submission_id.in_(op_sub_ids)).delete(synchronize_session=False)
+                    db.query(models.ReassignmentRequest).filter(models.ReassignmentRequest.submission_id.in_(op_sub_ids)).delete(synchronize_session=False)
+                    db.query(models.DueDateRequest).filter(models.DueDateRequest.submission_id.in_(op_sub_ids)).delete(synchronize_session=False)
+                    db.query(models.Announcement).filter(models.Announcement.submission_id.in_(op_sub_ids)).update(
+                        {"submission_id": None}, synchronize_session=False)
+                    db.query(models.DeliverableSubmission).filter(models.DeliverableSubmission.id.in_(op_sub_ids)).delete(synchronize_session=False)
+                op_def_ids = [d[0] for d in db.query(models.DeliverableDefinition.id).filter_by(department_id=old_operation_dept.id).all()]
+                if op_def_ids:
+                    # [Deliverables Configuration]: three tables added after
+                    # the L1 TBU/PBU removal above was written also FK-
+                    # reference deliverable_definitions.id -- none has
+                    # ondelete=CASCADE, so leaving these out would 500 on
+                    # Postgres (FK violation) even though SQLite would
+                    # silently let it through.
+                    db.query(models.DeliverableFormulaBranch).filter(models.DeliverableFormulaBranch.deliverable_definition_id.in_(op_def_ids)).delete(synchronize_session=False)
+                    # formula_change_requests <-> deliverable_definition_change_log
+                    # cross-reference each other (applied_change_log_id /
+                    # origin_request_id) -- null both links first so neither
+                    # delete below trips the other table's FK.
+                    db.query(models.FormulaChangeRequest).filter(models.FormulaChangeRequest.deliverable_definition_id.in_(op_def_ids)).update(
+                        {"applied_change_log_id": None}, synchronize_session=False)
+                    db.query(models.DeliverableDefinitionChangeLog).filter(models.DeliverableDefinitionChangeLog.deliverable_definition_id.in_(op_def_ids)).update(
+                        {"origin_request_id": None}, synchronize_session=False)
+                    db.query(models.FormulaChangeRequest).filter(models.FormulaChangeRequest.deliverable_definition_id.in_(op_def_ids)).delete(synchronize_session=False)
+                    db.query(models.DeliverableDefinitionChangeLog).filter(models.DeliverableDefinitionChangeLog.deliverable_definition_id.in_(op_def_ids)).delete(synchronize_session=False)
+                op_removed_defs = db.query(models.DeliverableDefinition).filter_by(department_id=old_operation_dept.id).delete(synchronize_session=False)
+                db.query(models.PerformanceSnapshot).filter_by(department_id=old_operation_dept.id).delete(synchronize_session=False)
+                db.query(models.User).filter_by(department_id=old_operation_dept.id).update({"department_id": None}, synchronize_session=False)
+                db.delete(old_operation_dept)
+                db.commit()
+                print(f"Removed old flat L0 'Operation Units' department entirely — {op_removed_defs} definition(s), {len(op_sub_ids)} empty submission(s).")
 
         # One-time full removal (item 122 follow-up): L1's old combined
         # "TBU / PBU" / "BBU / PBU" buckets were carried for a while so

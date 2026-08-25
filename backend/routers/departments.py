@@ -22,7 +22,7 @@ def list_departments(include_inactive: bool = False, db: Session = Depends(get_d
     depts = q.order_by(models.Department.number).all()
     return [
         {"id": d.id, "name": d.name, "number": d.number, "focal_point_name": d.focal_point_name,
-         "focal_point_email": d.focal_point_email, "order": d.order, "is_international": bool(d.is_international),
+         "focal_point_email": d.focal_point_email, "is_international": bool(d.is_international),
          "active": d.active is not False}
         for d in depts
     ]
@@ -48,7 +48,7 @@ def update_focal_point(department_id: int, payload: FocalPointUpdate, db: Sessio
 # department name they don't recognize).
 # ---------------------------------------------------------------------------
 def _dept_snapshot(d: "models.Department") -> dict:
-    return {"name": d.name, "order": d.order, "number": d.number,
+    return {"name": d.name, "number": d.number,
             "is_international": bool(d.is_international), "active": d.active is not False}
 
 
@@ -63,7 +63,6 @@ def _log_department_change(db: Session, dept: "models.Department", change_type: 
 
 class DepartmentCreate(BaseModel):
     name: str
-    order: int = 0
     number: int | None = None
     is_international: bool = False
     actor_role: str = "Admin"
@@ -80,7 +79,7 @@ def create_department(payload: DepartmentCreate, db: Session = Depends(get_db)):
         raise HTTPException(400, "Name is required")
     if db.query(models.Department).filter(models.Department.name.ilike(name)).first():
         raise HTTPException(400, f"A department named '{name}' already exists")
-    dept = models.Department(name=name, order=payload.order, number=payload.number,
+    dept = models.Department(name=name, number=payload.number,
                               is_international=payload.is_international, active=True)
     db.add(dept)
     db.flush()
@@ -92,7 +91,6 @@ def create_department(payload: DepartmentCreate, db: Session = Depends(get_db)):
 
 class DepartmentUpdate(BaseModel):
     name: str | None = None
-    order: int | None = None
     number: int | None = None
     is_international: bool | None = None
     actor_role: str = "Admin"
@@ -118,8 +116,6 @@ def update_department(department_id: int, payload: DepartmentUpdate, db: Session
         if clash:
             raise HTTPException(400, f"A department named '{name}' already exists")
         dept.name = name
-    if payload.order is not None:
-        dept.order = payload.order
     if payload.number is not None:
         dept.number = payload.number
     if payload.is_international is not None:
@@ -195,7 +191,6 @@ def revert_department_change(log_id: int, payload: DepartmentActorOnly, db: Sess
     before = _dept_snapshot(dept)
     snap = log.before_snapshot
     dept.name = snap["name"]
-    dept.order = snap["order"]
     dept.number = snap["number"]
     dept.is_international = snap["is_international"]
     dept.active = snap["active"]

@@ -114,7 +114,6 @@ class Department(Base):
     __tablename__ = "departments"
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False, unique=True)
-    order = Column(Integer, default=0)
     number = Column(Integer, nullable=True)  # the "4" in item "4.5" — display-only, kept out of `name`
     focal_point_name = Column(String, nullable=True)
     focal_point_email = Column(String, nullable=True)

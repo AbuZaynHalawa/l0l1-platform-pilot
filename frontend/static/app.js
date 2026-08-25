@@ -6613,8 +6613,6 @@
       if (!dep.active) tr.style.opacity = "0.5";
       var nameInput = document.createElement("input"); nameInput.type = "text"; nameInput.value = dep.name; nameInput.style.width = "100%";
       var tdName = el("td"); tdName.appendChild(nameInput); tr.appendChild(tdName);
-      var orderInput = document.createElement("input"); orderInput.type = "number"; orderInput.value = dep.order; orderInput.style.width = "60px";
-      var tdOrder = el("td"); tdOrder.appendChild(orderInput); tr.appendChild(tdOrder);
       var numberInput = document.createElement("input"); numberInput.type = "number"; numberInput.value = dep.number || ""; numberInput.style.width = "60px";
       var tdNumber = el("td"); tdNumber.appendChild(numberInput); tr.appendChild(tdNumber);
       var intlCheck = document.createElement("input"); intlCheck.type = "checkbox"; intlCheck.checked = dep.is_international;
@@ -6629,7 +6627,7 @@
           await api("/api/departments/" + dep.id, {
             method: "PATCH", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              name: nameInput.value.trim(), order: parseInt(orderInput.value, 10) || 0,
+              name: nameInput.value.trim(),
               number: numberInput.value ? parseInt(numberInput.value, 10) : null, is_international: intlCheck.checked,
               actor_role: CURRENT_ROLE, actor_email: actingEmail(), actor_name: passiveIdentity(),
             }),
@@ -6663,7 +6661,7 @@
         await api("/api/departments", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            name: name, order: parseInt(document.getElementById("dcDeptNewOrder").value, 10) || 0,
+            name: name,
             number: document.getElementById("dcDeptNewNumber").value ? parseInt(document.getElementById("dcDeptNewNumber").value, 10) : null,
             is_international: document.getElementById("dcDeptNewIntl").checked,
             actor_role: CURRENT_ROLE, actor_email: actingEmail(), actor_name: passiveIdentity(),
