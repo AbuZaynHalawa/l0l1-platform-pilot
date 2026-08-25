@@ -750,6 +750,10 @@
      admin/suggestion formula modals -- small uppercase label above a
      regular bordered input/select, matching this app's other form idioms. */
   .fe-label { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--ink-500); margin-bottom: 3px; }
+  /* Add Deliverable's Item No is locked to the department's auto-assigned
+     next number (see _refreshAdminDefItemNoSuggestion) -- read visually as
+     locked, not just non-interactive. */
+  #adminDefItemNo[readonly] { background: var(--surface-sunken); color: var(--ink-500); cursor: not-allowed; }
   #adminDefModalOverlay input[type="text"], #adminDefModalOverlay select,
   #suggestFormulaOverlay input[type="text"], #suggestFormulaOverlay select {
     padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line);

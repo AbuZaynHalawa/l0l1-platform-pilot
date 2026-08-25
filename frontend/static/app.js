@@ -7186,21 +7186,18 @@
   }
   var _adminDefTarget = null;
   var _adminDefDepts = [];
-  var _adminDefItemNoSuggestion = "";
+  // Locked, not just pre-filled: a free-text Item No on Add let an admin
+  // hand-pick a number that skipped or duplicated the department's real
+  // next slot, leaving gaps in the sequence. Add always takes the
+  // department's actual next number with no way to override it; Edit still
+  // allows changing item_no (renumbering an existing item is a real,
+  // separate need this doesn't touch).
   function _refreshAdminDefItemNoSuggestion() {
     if (_adminDefTarget) return; // never auto-fill while editing an existing item
     var deptSel = document.getElementById("adminDefDept");
     var dep = _adminDefDepts.find(function (d) { return String(d.id) === deptSel.value; });
     if (!dep) return;
-    var suggestion = _nextItemNo(dep.id, dep.number);
-    var itemNoInput = document.getElementById("adminDefItemNo");
-    // Only overwrite if the field is still blank or still holds the
-    // PREVIOUS auto-suggestion -- once the admin types their own value,
-    // switching department again shouldn't silently clobber it.
-    if (!itemNoInput.value.trim() || itemNoInput.value === _adminDefItemNoSuggestion) {
-      itemNoInput.value = suggestion;
-    }
-    _adminDefItemNoSuggestion = suggestion;
+    document.getElementById("adminDefItemNo").value = _nextItemNo(dep.id, dep.number);
   }
   document.getElementById("adminDefDept").addEventListener("change", _refreshAdminDefItemNoSuggestion);
   async function openAdminDefModal(d) {
@@ -7219,6 +7216,8 @@
       document.getElementById("adminDefEyebrow").textContent = "Edit Deliverable · " + stageLabel;
       document.getElementById("adminDefTitle").textContent = d.item_no + " · " + d.name;
       document.getElementById("adminDefItemNo").value = d.item_no;
+      document.getElementById("adminDefItemNo").readOnly = false;
+      document.getElementById("adminDefItemNoHint").style.display = "none";
       document.getElementById("adminDefName").value = d.name;
       deptSel.value = d.department_id;
       document.getElementById("adminDefType").value = d.deliverable_type;
@@ -7233,7 +7232,8 @@
       document.getElementById("adminDefEyebrow").textContent = "Deliverables Configuration";
       document.getElementById("adminDefTitle").textContent = "Add " + stageLabel + " Deliverable";
       document.getElementById("adminDefItemNo").value = "";
-      _adminDefItemNoSuggestion = "";
+      document.getElementById("adminDefItemNo").readOnly = true;
+      document.getElementById("adminDefItemNoHint").style.display = "";
       document.getElementById("adminDefName").value = "";
       document.getElementById("adminDefType").value = "date_driven";
       document.getElementById("adminDefMilestone").checked = false;

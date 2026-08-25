@@ -1423,7 +1423,9 @@
     </div>
     <div class="modal-body">
       <div id="adminDefFields" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
-        <div><label class="fe-label">Item No</label><input type="text" id="adminDefItemNo" style="width:100%;" /></div>
+        <div><label class="fe-label">Item No</label><input type="text" id="adminDefItemNo" style="width:100%;" />
+          <div id="adminDefItemNoHint" class="muted" style="font-size:11px;margin-top:3px;display:none;">Auto-assigned to the department's next open number &#8212; can't be changed, to avoid gaps in the sequence.</div>
+        </div>
         <div><label class="fe-label">Department</label><select id="adminDefDept" style="width:100%;"></select></div>
         <div style="grid-column:1/-1;"><label class="fe-label">Name</label><input type="text" id="adminDefName" style="width:100%;" /></div>
         <div><label class="fe-label">Type</label>
