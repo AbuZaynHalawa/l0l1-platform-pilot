@@ -5125,7 +5125,8 @@
         var badgeRow = el("div", "rep-po-badges-row");
         var b = budgetByProject[p.est_no] || {};
         badgeRow.appendChild(el("span", "rep-po-badge " + budgetTier(b["6.1"]), "Temp Budget"));
-        badgeRow.appendChild(el("span", "rep-po-badge " + budgetTier(b["6.3"]), "Final Budget"));
+        badgeRow.appendChild(el("span", "rep-po-badge " + budgetTier(b["6.2"]), "Tendering Budget"));
+        badgeRow.appendChild(el("span", "rep-po-badge " + budgetTier(b["6.3"]), "Locked Budget"));
         card.appendChild(badgeRow);
         grid.appendChild(card);
       });

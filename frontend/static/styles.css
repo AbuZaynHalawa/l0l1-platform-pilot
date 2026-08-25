@@ -1306,6 +1306,13 @@
      --good/--warn/--crit/--accent tokens (same hex values the reference
      itself uses for excellent/acceptable/needs-action/#3b4a8f) rather than
      a second, parallel palette. Scoped to .report-design-ref views only. ---------- */
+  /* Master PO's table (9 columns, min-width 900px) was hitting .view's
+     app-wide 1280px content cap and scrolling horizontally even with
+     visible empty space to the right on a normal desktop -- widen just
+     this report so the table has room to lay out without an inner
+     scrollbar. Overview PO's card grid doesn't have this problem (cards
+     reflow via auto-fill) so it stays at the app's normal width. */
+  #view-report-masterpo { max-width: 1700px; }
   .rep-po-summary { display: flex; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
   .rep-po-stat { background: var(--surface); border: 1.5px solid var(--line); border-radius: 10px; padding: 12px 18px; min-width: 110px; cursor: default; transition: transform .1s, box-shadow .15s; }
   .rep-po-stat.clickable { cursor: pointer; }
