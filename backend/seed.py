@@ -37,6 +37,12 @@ ensure_enum_value("announcements", "type", "DOC_ADDED")
 ensure_enum_value("announcements", "type", "DELIVERABLE_APPROVED")
 ensure_not_unique("projects", "est_no")
 
+# [Deliverables Configuration]
+ensure_column("deliverable_definitions", "is_customized", "BOOLEAN")
+ensure_column("deliverable_definitions", "seed_key", "VARCHAR")
+ensure_column("departments", "active", "BOOLEAN")
+ensure_enum_value("announcements", "type", "FORMULA_CHANGE_DECISION")
+
 # Load-bearing indexes: every one of these columns is filtered or joined on
 # in the hot paths (dashboard, matrix, gantt, assigned deliverables), and
 # Postgres doesn't auto-index foreign keys the way MySQL does — without
@@ -125,6 +131,9 @@ ensure_index("sme_nominations", "ix_sme_nominations_definition_id", "deliverable
 ensure_index("bid_value_access_requests", "ix_bid_value_access_requests_project_id", "project_id")
 ensure_column("due_date_requests", "escalated_at", "TIMESTAMP")
 ensure_column("tender_documents", "folder_path", "VARCHAR")
+# deliverable_formula_branches is a brand-new table -- same reasoning as
+# due_date_requests' own index above, only addable after create_all().
+ensure_index("deliverable_formula_branches", "ix_branches_definition_id", "deliverable_definition_id")
 
 TEST_EMAIL = "test-focal@example.com"  # single placeholder until real contacts are provided
 
@@ -1148,6 +1157,110 @@ def _ensure_consultancy_line_items(db):
     return created
 
 
+def _seed_branches_for(definition: "models.DeliverableDefinition") -> list[dict]:
+    """The initial DeliverableFormulaBranch set for one DeliverableDefinition,
+    reproducing today's hardcoded compute_due_date special cases exactly --
+    used both for the one-time backfill (every pre-existing row, in run()
+    below) and for a future "Restore to Default" admin action. See
+    rules.py's PBU_CONDITIONAL_ITEMS/L0_SITE_VISIT_FALLBACK_ITEMS/
+    L0_INTL_OR_ITEMS docstrings for why each of these ~14 items is special;
+    this is the one place that turns that reference data into real seeded
+    branches. Every other date-driven item gets a single "always" branch
+    mirroring its own current anchor_type/predecessor_item_no/offset_days/
+    offset_direction verbatim; client_dependent/library/on_request items
+    get none (no computable due date, matching compute_due_date's own
+    "empty branches -> None" rule).
+    """
+    if definition.deliverable_type in ("library", "on_request") or not definition.anchor_type:
+        return []
+
+    item_no = definition.item_no
+    is_intl = bool(definition.department.is_international)
+    is_l0_std = definition.stage == models.Stage.L0 and not is_intl
+    own = {
+        "anchor_type": definition.anchor_type, "predecessor_item_no": definition.predecessor_item_no,
+        "offset_days": definition.offset_days or 0, "offset_direction": definition.offset_direction or "after",
+    }
+
+    if is_l0_std and item_no in rules.PBU_CONDITIONAL_ITEMS:
+        return [
+            {"branch_order": 0, "condition_type": "scope_contains_pbu",
+             "anchor_type": "predecessor", "predecessor_item_no": "4.4", "offset_days": 1, "offset_direction": "after"},
+            {"branch_order": 1, "condition_type": "tender_window_lt_days", "condition_value": 30,
+             "anchor_type": "predecessor", "predecessor_item_no": "1.1", "offset_days": 3, "offset_direction": "after"},
+            {"branch_order": 2, "condition_type": "always",
+             "anchor_type": "predecessor", "predecessor_item_no": "1.1", "offset_days": 7, "offset_direction": "after"},
+        ]
+    if is_l0_std and item_no in rules.L0_SITE_VISIT_FALLBACK_ITEMS:
+        return [
+            {"branch_order": 0, "condition_type": "site_visit_unset",
+             "anchor_type": "announcement", "offset_days": 3, "offset_direction": "after",
+             "workday_duration": True},  # "the 3rd working day after announcement", not +3 calendar days
+            {"branch_order": 1, "condition_type": "always", **own},
+        ]
+    if is_l0_std and item_no == "4.4":
+        return [
+            {"branch_order": 0, "condition_type": "tender_window_lt_days", "condition_value": 15,
+             "anchor_type": "predecessor", "predecessor_item_no": "1.1", "offset_days": 5, "offset_direction": "after"},
+            {"branch_order": 1, "condition_type": "tender_window_lt_days", "condition_value": 30,
+             "anchor_type": "predecessor", "predecessor_item_no": "1.1", "offset_days": 7, "offset_direction": "after"},
+            {"branch_order": 2, "condition_type": "tender_window_lt_days", "condition_value": 45,
+             "anchor_type": "predecessor", "predecessor_item_no": "1.1", "offset_days": 10, "offset_direction": "after"},
+            {"branch_order": 3, "condition_type": "always",
+             "anchor_type": "predecessor", "predecessor_item_no": "1.1", "offset_days": 14, "offset_direction": "after"},
+        ]
+    if is_l0_std and item_no == "5.3":
+        return [
+            {"branch_order": 0, "condition_type": "tender_window_lt_days", "condition_value": 14,
+             "anchor_type": "predecessor", "predecessor_item_no": "1.1", "offset_days": 12, "offset_direction": "after"},
+            {"branch_order": 1, "condition_type": "always",
+             "anchor_type": "predecessor", "predecessor_item_no": "1.1", "offset_days": 15, "offset_direction": "after"},
+        ]
+    if is_intl and item_no in rules.L0_INTL_OR_ITEMS:
+        alt_pred, alt_offset, alt_direction = rules.L0_INTL_OR_ITEMS[item_no]
+        tie = "earliest_of_siblings" if item_no in rules.L0_INTL_OR_ITEMS_EARLIEST_WINS else "latest_of_siblings"
+        return [
+            {"branch_order": 0, "condition_type": "always", "tie_break": tie, **own},
+            {"branch_order": 1, "condition_type": "always", "tie_break": tie,
+             "anchor_type": "predecessor", "predecessor_item_no": alt_pred,
+             "offset_days": alt_offset, "offset_direction": alt_direction},
+        ]
+    return [{"branch_order": 0, "condition_type": "always", **own}]
+
+
+def _backfill_formula_branches(db) -> None:
+    """One-time (self-limiting) migration: every DeliverableDefinition
+    without a seed_key gets one captured from its own current identity
+    (must run before upsert()'s seed_key-keyed lookup below, so a
+    pre-existing row is found rather than duplicated), and every definition
+    with zero branches gets its initial set from _seed_branches_for --
+    covers both this one-time backfill and any brand-new row upsert() adds
+    later in the same run.
+    """
+    needing_key = db.query(models.DeliverableDefinition).filter(
+        models.DeliverableDefinition.seed_key.is_(None)
+    ).all()
+    for d in needing_key:
+        d.seed_key = f"{d.stage.value}:{d.item_no}:{d.department_id}"
+    if needing_key:
+        db.commit()
+
+
+def _seed_missing_branches(db) -> None:
+    needing_branches = (
+        db.query(models.DeliverableDefinition)
+        .outerjoin(models.DeliverableFormulaBranch)
+        .filter(models.DeliverableFormulaBranch.id.is_(None))
+        .all()
+    )
+    for d in needing_branches:
+        for b in _seed_branches_for(d):
+            db.add(models.DeliverableFormulaBranch(deliverable_definition_id=d.id, **b))
+        rules.sync_definition_mirror_columns(d)
+    if needing_branches:
+        db.commit()
+
+
 def run():
     db = SessionLocal()
     try:
@@ -1712,11 +1825,25 @@ def run():
             dept_map[name] = dept
         db.commit()
 
+        # [Deliverables Configuration]: must run before upsert() below --
+        # backfills seed_key from each row's own current identity so
+        # upsert()'s new seed_key-keyed lookup finds pre-existing rows
+        # instead of duplicating them. No-op (fast query, zero updates) on
+        # every run after the first.
+        _backfill_formula_branches(db)
+
         def upsert(stage, item_no, name, short_name, dept_id, anchor_type, pred, offset, direction, dtype, is_ms, ms_code):
-            existing = db.query(models.DeliverableDefinition).filter_by(
-                stage=stage, item_no=item_no, department_id=dept_id
-            ).first()
+            seed_key = f"{stage}:{item_no}:{dept_id}"
+            existing = db.query(models.DeliverableDefinition).filter_by(seed_key=seed_key).first()
             if existing:
+                # [Deliverables Configuration]: an admin edit or an approved
+                # formula-change suggestion sets is_customized=True -- once
+                # set, this catalog's own hardcoded values never overwrite
+                # the customization again. "Restore to Default" is the only
+                # way back; it clears the flag and re-applies these exact
+                # values directly (not through upsert()).
+                if existing.is_customized:
+                    return
                 existing.name = name
                 existing.short_name = short_name
                 existing.anchor_type = anchor_type
@@ -1734,6 +1861,7 @@ def run():
                 offset_direction=direction, deliverable_type=dtype,
                 is_milestone=is_ms, milestone_code=ms_code, milestone_name=ms_code,
                 default_owner_email=TEST_EMAIL, default_sme_email=TEST_EMAIL,
+                seed_key=seed_key,
             ))
 
         # Excel-formula replication (8 hardcoded L1 Start/Finish formulas):
@@ -1796,6 +1924,13 @@ def run():
             upsert("L0", item_no, name, name, dept.id, anchor, pred, offset, direction, dtype, bool(ms), ms)
 
         db.commit()
+
+        # [Deliverables Configuration]: must run after upsert() above (needs
+        # every definition's id, including brand-new ones just inserted)
+        # and after that commit (needs department.is_international, already
+        # committed with dept_map). Self-limiting -- only definitions with
+        # zero branches yet get seeded.
+        _seed_missing_branches(db)
 
         _due_fix_changed_def_ids = [
             d.id for d in db.query(models.DeliverableDefinition)

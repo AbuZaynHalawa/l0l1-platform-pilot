@@ -10,6 +10,15 @@ from sqlalchemy.orm import Session, joinedload
 
 from . import models
 
+# [Deliverables Configuration]: compute_due_date itself no longer reads any
+# of these five item-number sets/functions directly -- due-date math is now
+# entirely branch-driven (DeliverableFormulaBranch, see compute_due_date's
+# own docstring). They're kept here purely as the documented reference data
+# seed.py's _DEFAULT_FORMULA_BRANCHES reads from to build each of these
+# items' initial seeded branches, so there's still exactly one place that
+# says "which items get PBU-conditional/site-visit-fallback/tiered/
+# threshold/OR-formula treatment" -- not duplicated into seed.py by hand.
+#
 # L0 items 1.8/1.9/1.10 branch on whether the project's scope includes PBU —
 # the one recurring conditional pattern in the real template. Driven by
 # Project.scope_contains_pbu, itself derived from business_units (see
@@ -245,6 +254,10 @@ def is_international_applicable(definition: models.DeliverableDefinition, projec
     """
     return bool(definition.department.is_international) == bool(getattr(project, "is_international", False))
 
+# [Deliverables Configuration]: same "seed-data reference only" note as
+# PBU_CONDITIONAL_ITEMS above -- compute_due_date doesn't read these
+# directly anymore, seed.py's _DEFAULT_FORMULA_BRANCHES does.
+#
 # L0: these three items' duration is 3 working days if the tender window
 # (BSD - announcement) is under 30 calendar days, else 7 — independent of
 # the PBU branch above, which (when it applies) overrides the anchor entirely.
@@ -674,128 +687,222 @@ def awaiting_milestone_note(db: Session, sub: "models.DeliverableSubmission",
     return None
 
 
-def compute_due_date(db: Session, sub: "models.DeliverableSubmission", project: models.Project,
-                      lookup: dict[str, list] | None = None) -> date | None:
-    """Resolves a submission's due date for a specific project. Takes the
-    submission (not just its definition) so line-item-tracked items
-    ([PO Lifecycle]) can narrow predecessor lookups to their own line item
-    via sub.po_line_item_id — a bare definition has no way to know which
-    named item ("GIS" vs "Transformer") it's being computed for.
+def _branch_condition_met(project: "models.Project", branch: "models.DeliverableFormulaBranch",
+                           is_l0: bool, window: int | None) -> bool:
+    """Every non-"always" condition only ever applied to L0 (non-international)
+    items historically (PBU-conditional, site-visit-fallback, tiered/
+    threshold duration were all is_l0-gated in the original hardcoded
+    version) -- preserved here as a blanket gate so a conditional branch
+    accidentally saved on an L1 or international row just never fires,
+    rather than behaving unpredictably.
     """
-    definition = sub.definition
-    anchor_type = definition.anchor_type
+    ct = branch.condition_type
+    if ct == "always":
+        return True
+    if not is_l0:
+        return False
+    if ct == "scope_contains_pbu":
+        return bool(getattr(project, "scope_contains_pbu", False))
+    if ct == "site_visit_unset":
+        return project.site_visit_date is None
+    if ct == "tender_window_lt_days":
+        return window is not None and window < (branch.condition_value or 0)
+    return False
 
-    if anchor_type == "announcement":
+
+def _resolve_branch(db: Session, sub: "models.DeliverableSubmission", project: "models.Project",
+                     branch: "models.DeliverableFormulaBranch", is_l0: bool,
+                     lookup: dict[str, list] | None = None) -> date | None:
+    """Resolves one branch to a concrete date, or None if its anchor isn't
+    available yet -- the exact same per-anchor-type math compute_due_date
+    used to do inline, now reading the branch's own fields instead of the
+    definition's.
+    """
+    if branch.anchor_type == "announcement":
         anchor = project.announcement_date
         if anchor is None:
             return None
-        result = anchor + timedelta(days=definition.offset_days or 0)
-        return skip_weekend_forward(result)
+        if branch.workday_duration:
+            start = next_workday_after(anchor)
+            offset = _scaled_duration(project, branch.offset_days or 0) if is_l0 else (branch.offset_days or 0)
+            return duration_end(start, offset)
+        return skip_weekend_forward(anchor + timedelta(days=branch.offset_days or 0))
 
-    if anchor_type == "bsd":
+    if branch.anchor_type == "bsd":
         anchor = project.bsd
         if anchor is None:
             return None
-        result = anchor - timedelta(days=definition.offset_days or 0)
-        return _skip_weekend_backward(result)
+        return _skip_weekend_backward(anchor - timedelta(days=branch.offset_days or 0))
 
-    if anchor_type == "site_visit":
+    if branch.anchor_type == "site_visit":
         anchor = project.site_visit_date
         if anchor is None:
-            return None  # optional field — stays undated until it's provided
-        result = anchor + timedelta(days=definition.offset_days or 0)
-        return skip_weekend_forward(result)
-
-    if anchor_type == "pre_bid":
-        # Modifications doc: if Pre-Bid Clarification Deadline isn't entered,
-        # treat the deadline as immediate — i.e. today, not undated.
-        anchor = project.pre_bid_deadline or date.today()
-        result = anchor - timedelta(days=definition.offset_days or 0)
-        return _skip_weekend_backward(result)
-
-    if anchor_type == "predecessor":
-        item_no = definition.item_no
-        # [L0 International]: an international tender's durations are
-        # literal (no tight-BSD compression, no standard-L0 tiered/threshold/
-        # PBU-conditional special cases) -- same math L1 already uses. Every
-        # is_l0-gated branch below stays off for these, even though
-        # definition.stage is still plain "L0".
-        is_l0 = definition.stage == models.Stage.L0 and not getattr(project, "is_international", False)
-        window = _tender_window_days(project) if is_l0 else None
-
-        # PBU-conditional branch (L0 items 1.8/1.9/1.10): if scope includes PBU,
-        # anchor to 4.4 + 1 workday instead of the normal M1-anchored chain —
-        # a fixed 1-day duration regardless of the item's own stored offset
-        # (which only applies in the normal, non-PBU branch below).
-        if is_l0 and item_no in PBU_CONDITIONAL_ITEMS and getattr(project, "scope_contains_pbu", False):
-            anchor = _resolve_predecessor_anchor(db, project, "4.4", definition.department_id,
-                                                  sub.po_line_item_id, lookup)
-            if anchor is None:
-                return None
-            return next_workday_after(anchor)
-
-        pred_item_no = definition.predecessor_item_no
-        if not pred_item_no:
             return None
+        if branch.workday_duration:
+            start = next_workday_after(anchor)
+            offset = _scaled_duration(project, branch.offset_days or 0) if is_l0 else (branch.offset_days or 0)
+            return duration_end(start, offset)
+        return skip_weekend_forward(anchor + timedelta(days=branch.offset_days or 0))
 
-        if is_l0 and item_no in L0_SITE_VISIT_FALLBACK_ITEMS and project.site_visit_date is None:
-            # No site visit scheduled for this project at all — fall back to
-            # a fixed +3 working days from announcement instead of staying
-            # unresolvable forever (matches the template's IF(site_visit="N/A",...)).
-            if project.announcement_date is None:
-                return None
-            start = next_workday_after(project.announcement_date)
-            return duration_end(start, _scaled_duration(project, 3))  # the 3rd working day after announcement
+    if branch.anchor_type == "pre_bid":
+        anchor = project.pre_bid_deadline or date.today()
+        return _skip_weekend_backward(anchor - timedelta(days=branch.offset_days or 0))
 
-        anchor = _resolve_predecessor_anchor(db, project, pred_item_no, definition.department_id,
-                                              sub.po_line_item_id, lookup)
+    if branch.anchor_type == "predecessor":
+        if not branch.predecessor_item_no:
+            return None
+        anchor = _resolve_predecessor_anchor(db, project, branch.predecessor_item_no,
+                                              sub.definition.department_id, sub.po_line_item_id, lookup)
         if anchor is None:
             return None
+        offset = branch.offset_days or 0
+        if branch.offset_direction == "before":
+            # Counting backward from a downstream deadline, not waiting on
+            # this predecessor to finish -- no next-workday shift, and not a
+            # "how long this takes" duration, so the tight-BSD ratio never
+            # applies here either (matches the original "before" branch).
+            return _skip_weekend_backward(anchor - timedelta(days=offset))
+        # Genuine dependency: work starts the day after the predecessor is
+        # due, then runs `offset` working days (offset counts the start day
+        # itself as day 1). [tight-BSD duration ratio]: scaled down first on
+        # a tight-BSD L0 project, floored at 1 workday -- see Project.duration_ratio.
+        start = next_workday_after(anchor)
+        return duration_end(start, _scaled_duration(project, offset) if is_l0 else offset)
 
-        offset = definition.offset_days or 0
-        if is_l0 and item_no in L0_THRESHOLD_DURATION_ITEMS:
-            offset = _threshold_duration(window)
-        elif is_l0 and item_no in ("4.4", "5.3"):
-            offset = _tiered_duration(item_no, window)
-
-        if definition.offset_direction == "before":
-            # Counting backward from a downstream deadline (e.g. BSD-anchored
-            # item 1.20), not waiting on this predecessor to finish — no
-            # next-workday shift here. Not a "how long this takes" duration,
-            # so the tight-BSD ratio below doesn't apply here either.
-            result = anchor - timedelta(days=offset)
-            primary = _skip_weekend_backward(result)
-        else:
-            # Genuine dependency: work starts the day after the predecessor
-            # is due, then runs `offset` working days — offset counts the
-            # start day itself as day 1 (a 1-day item starts and ends the
-            # same day), not an additive calendar offset. [tight-BSD duration
-            # ratio]: on a tight-BSD L0 project this offset gets scaled down
-            # first (floored at 1 workday) -- see Project.duration_ratio.
-            start = next_workday_after(anchor)
-            primary = duration_end(start, _scaled_duration(project, offset) if is_l0 else offset)
-
-        # [L0 International OR-formula items]: a genuine second branch, not
-        # just the primary one above -- compute it too. See L0_INTL_OR_ITEMS'
-        # own docstring for which branch wins on which item.
-        if getattr(project, "is_international", False) and item_no in L0_INTL_OR_ITEMS:
-            alt_pred, alt_offset, alt_direction = L0_INTL_OR_ITEMS[item_no]
-            alt_anchor = _resolve_predecessor_anchor(db, project, alt_pred, definition.department_id,
-                                                      sub.po_line_item_id, lookup)
-            if alt_anchor is not None:
-                if alt_direction == "before":
-                    alt_result = _skip_weekend_backward(alt_anchor - timedelta(days=alt_offset))
-                else:
-                    alt_result = duration_end(next_workday_after(alt_anchor), alt_offset)
-                if item_no in L0_INTL_OR_ITEMS_EARLIEST_WINS:
-                    if alt_result < primary:
-                        return alt_result
-                elif alt_result > primary:
-                    return alt_result
-        return primary
-
-    # "client_dependent" and library/on_request (anchor_type is None) both have no computable date.
     return None
+
+
+def compute_due_date(db: Session, sub: "models.DeliverableSubmission", project: models.Project,
+                      lookup: dict[str, list] | None = None) -> date | None:
+    """Resolves a submission's due date for a specific project by walking
+    its definition's formula branches (DeliverableFormulaBranch, ordered by
+    branch_order) -- see models.DeliverableDefinition's own docstring.
+    Almost every item has exactly one unconditional ("always") branch; a
+    handful carry several, evaluated in order. The first branch whose
+    condition is true "commits" -- it either resolves to a date or the whole
+    call returns None, with no fallthrough to a later branch (this
+    reproduces every one of the original hardcoded special cases exactly:
+    e.g. a PBU-scope 1.8/1.9/1.10 with its 4.4 anchor not yet resolved
+    returns None, it never silently falls back to the normal M1-anchored
+    branch). Branches sharing a non-null `tie_break` are the exception --
+    they're a group, not a priority chain: every member whose own condition
+    is true gets resolved, and the earliest/latest of what actually resolved
+    wins (the international OR-formula construct).
+
+    Takes the submission (not just its definition) so line-item-tracked
+    items ([PO Lifecycle]) can narrow predecessor lookups to their own line
+    item via sub.po_line_item_id — a bare definition has no way to know
+    which named item ("GIS" vs "Transformer") it's being computed for.
+    """
+    definition = sub.definition
+    branches = [b for b in definition.branches if b.active]
+    if not branches:
+        # client_dependent / library / on_request: no computable due date.
+        return None
+
+    # [L0 International]: an international tender's durations are literal
+    # (no tight-BSD compression, no standard-L0 tiered/threshold/
+    # PBU-conditional special cases) -- same math L1 already uses. Every
+    # non-"always" condition stays off for these, even though
+    # definition.stage is still plain "L0".
+    is_l0 = definition.stage == models.Stage.L0 and not getattr(project, "is_international", False)
+    window = _tender_window_days(project) if is_l0 else None
+
+    seen_tie_break_groups: set[str] = set()
+    for branch in sorted(branches, key=lambda b: b.branch_order):
+        if branch.tie_break:
+            if branch.tie_break in seen_tie_break_groups:
+                continue
+            seen_tie_break_groups.add(branch.tie_break)
+            group = [b for b in branches if b.tie_break == branch.tie_break]
+            candidates = [
+                d for gb in group if _branch_condition_met(project, gb, is_l0, window)
+                for d in [_resolve_branch(db, sub, project, gb, is_l0, lookup)] if d is not None
+            ]
+            if candidates:
+                return max(candidates) if branch.tie_break == "latest_of_siblings" else min(candidates)
+            continue
+        if _branch_condition_met(project, branch, is_l0, window):
+            return _resolve_branch(db, sub, project, branch, is_l0, lookup)
+    return None
+
+
+def sync_definition_mirror_columns(definition: "models.DeliverableDefinition") -> None:
+    """Keeps the plain anchor_type/predecessor_item_no/offset_days/
+    offset_direction columns in sync with branch_order 0's shape -- called
+    after every branch write. These columns are read only by
+    awaiting_milestone_note and gantt.py's _bar_start, both of which just
+    need an approximate single-formula summary, not the real resolver; this
+    keeps them exactly as accurate (or approximate, for the multi-branch
+    special-case items) as they were before branches existed.
+    """
+    branches = sorted((b for b in definition.branches if b.active), key=lambda b: b.branch_order)
+    if not branches:
+        definition.anchor_type = None
+        definition.predecessor_item_no = None
+        definition.offset_days = 0
+        definition.offset_direction = "after"
+        return
+    first = branches[0]
+    definition.anchor_type = first.anchor_type
+    definition.predecessor_item_no = first.predecessor_item_no
+    definition.offset_days = first.offset_days
+    definition.offset_direction = first.offset_direction
+
+
+_CONDITION_LABELS = {
+    "scope_contains_pbu": "If PBU scope",
+    "site_visit_unset": "If no Site Visit Date is set",
+}
+
+
+def _describe_branch(branch: "models.DeliverableFormulaBranch") -> str:
+    if branch.anchor_type == "announcement":
+        unit = "working day(s)" if branch.workday_duration else "calendar day(s)"
+        formula = f"{branch.offset_days} {unit} after M1 (announcement)"
+    elif branch.anchor_type == "bsd":
+        formula = f"{branch.offset_days} calendar day(s) before BSD"
+    elif branch.anchor_type == "site_visit":
+        unit = "working day(s)" if branch.workday_duration else "calendar day(s)"
+        formula = f"{branch.offset_days} {unit} after the Site Visit Date"
+    elif branch.anchor_type == "pre_bid":
+        formula = f"{branch.offset_days} calendar day(s) before the Pre-bid deadline"
+    elif branch.anchor_type == "predecessor":
+        direction = "before" if branch.offset_direction == "before" else "after"
+        formula = f"{branch.offset_days} workday(s) {direction} {branch.predecessor_item_no}"
+    else:
+        formula = "no computable date"
+
+    if branch.condition_type == "always":
+        return formula.capitalize()
+    if branch.condition_type == "tender_window_lt_days":
+        return f"If tender window < {branch.condition_value} days: {formula}"
+    return f"{_CONDITION_LABELS.get(branch.condition_type, branch.condition_type)}: {formula}"
+
+
+def describe_formula_branches(definition: "models.DeliverableDefinition") -> str:
+    """Human-readable summary of every active branch, in order -- shared by
+    the admin definitions list and the Owner/SME read-only formulas page so
+    the two never disagree on wording. Tie-break groups are described as
+    "earliest/latest of: A, or B" rather than as separate sentences.
+    """
+    branches = sorted((b for b in definition.branches if b.active), key=lambda b: b.branch_order)
+    if not branches:
+        return "No computable due date (on request / library item)."
+    parts: list[str] = []
+    seen: set[str] = set()
+    for branch in branches:
+        if branch.tie_break:
+            if branch.tie_break in seen:
+                continue
+            seen.add(branch.tie_break)
+            group = [b for b in branches if b.tie_break == branch.tie_break]
+            which = "earliest" if branch.tie_break == "earliest_of_siblings" else "latest"
+            options = "; or ".join(_describe_branch(gb) for gb in group)
+            parts.append(f"Whichever is {which} of: {options}")
+        else:
+            parts.append(_describe_branch(branch))
+    return ". ".join(parts) + "."
 
 
 def refresh_status(submission: models.DeliverableSubmission) -> None:

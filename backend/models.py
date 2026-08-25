@@ -104,6 +104,10 @@ class AnnouncementType(str, enum.Enum):
     # Admin's action, same convention as every other *_REQUEST above); this
     # is only the decision half, back to whoever asked.
     GROUP_ADD_DECISION = "group_add_decision"
+    # [Deliverables Configuration]: request side stays DEADLINE, same
+    # convention as every other *_REQUEST above; this is only the decision
+    # half, back to whoever suggested the formula change.
+    FORMULA_CHANGE_DECISION = "formula_change_decision"
 
 
 class Department(Base):
@@ -120,6 +124,12 @@ class Department(Base):
     # Performance/Focal Points can show it only in their International
     # subtab, and hide it from the standard L0 view.
     is_international = Column(Boolean, default=False)
+    # [Deliverables Configuration]: soft-delete, same convention as
+    # BidManager.active -- a department already referenced by existing
+    # projects/definitions keeps its real name/history; this only removes
+    # it from admin CRUD dropdowns and cascades a soft-deactivate onto its
+    # own DeliverableDefinitions (see departments.delete_department).
+    active = Column(Boolean, default=True)
 
     deliverable_definitions = relationship("DeliverableDefinition", back_populates="department")
 
@@ -245,13 +255,24 @@ class Project(Base):
 class DeliverableDefinition(Base):
     """The template/catalog layer — admin-managed, versionable.
 
-    anchor_type:
+    Due-date computation itself is now driven entirely by this row's
+    `branches` (DeliverableFormulaBranch, ordered by branch_order) — see
+    rules.compute_due_date. The anchor_type/predecessor_item_no/offset_days/
+    offset_direction columns below are a denormalized mirror of branch 0's
+    shape (kept in sync by rules.sync_definition_mirror_columns whenever
+    branches are saved), read only by the couple of call sites that just
+    need an approximate single-formula summary (awaiting_milestone_note,
+    gantt.py's _bar_start) rather than the real resolver.
+
+    anchor_type (also the shape of an individual branch):
       "announcement"      due_date = project.announcement_date + offset_days (the M1 root item)
       "bsd"                due_date = project.bsd - offset_days (L0's M5/BSD root item)
+      "site_visit"         due_date = project.site_visit_date + offset_days
+      "pre_bid"            due_date = (project.pre_bid_deadline or today) - offset_days
       "predecessor"        due_date = that predecessor item's own due_date +/- offset_days
       "client_dependent"   no computable due date; owner/admin submits whenever the real event
                             happens (e.g. LOA received, Contract signed, "By Client" items)
-      null                 library/on_request type, no due date, informational only
+      null / zero branches library/on_request type, no due date, informational only
     """
     __tablename__ = "deliverable_definitions"
     id = Column(Integer, primary_key=True)
@@ -300,8 +321,139 @@ class DeliverableDefinition(Base):
     # See rules.py's _get_submissions/_resolve_predecessor_anchor and
     # routers/projects.py's _instantiate_deliverables fan-out.
     line_item_category = Column(String, nullable=True)
+    # [Deliverables Configuration]: once True, seed.py's upsert() never
+    # overwrites this row's name/short_name/anchor_type/predecessor_item_no/
+    # offset_days/offset_direction/deliverable_type/is_milestone/
+    # milestone_code/milestone_name again -- an admin edit or an approved
+    # formula-change suggestion sets this, so future code-driven catalog
+    # fixes (see seed.py's several _due_fix_items-style migrations this
+    # session) no longer silently clobber a deliberate customization.
+    # "Restore to Default" clears it back to False.
+    is_customized = Column(Boolean, default=False)
+    # The permanent "stage:item_no:department_id" identity captured the
+    # first time this row was ever seeded -- immune to a LATER admin rename
+    # of item_no or department, unlike upsert()'s old lookup key (plain
+    # stage+item_no+department_id), which would otherwise lose track of a
+    # renamed row and silently insert a duplicate on the next deploy. Null
+    # for anything created directly through the admin UI (nothing to
+    # restore to -- Restore to Default stays disabled for those rows).
+    seed_key = Column(String, nullable=True)
 
     department = relationship("Department", back_populates="deliverable_definitions")
+    branches = relationship(
+        "DeliverableFormulaBranch", back_populates="definition",
+        order_by="DeliverableFormulaBranch.branch_order", cascade="all, delete-orphan",
+    )
+
+
+class DeliverableFormulaBranch(Base):
+    """One candidate formula for a DeliverableDefinition's due date --
+    almost every item has exactly one, unconditional ("always") branch; the
+    ~14 special-case items (PBU-conditional, site-visit-fallback, tiered/
+    threshold duration, the international OR-formula items) carry several,
+    evaluated in branch_order. See rules.compute_due_date for the resolver
+    and seed.py's _DEFAULT_FORMULA_BRANCHES for the seeded default set that
+    reproduces every one of today's hardcoded special cases exactly.
+    """
+    __tablename__ = "deliverable_formula_branches"
+    id = Column(Integer, primary_key=True)
+    deliverable_definition_id = Column(Integer, ForeignKey("deliverable_definitions.id"), nullable=False)
+    branch_order = Column(Integer, default=0)
+    # always | scope_contains_pbu | site_visit_unset | tender_window_lt_days
+    condition_type = Column(String, nullable=False, default="always")
+    condition_value = Column(Integer, nullable=True)  # the N in tender_window_lt_days
+    # announcement | bsd | site_visit | pre_bid | predecessor
+    anchor_type = Column(String, nullable=False)
+    predecessor_item_no = Column(String, nullable=True)  # comma-separated AND-semantics preserved
+    offset_days = Column(Integer, default=0)
+    offset_direction = Column(String, default="after")  # after | before
+    # Only meaningful for anchor_type "announcement"/"site_visit" (the two
+    # forward-only direct-field anchors). False (default): the plain
+    # additive formula every M1/M2-style item actually uses -- anchor +
+    # offset_days calendar days, one weekend-skip-forward at the end. True:
+    # the same "start the next workday, then count offset_days *working*
+    # days, day 1 = start" duration math "predecessor" branches use --
+    # needed for e.g. the site-visit-fallback items (announcement + 3
+    # *working* days), which is a genuinely different formula, not just a
+    # different anchor. See rules._resolve_branch.
+    workday_duration = Column(Boolean, default=False)
+    # earliest_of_siblings | latest_of_siblings | null -- branches sharing
+    # the same non-null tie_break are a group: resolve every member whose
+    # own condition is true, pick the earliest/latest resolved date among
+    # them (this is the international OR-formula construct).
+    tie_break = Column(String, nullable=True)
+    active = Column(Boolean, default=True)
+
+    definition = relationship("DeliverableDefinition", back_populates="branches")
+
+
+class DeliverableDefinitionChangeLog(Base):
+    """Full audit trail for DeliverableDefinition edits -- every admin save,
+    restore-to-default, approved suggestion, and revert writes one row here.
+    before_snapshot/after_snapshot capture the full editable shape (fields +
+    branches) so a revert can restore either side exactly; summary is a
+    short server-generated human-readable line so the Change History UI
+    never has to diff JSON client-side.
+    """
+    __tablename__ = "deliverable_definition_change_log"
+    id = Column(Integer, primary_key=True)
+    deliverable_definition_id = Column(Integer, ForeignKey("deliverable_definitions.id"), nullable=False)
+    changed_at = Column(DateTime, default=datetime.utcnow)
+    actor_email = Column(String, nullable=True)
+    actor_name = Column(String, nullable=True)
+    source = Column(String, nullable=False)  # admin_edit | restore_default | suggestion_approved | revert
+    change_type = Column(String, nullable=False)  # field_edit | branch_edit | created | deactivated | reactivated
+    before_snapshot = Column(JSON, nullable=True)
+    after_snapshot = Column(JSON, nullable=True)
+    summary = Column(Text, nullable=True)
+    origin_request_id = Column(Integer, ForeignKey("formula_change_requests.id"), nullable=True)
+
+    definition = relationship("DeliverableDefinition")
+
+
+class DepartmentChangeLog(Base):
+    """Same shape as DeliverableDefinitionChangeLog, scoped to Department's
+    own editable fields (name/order/number/is_international/active)."""
+    __tablename__ = "department_change_log"
+    id = Column(Integer, primary_key=True)
+    department_id = Column(Integer, ForeignKey("departments.id"), nullable=False)
+    changed_at = Column(DateTime, default=datetime.utcnow)
+    actor_email = Column(String, nullable=True)
+    actor_name = Column(String, nullable=True)
+    change_type = Column(String, nullable=False)  # created | edited | deactivated | reactivated
+    before_snapshot = Column(JSON, nullable=True)
+    after_snapshot = Column(JSON, nullable=True)
+    summary = Column(Text, nullable=True)
+
+    department = relationship("Department")
+
+
+class FormulaChangeRequest(Base):
+    """Owner/SME self-service "suggest a formula change" -- same
+    request-then-decide shape as SmeNomination/UserAddRequest (a suggestion
+    alone never changes anything; an Admin's approval applies
+    proposed_branches via the same code path the admin's own direct branch
+    editor uses, and logs a DeliverableDefinitionChangeLog entry pointing
+    back here via origin_request_id).
+    """
+    __tablename__ = "formula_change_requests"
+    id = Column(Integer, primary_key=True)
+    deliverable_definition_id = Column(Integer, ForeignKey("deliverable_definitions.id"), nullable=False)
+    requested_by_email = Column(String, nullable=False)
+    requested_by_name = Column(String, nullable=True)
+    # Human-readable snapshot of the formula at request time -- survives
+    # later edits, so a stale suggestion still reads sensibly in history.
+    current_summary = Column(Text, nullable=True)
+    proposed_branches = Column(JSON, nullable=False)  # same shape the admin branch-editor submits
+    comment = Column(Text, nullable=False)  # the rationale ("needs more time because...")
+    status = Column(String, default="pending")  # pending | approved | rejected
+    requested_at = Column(DateTime, default=datetime.utcnow)
+    decided_at = Column(DateTime, nullable=True)
+    decided_by_email = Column(String, nullable=True)
+    decision_comment = Column(Text, nullable=True)
+    applied_change_log_id = Column(Integer, ForeignKey("deliverable_definition_change_log.id"), nullable=True)
+
+    definition = relationship("DeliverableDefinition")
 
 
 class DeliverableSubmission(Base):
