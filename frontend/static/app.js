@@ -335,12 +335,12 @@
     support: loadSupport, bmtriage: loadBmTriageStatus, tickets: loadTickets,
     deliverableformulas: loadDeliverableFormulas, deliverablesconfig: loadDeliverablesConfig,
     archivedprojects: loadArchivedProjects, myrequests: loadMyRequests,
-    "report-masterpo": loadReportMasterPo,
+    "report-performance": loadReportPerformance, "report-masterpo": loadReportMasterPo,
     "report-overviewpo": loadReportOverviewPo, "report-budgetstatus": loadReportBudgetStatus,
   };
   var ADMIN_ONLY_VIEWS = [
     "create", "reports", "scores", "focalpoints", "followup", "tickets", "deliverablesconfig", "archivedprojects",
-    "report-masterpo", "report-overviewpo", "report-budgetstatus",
+    "report-performance", "report-masterpo", "report-overviewpo", "report-budgetstatus",
   ];
   // Item 110: BM Triage Status isn't strictly admin-only — a Bid Manager
   // acting as themselves (Owner role, since that's the role they'd pick to
@@ -405,18 +405,12 @@
   // Item [Reports redesign]: the landing page's category boxes aren't
   // .nav-item elements (they don't belong in the rail), so they get their
   // own click wiring here, once, same switchView() every nav click uses.
-  // "Performance Report" is a special case -- Yasser wants it to print the
-  // real Performance nav tab exactly (its own card grid, filters, trend
-  // charts), not a separate simplified recreation -- so it jumps straight
-  // to the actual view-performance, which already has its own #perfPrintBtn
-  // and matching print CSS, rather than routing through view-report-performance.
   document.querySelectorAll(".report-category-box").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      switchView(btn.dataset.report === "performance" ? "performance" : "report-" + btn.dataset.report);
-    });
+    btn.addEventListener("click", function () { switchView("report-" + btn.dataset.report); });
   });
-  [["repMasterPoBack", "reports"], ["repOverviewPoBack", "reports"], ["repBudgetBack", "reports"]]
+  [["repPerfBack", "reports"], ["repMasterPoBack", "reports"], ["repOverviewPoBack", "reports"], ["repBudgetBack", "reports"]]
     .forEach(function (pair) { document.getElementById(pair[0]).addEventListener("click", function () { switchView(pair[1]); }); });
+  document.getElementById("repPerfPrintBtn").addEventListener("click", function () { window.print(); });
   document.getElementById("repMasterPoPrintBtn").addEventListener("click", function () { window.print(); });
   document.getElementById("repOverviewPoPrintBtn").addEventListener("click", function () { window.print(); });
   document.getElementById("repBudgetPrintBtn").addEventListener("click", function () { window.print(); });
@@ -4725,6 +4719,13 @@
     });
   }
   async function loadPerformance() {
+    // [Reports redesign]: perfOverviewCore may currently be sitting inside
+    // the Performance Report's mount point (see loadReportPerformance) --
+    // re-home it here unconditionally so navigating to the real Performance
+    // nav tab always shows it in its normal place, regardless of whichever
+    // view last relocated it. A no-op (stays exactly where it already is)
+    // when it's already home.
+    document.getElementById("perfOverviewPane").appendChild(document.getElementById("perfOverviewCore"));
     perfData = await api("/api/dashboard/performance");
     document.getElementById("perfFreshness").textContent = "Data as of " + fmtDate(perfData.data_as_of);
     renderPerfSummaryCards();
@@ -4739,6 +4740,17 @@
       document.getElementById("perfOverviewPane").hidden = false;
       document.getElementById("perfTriagePane").hidden = true;
     }
+  }
+  // [Reports redesign]: the Performance Report -- same live component as
+  // the real Performance nav tab (search, chips, card grid, compare/
+  // history), just relocated into its own page without Manage Tracking or
+  // the calc-panel (neither ever leaves view-performance, see the HTML).
+  // Runs the exact same load/render as loadPerformance() -- zero risk of
+  // this report's numbers or filters ever drifting from the real page's --
+  // then moves the now-populated node into this report's own mount point.
+  async function loadReportPerformance() {
+    await loadPerformance();
+    document.getElementById("repPerfMount").appendChild(document.getElementById("perfOverviewCore"));
   }
   document.querySelectorAll("#perfSubTabs .chip").forEach(function (btn) {
     btn.addEventListener("click", function () {

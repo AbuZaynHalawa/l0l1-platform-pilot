@@ -1577,7 +1577,7 @@
     .rail, .topbar, .rail-toggle, #perfSearch, .perf-chip-row, .perf-compare-check,
     .perf-history-btn, .perf-compare-bar, .psc2-hint, .back-link, #perfPrintBtn,
     .perf-filter-card-head input,
-    #repMasterPoFilterRow, #repMasterPoPrintBtn,
+    #repPerfPrintBtn, #repMasterPoFilterRow, #repMasterPoPrintBtn,
     #repOverviewPoFilterRow, #repOverviewPoPrintBtn, #repBudgetFilterRow, #repBudgetPrintBtn
       { display: none !important; }
     .view { padding: 0 !important; max-width: none !important; }

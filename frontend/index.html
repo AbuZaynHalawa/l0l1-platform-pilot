@@ -824,21 +824,31 @@
              on /api/dashboard/performance). Both levels' accent colors here
              (purple-1 = L1, purple-2 = L0) reuse the app's existing palette,
              the same one the design spec calls for. -->
-        <div class="perf-freshness" id="perfFreshness"></div>
-        <div class="perf-summary-strip" id="perfSummaryStrip"></div>
-        <div class="card perf-filter-card">
-          <div class="perf-filter-card-head">
-            <div class="section-title">All Departments</div>
-            <input type="text" id="perfSearch" placeholder="Search departments by name&#8230;" />
+        <!-- [Reports redesign]: perfOverviewCore is the exact same live
+             component (search, chips, card grid, compare bar -- same IDs,
+             same JS, same data) the Performance nav tab renders here in its
+             normal home. The Performance Report over in Reports physically
+             relocates this one node into its own mount point instead of
+             recreating it, so the two views can never visually drift --
+             see loadReportPerformance()/loadPerformance() in app.js, which
+             re-home it on every load regardless of where it currently is. -->
+        <div id="perfOverviewCore">
+          <div class="perf-freshness" id="perfFreshness"></div>
+          <div class="perf-summary-strip" id="perfSummaryStrip"></div>
+          <div class="card perf-filter-card">
+            <div class="perf-filter-card-head">
+              <div class="section-title">All Departments</div>
+              <input type="text" id="perfSearch" placeholder="Search departments by name&#8230;" />
+            </div>
+            <div class="perf-chip-row" id="perfDeptChips"></div>
+            <div class="perf-filter-footer" id="perfDeptFooter"></div>
           </div>
-          <div class="perf-chip-row" id="perfDeptChips"></div>
-          <div class="perf-filter-footer" id="perfDeptFooter"></div>
-        </div>
-        <div class="perf-card-grid" id="perfCardGrid"></div>
-        <div class="perf-compare-bar" id="perfCompareBar" hidden>
-          <span id="perfCompareCount"></span>
-          <button class="cmp-go" id="perfCompareGo" disabled>Compare</button>
-          <button class="cmp-clear" id="perfCompareClear">Clear</button>
+          <div class="perf-card-grid" id="perfCardGrid"></div>
+          <div class="perf-compare-bar" id="perfCompareBar" hidden>
+            <span id="perfCompareCount"></span>
+            <button class="cmp-go" id="perfCompareGo" disabled>Compare</button>
+            <button class="cmp-clear" id="perfCompareClear">Clear</button>
+          </div>
         </div>
       </div>
       <div id="perfTriagePane" hidden>
@@ -918,7 +928,7 @@
         <button class="report-category-box" data-report="performance">
           <span class="rcb-icon">&#128200;</span>
           <span class="rcb-title">Performance Report</span>
-          <span class="rcb-desc">The Performance nav tab itself &#8212; card view, filters, and Print, exactly as it is there.</span>
+          <span class="rcb-desc">The department card view and filters, without Manage Tracking or the calculation breakdown.</span>
         </button>
         <button class="report-category-box" data-report="masterpo">
           <span class="rcb-icon">&#128203;</span>
@@ -938,6 +948,25 @@
       </div>
     </section>
 
+
+    <!-- PERFORMANCE REPORT: no markup of its own besides a mount point --
+         #perfOverviewCore (the live Performance nav tab's search/chips/card
+         grid/compare bar) physically relocates in here on load. See
+         loadReportPerformance() in app.js. -->
+    <section class="view" id="view-report-performance" hidden>
+      <button class="back-link" id="repPerfBack">&#8592; Back to Reports</button>
+      <div class="view-head">
+        <div>
+          <div class="eyebrow">Reports</div>
+          <h1>Performance Report</h1>
+          <p class="sub">Live department performance &#8212; same data, filters, and cards as the Performance nav tab.</p>
+        </div>
+        <div class="report-actions">
+          <button class="btn" id="repPerfPrintBtn">&#128424; Print</button>
+        </div>
+      </div>
+      <div id="repPerfMount"></div>
+    </section>
 
     <!-- MASTER PO REPORT -->
     <section class="view report-design-ref" id="view-report-masterpo" hidden>
