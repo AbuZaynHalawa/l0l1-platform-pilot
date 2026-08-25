@@ -7096,19 +7096,74 @@
     });
   }
 
+  // [Stage/department scoping]: L0 has real domestic vs. international
+  // catalogs (Manage Tracking's own L0 International tab, Overview's
+  // merged-but-still-separately-toggleable L0 score); L1 has never had an
+  // international variant anywhere in the app (confirmed against the real
+  // catalog -- 0 of 113 L1 items sit on an international department). The
+  // Add/Edit modal's Department dropdown used to list all 40 departments
+  // unfiltered regardless of which of the three formula tabs you were on,
+  // so nothing stopped an L1 item from being pointed at an international
+  // department that no other L1 view would ever recognize. _dcStageLabel/
+  // _dcApplicableDepts scope the dropdown (and the modal's own title) to
+  // whichever tab you're actually adding/editing from.
+  function _dcStageLabel() {
+    return dcTab === "L1" ? "L1" : (dcTab === "L0intl" ? "L0 International" : "L0");
+  }
+  function _dcApplicableDepts(allDepts) {
+    var wantIntl = dcTab === "L0intl";
+    return allDepts.filter(function (dep) { return !!dep.is_international === wantIntl; });
+  }
+  // [Item No auto-numbering]: item numbers are always "<department
+  // number>.<minor>" (1.1, 6.3, 19.2, ...) and the sequence is scoped per
+  // department PER STAGE -- the same department has its own independent
+  // L0 sequence and L1 sequence. dcItems already holds the full list for
+  // whichever stage tab is active, so "next number for this department"
+  // is just its current max minor + 1.
+  function _nextItemNo(deptId, deptNumber) {
+    var maxMinor = 0;
+    dcItems.forEach(function (it) {
+      if (it.department_id !== deptId) return;
+      var parts = String(it.item_no).split(".");
+      if (parts.length !== 2) return;
+      var minor = parseInt(parts[1], 10);
+      if (!isNaN(minor) && minor > maxMinor) maxMinor = minor;
+    });
+    return deptNumber + "." + (maxMinor + 1);
+  }
   var _adminDefTarget = null;
+  var _adminDefDepts = [];
+  var _adminDefItemNoSuggestion = "";
+  function _refreshAdminDefItemNoSuggestion() {
+    if (_adminDefTarget) return; // never auto-fill while editing an existing item
+    var deptSel = document.getElementById("adminDefDept");
+    var dep = _adminDefDepts.find(function (d) { return String(d.id) === deptSel.value; });
+    if (!dep) return;
+    var suggestion = _nextItemNo(dep.id, dep.number);
+    var itemNoInput = document.getElementById("adminDefItemNo");
+    // Only overwrite if the field is still blank or still holds the
+    // PREVIOUS auto-suggestion -- once the admin types their own value,
+    // switching department again shouldn't silently clobber it.
+    if (!itemNoInput.value.trim() || itemNoInput.value === _adminDefItemNoSuggestion) {
+      itemNoInput.value = suggestion;
+    }
+    _adminDefItemNoSuggestion = suggestion;
+  }
+  document.getElementById("adminDefDept").addEventListener("change", _refreshAdminDefItemNoSuggestion);
   async function openAdminDefModal(d) {
     _adminDefTarget = d;
     var deptSel = document.getElementById("adminDefDept");
     deptSel.innerHTML = "";
-    var depts = dcDepartments.length ? dcDepartments : await api("/api/departments?include_inactive=true");
-    depts.forEach(function (dep) {
+    var allDepts = dcDepartments.length ? dcDepartments : await api("/api/departments?include_inactive=true");
+    _adminDefDepts = _dcApplicableDepts(allDepts);
+    _adminDefDepts.forEach(function (dep) {
       var opt = document.createElement("option");
       opt.value = dep.id; opt.textContent = deptLabel(dep.name, dep.number);
       deptSel.appendChild(opt);
     });
+    var stageLabel = _dcStageLabel();
     if (d) {
-      document.getElementById("adminDefEyebrow").textContent = "Edit Deliverable";
+      document.getElementById("adminDefEyebrow").textContent = "Edit Deliverable · " + stageLabel;
       document.getElementById("adminDefTitle").textContent = d.item_no + " · " + d.name;
       document.getElementById("adminDefItemNo").value = d.item_no;
       document.getElementById("adminDefName").value = d.name;
@@ -7123,8 +7178,9 @@
       document.getElementById("adminDefDeactivateBtn").textContent = d.active ? "Deactivate" : "Reactivate";
     } else {
       document.getElementById("adminDefEyebrow").textContent = "Deliverables Configuration";
-      document.getElementById("adminDefTitle").textContent = "Add Deliverable";
+      document.getElementById("adminDefTitle").textContent = "Add " + stageLabel + " Deliverable";
       document.getElementById("adminDefItemNo").value = "";
+      _adminDefItemNoSuggestion = "";
       document.getElementById("adminDefName").value = "";
       document.getElementById("adminDefType").value = "date_driven";
       document.getElementById("adminDefMilestone").checked = false;
@@ -7134,6 +7190,7 @@
       document.getElementById("adminDefRestoreBtn").style.display = "none";
       document.getElementById("adminDefDeactivateBtn").style.display = "none";
     }
+    _refreshAdminDefItemNoSuggestion();
     updateAdminDefWeightReadout();
     document.getElementById("adminDefModalOverlay").hidden = false;
   }
