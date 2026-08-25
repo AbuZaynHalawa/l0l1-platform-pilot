@@ -334,8 +334,9 @@
     journey: loadJourney, scores: loadScores, focalpoints: loadFocalPoints, followup: loadFollowUp,
     support: loadSupport, bmtriage: loadBmTriageStatus, tickets: loadTickets,
     deliverableformulas: loadDeliverableFormulas, deliverablesconfig: loadDeliverablesConfig,
+    archivedprojects: loadArchivedProjects,
   };
-  var ADMIN_ONLY_VIEWS = ["create", "reports", "scores", "focalpoints", "followup", "tickets", "deliverablesconfig"];
+  var ADMIN_ONLY_VIEWS = ["create", "reports", "scores", "focalpoints", "followup", "tickets", "deliverablesconfig", "archivedprojects"];
   // Item 110: BM Triage Status isn't strictly admin-only — a Bid Manager
   // acting as themselves (Owner role, since that's the role they'd pick to
   // represent themselves elsewhere in the app) can see it too, scoped
@@ -2804,6 +2805,29 @@
     stageBadge.textContent = p.stage + " Stage";
     stageBadge.className = "stage-badge " + (p.stage === "L0" ? "l0" : "l1");
     document.getElementById("dIntlBadge").hidden = !p.is_international;
+    document.getElementById("dArchivedBadge").hidden = !p.archived;
+    document.getElementById("dArchivedBanner").hidden = !p.archived;
+    var archiveBtn = document.getElementById("dArchiveBtn");
+    archiveBtn.hidden = !can("create");
+    archiveBtn.textContent = p.archived ? "Unarchive Project" : "Archive Project";
+    archiveBtn.onclick = async function () {
+      var toArchive = !p.archived;
+      var msg = toArchive
+        ? "Archive " + p.est_no + "? It'll be hidden from every report, dashboard, and listing until an admin restores it."
+        : "Restore " + p.est_no + " to active? It'll show up in reports/dashboards/listings again.";
+      if (!(await customConfirm(msg, { danger: toArchive, okLabel: toArchive ? "Archive" : "Restore" }))) return;
+      try {
+        await api("/api/projects/" + id + "/archive", {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ archived: toArchive, actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
+        });
+      } catch (err) {
+        showToast("Could not update &#8211; " + apiErrorDetail(err), true);
+        return;
+      }
+      showToast(toArchive ? "Project archived" : "Project restored");
+      openDetail(id);
+    };
     document.getElementById("dTitle").textContent = p.est_no.toUpperCase() + " – " + p.name;
     var l0LinkBtn = document.getElementById("dL0LinkBtn");
     if (p.stage === "L1" && p.l0_source_id) {
@@ -4213,7 +4237,6 @@
   /* ================= PERFORMANCE / REPORTS ================= */
   var perfTriageStage = "L0";
   var perfData = null;
-  var perfInternational = false; // [L0 International]: which subtab's data perfData currently holds
   var perfSearchTerm = "";
   var perfCompareSelected = {};  // department name -> true
   var perfChipSelected = {};  // department name -> true, independent multi-select
@@ -4671,7 +4694,7 @@
     });
   }
   async function loadPerformance() {
-    perfData = await api("/api/dashboard/performance" + (perfInternational ? "?international=true" : ""));
+    perfData = await api("/api/dashboard/performance");
     document.getElementById("perfFreshness").textContent = "Data as of " + fmtDate(perfData.data_as_of);
     renderPerfSummaryCards();
     renderPerfChips();
@@ -4691,15 +4714,9 @@
       document.querySelectorAll("#perfSubTabs .chip").forEach(function (b) { b.classList.remove("active"); });
       btn.classList.add("active");
       var pane = btn.dataset.pane;
-      // [L0 International]: its own subtab, but reuses the exact same
-      // Overview pane/card-grid machinery -- just re-fetched with
-      // international=true, same pattern as Manage Tracking's own L0/L1
-      // stage toggle re-fetching with a different `stage`.
       document.getElementById("perfOverviewPane").hidden = pane === "triage";
       document.getElementById("perfTriagePane").hidden = pane !== "triage";
-      if (pane === "triage") { loadPerfTriage(); return; }
-      var wantIntl = pane === "international";
-      if (wantIntl !== perfInternational) { perfInternational = wantIntl; loadPerformance(); }
+      if (pane === "triage") loadPerfTriage();
     });
   });
   document.querySelectorAll("#perfTriageStageToggle .chip").forEach(function (btn) {
@@ -4711,7 +4728,12 @@
     });
   });
   async function loadPerfTriage() {
-    var rows = await api("/api/departments/performance-triage?stage=" + perfTriageStage);
+    // [L0 International]: its own tab here (unlike the Overview above, which
+    // now merges international into its counterpart's L0 score) -- an admin
+    // still needs to toggle kpi_relevant per catalog independently.
+    var stage = perfTriageStage === "L0intl" ? "L0" : perfTriageStage;
+    var qs = "stage=" + stage + (perfTriageStage === "L0intl" ? "&international=true" : "");
+    var rows = await api("/api/departments/performance-triage?" + qs);
     var tbody = document.getElementById("perfTriageBody");
     tbody.innerHTML = "";
     rows.forEach(function (r) {
@@ -6687,6 +6709,49 @@
       });
       row.appendChild(revertBtn);
       wrap.appendChild(row);
+    });
+  }
+
+  /* ================= ARCHIVED PROJECTS (admin) ================= */
+  async function loadArchivedProjects() {
+    var projects = await api("/api/projects?archived=true");
+    var tbody = document.getElementById("archivedProjectsBody");
+    tbody.innerHTML = "";
+    if (!projects.length) {
+      var tr = el("tr");
+      tr.innerHTML = '<td colspan="5" style="text-align:center;color:var(--ink-500);padding:30px;">No archived projects.</td>';
+      tbody.appendChild(tr);
+      return;
+    }
+    projects.forEach(function (p) {
+      var tr2 = el("tr");
+      var estClass = "est-no " + p.stage.toLowerCase();
+      var statusPill = '<span class="pill ' + (PROJECT_STATUS_CLASS[p.status] || "neutral") + '"><span class="dot"></span>' + p.status + '</span>';
+      tr2.appendChild(el("td", estClass, p.est_no));
+      tr2.appendChild(el("td", "", '<span class="proj-name">' + p.name + '</span>'));
+      tr2.appendChild(el("td", "", p.stage));
+      tr2.appendChild(el("td", "", statusPill));
+      var actions = el("td");
+      var viewBtn = el("button", "btn", "View");
+      viewBtn.addEventListener("click", function (e) { e.stopPropagation(); openDetail(p.id); });
+      actions.appendChild(viewBtn);
+      var restoreBtn = el("button", "btn primary", "Restore");
+      restoreBtn.style.marginLeft = "6px";
+      restoreBtn.addEventListener("click", async function (e) {
+        e.stopPropagation();
+        try {
+          await api("/api/projects/" + p.id + "/archive", {
+            method: "PATCH", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ archived: false, actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
+          });
+        } catch (err) { showToast("Could not restore &#8211; " + apiErrorDetail(err), true); return; }
+        showToast("Project restored");
+        loadArchivedProjects();
+      });
+      actions.appendChild(restoreBtn);
+      tr2.appendChild(actions);
+      tr2.addEventListener("click", function () { openDetail(p.id); });
+      tbody.appendChild(tr2);
     });
   }
 

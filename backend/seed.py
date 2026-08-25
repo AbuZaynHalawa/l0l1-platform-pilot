@@ -43,6 +43,21 @@ ensure_column("deliverable_definitions", "seed_key", "VARCHAR")
 ensure_column("departments", "active", "BOOLEAN")
 ensure_enum_value("announcements", "type", "FORMULA_CHANGE_DECISION")
 
+# [Archive]
+ensure_column("projects", "archived", "BOOLEAN")
+# ensure_column's ALTER TABLE gives every already-existing row NULL, not
+# False -- fine for the query filters above (.is_not(True) treats NULL as
+# "not archived" the same NULL-safe way Department.active does), but
+# ProjectOut.archived is a strict `bool` field, so serializing an old row's
+# raw None through it 500s. One-time (idempotent) backfill closes that gap.
+# Same brand-new-database guard as ensure_column itself -- a fresh deploy's
+# very first run gets here before create_all() below has even made the
+# table yet, so this only applies on a database that already had projects.
+if inspect(engine).has_table("projects"):
+    with engine.connect() as _archive_backfill_conn:
+        _archive_backfill_conn.execute(text("UPDATE projects SET archived = 0 WHERE archived IS NULL"))
+        _archive_backfill_conn.commit()
+
 # Load-bearing indexes: every one of these columns is filtered or joined on
 # in the hot paths (dashboard, matrix, gantt, assigned deliverables), and
 # Postgres doesn't auto-index foreign keys the way MySQL does — without

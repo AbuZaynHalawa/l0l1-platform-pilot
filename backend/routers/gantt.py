@@ -231,7 +231,8 @@ def get_stage_timeline(stage: str, db: Session = Depends(get_db)):
     """
     projects = (
         db.query(models.Project)
-        .filter(models.Project.stage == stage, models.Project.status == models.ProjectStatus.IN_PROGRESS)
+        .filter(models.Project.stage == stage, models.Project.status == models.ProjectStatus.IN_PROGRESS,
+                models.Project.archived.is_not(True))
         .all()
     )
     for p in projects:

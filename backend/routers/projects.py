@@ -202,12 +202,24 @@ def _provision_and_instantiate(db: Session, project: models.Project):
 
 
 @router.get("", response_model=list[schemas.ProjectOut])
-def list_projects(stage: str | None = None, status: str | None = None, db: Session = Depends(get_db)):
+def list_projects(stage: str | None = None, status: str | None = None, archived: bool | None = None,
+                   db: Session = Depends(get_db)):
+    """`archived` left unset (the default, every existing caller) excludes
+    archived projects -- the main L0/L1 tables, every dropdown/picker, and
+    global search all silently stop offering an archived project this way,
+    with no per-caller change needed. Pass `archived=true` for the
+    dedicated Archived Projects admin view, or `archived=false` to be
+    explicit about wanting only active ones.
+    """
     q = db.query(models.Project)
     if stage:
         q = q.filter(models.Project.stage == stage)
     if status:
         q = q.filter(models.Project.status == status)
+    if archived is None:
+        q = q.filter(models.Project.archived.is_not(True))
+    else:
+        q = q.filter(models.Project.archived.is_(archived))
     return q.order_by(models.Project.created_at.desc()).all()
 
 
@@ -518,7 +530,8 @@ def get_bm_triage_status(actor_role: str = "Viewer", actor_email: str = "", db: 
     if actor_role != "Admin" and not actor_email:
         raise HTTPException(403, "Only an Admin, or a Bid Manager viewing their own tenders, can view BM triage status")
     q = db.query(models.Project).filter(
-        models.Project.stage == models.Stage.L0, models.Project.status == models.ProjectStatus.IN_PROGRESS
+        models.Project.stage == models.Stage.L0, models.Project.status == models.ProjectStatus.IN_PROGRESS,
+        models.Project.archived.is_not(True),
     )
     if actor_role != "Admin":
         q = q.filter(models.Project.bid_manager.ilike(actor_email))
@@ -901,6 +914,28 @@ def update_project_status(project_id: int, payload: schemas.ProjectStatusUpdate,
     if payload.status not in valid:
         raise HTTPException(400, f"Invalid status for {project.stage.value}: must be one of {sorted(valid)}")
     project.status = models.ProjectStatus(payload.status)
+    db.commit()
+    db.refresh(project)
+    return project
+
+
+@router.patch("/{project_id}/archive", response_model=schemas.ProjectOut)
+def archive_project(project_id: int, payload: schemas.ArchiveUpdate, db: Session = Depends(get_db)):
+    """[Archive]: an admin's reversible "hide this everywhere" toggle for a
+    project added by mistake or no longer relevant -- unlike delete_project
+    above, nothing is destroyed. An archived project simply stops being
+    returned by list_projects's default (archived-unset) call, which is
+    what every report/dashboard/listing/picker already uses -- see that
+    endpoint's own docstring. The project's own detail page (GET
+    /{project_id}, PO Lifecycle, Milestones, Gantt-by-id) stays reachable
+    by id either way, so an admin can review and un-archive it here.
+    """
+    if payload.actor_role != "Admin":
+        raise HTTPException(403, "Only an Admin can archive or unarchive a project")
+    project = db.get(models.Project, project_id)
+    if not project:
+        raise HTTPException(404, "Project not found")
+    project.archived = payload.archived
     db.commit()
     db.refresh(project)
     return project

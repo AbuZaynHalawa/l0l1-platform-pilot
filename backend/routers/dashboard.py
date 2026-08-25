@@ -24,7 +24,10 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
     stay organization-wide either way, since "how many active L0 tenders
     exist" doesn't mean anything scoped to one person.
     """
-    projects = db.query(models.Project).all()
+    # [Archive]: an archived project is excluded from every report/dashboard
+    # -- the Dashboard is the textbook case -- so this filters at the very
+    # top, before anything derives from `projects` or `all_subs` below.
+    projects = db.query(models.Project).filter(models.Project.archived.is_not(True)).all()
     l0_count = sum(1 for p in projects if p.stage == models.Stage.L0 and p.status == models.ProjectStatus.IN_PROGRESS)
     l1_count = sum(1 for p in projects if p.stage == models.Stage.L1 and p.status == models.ProjectStatus.IN_PROGRESS)
     signed_count = sum(1 for p in projects if p.contract_status == models.ContractStatus.SIGNED)
@@ -33,7 +36,9 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
         if p.status == models.ProjectStatus.IN_PROGRESS:
             rules.recompute_project_due_dates(db, p)
     db.commit()
-    all_subs = db.query(models.DeliverableSubmission).all()
+    all_subs = db.query(models.DeliverableSubmission).join(models.DeliverableSubmission.project).filter(
+        models.Project.archived.is_not(True)
+    ).all()
 
     focus = (focus_email or "").strip().lower()
     stat_subs = all_subs
@@ -167,7 +172,7 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
     focus_project_ids = {s.project_id for s in stat_subs} if focus else None
 
     def _recent_projects(stage_enum):
-        q = db.query(models.Project).filter(models.Project.stage == stage_enum)
+        q = db.query(models.Project).filter(models.Project.stage == stage_enum, models.Project.archived.is_not(True))
         if focus_project_ids is not None:
             if not focus_project_ids:
                 return []
@@ -186,10 +191,12 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
         q = (
             db.query(models.DeliverableSubmission)
             .join(models.DeliverableDefinition)
+            .join(models.DeliverableSubmission.project)
             .filter(
                 models.DeliverableDefinition.is_milestone.is_(True),
                 models.DeliverableDefinition.stage == stage_enum,
                 models.DeliverableSubmission.status == models.SubmissionStatus.APPROVED,
+                models.Project.archived.is_not(True),
             )
             .order_by(models.DeliverableSubmission.reviewed_at.desc())
         )
@@ -355,7 +362,9 @@ def _pad_with_samples(ranked, samples):
 
 @router.get("/top-achievers")
 def get_top_achievers(db: Session = Depends(get_db)):
-    active_projects = db.query(models.Project).filter(models.Project.status == models.ProjectStatus.IN_PROGRESS).all()
+    active_projects = db.query(models.Project).filter(
+        models.Project.status == models.ProjectStatus.IN_PROGRESS, models.Project.archived.is_not(True),
+    ).all()
     for p in active_projects:
         rules.recompute_project_due_dates(db, p)
     db.commit()
@@ -386,7 +395,8 @@ def get_matrix(stage: str, focus_email: str | None = None, db: Session = Depends
     """
     projects = (
         db.query(models.Project)
-        .filter(models.Project.stage == stage, models.Project.status == models.ProjectStatus.IN_PROGRESS)
+        .filter(models.Project.stage == stage, models.Project.status == models.ProjectStatus.IN_PROGRESS,
+                models.Project.archived.is_not(True))
         .order_by(models.Project.announcement_date)
         .all()
     )
@@ -685,33 +695,67 @@ def _history_and_ytd(db: Session, department_id: int, stage: models.Stage, curre
     return {"history": history, "ytd": ytd}
 
 
+_INTL_SUFFIX = " (International)"
+
+
 @router.get("/performance")
-def get_performance(international: bool = False, db: Session = Depends(get_db)):
+def get_performance(db: Session = Depends(get_db)):
     """Item 42: the Performance tab's real data source -- per department, a
     tracked-level (L1/L0) card with a live percentage, a due-items list, a
     month-over-month trend, and (item [performance history]) a real Excellent/
     Acceptable/Needs Action classification plus a monthly history/YTD figure
     once real historical data exists to back it (seeded once from Yasser's
     own Feb-Jul 2026 tracking sheet -- see seed.py -- never fabricated).
+
+    [L0 International]: used to be its own separate Overview subtab (a
+    department's international counterpart -- e.g. "Treasury (International)"
+    -- was its own card, entirely disjoint from "Treasury"'s). Yasser wants
+    one L0 score per real department instead, so an international department
+    with a same-named domestic counterpart (matched by exact name, e.g.
+    "Treasury" <-> "Treasury (International)" -- NOT by department.number,
+    which isn't a safe join key here: legacy/duplicate rows like "Control
+    Department" and "Planning" both carry number 5, so two different
+    domestic departments would otherwise both claim "Planning
+    (International)"'s data) gets folded into that counterpart's own L0
+    cohort below and never appears as its own row. An international
+    department with NO domestic counterpart (e.g. "Legal (International)",
+    which has no standalone "Legal") has nothing to merge into, so it still
+    gets shown as its own card, same as before this change. Manage Tracking
+    (list_performance_triage) keeps its own separate L0/L0 International/L1
+    tabs -- unrelated to this merge, that page needs the split intact so an
+    admin can toggle kpi_relevant per catalog independently.
     """
     # Same cohort scope as the dashboard's own department Live Score --
     # every submission ever, not just currently-active projects (a closed
-    # project's on-time record is still real performance history).
-    for p in db.query(models.Project).filter(models.Project.status == models.ProjectStatus.IN_PROGRESS).all():
+    # project's on-time record is still real performance history). [Archive]
+    # is the one exception to that -- an archived project is excluded from
+    # every report, Performance included, even from its historical record.
+    for p in db.query(models.Project).filter(
+        models.Project.status == models.ProjectStatus.IN_PROGRESS, models.Project.archived.is_not(True),
+    ).all():
         rules.recompute_project_due_dates(db, p)
     db.commit()
-    all_subs = db.query(models.DeliverableSubmission).all()
+    all_subs = db.query(models.DeliverableSubmission).join(models.DeliverableSubmission.project).filter(
+        models.Project.archived.is_not(True)
+    ).all()
+
+    all_depts = db.query(models.Department).order_by(models.Department.number).all()
+    dept_by_name = {d.name: d for d in all_depts}
 
     departments = []
-    for dept in db.query(models.Department).order_by(models.Department.number).all():
+    for dept in all_depts:
         if dept.name in _PERF_EXCLUDED_DEPTS:
             continue
-        # [L0 International]: its own subtab, never mixed into the main
-        # Overview -- every international department only ever has L0 data,
-        # so its "l1" side would just render an empty, unused column there.
-        if bool(dept.is_international) != international:
-            continue
-        dept_subs = _kpi_cohort([s for s in all_subs if s.definition.department_id == dept.id])
+        if dept.is_international:
+            counterpart_name = dept.name[: -len(_INTL_SUFFIX)] if dept.name.endswith(_INTL_SUFFIX) else None
+            if counterpart_name and counterpart_name in dept_by_name:
+                continue  # merged into that counterpart's own row below
+        dept_ids = [dept.id]
+        if not dept.is_international:
+            intl = dept_by_name.get(dept.name + _INTL_SUFFIX)
+            if intl:
+                dept_ids.append(intl.id)
+        dept_subs = _kpi_cohort([s for s in all_subs if s.definition.department_id in dept_ids])
         l1 = _level_stats(dept_subs, models.Stage.L1)
         l0 = _level_stats(dept_subs, models.Stage.L0)
         _capture_snapshot(db, dept.id, models.Stage.L1, l1)
@@ -745,8 +789,10 @@ def get_performance(international: bool = False, db: Session = Depends(get_db)):
     db.commit()
 
     departments.sort(key=lambda d: ((d["l1"]["percentage"] or 0) + (d["l0"]["percentage"] or 0)) / 2, reverse=True)
-    l1_project_count = db.query(models.Project).filter(models.Project.stage == models.Stage.L1).count()
-    l0_project_count = db.query(models.Project).filter(models.Project.stage == models.Stage.L0).count()
+    l1_project_count = db.query(models.Project).filter(
+        models.Project.stage == models.Stage.L1, models.Project.archived.is_not(True)).count()
+    l0_project_count = db.query(models.Project).filter(
+        models.Project.stage == models.Stage.L0, models.Project.archived.is_not(True)).count()
     return {
         "departments": departments,
         "data_as_of": datetime.utcnow().date().isoformat(),
@@ -771,11 +817,24 @@ def get_performance_breakdown(department: str, stage: str, db: Session = Depends
         stage_enum = models.Stage(stage)
     except ValueError:
         raise HTTPException(400, "Invalid stage")
-    for p in db.query(models.Project).filter(models.Project.status == models.ProjectStatus.IN_PROGRESS).all():
+    for p in db.query(models.Project).filter(
+        models.Project.status == models.ProjectStatus.IN_PROGRESS, models.Project.archived.is_not(True),
+    ).all():
         rules.recompute_project_due_dates(db, p)
     db.commit()
-    all_subs = db.query(models.DeliverableSubmission).all()
-    dept_subs = _kpi_cohort([s for s in all_subs if s.definition.department_id == dept.id])
+    all_subs = db.query(models.DeliverableSubmission).join(models.DeliverableSubmission.project).filter(
+        models.Project.archived.is_not(True)
+    ).all()
+    # Mirrors get_performance's own merge: the L0 card this drill-down is
+    # opened from already combines this department with its international
+    # counterpart (if any), so the breakdown has to pull from both too or
+    # its total would silently disagree with the percentage that opened it.
+    dept_ids = [dept.id]
+    if stage_enum == models.Stage.L0 and not dept.is_international:
+        intl = db.query(models.Department).filter(models.Department.name == dept.name + _INTL_SUFFIX).first()
+        if intl:
+            dept_ids.append(intl.id)
+    dept_subs = _kpi_cohort([s for s in all_subs if s.definition.department_id in dept_ids])
     stage_subs = [s for s in dept_subs if s.definition.stage == stage_enum]
     overdue = [s for s in stage_subs if rules.deadline_status(s)[0] == "due"]
     pending = [s for s in stage_subs if s.status == models.SubmissionStatus.PENDING_REVIEW]

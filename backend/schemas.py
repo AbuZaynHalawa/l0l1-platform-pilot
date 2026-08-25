@@ -52,6 +52,12 @@ class ProjectStatusUpdate(BaseModel):
     status: str
 
 
+class ArchiveUpdate(BaseModel):
+    archived: bool
+    actor_role: str = "Viewer"
+    actor_email: str = ""
+
+
 class ProjectDetailsUpdate(BaseModel):
     """Admin-only low-risk field edits. Only fields actually sent are applied
     (exclude_unset). BSD (item 149) is just another anchor date like
@@ -106,6 +112,7 @@ class ProjectOut(BaseModel):
     duration_ratio_insufficient: bool | None = False  # True if even the 50% floor still overshoots BSD
     is_international: bool = False  # [L0 International]
     country: str | None = None
+    archived: bool = False  # [Archive]
 
     class Config:
         from_attributes = True

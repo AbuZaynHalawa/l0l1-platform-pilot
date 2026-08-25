@@ -51,6 +51,7 @@
            the asker-facing "Ask a Question" tab keeps its own My Requests
            list, but replying/resolving as an admin now lives here instead. -->
       <button class="nav-item" id="ticketsNavItem" data-view="tickets"><span class="ic">&#127915;</span> Open Questions <span class="nav-badge" id="ticketsBadge"></span></button>
+      <button class="nav-item" data-view="archivedprojects"><span class="ic">&#128230;</span> Archived Projects</button>
     </nav>
 
     <div class="rail-foot">
@@ -568,6 +569,23 @@
       </div>
     </section>
 
+    <!-- ARCHIVED PROJECTS (admin-only) -->
+    <section class="view" id="view-archivedprojects" hidden>
+      <div class="view-head">
+        <div>
+          <div class="eyebrow">Admin</div>
+          <h1>Archived Projects</h1>
+          <p class="sub">Projects added by mistake or no longer relevant &#8212; hidden from every report, dashboard, and listing. Restore any of them back to active at any time.</p>
+        </div>
+      </div>
+      <div class="card table-card">
+        <table class="fp-table">
+          <thead><tr><th>Est-No</th><th>Name</th><th style="width:70px;">Stage</th><th style="width:140px;">Status</th><th style="width:120px;"></th></tr></thead>
+          <tbody id="archivedProjectsBody"></tbody>
+        </table>
+      </div>
+    </section>
+
     <!-- FOLLOW UP (admin-only: due/overdue bulk reminders + reassignment approvals) -->
     <section class="view" id="view-followup" hidden>
       <div class="view-head">
@@ -704,18 +722,21 @@
         <div class="detail-head-main">
           <span class="stage-badge" id="dStageBadge"></span>
           <span class="pill neutral" id="dIntlBadge" hidden><span class="dot"></span>International</span>
+          <span class="pill neutral" id="dArchivedBadge" hidden><span class="dot"></span>Archived</span>
           <h1 class="detail-title" id="dTitle"></h1>
         </div>
         <div class="detail-head-actions">
           <button class="btn" id="dL0LinkBtn" hidden>&#8592; View L0 Tender Folder</button>
           <button class="btn" id="dGanttBtn">View Timeline</button>
           <button class="btn primary" id="dExtendBsdBtn" hidden>Extend Deadline</button>
+          <button class="btn ghost-crit" id="dArchiveBtn" hidden>Archive Project</button>
           <span class="pill" id="dTriagePill" hidden></span>
           <span class="pill" id="dStatusPill"></span>
           <select id="dStatusSelect" style="display:none;"></select>
         </div>
       </div>
       <div class="detail-meta-row" id="dMeta"></div>
+      <div class="terminal-banner" id="dArchivedBanner" hidden>&#128230; This project is archived &#8212; it's excluded from every report, dashboard, and listing. An admin can restore it any time with the button above.</div>
       <div class="terminal-banner" id="dTerminalBanner" hidden>&#128274; This project is closed &#8212; deliverables are read-only. An admin can reopen it via the status dropdown above.</div>
       <div class="terminal-banner triage-banner" id="dTriageBanner" hidden>
         <span id="dTriageBannerText"></span>
@@ -769,7 +790,6 @@
       </div>
       <div class="subtab-row" id="perfSubTabs">
         <button class="chip active" data-pane="overview">Overview</button>
-        <button class="chip" data-pane="international">International</button>
         <button class="chip" data-pane="triage" id="perfTriageTabBtn" hidden>Manage Tracking</button>
       </div>
       <div id="perfOverviewPane">
@@ -825,11 +845,12 @@
         <p class="sub fp-hint">Choose which catalog items count toward on-time performance tracking. Turning an item off excludes it everywhere &#8212; department scores, Top Achievers, everything &#8212; for every project, past and future. Milestones stay on; they anchor the due-date chain regardless.</p>
         <div class="focus-toggle" id="perfTriageStageToggle" style="margin:0 0 14px;">
           <button class="chip active" data-stage="L0">L0 Tenders</button>
+          <button class="chip" data-stage="L0intl">L0 International</button>
           <button class="chip" data-stage="L1">L1 Projects</button>
         </div>
         <div class="card table-card">
           <table class="fp-table">
-            <thead><tr><th style="width:60px;">Item</th><th>Name</th><th>Department</th><th style="width:140px;">Counts in Performance</th></tr></thead>
+            <thead><tr><th style="width:60px;">Item</th><th>Name</th><th style="width:200px;">Department</th><th style="width:140px;">Counts in Performance</th></tr></thead>
             <tbody id="perfTriageBody"></tbody>
           </table>
         </div>

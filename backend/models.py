@@ -246,6 +246,14 @@ class Project(Base):
     # /{project_id}/bid-value endpoint: the BM or an Admin always sees it,
     # anyone else needs a standing grant recorded in BidValueAccessRequest.
     bid_value = Column(Float, nullable=True)
+    # [Archive]: an admin's undo-able "this shouldn't have been created / is
+    # done with" flag -- unlike Cancelled/Completed (still live business
+    # status, still shows up everywhere), an archived project is hidden from
+    # every report/dashboard/listing view but stays fully reachable by its
+    # own id (detail page, PO Lifecycle, Milestones, Gantt-by-id) so an admin
+    # can review it and un-archive it at any time. See routers/projects.py's
+    # archive_project endpoint and list_projects's `archived` param.
+    archived = Column(Boolean, default=False)
 
     submissions = relationship("DeliverableSubmission", back_populates="project", cascade="all, delete-orphan",
                                 foreign_keys="DeliverableSubmission.project_id")

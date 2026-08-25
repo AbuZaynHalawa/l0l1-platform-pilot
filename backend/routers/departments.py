@@ -327,11 +327,12 @@ def update_deliverable_focal(definition_id: int, payload: DeliverableFocalUpdate
 # moment this column first appears on a live database.
 # ---------------------------------------------------------------------------
 @router.get("/performance-triage")
-def list_performance_triage(stage: str, db: Session = Depends(get_db)):
+def list_performance_triage(stage: str, international: bool = False, db: Session = Depends(get_db)):
     defs = (
         db.query(models.DeliverableDefinition)
         .join(models.Department)
-        .filter(models.DeliverableDefinition.stage == stage, models.DeliverableDefinition.active == True)  # noqa: E712
+        .filter(models.DeliverableDefinition.stage == stage, models.DeliverableDefinition.active == True,  # noqa: E712
+                models.Department.is_international == international)
         .order_by(models.Department.number)
         .all()
     )

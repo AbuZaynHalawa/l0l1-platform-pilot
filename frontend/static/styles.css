@@ -1113,6 +1113,12 @@
   .fp-table input { width: 100%; border: 1px solid var(--line); background: var(--surface-sunken); border-radius: 8px; padding: 7px 10px; font-size: 12.5px; color: var(--ink-900); font-family: inherit; }
   .fp-table input:focus { background: var(--surface); border-color: var(--accent-line); outline: none; }
   .fp-table td.muted { color: var(--ink-500); font-style: italic; }
+  /* Manage Tracking (Performance triage): item/department names can be a
+     full sentence long -- wrap them instead of forcing the table to grow
+     past its card and horizontal-scroll, unlike every other .fp-table use
+     in the app (Focal Points, Bid Managers, etc.), which stays nowrap. */
+  #perfTriagePane .fp-table { table-layout: fixed; }
+  #perfTriagePane .fp-table td { white-space: normal; word-break: break-word; }
   /* Item 135: the deliverable name column can otherwise run very long
      (full sentence-length item names) and push the focal name/email
      columns out of view. */

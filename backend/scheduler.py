@@ -44,6 +44,7 @@ def _run_deadline_reminder_check(db: Session) -> None:
             db.query(models.DeliverableSubmission)
             .join(models.Project)
             .filter(models.Project.status == models.ProjectStatus.IN_PROGRESS,
+                    models.Project.archived.is_not(True),
                     models.DeliverableSubmission.due_date == target,
                     models.DeliverableSubmission.status.in_(_REMINDER_ELIGIBLE),
                     models.DeliverableSubmission.auto_completed.isnot(True),

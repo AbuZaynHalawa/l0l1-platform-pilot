@@ -50,7 +50,9 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
     that item) -- previously actor_email was accepted but only used for the
     "following" flag, so every role saw the entire cross-project list.
     """
-    active_projects = db.query(models.Project).filter(models.Project.status == models.ProjectStatus.IN_PROGRESS).all()
+    active_projects = db.query(models.Project).filter(
+        models.Project.status == models.ProjectStatus.IN_PROGRESS, models.Project.archived.is_not(True),
+    ).all()
     for p in active_projects:
         rules.recompute_project_due_dates(db, p)
     db.commit()
@@ -60,7 +62,7 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
         .join(models.DeliverableDefinition)
         .join(models.Department)
         .join(models.Project)
-        .filter(models.DeliverableSubmission.auto_completed.isnot(True))
+        .filter(models.DeliverableSubmission.auto_completed.isnot(True), models.Project.archived.is_not(True))
     )
     subs = q.all()
     my_follows = set()
@@ -856,7 +858,9 @@ def resume_deliverable(submission_id: int, actor_role: str = "Viewer", actor_ema
 @router.get("/follow-up")
 def get_follow_up(department: str | None = None, project_id: int | None = None, db: Session = Depends(get_db)):
     """Every currently due/overdue deliverable, for the admin Follow Up page."""
-    active_projects = db.query(models.Project).filter(models.Project.status == models.ProjectStatus.IN_PROGRESS).all()
+    active_projects = db.query(models.Project).filter(
+        models.Project.status == models.ProjectStatus.IN_PROGRESS, models.Project.archived.is_not(True),
+    ).all()
     for p in active_projects:
         rules.recompute_project_due_dates(db, p)
     db.commit()
@@ -883,6 +887,7 @@ def get_follow_up(department: str | None = None, project_id: int | None = None, 
                 models.SubmissionStatus.PENDING_TRIAGE,
             ]),
             models.DeliverableSubmission.on_hold.isnot(True),
+            models.Project.archived.is_not(True),
         )
     )
     if department:
