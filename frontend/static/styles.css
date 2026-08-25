@@ -1296,34 +1296,111 @@
   .rcb-title { font-size: 16px; font-weight: 800; color: var(--ink-900); }
   .rcb-desc { font-size: 12.5px; color: var(--ink-500); line-height: 1.4; }
 
-  /* ---------- Report cards (Master PO / Overview PO) -- the visual
-     language from Dashboard Design System Reference.md: left-border-by-
-     status cards, a progress bar per item, status-tinted stat tiles --
-     rebuilt on this app's own existing --good/--warn/--crit tokens (same
-     hex values as the reference's excellent/acceptable/needs-action) and
-     --accent (its own indigo-family brand color) rather than a second,
-     parallel color system. Scoped to .report-design-ref views only. ---------- */
+  /* ---------- Report cards (Master PO / Overview PO) -- ported from the
+     real "L1 Delay Dashboard" (Dashboard Design System Reference.md's own
+     source build): left-border-by-status cards, a segmented progress bar,
+     status-tinted stat tiles, paired Concerns/Improvements boxes, PM
+     contact chips, a filter bar with one highlighted dropdown. Class names
+     below are prefixed rep-po- (this app already has its own unrelated
+     .card/.badge/.pill conventions) but every color is this app's own
+     --good/--warn/--crit/--accent tokens (same hex values the reference
+     itself uses for excellent/acceptable/needs-action/#3b4a8f) rather than
+     a second, parallel palette. Scoped to .report-design-ref views only. ---------- */
   .rep-po-summary { display: flex; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
-  .rep-po-stat { background: var(--surface); border: 1.5px solid var(--line); border-radius: 10px; padding: 12px 18px; min-width: 110px; }
-  .rep-po-stat .v { font-size: 22px; font-weight: 800; line-height: 1.1; }
+  .rep-po-stat { background: var(--surface); border: 1.5px solid var(--line); border-radius: 10px; padding: 12px 18px; min-width: 110px; cursor: default; transition: transform .1s, box-shadow .15s; }
+  .rep-po-stat.clickable { cursor: pointer; }
+  .rep-po-stat.clickable:hover { transform: translateY(-2px); box-shadow: var(--shadow-2); }
+  .rep-po-stat.active-filter { outline: 2.5px solid var(--accent); outline-offset: -1px; }
+  .rep-po-stat .v { font-size: 22px; font-weight: 800; line-height: 1.1; color: var(--ink-900); }
   .rep-po-stat .l { font-size: 10.5px; text-transform: uppercase; color: var(--ink-500); font-weight: 700; letter-spacing: .03em; margin-top: 3px; }
-  .rep-po-stat.complete .v { color: var(--good); }
-  .rep-po-stat.in_progress .v { color: var(--warn); }
-  .rep-po-stat.blocked .v { color: var(--crit); }
+  .rep-po-stat .v.excellent { color: var(--good); }
+  .rep-po-stat .v.acceptable { color: var(--warn); }
+  .rep-po-stat .v.needs-action { color: var(--crit); }
+
+  /* Concerns / Improvements paired alert boxes */
+  .rep-po-ci-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; align-items: stretch; }
+  @media (max-width: 900px) { .rep-po-ci-row { grid-template-columns: 1fr; } }
+  .rep-po-concerns, .rep-po-improvements { border-radius: 10px; padding: 14px 18px; display: flex; flex-direction: column; border: 1.5px solid; border-left-width: 6px; }
+  .rep-po-concerns { background: var(--crit-bg); border-color: color-mix(in srgb, var(--crit) 45%, transparent); border-left-color: var(--crit); }
+  .rep-po-improvements { background: var(--good-bg); border-color: color-mix(in srgb, var(--good) 45%, transparent); border-left-color: var(--good); }
+  .rep-po-ci-title { margin: 0 0 10px; font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+  .rep-po-concerns .rep-po-ci-title { color: var(--crit); }
+  .rep-po-improvements .rep-po-ci-title { color: var(--good-2); }
+  .rep-po-ci-list { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 8px; }
+  .rep-po-ci-item { display: flex; align-items: center; gap: 12px; background: var(--surface); border-radius: 8px; padding: 11px 14px; box-shadow: var(--shadow-1); }
+  .rep-po-ci-icon { font-size: 17px; flex-shrink: 0; }
+  .rep-po-ci-body { flex: 1; }
+  .rep-po-ci-item-title { font-weight: 700; font-size: 12.5px; }
+  .rep-po-concerns .rep-po-ci-item-title { color: var(--crit); }
+  .rep-po-improvements .rep-po-ci-item-title { color: var(--good-2); }
+  .rep-po-ci-desc { font-size: 11.5px; color: var(--ink-500); margin-top: 2px; }
+
+  /* Filter bar: search + dropdown row, one highlighted dropdown */
+  .rep-po-filter-bar { background: var(--surface); border: 1.5px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; box-shadow: var(--shadow-1); }
+  .rep-po-search { width: 100%; padding: 9px 14px; border-radius: 20px; border: 1.5px solid var(--line); font-size: 13px; margin-bottom: 10px; font-family: inherit; background: var(--surface-sunken); color: var(--ink-900); box-sizing: border-box; }
+  .rep-po-search:focus { outline: none; border-color: var(--accent); }
+  .rep-po-dropdown-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; }
+  .rep-po-dropdown-group { display: flex; flex-direction: column; gap: 5px; min-width: 170px; }
+  .rep-po-dropdown-group label { font-size: 11px; font-weight: 700; color: var(--ink-500); text-transform: uppercase; letter-spacing: .03em; }
+  .rep-po-dropdown-group select { padding: 9px 12px; border-radius: 10px; border: 1.5px solid var(--line); font-size: 13px; font-family: inherit; background: var(--surface); color: var(--ink-900); font-weight: 600; cursor: pointer; }
+  .rep-po-dropdown-group select:focus { outline: none; border-color: var(--accent); }
+  .rep-po-dropdown-group.highlight { background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 8%, transparent) 0%, color-mix(in srgb, var(--accent) 13%, transparent) 100%); border: 1.5px solid color-mix(in srgb, var(--accent) 40%, transparent); border-radius: 10px; padding: 8px 10px 9px; }
+  .rep-po-dropdown-group.highlight label { color: var(--accent); font-weight: 800; }
+  .rep-po-dropdown-group.highlight select { border-color: color-mix(in srgb, var(--accent) 60%, transparent); font-weight: 700; color: var(--accent); box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 15%, transparent); }
+  .rep-po-clear-filters { align-self: flex-end; font-size: 12.5px; font-weight: 700; color: var(--accent); cursor: pointer; padding-bottom: 9px; }
+  .rep-po-count-line { font-size: 12.5px; color: var(--ink-500); font-weight: 600; margin-bottom: 10px; }
+
   .rep-po-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
-  .rep-po-card { background: var(--surface); border-radius: 10px; border: 1.5px solid var(--line); border-left-width: 5px; padding: 16px 18px; box-shadow: var(--shadow-1); }
-  .rep-po-card.complete { border-left-color: var(--good); }
-  .rep-po-card.in_progress { border-left-color: var(--warn); }
-  .rep-po-card.blocked { border-left-color: var(--crit); }
+  .rep-po-card { background: var(--surface); border-radius: 10px; border: 1.5px solid var(--line); border-left-width: 5px; padding: 16px 18px; box-shadow: var(--shadow-1); cursor: pointer; transition: transform .1s, box-shadow .15s; }
+  .rep-po-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-2); }
+  .rep-po-card.complete, .rep-po-card.signed { border-left-color: var(--good); }
+  .rep-po-card.in_progress, .rep-po-card.not-due { border-left-color: var(--warn); }
+  .rep-po-card.blocked, .rep-po-card.pending-due { border-left-color: var(--crit); }
   .rep-po-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 3px; }
-  .rep-po-card-title { font-size: 13.5px; font-weight: 700; }
+  .rep-po-card-title { font-size: 13.5px; font-weight: 800; color: var(--ink-900); }
   .rep-po-card-sub { font-size: 11.5px; color: var(--ink-500); margin-bottom: 10px; }
-  .rep-po-bar { height: 8px; border-radius: 6px; background: var(--surface-sunken); overflow: hidden; margin-bottom: 8px; }
-  .rep-po-bar-fill { height: 100%; }
-  .rep-po-bar-fill.complete { background: var(--good); }
-  .rep-po-bar-fill.in_progress { background: var(--warn); }
-  .rep-po-bar-fill.blocked { background: var(--crit); }
-  .rep-po-card-foot { font-size: 11px; color: var(--ink-500); display: flex; justify-content: space-between; gap: 8px; }
+  .rep-po-badge-cluster { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; flex-shrink: 0; }
+  .rep-po-badge { display: inline-block; border-radius: 12px; padding: 3px 10px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .rep-po-badge.excellent { background: var(--good-bg); color: var(--good-2); }
+  .rep-po-badge.acceptable { background: var(--warn-bg); color: var(--warn); }
+  .rep-po-badge.needs-action { background: var(--crit-bg); color: var(--crit); }
+  .rep-po-badge.neutral { background: var(--surface-sunken); color: var(--ink-500); border: 1px solid var(--line); }
+  .rep-po-badge.hold { background: color-mix(in srgb, #8e44ad 15%, transparent); color: #8e44ad; }
+
+  .rep-po-pm-row { margin-bottom: 12px; }
+  .rep-po-pm-label { font-size: 10px; color: var(--ink-500); font-weight: 700; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 5px; }
+  .rep-po-pm-chips { display: flex; flex-direction: column; gap: 6px; }
+  .rep-po-pm-chip { display: flex; align-items: center; background: color-mix(in srgb, var(--accent) 11%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent); border-radius: 12px; padding: 5px 10px; cursor: pointer; color: var(--accent); font-weight: 600; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: background .15s; }
+  .rep-po-pm-chip:hover { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+  .rep-po-pm-chip.copied { background: var(--good-bg); border-color: color-mix(in srgb, var(--good) 33%, transparent); color: var(--good-2); }
+  .rep-po-pm-chip-empty { display: flex; align-items: center; background: var(--surface-sunken); border: 1px solid var(--line); border-radius: 12px; padding: 5px 10px; color: var(--ink-500); font-weight: 600; font-size: 11px; }
+
+  .rep-po-bar { display: flex; height: 10px; border-radius: 8px; background: var(--surface-sunken); overflow: hidden; margin-bottom: 5px; }
+  .rep-po-bar .seg { height: 100%; }
+  .rep-po-bar .seg.excellent { background: var(--good); }
+  .rep-po-bar .seg.acceptable { background: var(--warn); }
+  .rep-po-bar .seg.needs-action { background: var(--crit); }
+  .rep-po-bar .seg.neutral { background: var(--ink-300); }
+  .rep-po-progress-label { font-size: 11.5px; color: var(--ink-500); font-weight: 600; margin-bottom: 12px; }
+  .rep-po-stat-row { display: grid; gap: 8px; margin-bottom: 12px; }
+  .rep-po-stat-row.cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .rep-po-stat-row.cols-4 { grid-template-columns: repeat(4, 1fr); }
+  .rep-po-stat-row .cell { text-align: center; background: var(--surface-sunken); border-radius: 8px; padding: 8px 4px; }
+  .rep-po-stat-row .cell .v { font-size: 17px; font-weight: 800; color: var(--ink-900); }
+  .rep-po-stat-row .cell .v.excellent { color: var(--good); }
+  .rep-po-stat-row .cell .v.acceptable { color: var(--warn); }
+  .rep-po-stat-row .cell .v.needs-action { color: var(--crit); }
+  .rep-po-stat-row .cell .l { font-size: 10px; color: var(--ink-500); font-weight: 700; text-transform: uppercase; margin-top: 2px; }
+  .rep-po-badges-row { display: flex; flex-wrap: wrap; gap: 5px; }
+
+  #view-report-masterpo .card-grid-heading, #view-report-overviewpo .card-grid-heading { font-size: 15px; font-weight: 800; color: var(--ink-900); margin: 4px 0 12px; }
+
+  /* Master PO's data table */
+  .rep-po-table-wrap { overflow-x: auto; background: var(--surface); border-radius: 10px; box-shadow: var(--shadow-1); border: 1.5px solid var(--line); }
+  .rep-po-table { border-collapse: collapse; width: 100%; font-size: 12.5px; min-width: 900px; }
+  .rep-po-table thead th { position: sticky; top: 0; background: var(--accent); color: #fff; text-align: left; padding: 10px 12px; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .02em; white-space: nowrap; }
+  .rep-po-table tbody td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; white-space: nowrap; }
+  .rep-po-table tbody tr:hover { background: var(--surface-sunken); }
 
   /* ================= ITEM 42: PERFORMANCE DASHBOARD ================= */
   /* L0/L1 each get their own identity color, consistently, everywhere they

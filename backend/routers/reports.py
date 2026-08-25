@@ -1,11 +1,14 @@
 """Reports landing page: read-only, admin-only aggregate views that don't
-belong to any single project or department page. Performance Report and
-Overview PO Report reuse existing endpoints directly (dashboard.performance,
-po_line_items.po_cycle_summary) -- this module only holds the two reports
-that need a genuinely new cross-project aggregation: Master PO (every PO
-line item across every L1 project) and Budget Status (items 6.1/6.2/6.3
-across every L1 project).
+belong to any single project or department page. Performance Report reuses
+/api/dashboard/performance directly (see loadReportPerformance in app.js) --
+this module holds the three that need a genuinely new cross-project
+aggregation: Master PO (every PO line item across every L1 project, flat),
+Overview PO (the same data, rolled up to one card per project -- see
+app.js's loadReportOverviewPo), and Budget Status (items 6.1/6.2/6.3 across
+every L1 project).
 """
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -19,6 +22,51 @@ router = APIRouter(prefix="/api/reports", tags=["reports"])
 def _require_admin(actor_role: str) -> None:
     if actor_role != "Admin":
         raise HTTPException(403, "Only an Admin can view this report")
+
+
+# [PO Status report design]: the reference dashboard (Dashboard Design
+# System Reference.md, built from a real Excel-driven PO tracker) has a
+# genuinely different data source than this app -- it tracks literal PO
+# document numbers and signed dates; this app's PO Lifecycle tracks
+# workflow steps (3.1, 3.2, etc.). Confirmed with Yasser: keep that
+# reference's exact visual language (3-tier signed/not-due/pending-due
+# status, delay badges, category/project cards) but derive it from what
+# this app actually has -- open_submission_id's own due_date/submitted_at,
+# via the same rules.deadline_status() every other page already uses as
+# its single source of truth for due/overdue.
+def _po_status_and_delay(item_status: str, sub: "models.DeliverableSubmission | None") -> dict:
+    if not sub:
+        return {"po_status": "not-due", "delay_label": "&#8213;", "delay_badge": "neutral", "final_due_date": None, "actual_or_signed": None}
+    if item_status == "complete":
+        # Signed -- delay is how the final step actually landed vs its own
+        # due date (deadline_status already classifies a completed item as
+        # early/on_time/late from submitted_at vs due_date).
+        deadline_key, deadline_days = rules.deadline_status(sub)
+        days = abs(deadline_days) if deadline_days is not None else 0
+        late = deadline_key == "late"
+        return {
+            "po_status": "signed",
+            "delay_label": (f"{days}d late" if late else f"{days}d early/on time"),
+            "delay_badge": "needs-action" if late else "excellent",
+            "final_due_date": sub.due_date, "actual_or_signed": sub.submitted_at.date() if sub.submitted_at else None,
+        }
+    # Not yet signed -- still in progress or blocked on the current step.
+    deadline_key, deadline_days = rules.deadline_status(sub)
+    if deadline_key == "due":
+        return {
+            "po_status": "pending-due", "delay_label": f"{abs(deadline_days)}d overdue", "delay_badge": "needs-action",
+            "final_due_date": sub.due_date, "actual_or_signed": None,
+        }
+    # deadline_status() deliberately never gives a day-count for "not_due"
+    # (nothing else in this app displays "due in N days" -- everywhere else
+    # just shows the flat "Not Due" status), so compute it directly here.
+    days_until = (sub.due_date - date.today()).days if (deadline_key == "not_due" and sub.due_date) else None
+    return {
+        "po_status": "not-due",
+        "delay_label": (f"Due in {days_until}d" if days_until is not None else "&#8213;"),
+        "delay_badge": "neutral",
+        "final_due_date": sub.due_date, "actual_or_signed": None,
+    }
 
 
 @router.get("/master-po")
@@ -38,15 +86,25 @@ def get_master_po_report(actor_role: str = "Viewer", db: Session = Depends(get_d
     rows = []
     for p in projects:
         summary = po_cycle_summary(project_id=p.id, db=db)
+        sub_ids = [item["open_submission_id"] for cat in summary.values() for item in cat["items"] if item["open_submission_id"]]
+        subs_by_id = {}
+        if sub_ids:
+            subs_by_id = {s.id: s for s in db.query(models.DeliverableSubmission).filter(models.DeliverableSubmission.id.in_(sub_ids)).all()}
         for category, cat_data in summary.items():
             for item in cat_data["items"]:
+                sub = subs_by_id.get(item["open_submission_id"])
+                enrich = _po_status_and_delay(item["status"], sub)
                 rows.append({
                     "est_no": p.est_no, "project_name": p.name, "bid_manager": p.bid_manager,
+                    "project_manager": p.project_manager,
+                    "contract_status": p.contract_status.value if p.contract_status else None,
+                    "department": sub.definition.department.name if sub else None,
                     "category": category, "name": item["name"], "source": item["source"],
                     "status": item["status"], "step_position": item["step_position"],
                     "total_steps": item["total_steps"], "current_item_no": item["current_item_no"],
                     "current_item_status": item["current_item_status"],
                 })
+                rows[-1].update(enrich)
     return rows
 
 

@@ -4812,114 +4812,335 @@
     });
   }
   /* ================= REPORTS (landing page + Master PO / Overview PO /
-     Budget Status -- Performance Report shortcuts straight to the real
-     view-performance instead of living here, see its click handler above) ================= */
-  var _PO_STATUS_LABEL = { complete: "Complete", in_progress: "In Progress", blocked: "Blocked" };
+     Budget Status -- Performance Report lives up near loadPerformance()
+     itself, see loadReportPerformance() there) ================= */
   var _SUB_STATUS_CLASS = { approved: "good", rejected: "crit", pending_review: "warn", in_progress: "warn", no_progress: "neutral", pending_triage: "neutral", not_required: "neutral" };
 
-  function _renderPoSummary(containerId, stats) {
-    var wrap = document.getElementById(containerId);
-    wrap.innerHTML = "";
-    ["complete", "in_progress", "blocked"].forEach(function (key) {
-      var box = el("div", "rep-po-stat " + key);
-      box.appendChild(el("div", "v", String(stats[key] || 0)));
-      box.appendChild(el("div", "l", _PO_STATUS_LABEL[key]));
-      wrap.appendChild(box);
+  // [PO Status report design]: ported from the real "L1 Delay Dashboard"
+  // (Dashboard Design System Reference.md's own source build) -- see
+  // reports.py's _po_status_and_delay for how po_status/delay_label/
+  // delay_badge get derived from this app's real submission data instead
+  // of that dashboard's Excel-sourced PO Number/signed-date fields.
+  var _PO_STATUS_LABEL2 = { "signed": "Signed by both parties", "not-due": "Not Due", "pending-due": "Pending (Due)" };
+  var _PO_STATUS_BADGE = { "signed": "excellent", "not-due": "neutral", "pending-due": "needs-action" };
+  function _poBar(counts, total) {
+    var bar = el("div", "rep-po-bar");
+    [["signed", "excellent"], ["not-due", "neutral"], ["pending-due", "needs-action"]].forEach(function (pair) {
+      var n = counts[pair[0]] || 0;
+      if (!n) return;
+      var seg = el("div", "seg " + pair[1]);
+      seg.style.width = (n / total * 100) + "%";
+      bar.appendChild(seg);
+    });
+    return bar;
+  }
+  function _poProgressLabel(counts, total) {
+    var parts = [(counts["signed"] || 0) + " signed by both parties", (counts["not-due"] || 0) + " not due"];
+    if (counts["pending-due"]) parts.push(counts["pending-due"] + " pending (due)");
+    var pct = total ? Math.round((counts["signed"] || 0) / total * 100) : 0;
+    return parts.join(" &middot; ") + " &mdash; " + total + " PO/deliverable item" + (total === 1 ? "" : "s") + " (" + pct + "% signed)";
+  }
+  function _poCountsFromRows(rows) {
+    var counts = { "signed": 0, "not-due": 0, "pending-due": 0 };
+    rows.forEach(function (r) { counts[r.po_status] = (counts[r.po_status] || 0) + 1; });
+    return counts;
+  }
+  function _wirePmChips(container) {
+    container.querySelectorAll(".rep-po-pm-chip").forEach(function (chip) {
+      chip.addEventListener("click", function (e) {
+        e.stopPropagation();
+        var email = chip.dataset.email;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(email).catch(function () { _fallbackCopy(email); });
+        } else { _fallbackCopy(email); }
+        var original = chip.textContent;
+        chip.textContent = "Copied!";
+        chip.classList.add("copied");
+        setTimeout(function () { chip.textContent = original; chip.classList.remove("copied"); }, 1200);
+      });
     });
   }
-  function _renderPoGrid(gridId, rows, showProject) {
-    var wrap = document.getElementById(gridId);
-    wrap.innerHTML = "";
-    if (!rows.length) { wrap.appendChild(el("div", "empty-state", "No matching PO line items.")); return; }
-    rows.forEach(function (row) {
-      var card = el("div", "rep-po-card " + row.status);
-      var head = el("div", "rep-po-card-head");
-      head.appendChild(el("div", "rep-po-card-title", row.name));
-      head.appendChild(el("span", "pill " + (row.status === "complete" ? "good" : row.status === "blocked" ? "crit" : "warn"),
-        '<span class="dot"></span>' + _PO_STATUS_LABEL[row.status]));
-      card.appendChild(head);
-      var subParts = [];
-      if (showProject) subParts.push(row.est_no + (row.project_name ? " &middot; " + row.project_name : ""));
-      subParts.push(row.category.replace(/_/g, " "));
-      card.appendChild(el("div", "rep-po-card-sub", subParts.join(" &middot; ")));
-      var bar = el("div", "rep-po-bar");
-      var fill = el("div", "rep-po-bar-fill " + row.status);
-      fill.style.width = row.total_steps ? Math.round((row.step_position / row.total_steps) * 100) + "%" : "0%";
-      bar.appendChild(fill);
-      card.appendChild(bar);
-      var foot = el("div", "rep-po-card-foot");
-      foot.appendChild(el("span", "", row.total_steps ? (row.step_position + " / " + row.total_steps + " steps") : "No steps yet"));
-      foot.appendChild(el("span", "", row.current_item_no ? "Current: " + row.current_item_no : (row.status === "complete" ? "Done" : "")));
-      card.appendChild(foot);
-      wrap.appendChild(card);
-    });
-  }
-  function _statsFromRows(rows) {
-    var stats = { complete: 0, in_progress: 0, blocked: 0 };
-    rows.forEach(function (r) { stats[r.status] = (stats[r.status] || 0) + 1; });
-    return stats;
+  function _fallbackCopy(text) {
+    var ta = document.createElement("textarea");
+    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    try { document.execCommand("copy"); } catch (e) {}
+    document.body.removeChild(ta);
   }
 
   async function loadReportMasterPo() {
     var rows = await api("/api/reports/master-po?actor_role=" + encodeURIComponent(CURRENT_ROLE));
     var projSel = document.getElementById("repMasterPoProjectFilter");
     var catSel = document.getElementById("repMasterPoCategoryFilter");
-    var seenProj = {}, seenCat = {};
-    rows.forEach(function (r) { seenProj[r.est_no] = r.project_name; seenCat[r.category] = true; });
+    var deptSel = document.getElementById("repMasterPoDeptFilter");
+    var search = document.getElementById("repMasterPoSearch");
+    var seenProj = {}, seenCat = {}, seenDept = {};
+    rows.forEach(function (r) { seenProj[r.est_no] = r.project_name; seenCat[r.category] = true; if (r.department) seenDept[r.department] = true; });
     projSel.innerHTML = '<option value="">All Projects</option>';
     Object.keys(seenProj).sort().forEach(function (est) { var o = el("option", "", est + " &middot; " + seenProj[est]); o.value = est; projSel.appendChild(o); });
-    catSel.innerHTML = '<option value="">All Categories</option>';
+    catSel.innerHTML = '<option value="">All</option>';
     Object.keys(seenCat).sort().forEach(function (c) { var o = el("option", "", c.replace(/_/g, " ")); o.value = c; catSel.appendChild(o); });
-    function render() {
-      var projF = projSel.value, catF = catSel.value, statusF = document.getElementById("repMasterPoStatusFilter").value;
-      var filtered = rows.filter(function (r) {
-        return (!projF || r.est_no === projF) && (!catF || r.category === catF) && (!statusF || r.status === statusF);
+    deptSel.innerHTML = '<option value="">All</option>';
+    Object.keys(seenDept).sort().forEach(function (d) { var o = el("option", "", d); o.value = d; deptSel.appendChild(o); });
+
+    function filteredRows(excludeCategory) {
+      var projF = projSel.value, catF = excludeCategory ? "" : catSel.value,
+          statusF = document.getElementById("repMasterPoStatusFilter").value,
+          projStatusF = document.getElementById("repMasterPoProjectStatusFilter").value,
+          deptF = deptSel.value, searchTerm = search.value.trim().toLowerCase();
+      return rows.filter(function (r) {
+        if (projF && r.est_no !== projF) return false;
+        if (catF && r.category !== catF) return false;
+        if (statusF && r.po_status !== statusF) return false;
+        if (projStatusF && r.contract_status !== projStatusF) return false;
+        if (deptF && r.department !== deptF) return false;
+        if (searchTerm && (r.project_name + " " + r.name + " " + r.category).toLowerCase().indexOf(searchTerm) === -1) return false;
+        return true;
       });
-      _renderPoSummary("repMasterPoSummary", _statsFromRows(filtered));
-      _renderPoGrid("repMasterPoGrid", filtered, true);
     }
-    projSel.onchange = render;
-    catSel.onchange = render;
-    document.getElementById("repMasterPoStatusFilter").onchange = render;
-    render();
+    var CAT_TITLES = { long_lead: "Long Lead Items POs", early_activity: "Early Activities POs", mep: "MEP POs", consultancy: "Consultancy POs", sc: "S/C POs" };
+    function renderCategoryCards() {
+      var byCat = {};
+      // Category cards ignore the page's own Category filter (so clicking
+      // one card's own stat doesn't collapse every other card to zero --
+      // same "must exclude the filter dimension it represents" rule the
+      // design reference itself documents) but still react to every other
+      // active filter (project, status, department, search).
+      filteredRows(true).forEach(function (r) { (byCat[r.category] = byCat[r.category] || []).push(r); });
+      var grid = document.getElementById("repMasterPoCatGrid");
+      grid.innerHTML = "";
+      Object.keys(byCat).sort().forEach(function (cat) {
+        var catRows = byCat[cat];
+        var counts = _poCountsFromRows(catRows);
+        var total = catRows.length;
+        var delays = catRows.filter(function (r) { return r.po_status === "signed"; })
+          .map(function (r) { return /(-?\d+)d/.exec(r.delay_label); }).filter(Boolean).map(function (m) { return parseInt(m[1], 10); });
+        var avgDelay = delays.length ? (delays.reduce(function (a, b) { return a + b; }, 0) / delays.length).toFixed(1) : null;
+        var card = el("div", "rep-po-card" + (catSel.value === cat ? " active-filter" : ""));
+        card.style.cursor = "pointer";
+        var head = el("div", "rep-po-card-head");
+        head.appendChild(el("div", "rep-po-card-title", CAT_TITLES[cat] || cat));
+        head.appendChild(el("span", "rep-po-badge neutral", total + " item" + (total === 1 ? "" : "s")));
+        card.appendChild(head);
+        card.appendChild(el("div", "rep-po-card-sub", total + " PO/deliverable items"));
+        card.appendChild(_poBar(counts, total));
+        card.appendChild(el("div", "rep-po-progress-label", _poProgressLabel(counts, total)));
+        var statRow = el("div", "rep-po-stat-row cols-4");
+        [["signed", "Signed", "excellent"], ["not-due", "Not Due", ""], ["pending-due", "Pending (Due)", "needs-action"]].forEach(function (t) {
+          var cell = el("div", "cell");
+          cell.appendChild(el("div", "v " + (counts[t[0]] ? t[2] : ""), String(counts[t[0]] || 0)));
+          cell.appendChild(el("div", "l", t[1]));
+          statRow.appendChild(cell);
+        });
+        var avgCell = el("div", "cell");
+        avgCell.appendChild(el("div", "v", avgDelay !== null ? avgDelay + "d" : "&#8213;"));
+        avgCell.appendChild(el("div", "l", "Avg Delay (Signed)"));
+        statRow.appendChild(avgCell);
+        card.appendChild(statRow);
+        card.addEventListener("click", function () {
+          catSel.value = (catSel.value === cat) ? "" : cat;
+          renderAll();
+        });
+        grid.appendChild(card);
+      });
+    }
+    function renderTable() {
+      var filtered = filteredRows(false);
+      document.getElementById("repMasterPoCount").textContent = "Showing " + filtered.length + " of " + rows.length + " PO/deliverable items";
+      var body = document.getElementById("repMasterPoBody");
+      body.innerHTML = "";
+      if (!filtered.length) { body.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--ink-500);padding:30px;">No matching PO/deliverable items.</td></tr>'; return; }
+      filtered.forEach(function (r) {
+        var tr = el("tr");
+        tr.appendChild(el("td", "", r.contract_status || "&#8213;"));
+        tr.appendChild(el("td", "", r.est_no + " &middot; " + r.project_name));
+        tr.appendChild(el("td", "", r.current_item_no || "&#8213;"));
+        tr.appendChild(el("td", "", r.name));
+        tr.appendChild(el("td", "", r.category.replace(/_/g, " ")));
+        tr.appendChild(el("td", "", '<span class="rep-po-badge ' + _PO_STATUS_BADGE[r.po_status] + '">' + _PO_STATUS_LABEL2[r.po_status] + '</span>'));
+        tr.appendChild(el("td", "", fmtDate(r.final_due_date)));
+        tr.appendChild(el("td", "", r.actual_or_signed ? fmtDate(r.actual_or_signed) : "&#8213;"));
+        tr.appendChild(el("td", "", '<span class="rep-po-badge ' + r.delay_badge + '">' + r.delay_label + '</span>'));
+        body.appendChild(tr);
+      });
+    }
+    function renderAll() { renderCategoryCards(); renderTable(); }
+    [projSel, catSel, deptSel, document.getElementById("repMasterPoStatusFilter"), document.getElementById("repMasterPoProjectStatusFilter")]
+      .forEach(function (s) { s.onchange = renderAll; });
+    search.oninput = renderAll;
+    document.getElementById("repMasterPoClearFilters").onclick = function () {
+      projSel.value = ""; catSel.value = ""; deptSel.value = "";
+      document.getElementById("repMasterPoStatusFilter").value = "";
+      document.getElementById("repMasterPoProjectStatusFilter").value = "";
+      search.value = "";
+      renderAll();
+    };
+    renderAll();
   }
 
   async function loadReportOverviewPo() {
-    var projSel = document.getElementById("repOverviewPoProjectSelect");
-    var prevSelected = projSel.value;
-    var l1 = await api("/api/projects?stage=L1");
-    projSel.innerHTML = '<option value="">Select a project&#8230;</option>';
-    l1.slice().sort(function (a, b) { return a.est_no < b.est_no ? -1 : 1; }).forEach(function (p) {
-      var o = el("option", "", p.est_no + " &middot; " + p.name); o.value = p.id; projSel.appendChild(o);
-    });
-    if (prevSelected) projSel.value = prevSelected;
-    var catSel = document.getElementById("repOverviewPoCategoryFilter");
-    var statusSel = document.getElementById("repOverviewPoStatusFilter");
-    async function renderForProject() {
-      if (!projSel.value) {
-        _renderPoSummary("repOverviewPoSummary", {});
-        document.getElementById("repOverviewPoGrid").innerHTML = '<div class="empty-state">Select a project above to see its PO Lifecycle.</div>';
-        return;
-      }
-      var summary = await api("/api/projects/" + projSel.value + "/po-line-items/po-cycle-summary");
-      var rows = [];
-      Object.keys(summary).forEach(function (category) {
-        summary[category].items.forEach(function (item) { rows.push(Object.assign({ category: category }, item)); });
-      });
-      catSel.innerHTML = '<option value="">All Categories</option>';
-      Object.keys(summary).forEach(function (c) { var o = el("option", "", c.replace(/_/g, " ")); o.value = c; catSel.appendChild(o); });
-      function render() {
-        var catF = catSel.value, statusF = statusSel.value;
-        var filtered = rows.filter(function (r) { return (!catF || r.category === catF) && (!statusF || r.status === statusF); });
-        _renderPoSummary("repOverviewPoSummary", _statsFromRows(filtered));
-        _renderPoGrid("repOverviewPoGrid", filtered, false);
-      }
-      catSel.onchange = render;
-      statusSel.onchange = render;
-      render();
+    var results = await Promise.all([
+      api("/api/reports/master-po?actor_role=" + encodeURIComponent(CURRENT_ROLE)),
+      api("/api/reports/budget-status?actor_role=" + encodeURIComponent(CURRENT_ROLE)),
+    ]);
+    var rows = results[0], budgetRows = results[1];
+    var budgetByProject = {};
+    budgetRows.forEach(function (b) { (budgetByProject[b.est_no] = budgetByProject[b.est_no] || {})[b.item_no] = b; });
+    function budgetTier(b) {
+      if (!b) return "neutral";
+      if (b.status === "approved") return "excellent";
+      if (b.deadline_status === "due") return "needs-action";
+      if (b.status === "in_progress" || b.status === "pending_review") return "acceptable";
+      return "neutral";
     }
-    projSel.onchange = renderForProject;
-    renderForProject();
+
+    var byProject = {};
+    rows.forEach(function (r) { (byProject[r.est_no] = byProject[r.est_no] || { est_no: r.est_no, project_name: r.project_name, project_manager: r.project_manager, bid_manager: r.bid_manager, contract_status: r.contract_status, rows: [] }).rows.push(r); });
+    var projects = Object.keys(byProject).map(function (k) { return byProject[k]; }).sort(function (a, b) { return a.est_no < b.est_no ? -1 : 1; });
+
+    var catSel = document.getElementById("repOverviewPoCategoryFilter");
+    var seenCat = {};
+    rows.forEach(function (r) { seenCat[r.category] = true; });
+    catSel.innerHTML = '<option value="">All</option>';
+    Object.keys(seenCat).sort().forEach(function (c) { var o = el("option", "", c.replace(/_/g, " ")); o.value = c; catSel.appendChild(o); });
+
+    function filteredProjects() {
+      var catF = catSel.value, statusF = document.getElementById("repOverviewPoStatusFilter").value,
+          projStatusF = document.getElementById("repOverviewPoProjectStatusFilter").value,
+          searchTerm = document.getElementById("repOverviewPoSearch").value.trim().toLowerCase();
+      return projects.filter(function (p) {
+        if (projStatusF && p.contract_status !== projStatusF) return false;
+        if (searchTerm && (p.project_name + " " + p.est_no).toLowerCase().indexOf(searchTerm) === -1) return false;
+        var itemRows = p.rows.filter(function (r) { return (!catF || r.category === catF) && (!statusF || r.po_status === statusF); });
+        return itemRows.length > 0 || (!catF && !statusF);
+      });
+    }
+
+    function renderStatStrip() {
+      var allItems = rows;
+      var counts = _poCountsFromRows(allItems);
+      var wrap = document.getElementById("repOverviewPoStatGrid");
+      wrap.innerHTML = "";
+      [["Total Projects", projects.length, ""], ["PO / Deliverable Items", allItems.length, ""],
+       ["Signed by both parties", counts["signed"] || 0, "excellent"], ["Not Due", counts["not-due"] || 0, ""],
+       ["Pending (Due)", counts["pending-due"] || 0, "needs-action"]].forEach(function (t) {
+        var box = el("div", "rep-po-stat");
+        box.appendChild(el("div", "v " + t[2], String(t[1])));
+        box.appendChild(el("div", "l", t[0]));
+        wrap.appendChild(box);
+      });
+    }
+    function renderConcernsImprovements() {
+      var wrap = document.getElementById("repOverviewPoCiRow");
+      wrap.innerHTML = "";
+      // [Adapted from the reference]: its Concerns/Improvements are computed
+      // from Excel-specific signals (date-source conflicts, historical
+      // model-vs-model comparisons) this app has no equivalent data for --
+      // these instead surface the two most genuinely useful real signals
+      // this app's own data actually supports: which items are overdue
+      // right now, and which category currently has the best signed rate.
+      var overdue = rows.filter(function (r) { return r.po_status === "pending-due"; });
+      var concerns = el("div", "rep-po-concerns");
+      concerns.appendChild(el("h3", "rep-po-ci-title", "&#9888; Concerns"));
+      var cList = el("div", "rep-po-ci-list");
+      if (overdue.length) {
+        var item = el("div", "rep-po-ci-item");
+        item.appendChild(el("div", "rep-po-ci-icon", "&#9888;"));
+        var body = el("div", "rep-po-ci-body");
+        body.appendChild(el("div", "rep-po-ci-item-title", "Overdue PO/Deliverable Items"));
+        body.appendChild(el("div", "rep-po-ci-desc", overdue.length + " item" + (overdue.length === 1 ? "" : "s") + " past due across " +
+          Object.keys(overdue.reduce(function (a, r) { a[r.est_no] = 1; return a; }, {})).length + " project(s)"));
+        item.appendChild(body);
+        cList.appendChild(item);
+      } else {
+        cList.appendChild(el("div", "rep-po-ci-item", '<div class="rep-po-ci-icon">&#10003;</div><div class="rep-po-ci-body"><div class="rep-po-ci-item-title">Nothing overdue</div><div class="rep-po-ci-desc">Every tracked PO/deliverable item is either signed or not yet due.</div></div>'));
+      }
+      concerns.appendChild(cList);
+      wrap.appendChild(concerns);
+
+      var byCat = {};
+      rows.forEach(function (r) { (byCat[r.category] = byCat[r.category] || []).push(r); });
+      var best = null;
+      Object.keys(byCat).forEach(function (cat) {
+        var catRows = byCat[cat];
+        var pct = catRows.length ? (catRows.filter(function (r) { return r.po_status === "signed"; }).length / catRows.length) : 0;
+        if (!best || pct > best.pct) best = { cat: cat, pct: pct, total: catRows.length };
+      });
+      var improvements = el("div", "rep-po-improvements");
+      improvements.appendChild(el("h3", "rep-po-ci-title", "&#10003; Improvements"));
+      var iList = el("div", "rep-po-ci-list");
+      if (best && best.total) {
+        var iItem = el("div", "rep-po-ci-item");
+        iItem.appendChild(el("div", "rep-po-ci-icon", "&#10003;"));
+        var iBody = el("div", "rep-po-ci-body");
+        iBody.appendChild(el("div", "rep-po-ci-item-title", (best.cat.replace(/_/g, " ")) + " Leading on Signed Rate"));
+        iBody.appendChild(el("div", "rep-po-ci-desc", Math.round(best.pct * 100) + "% signed (" + best.total + " item" + (best.total === 1 ? "" : "s") + ")"));
+        iItem.appendChild(iBody);
+        iList.appendChild(iItem);
+      } else {
+        iList.appendChild(el("div", "rep-po-ci-item", '<div class="rep-po-ci-icon">&#10003;</div><div class="rep-po-ci-body"><div class="rep-po-ci-item-title">No data yet</div></div>'));
+      }
+      improvements.appendChild(iList);
+      wrap.appendChild(improvements);
+    }
+    function renderProjectCards() {
+      var filtered = filteredProjects();
+      document.getElementById("repOverviewPoCount").textContent = "Showing " + filtered.length + " of " + projects.length + " projects";
+      var grid = document.getElementById("repOverviewPoGrid");
+      grid.innerHTML = "";
+      if (!filtered.length) { grid.appendChild(el("div", "empty-state", "No matching projects.")); return; }
+      filtered.forEach(function (p) {
+        var counts = _poCountsFromRows(p.rows);
+        var total = p.rows.length;
+        var card = el("div", "rep-po-card");
+        var head = el("div", "rep-po-card-head");
+        head.appendChild(el("div", "rep-po-card-title", p.project_name));
+        head.appendChild(el("span", "rep-po-badge " + (p.contract_status === "Signed" ? "excellent" : "neutral"), p.contract_status || "&#8213;"));
+        card.appendChild(head);
+        card.appendChild(el("div", "rep-po-card-sub", p.est_no));
+        var pmRow = el("div", "rep-po-pm-row");
+        pmRow.appendChild(el("div", "rep-po-pm-label", "Project Manager"));
+        var chips = el("div", "rep-po-pm-chips");
+        var pmEmail = p.project_manager || p.bid_manager;
+        if (pmEmail) {
+          var chip = el("span", "rep-po-pm-chip", pmEmail);
+          chip.dataset.email = pmEmail;
+          chip.title = "Click to copy &middot; " + pmEmail;
+          chips.appendChild(chip);
+        } else {
+          chips.appendChild(el("span", "rep-po-pm-chip-empty", "&#8213;"));
+        }
+        pmRow.appendChild(chips);
+        card.appendChild(pmRow);
+        card.appendChild(_poBar(counts, total));
+        card.appendChild(el("div", "rep-po-progress-label", _poProgressLabel(counts, total)));
+        var statRow = el("div", "rep-po-stat-row cols-3");
+        [["signed", "Signed", "excellent"], ["not-due", "Not Due", ""], ["pending-due", "Pending (Due)", "needs-action"]].forEach(function (t) {
+          var cell = el("div", "cell");
+          cell.appendChild(el("div", "v " + (counts[t[0]] ? t[2] : ""), String(counts[t[0]] || 0)));
+          cell.appendChild(el("div", "l", t[1]));
+          statRow.appendChild(cell);
+        });
+        card.appendChild(statRow);
+        var badgeRow = el("div", "rep-po-badges-row");
+        var b = budgetByProject[p.est_no] || {};
+        badgeRow.appendChild(el("span", "rep-po-badge " + budgetTier(b["6.1"]), "Temp Budget"));
+        badgeRow.appendChild(el("span", "rep-po-badge " + budgetTier(b["6.3"]), "Final Budget"));
+        card.appendChild(badgeRow);
+        grid.appendChild(card);
+      });
+      _wirePmChips(grid);
+    }
+    function renderAll() { renderStatStrip(); renderConcernsImprovements(); renderProjectCards(); }
+    [catSel, document.getElementById("repOverviewPoStatusFilter"), document.getElementById("repOverviewPoProjectStatusFilter")]
+      .forEach(function (s) { s.onchange = renderAll; });
+    document.getElementById("repOverviewPoSearch").oninput = renderAll;
+    document.getElementById("repOverviewPoClearFilters").onclick = function () {
+      catSel.value = ""; document.getElementById("repOverviewPoStatusFilter").value = "";
+      document.getElementById("repOverviewPoProjectStatusFilter").value = ""; document.getElementById("repOverviewPoSearch").value = "";
+      renderAll();
+    };
+    renderAll();
   }
 
   async function loadReportBudgetStatus() {
