@@ -335,12 +335,12 @@
     support: loadSupport, bmtriage: loadBmTriageStatus, tickets: loadTickets,
     deliverableformulas: loadDeliverableFormulas, deliverablesconfig: loadDeliverablesConfig,
     archivedprojects: loadArchivedProjects, myrequests: loadMyRequests,
-    "report-performance": loadReportPerformance, "report-masterpo": loadReportMasterPo,
+    "report-masterpo": loadReportMasterPo,
     "report-overviewpo": loadReportOverviewPo, "report-budgetstatus": loadReportBudgetStatus,
   };
   var ADMIN_ONLY_VIEWS = [
     "create", "reports", "scores", "focalpoints", "followup", "tickets", "deliverablesconfig", "archivedprojects",
-    "report-performance", "report-masterpo", "report-overviewpo", "report-budgetstatus",
+    "report-masterpo", "report-overviewpo", "report-budgetstatus",
   ];
   // Item 110: BM Triage Status isn't strictly admin-only — a Bid Manager
   // acting as themselves (Owner role, since that's the role they'd pick to
@@ -405,12 +405,18 @@
   // Item [Reports redesign]: the landing page's category boxes aren't
   // .nav-item elements (they don't belong in the rail), so they get their
   // own click wiring here, once, same switchView() every nav click uses.
+  // "Performance Report" is a special case -- Yasser wants it to print the
+  // real Performance nav tab exactly (its own card grid, filters, trend
+  // charts), not a separate simplified recreation -- so it jumps straight
+  // to the actual view-performance, which already has its own #perfPrintBtn
+  // and matching print CSS, rather than routing through view-report-performance.
   document.querySelectorAll(".report-category-box").forEach(function (btn) {
-    btn.addEventListener("click", function () { switchView("report-" + btn.dataset.report); });
+    btn.addEventListener("click", function () {
+      switchView(btn.dataset.report === "performance" ? "performance" : "report-" + btn.dataset.report);
+    });
   });
-  [["repPerfBack", "reports"], ["repMasterPoBack", "reports"], ["repOverviewPoBack", "reports"], ["repBudgetBack", "reports"]]
+  [["repMasterPoBack", "reports"], ["repOverviewPoBack", "reports"], ["repBudgetBack", "reports"]]
     .forEach(function (pair) { document.getElementById(pair[0]).addEventListener("click", function () { switchView(pair[1]); }); });
-  document.getElementById("repPerfPrintBtn").addEventListener("click", function () { window.print(); });
   document.getElementById("repMasterPoPrintBtn").addEventListener("click", function () { window.print(); });
   document.getElementById("repOverviewPoPrintBtn").addEventListener("click", function () { window.print(); });
   document.getElementById("repBudgetPrintBtn").addEventListener("click", function () { window.print(); });
@@ -4793,82 +4799,11 @@
       tbody.appendChild(tr);
     });
   }
-  /* ================= REPORTS (landing page + 4 reports) ================= */
-  var _REPORT_STATUS_CLASS = { "Excellent": "good", "Acceptable": "warn", "Needs Action": "crit", "N/A": "neutral" };
+  /* ================= REPORTS (landing page + Master PO / Overview PO /
+     Budget Status -- Performance Report shortcuts straight to the real
+     view-performance instead of living here, see its click handler above) ================= */
   var _PO_STATUS_LABEL = { complete: "Complete", in_progress: "In Progress", blocked: "Blocked" };
   var _SUB_STATUS_CLASS = { approved: "good", rejected: "crit", pending_review: "warn", in_progress: "warn", no_progress: "neutral", pending_triage: "neutral", not_required: "neutral" };
-
-  async function loadReportPerformance() {
-    // Ranked list: ported 1:1 from the old Reports page (same /api/dashboard
-    // pct + evalFromPct this app already uses elsewhere) -- kept as its own
-    // fetch rather than folded into performance.pct below since they're
-    // genuinely different metrics (this is "live approval rate", not an
-    // L0/L1 blend), and conflating them would misrepresent one as the other.
-    var dash = await api("/api/dashboard");
-    var ranked = dash.departments.slice().sort(function (a, b) { return (b.pct || 0) - (a.pct || 0); });
-    var max = Math.max.apply(null, ranked.map(function (r) { return r.pct || 0; }).concat([1]));
-    var rankWrap = document.getElementById("repPerfRankList");
-    rankWrap.innerHTML = "";
-    ranked.forEach(function (row, i) {
-      var ev = evalFromPct(row.pct);
-      var r = el("div", "rank-row");
-      r.appendChild(el("div", "rank-num", "#" + (i + 1)));
-      r.appendChild(el("div", "rank-name", deptLabel(row.department, row.department_number)));
-      var track = el("div", "rank-bar-track");
-      var fill = el("div", "rank-bar-fill");
-      fill.style.width = (((row.pct || 0) / max) * 100).toFixed(0) + "%";
-      if (ev.cls === "crit") fill.style.background = "var(--crit)"; else if (ev.cls === "warn") fill.style.background = "var(--warn)";
-      track.appendChild(fill);
-      r.appendChild(track);
-      r.appendChild(el("div", "rank-val num", row.pct === null ? "&#8213;" : row.pct + "%"));
-      r.appendChild(el("span", "pill " + ev.cls, '<span class="dot"></span>' + ev.label));
-      rankWrap.appendChild(r);
-    });
-
-    // Filterable detail table: department x stage rows from the same live
-    // performance data the Performance nav tab itself uses (already
-    // includes today's L0-International merge).
-    var perf = await api("/api/dashboard/performance");
-    var rows = [];
-    perf.departments.forEach(function (d) {
-      ["l0", "l1"].forEach(function (stage) {
-        var s = d[stage];
-        // Same "has real data" test the Performance nav tab itself uses --
-        // history always carries at least a placeholder "Current" entry, so
-        // a bare length check would never actually skip an untracked stage.
-        if (!s.total && s.history.length <= 1) return;
-        rows.push({ name: d.name, number: d.number, stage: stage, percentage: s.percentage, status: s.status, trend: s.trend, variance: s.variance });
-      });
-    });
-    var deptSel = document.getElementById("repPerfDeptFilter");
-    deptSel.innerHTML = '<option value="">All Departments</option>';
-    perf.departments.slice().sort(function (a, b) { return (a.number || 0) - (b.number || 0); }).forEach(function (d) {
-      var o = el("option", "", deptLabel(d.name, d.number)); o.value = d.name; deptSel.appendChild(o);
-    });
-    function render() {
-      var deptF = deptSel.value, stageF = document.getElementById("repPerfStageFilter").value, statusF = document.getElementById("repPerfStatusFilter").value;
-      var filtered = rows.filter(function (r) {
-        return (!deptF || r.name === deptF) && (!stageF || r.stage === stageF) && (!statusF || r.status === statusF);
-      });
-      var body = document.getElementById("repPerfBody");
-      body.innerHTML = "";
-      if (!filtered.length) { body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--ink-500);padding:30px;">No matching rows.</td></tr>'; return; }
-      filtered.forEach(function (r) {
-        var tr = el("tr");
-        tr.appendChild(el("td", "", deptLabel(r.name, r.number)));
-        tr.appendChild(el("td", "", r.stage.toUpperCase()));
-        tr.appendChild(el("td", "num", r.percentage === null ? "&#8213;" : r.percentage + "%"));
-        tr.appendChild(el("td", "", '<span class="pill ' + (_REPORT_STATUS_CLASS[r.status] || "neutral") + '"><span class="dot"></span>' + r.status + '</span>'));
-        var trendTxt = r.trend === "no_baseline" ? "No Baseline" : (r.trend === "up" ? "&#9650; +" + Math.abs(r.variance) : r.trend === "down" ? "&#9660; -" + Math.abs(r.variance) : "&#9679; Stable");
-        tr.appendChild(el("td", "", trendTxt));
-        body.appendChild(tr);
-      });
-    }
-    deptSel.onchange = render;
-    document.getElementById("repPerfStageFilter").onchange = render;
-    document.getElementById("repPerfStatusFilter").onchange = render;
-    render();
-  }
 
   function _renderPoSummary(containerId, stats) {
     var wrap = document.getElementById(containerId);

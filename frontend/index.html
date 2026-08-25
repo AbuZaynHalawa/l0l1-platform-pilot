@@ -918,7 +918,7 @@
         <button class="report-category-box" data-report="performance">
           <span class="rcb-icon">&#128200;</span>
           <span class="rcb-title">Performance Report</span>
-          <span class="rcb-desc">Department L0/L1 performance, ranked and filterable.</span>
+          <span class="rcb-desc">The Performance nav tab itself &#8212; card view, filters, and Print, exactly as it is there.</span>
         </button>
         <button class="report-category-box" data-report="masterpo">
           <span class="rcb-icon">&#128203;</span>
@@ -938,44 +938,6 @@
       </div>
     </section>
 
-    <!-- PERFORMANCE REPORT -->
-    <section class="view" id="view-report-performance" hidden>
-      <button class="back-link" id="repPerfBack">&#8592; Back to Reports</button>
-      <div class="view-head">
-        <div>
-          <div class="eyebrow">Reports</div>
-          <h1>Performance Report</h1>
-          <p class="sub">Live department performance, ranked and filterable.</p>
-        </div>
-        <div class="report-actions">
-          <button class="btn" id="repPerfPrintBtn">&#128424; Print</button>
-        </div>
-      </div>
-      <div class="fp-add-row" id="repPerfFilterRow">
-        <select id="repPerfDeptFilter"><option value="">All Departments</option></select>
-        <select id="repPerfStageFilter">
-          <option value="">Both Stages</option>
-          <option value="l0">L0</option>
-          <option value="l1">L1</option>
-        </select>
-        <select id="repPerfStatusFilter">
-          <option value="">Any Status</option>
-          <option value="Excellent">Excellent</option>
-          <option value="Acceptable">Acceptable</option>
-          <option value="Needs Action">Needs Action</option>
-        </select>
-      </div>
-      <div class="card">
-        <div class="section-title">Departments Ranked <span class="cnt">by live approval rate</span></div>
-        <div id="repPerfRankList"></div>
-      </div>
-      <div class="card table-card" style="margin-top:16px;">
-        <table class="fp-table">
-          <thead><tr><th>Department</th><th style="width:90px;">Stage</th><th style="width:90px;">%</th><th style="width:150px;">Status</th><th style="width:120px;">Trend (MoM)</th></tr></thead>
-          <tbody id="repPerfBody"></tbody>
-        </table>
-      </div>
-    </section>
 
     <!-- MASTER PO REPORT -->
     <section class="view report-design-ref" id="view-report-masterpo" hidden>
