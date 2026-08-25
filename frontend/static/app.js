@@ -332,7 +332,7 @@
     l0: function () { loadProjectsTable("L0"); }, l1: function () { loadProjectsTable("L1"); },
     performance: loadPerformance, create: loadCreateOptions, gantt: loadGantt,
     journey: loadJourney, scores: loadScores, focalpoints: loadFocalPoints, followup: loadFollowUp, requests: loadRequests,
-    support: loadSupport, aisupport: loadAiSupport, bmtriage: loadBmTriageStatus, tickets: loadTickets,
+    support: loadSupport, bmtriage: loadBmTriageStatus, tickets: loadTickets,
     deliverableformulas: loadDeliverableFormulas, deliverablesconfig: loadDeliverablesConfig,
     archivedprojects: loadArchivedProjects, myrequests: loadMyRequests,
     "report-performance": loadReportPerformance, "report-masterpo": loadReportMasterPo,
@@ -1794,8 +1794,9 @@
       eyebrow: "Around the Portal",
       title: "AI Support",
       body:
-        '<p class="tour-step-text">A faster first stop than Ask the Team for the kind of question that ' +
-        "doesn't need a person &#8212; how the platform works, or what's on your own plate right now:</p>" +
+        '<p class="tour-step-text">A little &#129302; bubble sits in the bottom-right corner of every page &#8212; ' +
+        "click it any time for a faster first stop than Ask the Team, for the kind of question that " +
+        "doesn't need a person: how the platform works, or what's on your own plate right now:</p>" +
         '<div class="mock-window"><div class="mock-titlebar"><div class="mock-dot-3"></div>' +
         '<div class="mock-dot-3"></div><div class="mock-dot-3"></div><span>AI Support</span></div>' +
         '<div style="padding:14px;display:flex;flex-direction:column;gap:8px;">' +
@@ -8042,9 +8043,21 @@
       return bullet ? "&#8226; " + bullet[1] : line;
     }).join("<br>");
   }
-  async function loadAiSupport() {
+  // Floating widget, not a routed view -- open/closed state lives purely
+  // in the panel's [hidden] attribute, toggled from the bubble/close
+  // button/Escape key, independent of switchView() entirely.
+  function _openAiChatPanel() {
+    document.getElementById("aiChatPanel").hidden = false;
+    document.getElementById("aiChatBubble").hidden = true;
     _renderAiChatMessages();
+    document.getElementById("aiChatInput").focus();
   }
+  function _closeAiChatPanel() {
+    document.getElementById("aiChatPanel").hidden = true;
+    document.getElementById("aiChatBubble").hidden = false;
+  }
+  document.getElementById("aiChatBubble").addEventListener("click", _openAiChatPanel);
+  document.getElementById("aiChatPanelClose").addEventListener("click", _closeAiChatPanel);
   function _aiChatSetSending(sending) {
     document.getElementById("aiChatSend").disabled = sending;
     document.getElementById("aiChatSend").textContent = sending ? "Thinking…" : "Send";
@@ -8076,7 +8089,10 @@
   document.getElementById("aiChatInput").addEventListener("keydown", function (e) {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); _sendAiChatMessage(); }
   });
-  document.getElementById("aiChatAskTeam").addEventListener("click", function () { switchView("support"); });
+  document.getElementById("aiChatAskTeam").addEventListener("click", function () {
+    _closeAiChatPanel();
+    switchView("support");
+  });
 
   // Item 151: every Ask the Team thread, admin-only, in its own dedicated
   // view -- same reply/resolve/reference-KB behavior that used to live
