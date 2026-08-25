@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 
 from .. import models, rules
 from ..database import get_db
+from .deliverables_config import _normalized_weight_pct
 
 router = APIRouter(prefix="/api/ai-support", tags=["ai-support"])
 
@@ -75,11 +76,44 @@ Every non-admin can track their own requests, across all six kinds, on the "My R
 Workspace (everyone): Dashboard, L0 Tenders, L1 Projects, Timeline (Gantt), Assigned Deliverables (your own work), Announcements, Reminders, BM Triage Status, Performance, Deliverables Catalog (browse formulas/weights, suggest changes), My Requests, Q/A - Ask the Team, AI Support (this chat).
 Admin only: Create L0/L1, Reports (Performance/Master PO/Overview PO/Budget Status reports), Top Achievers, Focal Points, Deliverables Configuration (edit formulas/weights directly), Requests (decide the six queues above), Follow Up (overdue deliverables + bulk reminders), Open Questions (Q/A inbox), Archived Projects.
 
+## Live lookups
+You have two tools for real, current data -- use them instead of guessing whenever a question is about a *specific* item or department, not just how the system works in general:
+- lookup_deliverables: the real due-date formula, scoring weight, and department for a specific item number (e.g. "what's the formula for 2.2 in L1?"), or to search/browse by name or department.
+- list_departments: the real current list of departments (name, number, whether it's an international variant).
+Both mirror exactly what Deliverables Catalog and the department pickers already show any user -- general reference data, not anyone's private information.
+
 ## What you should NOT do
-- Don't make up specific facts about a particular project, deliverable, or person unless it's in the "their own assigned deliverables" data given to you below -- you have no live access to the database beyond that.
+- Don't make up specific facts about a particular project, deliverable, or person -- use the tools above for anything about deliverables/departments, and the "their own assigned deliverables" data below for anything personal. If neither covers it, say you don't have that.
 - Don't give an opinion on a judgment call that's really an Admin's decision to make (e.g. "should my due-date extension be approved?").
 - If you're not confident you've actually answered the question, say so plainly and suggest they use Q/A - Ask the Team to reach an Admin/team member directly.
 """
+
+_TOOLS = [
+    {
+        "name": "lookup_deliverables",
+        "description": (
+            "Look up real, current deliverable catalog entries: item number, name, department, "
+            "due-date formula in plain English, and scoring weight. Same data as the Deliverables "
+            "Catalog page. Use this for any question about a specific item's formula/weight, or to "
+            "search/browse items by name or department."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "stage": {"type": "string", "enum": ["L0", "L1"], "description": "Which catalog to search."},
+                "item_no": {"type": "string", "description": "Exact item number, e.g. '2.2' or '6.1'. Omit to search by name/department instead."},
+                "query": {"type": "string", "description": "Search text matched against item name or item number (case-insensitive substring)."},
+                "department": {"type": "string", "description": "Filter to a department name substring, e.g. 'Treasury'."},
+            },
+            "required": ["stage"],
+        },
+    },
+    {
+        "name": "list_departments",
+        "description": "List the platform's real current departments -- name, number, and whether it's an international variant. Same data as the department pickers throughout the app.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+]
 
 
 def _my_deliverables_summary(db: Session, email: str) -> str:
@@ -116,6 +150,54 @@ def _my_deliverables_summary(db: Session, email: str) -> str:
     if len(mine) > 25:
         lines.append(f"...and {len(mine) - 25} more.")
     return "\n".join(lines)
+
+
+def _tool_lookup_deliverables(db: Session, stage: str = "", item_no: str = "", query: str = "", department: str = "") -> str:
+    if stage not in ("L0", "L1"):
+        return "stage must be 'L0' or 'L1'."
+    q = (
+        db.query(models.DeliverableDefinition)
+        .join(models.Department)
+        .filter(models.DeliverableDefinition.stage == stage, models.DeliverableDefinition.active == True)  # noqa: E712
+    )
+    if item_no:
+        q = q.filter(models.DeliverableDefinition.item_no == item_no.strip())
+    if department:
+        q = q.filter(models.Department.name.ilike(f"%{department.strip()}%"))
+    defs = q.order_by(models.Department.number, models.DeliverableDefinition.item_no).all()
+    if query:
+        ql = query.strip().lower()
+        defs = [d for d in defs if ql in d.item_no.lower() or ql in d.name.lower()]
+    if not defs:
+        return "No matching deliverables found -- double check the item number/stage, or this may be an international-only or inactive item."
+    truncated = len(defs) > 15
+    lines = [
+        f"- {d.item_no} \"{d.name}\" ({d.department.name}) -- formula: {rules.describe_formula_branches(d)} "
+        f"-- weight: ≈{_normalized_weight_pct(d)}% of department score"
+        for d in defs[:15]
+    ]
+    if truncated:
+        lines.append(f"...and {len(defs) - 15} more matches not shown -- narrow the search (item_no or a more specific query/department).")
+    return "\n".join(lines)
+
+
+def _tool_list_departments(db: Session) -> str:
+    depts = db.query(models.Department).filter(models.Department.active != False).order_by(models.Department.number).all()  # noqa: E712
+    return "\n".join(
+        # Some international departments already spell it out in their own
+        # name (e.g. "Tendering Department (International)"); only append
+        # the tag when the name doesn't already say so, to avoid "(International) (International)".
+        f"- {d.number}. {d.name}" + (" (International)" if d.is_international and "international" not in d.name.lower() else "")
+        for d in depts
+    )
+
+
+def _run_tool(db: Session, name: str, tool_input: dict) -> str:
+    if name == "lookup_deliverables":
+        return _tool_lookup_deliverables(db, **{k: tool_input.get(k, "") for k in ("stage", "item_no", "query", "department")})
+    if name == "list_departments":
+        return _tool_list_departments(db)
+    return f"Unknown tool: {name}"
 
 
 class ChatMessage(BaseModel):
@@ -156,7 +238,20 @@ def chat(payload: ChatRequest, db: Session = Depends(get_db)):
     history = [{"role": m.role, "content": m.content} for m in payload.history[-10:] if m.role in ("user", "assistant")]
     history.append({"role": "user", "content": message})
     try:
-        resp = client.messages.create(model=_MODEL, max_tokens=600, system=system, messages=history)
+        # Tool-use loop: Claude can call lookup_deliverables/list_departments
+        # for real current data instead of guessing (see _SYSTEM_PROMPT's
+        # "Live lookups" section) -- capped at a few round-trips so a
+        # confused model can't loop forever racking up API calls.
+        for _ in range(4):
+            resp = client.messages.create(model=_MODEL, max_tokens=800, system=system, messages=history, tools=_TOOLS)
+            if resp.stop_reason != "tool_use":
+                break
+            history.append({"role": "assistant", "content": resp.content})
+            tool_results = [
+                {"type": "tool_result", "tool_use_id": block.id, "content": _run_tool(db, block.name, block.input)}
+                for block in resp.content if block.type == "tool_use"
+            ]
+            history.append({"role": "user", "content": tool_results})
         reply = "".join(block.text for block in resp.content if block.type == "text").strip()
     except Exception as e:
         print(f"[ai-support] Anthropic call failed: {e}")
