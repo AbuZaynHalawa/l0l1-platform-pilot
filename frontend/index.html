@@ -533,9 +533,6 @@
           <h1>Deliverables Configuration</h1>
           <p class="sub">Formulas, descriptions, and departments for every deliverable &#8212; changes take effect immediately, with a full history and a one-click restore to default.</p>
         </div>
-        <div class="report-actions">
-          <button class="btn primary" id="dcAddDeliverableBtn">+ Add Deliverable</button>
-        </div>
       </div>
       <div class="subtab-row" id="dcSubTabs">
         <button class="chip active" data-dc="L0">L0 Formulas</button>
@@ -547,6 +544,7 @@
       <div class="fp-add-row" id="dcFilterRow" style="margin-bottom:14px;">
         <input type="text" id="dcFilter" placeholder="Filter by item number or name&#8230;" style="flex:1;min-width:220px;" />
         <select id="dcDeptFilter"><option value="">All Departments</option></select>
+        <button class="btn primary" id="dcAddDeliverableBtn">+ Add Deliverable</button>
       </div>
       <div class="card table-card" id="dcFormulasPanel">
         <div class="fp-table-scroll">
@@ -583,10 +581,10 @@
           <table class="fp-table wrap-table">
             <thead><tr>
               <th style="width:210px;">Item / Department</th>
-              <th>What Changed</th>
+              <th style="width:480px;">What Changed</th>
               <th style="width:140px;">By</th>
               <th style="width:100px;">Date</th>
-              <th style="width:80px;"></th>
+              <th style="width:110px;"></th>
             </tr></thead>
             <tbody id="dcHistoryBody"></tbody>
           </table>
