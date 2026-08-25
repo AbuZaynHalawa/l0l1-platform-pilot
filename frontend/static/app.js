@@ -7424,24 +7424,25 @@
   function renderDcHistory(rows) {
     var wrap = document.getElementById("dcHistoryBody");
     wrap.innerHTML = "";
-    if (!rows.length) { wrap.appendChild(el("div", "empty-state", "No changes yet.")); return; }
+    if (!rows.length) {
+      wrap.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--ink-500);padding:24px;">No changes yet.</td></tr>';
+      return;
+    }
     rows.forEach(function (r) {
-      var row = el("div", "aq-row");
-      var main = el("div", "aq-main");
+      var tr = document.createElement("tr");
       var titleText = r.kind === "department" ? (r.department_name || r.summary) : (r.item_no + " &middot; " + r.item_name);
-      main.appendChild(el("div", "aq-title", titleText));
-      main.appendChild(el("div", "aq-sub",
-        '<span>' + r.summary + '</span><span class="sep">&middot;</span>' +
-        '<span>' + (r.actor_name || r.actor_email || "system") + '</span><span class="sep">&middot;</span>' +
-        '<span>' + fmtDate((r.changed_at || "").slice(0, 10)) + '</span>'));
+      var whatChangedHtml = '<div>' + r.summary + '</div>';
       if (r.field_changes && r.field_changes.length) {
-        var diffList = el("ul", "dc-history-diff");
-        r.field_changes.forEach(function (fc) {
-          diffList.appendChild(el("li", "", "<b>" + fc.field + ":</b> " + fc.before + " &rarr; " + fc.after));
-        });
-        main.appendChild(diffList);
+        whatChangedHtml += '<ul class="dc-history-diff">' + r.field_changes.map(function (fc) {
+          return "<li><b>" + fc.field + ":</b> " + fc.before + " &rarr; " + fc.after + "</li>";
+        }).join("") + '</ul>';
       }
-      row.appendChild(main);
+      tr.innerHTML =
+        "<td>" + titleText + "</td>" +
+        "<td>" + whatChangedHtml + "</td>" +
+        "<td>" + (r.actor_name || r.actor_email || "system") + "</td>" +
+        "<td>" + fmtDate((r.changed_at || "").slice(0, 10)) + "</td>" +
+        "<td></td>";
       var revertBtn = el("button", "btn", "Revert");
       revertBtn.addEventListener("click", async function () {
         if (!(await customConfirm("Revert this change?"))) return;
@@ -7457,8 +7458,8 @@
         showToast("Reverted");
         loadDeliverablesConfig();
       });
-      row.appendChild(revertBtn);
-      wrap.appendChild(row);
+      tr.lastElementChild.appendChild(revertBtn);
+      wrap.appendChild(tr);
     });
   }
 
