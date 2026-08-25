@@ -112,6 +112,15 @@ def get_master_po_report(actor_role: str = "Viewer", db: Session = Depends(get_d
 # workflow status -- no dollar-amount field exists anywhere in the schema
 # for these (confirmed with Yasser, out of scope this round). This report
 # surfaces exactly what's real: where each of the 3 stands, per project.
+#
+# One row per project, each of the 3 items nested by item_no rather than a
+# flat per-item row -- the report itself is one line per project (a 3-
+# segment progress bar, PO-Lifecycle-style: click a segment to open that
+# submission, same awaiting_note/deadline_status this app already computes
+# everywhere else), and app.js's poSingleStatus/poPill/poIcon (the exact
+# functions the real PO Lifecycle tab's own single-item cards use) read
+# this same {status, awaiting_note, deadline_status} shape directly -- one
+# status-tier implementation, not a second one reinvented here.
 _BUDGET_ITEM_NOS = ("6.1", "6.2", "6.3")
 
 
@@ -126,6 +135,8 @@ def get_budget_status_report(actor_role: str = "Viewer", db: Session = Depends(g
     )
     rows = []
     for p in projects:
+        rules.recompute_project_due_dates(db, p)  # cheap, daily-gated read
+        db.commit()
         subs = (
             db.query(models.DeliverableSubmission)
             .join(models.DeliverableDefinition)
@@ -134,16 +145,22 @@ def get_budget_status_report(actor_role: str = "Viewer", db: Session = Depends(g
             .all()
         )
         by_item = {s.definition.item_no: s for s in subs}
+        items = {}
         for item_no in _BUDGET_ITEM_NOS:
             s = by_item.get(item_no)
             if not s:
+                items[item_no] = None
                 continue
             deadline_key, deadline_days = rules.deadline_status(s)
-            rows.append({
-                "est_no": p.est_no, "project_name": p.name, "bid_manager": p.bid_manager,
-                "item_no": item_no, "item_name": s.definition.name, "status": s.status.value,
+            items[item_no] = {
+                "submission_id": s.id, "item_name": s.definition.name, "status": s.status.value,
                 "owner_emails": rules.resolve_owners(s), "due_date": s.due_date,
                 "deadline_status": deadline_key, "deadline_days": deadline_days,
-                "file_name": s.file_name,
-            })
+                "awaiting_note": rules.awaiting_milestone_note(db, s), "file_name": s.file_name,
+            }
+        rows.append({
+            "est_no": p.est_no, "project_name": p.name, "bid_manager": p.bid_manager,
+            "contract_status": p.contract_status.value if p.contract_status else None,
+            "items": items,
+        })
     return rows

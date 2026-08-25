@@ -4814,7 +4814,6 @@
   /* ================= REPORTS (landing page + Master PO / Overview PO /
      Budget Status -- Performance Report lives up near loadPerformance()
      itself, see loadReportPerformance() there) ================= */
-  var _SUB_STATUS_CLASS = { approved: "good", rejected: "crit", pending_review: "warn", in_progress: "warn", no_progress: "neutral", pending_triage: "neutral", not_required: "neutral" };
 
   // [PO Status report design]: ported from the real "L1 Delay Dashboard"
   // (Dashboard Design System Reference.md's own source build) -- see
@@ -4985,7 +4984,7 @@
     ]);
     var rows = results[0], budgetRows = results[1];
     var budgetByProject = {};
-    budgetRows.forEach(function (b) { (budgetByProject[b.est_no] = budgetByProject[b.est_no] || {})[b.item_no] = b; });
+    budgetRows.forEach(function (b) { budgetByProject[b.est_no] = b.items; });
     function budgetTier(b) {
       if (!b) return "neutral";
       if (b.status === "approved") return "excellent";
@@ -5144,44 +5143,76 @@
     renderAll();
   }
 
+  // [Budget Status report design]: one row per project, a 3-segment bar
+  // (6.1/6.2/6.3) -- each segment is styled and behaves exactly like a
+  // single-item PO Lifecycle card: poSingleStatus/poPill/poIcon (the same
+  // functions renderPoLifecycle's own poCard() uses) decide the color and
+  // label, and clicking a segment opens the real submission via the same
+  // openDelivModal every other clickable item in this app already uses.
+  var _BUDGET_LABELS = { "6.1": "6.1 Temp Budget", "6.2": "6.2 Tendering Budget", "6.3": "6.3 Locked Budget" };
   async function loadReportBudgetStatus() {
     var rows = await api("/api/reports/budget-status?actor_role=" + encodeURIComponent(CURRENT_ROLE));
     var projSel = document.getElementById("repBudgetProjectFilter");
-    var itemSel = document.getElementById("repBudgetItemFilter");
     var statusSel = document.getElementById("repBudgetStatusFilter");
-    var seenProj = {}, seenItem = {}, seenStatus = {};
-    rows.forEach(function (r) { seenProj[r.est_no] = r.project_name; seenItem[r.item_no] = r.item_name; seenStatus[r.status] = true; });
     projSel.innerHTML = '<option value="">All Projects</option>';
-    Object.keys(seenProj).sort().forEach(function (est) { var o = el("option", "", est + " &middot; " + seenProj[est]); o.value = est; projSel.appendChild(o); });
-    itemSel.innerHTML = '<option value="">All Budget Items</option>';
-    Object.keys(seenItem).sort().forEach(function (n) { var o = el("option", "", n + " &middot; " + seenItem[n]); o.value = n; itemSel.appendChild(o); });
-    statusSel.innerHTML = '<option value="">Any Status</option>';
-    Object.keys(seenStatus).sort().forEach(function (s) { var o = el("option", "", s); o.value = s; statusSel.appendChild(o); });
+    rows.forEach(function (r) { var o = el("option", "", r.est_no + " &middot; " + r.project_name); o.value = r.est_no; projSel.appendChild(o); });
+
     function render() {
-      var projF = projSel.value, itemF = itemSel.value, statusF = statusSel.value;
+      var projF = projSel.value, statusF = statusSel.value;
       var filtered = rows.filter(function (r) {
-        return (!projF || r.est_no === projF) && (!itemF || r.item_no === itemF) && (!statusF || r.status === statusF);
+        if (projF && r.est_no !== projF) return false;
+        if (statusF) {
+          var tiers = ["6.1", "6.2", "6.3"].map(function (k) { return r.items[k] ? poSingleStatus(r.items[k]) : "pending"; });
+          if (tiers.indexOf(statusF) === -1) return false;
+        }
+        return true;
       });
-      var body = document.getElementById("repBudgetBody");
-      body.innerHTML = "";
-      if (!filtered.length) { body.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--ink-500);padding:30px;">No matching rows.</td></tr>'; return; }
+      document.getElementById("repBudgetCount").textContent = "Showing " + filtered.length + " of " + rows.length + " projects";
+      var wrap = document.getElementById("repBudgetList");
+      wrap.innerHTML = "";
+      if (!filtered.length) { wrap.appendChild(el("div", "empty-state", "No matching projects.")); return; }
       filtered.forEach(function (r) {
-        var tr = el("tr");
-        tr.appendChild(el("td", "", r.est_no + " &middot; " + r.project_name));
-        tr.appendChild(el("td", "", r.item_no + " &middot; " + r.item_name));
-        tr.appendChild(el("td", "", '<span class="pill ' + (_SUB_STATUS_CLASS[r.status] || "neutral") + '"><span class="dot"></span>' + r.status.replace(/_/g, " ") + '</span>'));
-        tr.appendChild(el("td", "", (r.owner_emails && r.owner_emails.length) ? r.owner_emails.join(", ") : "&#8213;"));
-        tr.appendChild(el("td", "num", fmtDate(r.due_date)));
-        var deadlineTxt = r.deadline_status === "due" ? '<span class="pill crit">' + Math.abs(r.deadline_days) + 'd overdue</span>'
-          : r.deadline_status === "not_due" ? '<span class="pill neutral">Not Due</span>'
-          : r.deadline_status === "on_hold" ? '<span class="pill neutral">On Hold</span>'
-          : '<span class="pill good">' + r.deadline_status.replace(/_/g, " ") + '</span>';
-        tr.appendChild(el("td", "", deadlineTxt));
-        body.appendChild(tr);
+        var row = el("div", "budget-row");
+        var head = el("div", "budget-row-head");
+        head.appendChild(el("div", "budget-row-title", r.est_no + " &middot; " + r.project_name));
+        if (r.contract_status) head.appendChild(el("div", "budget-row-sub", r.contract_status));
+        row.appendChild(head);
+        var segs = el("div", "budget-segments");
+        ["6.1", "6.2", "6.3"].forEach(function (itemNo) {
+          var item = r.items[itemNo];
+          var tier = item ? poSingleStatus(item) : "pending";
+          var seg = el("div", "budget-seg " + tier);
+          var top = el("div", "budget-seg-top");
+          top.appendChild(el("span", "budget-seg-label", _BUDGET_LABELS[itemNo]));
+          top.appendChild(el("span", "budget-seg-icon", poIcon(tier)));
+          seg.appendChild(top);
+          // A genuinely overdue item gets its real day-count (same
+          // convention as Master PO's delay column); an awaiting-predecessor
+          // "blocked" item has no meaningful day-count, so it falls back to
+          // the plain PO Lifecycle pill text ("Blocked") -- the note below
+          // explains why either way.
+          var statusHtml = poPill(tier);
+          if (tier === "blocked" && item && item.deadline_status === "due" && item.deadline_days !== null && item.deadline_days !== undefined) {
+            statusHtml = '<span class="pill crit"><span class="dot"></span>' + Math.abs(item.deadline_days) + 'd overdue</span>';
+          }
+          seg.appendChild(el("div", "budget-seg-status", statusHtml));
+          if (item && item.awaiting_note) {
+            seg.appendChild(el("div", "budget-seg-note", "&#8617; " + item.awaiting_note));
+          } else if (!item) {
+            seg.appendChild(el("div", "budget-seg-note", "Not yet created for this project"));
+          }
+          if (item && item.submission_id) {
+            seg.addEventListener("click", function () { openDelivModal(item.submission_id); });
+          } else {
+            seg.style.cursor = "default";
+          }
+          segs.appendChild(seg);
+        });
+        row.appendChild(segs);
+        wrap.appendChild(row);
       });
     }
     projSel.onchange = render;
-    itemSel.onchange = render;
     statusSel.onchange = render;
     render();
   }

@@ -1084,7 +1084,7 @@
         <div>
           <div class="eyebrow">Reports</div>
           <h1>Budget Status Report</h1>
-          <p class="sub">Temp / Baseline / Locked Project Budget on Oracle (6.1 / 6.2 / 6.3), every active L1 project. Workflow status only &#8212; no dollar figures are tracked anywhere in the system today.</p>
+          <p class="sub">Temp / Tendering / Locked Project Budget on Oracle (6.1 / 6.2 / 6.3), one line per active L1 project. Click any segment for its full details &#8212; same as the PO Lifecycle tab. Workflow status only &#8212; no dollar figures are tracked anywhere in the system today.</p>
         </div>
         <div class="report-actions">
           <button class="btn" id="repBudgetPrintBtn">&#128424; Print</button>
@@ -1092,15 +1092,16 @@
       </div>
       <div class="fp-add-row" id="repBudgetFilterRow">
         <select id="repBudgetProjectFilter"><option value="">All Projects</option></select>
-        <select id="repBudgetItemFilter"><option value="">All Budget Items</option></select>
-        <select id="repBudgetStatusFilter"><option value="">Any Status</option></select>
+        <select id="repBudgetStatusFilter">
+          <option value="">Any Status</option>
+          <option value="done">Complete</option>
+          <option value="progress">In Progress</option>
+          <option value="blocked">Blocked / Overdue</option>
+          <option value="pending">Not Due Yet</option>
+        </select>
       </div>
-      <div class="card table-card">
-        <table class="fp-table">
-          <thead><tr><th>Project</th><th style="width:200px;">Budget Item</th><th style="width:130px;">Status</th><th style="width:140px;">Owner</th><th style="width:110px;">Due Date</th><th style="width:120px;">Deadline</th></tr></thead>
-          <tbody id="repBudgetBody"></tbody>
-        </table>
-      </div>
+      <div class="rep-po-count-line" id="repBudgetCount"></div>
+      <div class="budget-report-list" id="repBudgetList"></div>
     </section>
 
     <!-- CREATE PROJECT -->
