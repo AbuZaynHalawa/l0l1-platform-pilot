@@ -1509,7 +1509,9 @@
         "via <b>Manage Tracking</b> &#8212; not every item should count toward the same on-time-rate " +
         "(a milestone-linked date, for instance, might not), and can give one item more <b>Scoring " +
         "Weight</b> than its siblings via <b>Deliverables Configuration</b> so it counts for more " +
-        "toward the department's score (e.g. weighting BOQ higher than a less critical item). " +
+        "toward the department's score (e.g. weighting BOQ higher than a less critical item) &#8212; " +
+        "anyone can suggest a weight change from <b>Deliverables Catalog</b>, same as a formula " +
+        "change, for an Admin to review. " +
         "International L0 tenders count toward " +
         "the same department score as standard L0 &#8212; Overview shows one combined L0 number; " +
         "Manage Tracking still has its own L0 International tab so the two catalogs stay toggleable " +
@@ -5146,13 +5148,43 @@
     renderAll();
   }
 
-  // [Budget Status report design]: one row per project, a 3-segment bar
-  // (6.1/6.2/6.3) -- each segment is styled and behaves exactly like a
-  // single-item PO Lifecycle card: poSingleStatus/poPill/poIcon (the same
-  // functions renderPoLifecycle's own poCard() uses) decide the color and
-  // label, and clicking a segment opens the real submission via the same
-  // openDelivModal every other clickable item in this app already uses.
+  // [Budget Status report design]: one compact row per project -- a thin
+  // 3-segment bar (6.1/6.2/6.3), reusing the exact slim .rep-po-bar look
+  // Master PO/Overview PO's own cards already use (10px tall, joined
+  // segments) instead of the old label+icon+note boxes, so 30 projects
+  // still fit on a printable page. poSingleStatus (the same function
+  // renderPoLifecycle's own poCard() uses) still decides each segment's
+  // color; full detail (label, status, awaiting-note) moves into a native
+  // title="" tooltip per segment instead of being spelled out inline, and
+  // a single short trailing comment (_budgetRowNote) surfaces just the
+  // one thing that needs attention -- "Next: 6.2" / "Pending 6.3" / an
+  // overdue day-count -- mirroring PO Lifecycle's own terse card language.
+  // Segments stay clickable (openDelivModal), same as before.
   var _BUDGET_LABELS = { "6.1": "6.1 Temp Budget", "6.2": "6.2 Tendering Budget", "6.3": "6.3 Locked Budget" };
+  function _budgetSegTitle(itemNo, item, tier) {
+    var label = _BUDGET_LABELS[itemNo];
+    if (!item) return label + " — not yet created for this project";
+    var statusText = tier === "done" ? "Completed" : tier === "progress" ? "In Progress" : tier === "blocked" ? "Blocked" : "Pending";
+    if (tier === "blocked" && item.deadline_status === "due" && item.deadline_days !== null && item.deadline_days !== undefined) {
+      statusText = Math.abs(item.deadline_days) + "d overdue";
+    }
+    return label + " — " + statusText + (item.awaiting_note ? " — " + item.awaiting_note : "");
+  }
+  function _budgetRowNote(r) {
+    var keys = ["6.1", "6.2", "6.3"];
+    for (var i = 0; i < keys.length; i++) {
+      var key = keys[i];
+      var item = r.items[key];
+      var tier = item ? poSingleStatus(item) : "pending";
+      if (tier === "done") continue;
+      if (tier === "blocked" && item && item.deadline_status === "due" && item.deadline_days !== null && item.deadline_days !== undefined) {
+        return key + " — " + Math.abs(item.deadline_days) + "d overdue";
+      }
+      if (tier === "progress") return "Next: " + key;
+      return "Pending " + key;
+    }
+    return "Complete";
+  }
   async function loadReportBudgetStatus() {
     var rows = await api("/api/reports/budget-status?actor_role=" + encodeURIComponent(CURRENT_ROLE));
     var projSel = document.getElementById("repBudgetProjectFilter");
@@ -5175,43 +5207,25 @@
       wrap.innerHTML = "";
       if (!filtered.length) { wrap.appendChild(el("div", "empty-state", "No matching projects.")); return; }
       filtered.forEach(function (r) {
-        var row = el("div", "budget-row");
-        var head = el("div", "budget-row-head");
-        head.appendChild(el("div", "budget-row-title", r.est_no + " &middot; " + r.project_name));
-        if (r.contract_status) head.appendChild(el("div", "budget-row-sub", r.contract_status));
-        row.appendChild(head);
-        var segs = el("div", "budget-segments");
+        var row = el("div", "budget-row-c");
+        var title = el("div", "budget-row-c-title", r.est_no + " &middot; " + r.project_name +
+          (r.contract_status ? ' <span class="budget-row-c-sub">' + r.contract_status + '</span>' : ""));
+        row.appendChild(title);
+        var bar = el("div", "budget-row-c-bar rep-po-bar");
         ["6.1", "6.2", "6.3"].forEach(function (itemNo) {
           var item = r.items[itemNo];
           var tier = item ? poSingleStatus(item) : "pending";
-          var seg = el("div", "budget-seg " + tier);
-          var top = el("div", "budget-seg-top");
-          top.appendChild(el("span", "budget-seg-label", _BUDGET_LABELS[itemNo]));
-          top.appendChild(el("span", "budget-seg-icon", poIcon(tier)));
-          seg.appendChild(top);
-          // A genuinely overdue item gets its real day-count (same
-          // convention as Master PO's delay column); an awaiting-predecessor
-          // "blocked" item has no meaningful day-count, so it falls back to
-          // the plain PO Lifecycle pill text ("Blocked") -- the note below
-          // explains why either way.
-          var statusHtml = poPill(tier);
-          if (tier === "blocked" && item && item.deadline_status === "due" && item.deadline_days !== null && item.deadline_days !== undefined) {
-            statusHtml = '<span class="pill crit"><span class="dot"></span>' + Math.abs(item.deadline_days) + 'd overdue</span>';
-          }
-          seg.appendChild(el("div", "budget-seg-status", statusHtml));
-          if (item && item.awaiting_note) {
-            seg.appendChild(el("div", "budget-seg-note", "&#8617; " + item.awaiting_note));
-          } else if (!item) {
-            seg.appendChild(el("div", "budget-seg-note", "Not yet created for this project"));
-          }
+          var seg = document.createElement("span");
+          seg.className = "seg " + tier;
+          seg.title = _budgetSegTitle(itemNo, item, tier);
           if (item && item.submission_id) {
+            seg.style.cursor = "pointer";
             seg.addEventListener("click", function () { openDelivModal(item.submission_id); });
-          } else {
-            seg.style.cursor = "default";
           }
-          segs.appendChild(seg);
+          bar.appendChild(seg);
         });
-        row.appendChild(segs);
+        row.appendChild(bar);
+        row.appendChild(el("div", "budget-row-c-note", _budgetRowNote(r)));
         wrap.appendChild(row);
       });
     }
@@ -6455,15 +6469,19 @@
           // it TO -- proposed_formula_text (rules.describe_proposed_branches,
           // same wording engine the live formula pages use) is the field
           // that was actually missing for an admin to decide this.
+          var reqFields = [
+            ["Department", r.department],
+            ["Requested by", r.requested_by_name ? r.requested_by_name + " (" + r.requested_by_email + ")" : r.requested_by_email],
+            ["Currently", r.current_summary],
+            ["Proposed change", r.proposed_formula_text],
+          ];
+          if (r.proposed_weight != null) {
+            reqFields.push(["Scoring weight", (r.current_weight != null ? r.current_weight : "1 (default)") + " &rarr; " + r.proposed_weight]);
+          }
+          reqFields.push(["Reason", r.comment]);
           openFuDetailModal({
             eyebrow: "Formula Change Request", title: r.item_no + " &middot; " + r.item_name,
-            fields: [
-              ["Department", r.department],
-              ["Requested by", r.requested_by_name ? r.requested_by_name + " (" + r.requested_by_email + ")" : r.requested_by_email],
-              ["Currently", r.current_summary],
-              ["Proposed change", r.proposed_formula_text],
-              ["Reason", r.comment],
-            ],
+            fields: reqFields,
             onApprove: doApprove, onReject: doReject,
           });
         });
@@ -6865,6 +6883,7 @@
     var qs = "stage=" + (dfStage === "L0intl" ? "L0" : dfStage) +
       (dfStage === "L0intl" ? "&international=true" : (dfStage === "L0" ? "&international=false" : ""));
     dfItems = await api("/api/deliverables/config/formulas?" + qs);
+    _populateDeptFilter(document.getElementById("dfDeptFilter"), dfItems);
     renderDfItems();
     var email = passiveIdentity();
     dfMySuggestions = email
@@ -6880,35 +6899,38 @@
     });
   });
   document.getElementById("dfFilter").addEventListener("input", renderDfItems);
+  document.getElementById("dfDeptFilter").addEventListener("change", renderDfItems);
   function renderDfItems() {
     var filterText = document.getElementById("dfFilter").value.trim().toLowerCase();
+    var deptFilter = document.getElementById("dfDeptFilter").value;
     var wrap = document.getElementById("dfItemList");
     wrap.innerHTML = "";
     var filtered = dfItems.filter(function (d) {
+      if (deptFilter && String(d.department_id) !== deptFilter) return false;
       return !filterText || (d.item_no + " " + d.name).toLowerCase().indexOf(filterText) !== -1;
     });
-    if (!filtered.length) { wrap.appendChild(el("div", "empty-state", "No matching items.")); return; }
+    if (!filtered.length) {
+      wrap.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--ink-500);padding:24px;">No matching items.</td></tr>';
+      return;
+    }
     filtered = filtered.slice().sort(function (a, b) {
       if (a.department_number !== b.department_number) return (a.department_number || 0) - (b.department_number || 0);
       if (a.department !== b.department) return a.department < b.department ? -1 : 1;
       return _itemSortKey(a.item_no) < _itemSortKey(b.item_no) ? -1 : 1;
     });
-    var lastDept = null;
     filtered.forEach(function (d) {
-      if (d.department !== lastDept) {
-        wrap.appendChild(el("div", "deliv-subheader", deptLabel(d.department, d.department_number)));
-        lastDept = d.department;
-      }
-      var row = el("div", "deliv-row");
-      var body = el("div", "deliv-body");
-      body.appendChild(el("div", "deliv-name", d.item_no + " &middot; " + d.name +
-        (d.kpi_weight_pct != null ? ' <span style="color:var(--ink-500);font-size:11px;">&middot; weight &asymp;' + d.kpi_weight_pct + '% of department score</span>' : "")));
-      body.appendChild(el("div", "", '<span style="font-size:11.5px;color:var(--ink-500);">' + d.formula_text + '</span>'));
-      row.appendChild(body);
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td>" + d.item_no + "</td>" +
+        "<td>" + deptLabel(d.department, d.department_number) + "</td>" +
+        "<td>" + d.name + "</td>" +
+        '<td><span style="font-size:11.5px;color:var(--ink-500);">' + d.formula_text + "</span></td>" +
+        '<td class="dc-weight-cell">' + (d.kpi_weight_pct != null ? "&asymp; " + d.kpi_weight_pct + "%" : "&mdash;") + "</td>" +
+        "<td></td>";
       var btn = el("button", "btn", "Suggest a Change");
       btn.addEventListener("click", function () { openSuggestFormulaModal(d); });
-      row.appendChild(btn);
-      wrap.appendChild(row);
+      tr.lastElementChild.appendChild(btn);
+      wrap.appendChild(tr);
     });
   }
   function renderDfMySuggestions() {
@@ -6918,7 +6940,8 @@
     dfMySuggestions.slice().reverse().forEach(function (r) {
       var row = el("div", "aq-row");
       var main = el("div", "aq-main");
-      main.appendChild(el("div", "aq-title", r.item_no + " &middot; " + r.item_name));
+      main.appendChild(el("div", "aq-title", r.item_no + " &middot; " + r.item_name +
+        (r.proposed_weight != null ? ' <span style="color:var(--ink-500);font-size:11px;">&middot; weight &rarr; ' + r.proposed_weight + '</span>' : "")));
       main.appendChild(el("div", "aq-sub", '<span>&#8220;' + r.comment + '&#8221;</span>'));
       row.appendChild(main);
       row.appendChild(el("div", "", r.status === "pending"
@@ -6934,6 +6957,9 @@
     document.getElementById("suggestFormulaTitle").textContent = d.item_no + " · " + d.name;
     document.getElementById("suggestFormulaCurrent").textContent = "Currently: " + d.formula_text;
     renderBranchEditorRows(document.getElementById("suggestFormulaBranchList"), d.branches);
+    document.getElementById("suggestFormulaWeight").value = "";
+    document.getElementById("suggestFormulaWeightCurrent").textContent =
+      d.kpi_weight_pct != null ? "(currently ≈ " + d.kpi_weight_pct + "% of department score)" : "";
     document.getElementById("suggestFormulaReason").value = "";
     document.getElementById("suggestFormulaOverlay").hidden = false;
   }
@@ -6948,6 +6974,12 @@
     if (!reason) { showToast("A reason is required", true); return; }
     var branches = collectBranchesFromEditor(document.getElementById("suggestFormulaBranchList"));
     if (!branches.length) { showToast("At least one branch is required", true); return; }
+    var weightRaw = document.getElementById("suggestFormulaWeight").value.trim();
+    var proposedWeight = null;
+    if (weightRaw !== "") {
+      proposedWeight = parseFloat(weightRaw);
+      if (!isFinite(proposedWeight) || proposedWeight <= 0) { showToast("Suggested weight must be a number greater than 0", true); return; }
+    }
     var email = passiveIdentity();
     if (!email) { showToast("Enter your acting email first", true); return; }
     try {
@@ -6955,6 +6987,7 @@
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           deliverable_definition_id: _suggestFormulaTarget.id, proposed_branches: branches,
+          proposed_weight: proposedWeight,
           comment: reason, actor_email: email, actor_name: passiveIdentity(),
         }),
       });
@@ -6979,20 +7012,38 @@
     });
   });
   document.getElementById("dcFilter").addEventListener("input", renderDcFormulas);
+  document.getElementById("dcDeptFilter").addEventListener("change", renderDcFormulas);
   document.getElementById("dcAddDeliverableBtn").addEventListener("click", function () { openAdminDefModal(null); });
+
+  function _populateDeptFilter(selectEl, items) {
+    var prev = selectEl.value;
+    var seen = {}, depts = [];
+    items.forEach(function (d) {
+      if (!seen[d.department_id]) { seen[d.department_id] = true; depts.push({ id: d.department_id, name: d.department, number: d.department_number }); }
+    });
+    depts.sort(function (a, b) { return (a.number || 0) - (b.number || 0); });
+    selectEl.innerHTML = '<option value="">All Departments</option>';
+    depts.forEach(function (dep) {
+      var o = document.createElement("option");
+      o.value = dep.id; o.textContent = deptLabel(dep.name, dep.number);
+      selectEl.appendChild(o);
+    });
+    if (depts.some(function (d) { return String(d.id) === prev; })) selectEl.value = prev;
+  }
 
   async function loadDeliverablesConfig() {
     var isFormulas = dcTab === "L0" || dcTab === "L1" || dcTab === "L0intl";
     document.getElementById("dcFormulasPanel").hidden = !isFormulas;
     document.getElementById("dcDepartmentsPanel").hidden = dcTab !== "departments";
     document.getElementById("dcHistoryPanel").hidden = dcTab !== "history";
-    document.getElementById("dcFilter").style.display = isFormulas ? "" : "none";
+    document.getElementById("dcFilterRow").style.display = isFormulas ? "" : "none";
     document.getElementById("dcAddDeliverableBtn").style.display = isFormulas ? "" : "none";
     if (isFormulas) {
       var stage = dcTab === "L1" ? "L1" : "L0";
       var qs = "stage=" + stage + "&include_inactive=true" +
         (dcTab === "L0intl" ? "&international=true" : (dcTab === "L0" ? "&international=false" : ""));
       dcItems = await api("/api/deliverables/admin/definitions?" + qs);
+      _populateDeptFilter(document.getElementById("dcDeptFilter"), dcItems);
       renderDcFormulas();
     } else if (dcTab === "departments") {
       dcDepartments = await api("/api/departments?include_inactive=true");
@@ -7010,36 +7061,38 @@
   }
   function renderDcFormulas() {
     var filterText = document.getElementById("dcFilter").value.trim().toLowerCase();
+    var deptFilter = document.getElementById("dcDeptFilter").value;
     var wrap = document.getElementById("dcFormulasBody");
     wrap.innerHTML = "";
     var filtered = dcItems.filter(function (d) {
+      if (deptFilter && String(d.department_id) !== deptFilter) return false;
       return !filterText || (d.item_no + " " + d.name).toLowerCase().indexOf(filterText) !== -1;
     });
-    if (!filtered.length) { wrap.appendChild(el("div", "empty-state", "No matching items.")); return; }
+    if (!filtered.length) {
+      wrap.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--ink-500);padding:24px;">No matching items.</td></tr>';
+      return;
+    }
     filtered = filtered.slice().sort(function (a, b) {
       if (a.department_number !== b.department_number) return (a.department_number || 0) - (b.department_number || 0);
       if (a.department !== b.department) return a.department < b.department ? -1 : 1;
       return _itemSortKey(a.item_no) < _itemSortKey(b.item_no) ? -1 : 1;
     });
-    var lastDept = null;
     filtered.forEach(function (d) {
-      if (d.department !== lastDept) {
-        wrap.appendChild(el("div", "deliv-subheader", deptLabel(d.department, d.department_number)));
-        lastDept = d.department;
-      }
-      var row = el("div", "deliv-row");
-      if (!d.active) row.style.opacity = "0.5";
-      var body = el("div", "deliv-body");
-      body.appendChild(el("div", "deliv-name", d.item_no + " &middot; " + d.name +
-        (d.is_customized ? ' <span style="color:var(--ink-500);font-size:11px;">(customized)</span>' : "") +
-        (!d.active ? ' <span style="color:var(--crit);font-size:11px;">(inactive)</span>' : "") +
-        (d.kpi_weight_pct != null ? ' <span style="color:var(--ink-500);font-size:11px;">&middot; weight &asymp;' + d.kpi_weight_pct + '%</span>' : "")));
-      body.appendChild(el("div", "", '<span style="font-size:11.5px;color:var(--ink-500);">' + d.formula_text + '</span>'));
-      row.appendChild(body);
+      var tr = document.createElement("tr");
+      if (!d.active) tr.style.opacity = "0.55";
+      tr.innerHTML =
+        "<td>" + d.item_no + "</td>" +
+        "<td>" + deptLabel(d.department, d.department_number) + "</td>" +
+        "<td>" + d.name +
+          (d.is_customized ? ' <span style="color:var(--ink-500);font-size:11px;">(customized)</span>' : "") +
+          (!d.active ? ' <span style="color:var(--crit);font-size:11px;">(inactive)</span>' : "") + "</td>" +
+        '<td><span style="font-size:11.5px;color:var(--ink-500);">' + d.formula_text + "</span></td>" +
+        '<td class="dc-weight-cell">' + (d.kpi_weight_pct != null ? "&asymp; " + d.kpi_weight_pct + "%" : "&mdash;") + "</td>" +
+        "<td></td>";
       var btn = el("button", "btn", "Edit");
       btn.addEventListener("click", function () { openAdminDefModal(d); });
-      row.appendChild(btn);
-      wrap.appendChild(row);
+      tr.lastElementChild.appendChild(btn);
+      wrap.appendChild(tr);
     });
   }
 
@@ -7400,13 +7453,17 @@
       });
     });
     formulaReqs.forEach(function (r) {
+      var fields = [
+        ["Department", r.department], ["Currently", r.current_summary],
+        ["Proposed change", r.proposed_formula_text],
+      ];
+      if (r.proposed_weight != null) {
+        fields.push(["Scoring weight", (r.current_weight != null ? r.current_weight : "1 (default)") + " &rarr; " + r.proposed_weight]);
+      }
+      fields.push(["Reason", r.comment], ["Decision note", r.decision_comment]);
       rows.push({
         type: "Formula Change", title: r.item_no + " &middot; " + r.item_name, status: r.status, at: r.requested_at,
-        fields: [
-          ["Department", r.department], ["Currently", r.current_summary],
-          ["Proposed change", r.proposed_formula_text], ["Reason", r.comment],
-          ["Decision note", r.decision_comment],
-        ],
+        fields: fields,
       });
     });
     rows.sort(function (a, b) { return new Date(b.at) - new Date(a.at); });

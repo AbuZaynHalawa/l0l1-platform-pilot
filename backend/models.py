@@ -461,6 +461,10 @@ class FormulaChangeRequest(Base):
     # later edits, so a stale suggestion still reads sensibly in history.
     current_summary = Column(Text, nullable=True)
     proposed_branches = Column(JSON, nullable=False)  # same shape the admin branch-editor submits
+    # [Deliverable weights]: optional -- a suggestion can carry a weight
+    # change alongside (or instead of) a formula change. None means "no
+    # weight change proposed", not "weight 0" (0 is rejected at the API).
+    proposed_weight = Column(Float, nullable=True)
     comment = Column(Text, nullable=False)  # the rationale ("needs more time because...")
     status = Column(String, default="pending")  # pending | approved | rejected
     requested_at = Column(DateTime, default=datetime.utcnow)

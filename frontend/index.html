@@ -544,10 +544,24 @@
         <button class="chip" data-dc="departments">Departments</button>
         <button class="chip" data-dc="history">Change History</button>
       </div>
-      <input type="text" id="dcFilter" placeholder="Filter by item number or name&#8230;"
-        style="width:100%;padding:8px 12px;border-radius:9px;border:1px solid var(--line);background:var(--surface-sunken);color:var(--ink-900);font-size:13px;margin-bottom:14px;box-sizing:border-box;" />
+      <div class="fp-add-row" id="dcFilterRow" style="margin-bottom:14px;">
+        <input type="text" id="dcFilter" placeholder="Filter by item number or name&#8230;" style="flex:1;min-width:220px;" />
+        <select id="dcDeptFilter"><option value="">All Departments</option></select>
+      </div>
       <div class="card table-card" id="dcFormulasPanel">
-        <div id="dcFormulasBody"></div>
+        <div class="fp-table-scroll">
+          <table class="fp-table wrap-table">
+            <thead><tr>
+              <th style="width:70px;">Item No</th>
+              <th style="width:190px;">Department</th>
+              <th>Name</th>
+              <th>Formula</th>
+              <th style="width:100px;">Weight</th>
+              <th style="width:70px;"></th>
+            </tr></thead>
+            <tbody id="dcFormulasBody"></tbody>
+          </table>
+        </div>
       </div>
       <div class="card table-card" id="dcDepartmentsPanel" hidden>
         <table class="fp-table">
@@ -880,8 +894,8 @@
           <h1>Deliverables Catalog</h1>
           <p class="sub">Every deliverable's due-date formula and scoring weight, in plain English. See something
             that should be different &#8212; e.g. "M3+5 days" should really be "M3+10 days" because it needs more
-            time? Suggest a change with your reasoning; an Admin reviews it. (Scoring weight is admin-only to
-            change &#8212; see Deliverables Configuration.)</p>
+            time, or an item's weight should be higher relative to its siblings? Suggest a change with your
+            reasoning; an Admin reviews it.</p>
         </div>
       </div>
       <div class="filter-chips" id="dfStageToggle" style="margin-bottom:12px;">
@@ -889,10 +903,24 @@
         <button class="chip" data-stage="L1">L1 Projects</button>
         <button class="chip" data-stage="L0intl">L0 International</button>
       </div>
-      <input type="text" id="dfFilter" placeholder="Filter by item number or name&#8230;"
-        style="width:100%;padding:8px 12px;border-radius:9px;border:1px solid var(--line);background:var(--surface-sunken);color:var(--ink-900);font-size:13px;margin-bottom:14px;box-sizing:border-box;" />
+      <div class="fp-add-row" id="dfFilterRow" style="margin-bottom:14px;">
+        <input type="text" id="dfFilter" placeholder="Filter by item number or name&#8230;" style="flex:1;min-width:220px;" />
+        <select id="dfDeptFilter"><option value="">All Departments</option></select>
+      </div>
       <div class="card table-card">
-        <div id="dfItemList"></div>
+        <div class="fp-table-scroll">
+          <table class="fp-table wrap-table">
+            <thead><tr>
+              <th style="width:70px;">Item No</th>
+              <th style="width:190px;">Department</th>
+              <th>Name</th>
+              <th>Formula</th>
+              <th style="width:100px;">Weight</th>
+              <th style="width:130px;"></th>
+            </tr></thead>
+            <tbody id="dfItemList"></tbody>
+          </table>
+        </div>
       </div>
       <div class="card table-card" style="margin-top:20px;">
         <div class="section-title"><span>My Suggestions</span></div>
@@ -1440,7 +1468,7 @@
   <div class="modal-card" style="max-width:720px;">
     <div class="modal-head">
       <div>
-        <div class="eyebrow">Suggest a Formula Change</div>
+        <div class="eyebrow">Suggest a Change</div>
         <h2 id="suggestFormulaTitle"></h2>
         <div class="sub" id="suggestFormulaCurrent" style="margin-top:2px;"></div>
       </div>
@@ -1449,6 +1477,10 @@
     <div class="modal-body">
       <div id="suggestFormulaBranchList"></div>
       <button class="btn" id="suggestFormulaAddBranch" style="font-size:11px;padding:4px 10px;margin-top:8px;">+ Add Branch</button>
+      <div style="margin-top:16px;">
+        <label class="fe-label">Suggested Scoring Weight <span id="suggestFormulaWeightCurrent" class="muted" style="font-weight:400;"></span></label>
+        <input type="number" id="suggestFormulaWeight" min="0.01" step="0.1" placeholder="Leave blank to keep the current weight" style="width:100%;padding:8px 12px;border-radius:9px;border:1px solid var(--line);background:var(--surface-sunken);color:var(--ink-900);font-size:13px;box-sizing:border-box;font-family:inherit;" />
+      </div>
       <label class="fe-label" style="display:block;margin-top:16px;">Reason (required)</label>
       <textarea id="suggestFormulaReason" rows="3" placeholder="e.g. This needs more time to complete because..."
         style="width:100%;padding:8px 12px;border-radius:9px;border:1px solid var(--line);background:var(--surface-sunken);color:var(--ink-900);font-size:13px;box-sizing:border-box;font-family:inherit;"></textarea>

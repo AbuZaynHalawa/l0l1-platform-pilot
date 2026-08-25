@@ -554,7 +554,7 @@ def list_formulas(stage: str | None = None, international: bool | None = None,
     defs = q.order_by(models.Department.number, models.DeliverableDefinition.item_no).all()
     return [
         {"id": d.id, "stage": d.stage.value, "item_no": d.item_no, "name": d.name,
-         "department": d.department.name, "department_number": d.department.number,
+         "department_id": d.department_id, "department": d.department.name, "department_number": d.department.number,
          "is_international": bool(d.department.is_international),
          "branches": [_branch_out(b) for b in sorted(d.branches, key=lambda b: b.branch_order)],
          "formula_text": rules.describe_formula_branches(d),
@@ -572,6 +572,7 @@ def _serialize_formula_request(r: "models.FormulaChangeRequest") -> dict:
         "requested_by_email": r.requested_by_email, "requested_by_name": r.requested_by_name,
         "current_summary": r.current_summary, "proposed_branches": r.proposed_branches,
         "proposed_formula_text": rules.describe_proposed_branches(r.proposed_branches),
+        "current_weight": d.kpi_weight if d else None, "proposed_weight": r.proposed_weight,
         "comment": r.comment, "status": r.status,
         "requested_at": r.requested_at, "decided_at": r.decided_at,
         "decided_by_email": r.decided_by_email, "decision_comment": r.decision_comment,
@@ -581,6 +582,7 @@ def _serialize_formula_request(r: "models.FormulaChangeRequest") -> dict:
 class FormulaChangeRequestCreate(BaseModel):
     deliverable_definition_id: int
     proposed_branches: list[BranchIn]
+    proposed_weight: float | None = None
     comment: str
     actor_name: str | None = None
     actor_email: str
@@ -594,6 +596,8 @@ def create_formula_change_request(payload: FormulaChangeRequestCreate, db: Sessi
         raise HTTPException(400, "Email is required")
     if not comment:
         raise HTTPException(400, "A reason is required")
+    if payload.proposed_weight is not None and payload.proposed_weight <= 0:
+        raise HTTPException(400, "Suggested weight must be greater than 0")
     d = db.get(models.DeliverableDefinition, payload.deliverable_definition_id)
     if not d:
         raise HTTPException(404, "Deliverable not found")
@@ -605,6 +609,7 @@ def create_formula_change_request(payload: FormulaChangeRequestCreate, db: Sessi
         deliverable_definition_id=d.id, requested_by_email=user.email, requested_by_name=user.name,
         current_summary=rules.describe_formula_branches(d),
         proposed_branches=[b.model_dump() for b in payload.proposed_branches],
+        proposed_weight=payload.proposed_weight,
         comment=comment,
     )
     db.add(req)
@@ -649,6 +654,8 @@ def decide_formula_change_request(request_id: int, payload: FormulaChangeDecisio
         _validate_branches(branch_payloads)
         before = _definition_snapshot(d)
         _apply_branches(db, d, branch_payloads)
+        if req.proposed_weight is not None:
+            d.kpi_weight = req.proposed_weight
         d.is_customized = True
         after = _definition_snapshot(d)
         log = _log_definition_change(
