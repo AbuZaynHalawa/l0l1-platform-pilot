@@ -35,6 +35,7 @@
            nav rather than the admin-only group. -->
       <button class="nav-item" id="bmTriageNavItem" data-view="bmtriage"><span class="ic">&#9989;</span> BM Triage Status <span class="nav-badge" id="bmTriageBadge"></span></button>
       <button class="nav-item" data-view="performance"><span class="ic">&#128200;</span> Performance</button>
+      <button class="nav-item" data-view="deliverableformulas"><span class="ic">&#128220;</span> Deliverable Formulas</button>
       <button class="nav-item" data-view="support"><span class="ic">&#128172;</span> Q/A - Ask the Team</button>
     </nav>
 
@@ -44,6 +45,7 @@
       <button class="nav-item" data-view="reports"><span class="ic">&#128202;</span> Reports</button>
       <button class="nav-item" data-view="scores"><span class="ic">&#127942;</span> Top Achievers</button>
       <button class="nav-item" data-view="focalpoints"><span class="ic">&#128222;</span> Focal Points</button>
+      <button class="nav-item" data-view="deliverablesconfig"><span class="ic">&#9881;</span> Deliverables Configuration</button>
       <button class="nav-item" id="followupNavItem" data-view="followup"><span class="ic">&#128276;</span> Follow Up <span class="nav-badge" id="followupBadge"></span></button>
       <!-- Item 151: every Ask the Team thread, in one dedicated admin view --
            the asker-facing "Ask a Question" tab keeps its own My Requests
@@ -521,6 +523,51 @@
       </div>
     </section>
 
+    <!-- DELIVERABLES CONFIGURATION (admin-only) -->
+    <section class="view" id="view-deliverablesconfig" hidden>
+      <div class="view-head">
+        <div>
+          <div class="eyebrow">Admin</div>
+          <h1>Deliverables Configuration</h1>
+          <p class="sub">Formulas, descriptions, and departments for every deliverable &#8212; changes take effect immediately, with a full history and a one-click restore to default.</p>
+        </div>
+        <div class="report-actions">
+          <button class="btn primary" id="dcAddDeliverableBtn">+ Add Deliverable</button>
+        </div>
+      </div>
+      <div class="subtab-row" id="dcSubTabs">
+        <button class="chip active" data-dc="L0">L0 Formulas</button>
+        <button class="chip" data-dc="L1">L1 Formulas</button>
+        <button class="chip" data-dc="L0intl">L0 International Formulas</button>
+        <button class="chip" data-dc="departments">Departments</button>
+        <button class="chip" data-dc="history">Change History</button>
+      </div>
+      <input type="text" id="dcFilter" placeholder="Filter by item number or name&#8230;"
+        style="width:100%;padding:8px 12px;border-radius:9px;border:1px solid var(--line);background:var(--surface-sunken);color:var(--ink-900);font-size:13px;margin-bottom:14px;box-sizing:border-box;" />
+      <div class="card table-card" id="dcFormulasPanel">
+        <div id="dcFormulasBody"></div>
+      </div>
+      <div class="card table-card" id="dcDepartmentsPanel" hidden>
+        <table class="fp-table">
+          <thead><tr><th>Name</th><th style="width:70px;">Order</th><th style="width:70px;">Number</th><th style="width:90px;">International</th><th style="width:80px;">Active</th><th></th></tr></thead>
+          <tbody id="dcDepartmentsBody"></tbody>
+          <tfoot>
+            <tr class="fp-add-tr">
+              <td><input type="text" id="dcDeptNewName" placeholder="Department name" /></td>
+              <td><input type="number" id="dcDeptNewOrder" value="0" style="width:60px;" /></td>
+              <td><input type="number" id="dcDeptNewNumber" style="width:60px;" /></td>
+              <td><input type="checkbox" id="dcDeptNewIntl" /></td>
+              <td></td>
+              <td><button class="btn primary" id="dcDeptAddBtn">Add</button></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div class="card table-card" id="dcHistoryPanel" hidden>
+        <div id="dcHistoryBody"></div>
+      </div>
+    </section>
+
     <!-- FOLLOW UP (admin-only: due/overdue bulk reminders + reassignment approvals) -->
     <section class="view" id="view-followup" hidden>
       <div class="view-head">
@@ -575,6 +622,15 @@
           </div>
           <div id="groupAddReqList"></div>
           <div id="groupAddReqHistory" hidden></div>
+        </div>
+
+        <div class="card table-card fu-compact">
+          <div class="section-title">
+            <span>Formula Change Requests <span class="cnt" id="formulaReqCount"></span></span>
+            <button class="btn" id="formulaReqHistoryToggle" style="font-size:11px;padding:4px 10px;">Show History</button>
+          </div>
+          <div id="formulaReqList"></div>
+          <div id="formulaReqHistory" hidden></div>
         </div>
       </div>
 
@@ -777,6 +833,33 @@
             <tbody id="perfTriageBody"></tbody>
           </table>
         </div>
+      </div>
+    </section>
+
+    <!-- DELIVERABLE FORMULAS (everyone: browse read-only, suggest a change) -->
+    <section class="view" id="view-deliverableformulas" hidden>
+      <div class="view-head">
+        <div>
+          <div class="eyebrow">Reference</div>
+          <h1>Deliverable Formulas</h1>
+          <p class="sub">Every deliverable's due-date formula, in plain English. See something that should be
+            different &#8212; e.g. "M3+5 days" should really be "M3+10 days" because it needs more time? Suggest a
+            change with your reasoning; an Admin reviews it.</p>
+        </div>
+      </div>
+      <div class="filter-chips" id="dfStageToggle" style="margin-bottom:12px;">
+        <button class="chip active" data-stage="L0">L0 Tenders</button>
+        <button class="chip" data-stage="L1">L1 Projects</button>
+        <button class="chip" data-stage="L0intl">L0 International</button>
+      </div>
+      <input type="text" id="dfFilter" placeholder="Filter by item number or name&#8230;"
+        style="width:100%;padding:8px 12px;border-radius:9px;border:1px solid var(--line);background:var(--surface-sunken);color:var(--ink-900);font-size:13px;margin-bottom:14px;box-sizing:border-box;" />
+      <div class="card table-card">
+        <div id="dfItemList"></div>
+      </div>
+      <div class="card table-card" style="margin-top:20px;">
+        <div class="section-title"><span>My Suggestions</span></div>
+        <div id="dfMySuggestions"></div>
       </div>
     </section>
 
@@ -1065,6 +1148,84 @@
   </div>
 </div>
 
+<!-- Admin: add/edit a deliverable definition, including its full formula
+     branch set -- shared branch-editor markup convention (each row: order,
+     condition type [+ N-days input when tender_window_lt_days], anchor
+     type [+ predecessor input when "predecessor", + workday-duration
+     checkbox when announcement/site_visit], offset days/direction, tie
+     break, remove button) is reused verbatim by the Owner/SME suggestion
+     modal below -- see renderBranchEditorRows()/collectBranchesFromEditor(). -->
+<div class="modal-overlay" id="adminDefModalOverlay" hidden>
+  <div class="modal-card" style="max-width:720px;">
+    <div class="modal-head">
+      <div>
+        <div class="eyebrow" id="adminDefEyebrow">Deliverables Configuration</div>
+        <h2 id="adminDefTitle">Edit Deliverable</h2>
+      </div>
+      <button class="modal-close" id="adminDefClose">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <div id="adminDefFields" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+        <div><label class="fe-label">Item No</label><input type="text" id="adminDefItemNo" style="width:100%;" /></div>
+        <div><label class="fe-label">Department</label><select id="adminDefDept" style="width:100%;"></select></div>
+        <div style="grid-column:1/-1;"><label class="fe-label">Name</label><input type="text" id="adminDefName" style="width:100%;" /></div>
+        <div><label class="fe-label">Type</label>
+          <select id="adminDefType" style="width:100%;">
+            <option value="date_driven">Date-driven</option>
+            <option value="library">Library</option>
+            <option value="on_request">On Request</option>
+          </select>
+        </div>
+        <div><label class="fe-label"><input type="checkbox" id="adminDefMilestone" /> Milestone</label>
+          <input type="text" id="adminDefMilestoneCode" placeholder="e.g. M3" style="width:100%;margin-top:4px;" />
+        </div>
+      </div>
+      <div id="adminDefBranchSection">
+        <div class="section-title" style="padding:0 0 8px;"><span>Formula</span>
+          <button class="btn" id="adminDefAddBranch" style="font-size:11px;padding:4px 10px;">+ Add Branch</button>
+        </div>
+        <div id="adminDefBranchList"></div>
+      </div>
+      <div class="modal-actions-row" style="justify-content:space-between;">
+        <div>
+          <button class="btn ghost-crit" id="adminDefRestoreBtn">Restore to Default</button>
+          <button class="btn ghost-crit" id="adminDefDeactivateBtn">Deactivate</button>
+        </div>
+        <div>
+          <button class="btn" id="adminDefCancel">Cancel</button>
+          <button class="btn primary" id="adminDefSave">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Owner/SME: suggest a formula change, with a required reason -- same
+     branch-editor component as the admin modal above, pre-filled with the
+     item's current branches. -->
+<div class="modal-overlay" id="suggestFormulaOverlay" hidden>
+  <div class="modal-card" style="max-width:720px;">
+    <div class="modal-head">
+      <div>
+        <div class="eyebrow">Suggest a Formula Change</div>
+        <h2 id="suggestFormulaTitle"></h2>
+        <div class="sub" id="suggestFormulaCurrent" style="margin-top:2px;"></div>
+      </div>
+      <button class="modal-close" id="suggestFormulaClose">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <div id="suggestFormulaBranchList"></div>
+      <button class="btn" id="suggestFormulaAddBranch" style="font-size:11px;padding:4px 10px;margin-top:8px;">+ Add Branch</button>
+      <label class="fe-label" style="display:block;margin-top:16px;">Reason (required)</label>
+      <textarea id="suggestFormulaReason" rows="3" placeholder="e.g. This needs more time to complete because..."
+        style="width:100%;padding:8px 12px;border-radius:9px;border:1px solid var(--line);background:var(--surface-sunken);color:var(--ink-900);font-size:13px;box-sizing:border-box;font-family:inherit;"></textarea>
+      <div class="modal-actions-row">
+        <button class="btn" id="suggestFormulaCancel">Cancel</button>
+        <button class="btn primary" id="suggestFormulaSubmit">Submit Suggestion</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- Custom confirm dialog -- replaces native confirm() everywhere for visual
      consistency with the rest of the app; driven by customConfirm() in

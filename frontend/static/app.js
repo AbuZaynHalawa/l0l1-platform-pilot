@@ -333,8 +333,9 @@
     performance: loadPerformance, reports: loadReports, create: loadCreateOptions, gantt: loadGantt,
     journey: loadJourney, scores: loadScores, focalpoints: loadFocalPoints, followup: loadFollowUp,
     support: loadSupport, bmtriage: loadBmTriageStatus, tickets: loadTickets,
+    deliverableformulas: loadDeliverableFormulas, deliverablesconfig: loadDeliverablesConfig,
   };
-  var ADMIN_ONLY_VIEWS = ["create", "reports", "scores", "focalpoints", "followup", "tickets"];
+  var ADMIN_ONLY_VIEWS = ["create", "reports", "scores", "focalpoints", "followup", "tickets", "deliverablesconfig"];
   // Item 110: BM Triage Status isn't strictly admin-only — a Bid Manager
   // acting as themselves (Owner role, since that's the role they'd pick to
   // represent themselves elsewhere in the app) can see it too, scoped
@@ -1235,7 +1236,9 @@
         var smeNoms = await api("/api/departments/sme-nominations?status=pending");
         var bvReqs = await api("/api/projects/bid-value-requests?status=pending");
         var groupReqs = await api("/api/departments/user-add-requests?status=pending");
-        document.getElementById("followupBadge").textContent = (reassigns.length + dueDateReqs.length + smeNoms.length + bvReqs.length + groupReqs.length) || "";
+        var formulaReqs = await api("/api/deliverables/config/formula-change-requests?status=pending");
+        document.getElementById("followupBadge").textContent =
+          (reassigns.length + dueDateReqs.length + smeNoms.length + bvReqs.length + groupReqs.length + formulaReqs.length) || "";
       } catch (e) {}
     } else {
       document.getElementById("followupBadge").textContent = "";
@@ -5851,6 +5854,56 @@
       });
     }
 
+    var formulaReqs = await api("/api/deliverables/config/formula-change-requests?status=pending");
+    var formulaReqWrap = document.getElementById("formulaReqList");
+    document.getElementById("formulaReqCount").textContent = formulaReqs.length || "";
+    formulaReqWrap.innerHTML = "";
+    if (!formulaReqs.length) {
+      formulaReqWrap.appendChild(el("div", "empty-state", "No pending formula change requests."));
+    } else {
+      formulaReqs.forEach(function (r) {
+        var row = el("div", "aq-row");
+        var main = el("div", "aq-main");
+        main.appendChild(el("div", "aq-title", r.item_no + " &middot; " + r.item_name));
+        main.appendChild(el("div", "aq-sub",
+          '<span>' + (r.requested_by_name ? r.requested_by_name + " (" + r.requested_by_email + ")" : r.requested_by_email) + '</span>' +
+          '<span class="sep">&middot;</span><span>Currently: ' + r.current_summary + '</span>' +
+          '<span class="sep">&middot;</span><span>&#8220;' + r.comment + '&#8221;</span>'));
+        row.appendChild(main);
+        var actions = el("div", "deliv-actions");
+        var appr = el("button", "btn primary", "Approve");
+        appr.addEventListener("click", async function () {
+          await api("/api/deliverables/config/formula-change-requests/" + r.id + "/decide", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ approved: true, comment: "", actor_role: CURRENT_ROLE, actor_email: actingEmail(), actor_name: passiveIdentity() }),
+          });
+          showToast("Formula updated for " + r.item_no);
+          loadFollowUp();
+        });
+        var rej = el("button", "btn ghost-crit", "Reject");
+        rej.addEventListener("click", function () {
+          openChecklistEditModal({
+            type: "text",
+            title: "Decline Suggestion",
+            eyebrow: "Reason for declining the " + r.item_no + " formula change (optional)",
+            selected: "",
+            onSave: async function (comment) {
+              closeChecklistEditModal();
+              await api("/api/deliverables/config/formula-change-requests/" + r.id + "/decide", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ approved: false, comment: comment, actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
+              });
+              showToast("Suggestion declined");
+              loadFollowUp();
+            },
+          });
+        });
+        actions.appendChild(appr); actions.appendChild(rej);
+        row.appendChild(actions);
+        formulaReqWrap.appendChild(row);
+      });
+    }
+
     // Item [follow-up redesign]: was one flat, unsorted, ungrouped list --
     // confusing once more than a handful of items are overdue at once. Now
     // grouped by Department (collapsed accordion, so the page opens calm
@@ -6078,6 +6131,24 @@
       container.appendChild(row);
     });
   });
+  _setupHistoryToggle("formulaReqHistoryToggle", "formulaReqHistory", async function (container) {
+    var all = await api("/api/deliverables/config/formula-change-requests?status=");
+    var decided = all.filter(function (r) { return r.status !== "pending"; });
+    container.innerHTML = "";
+    if (!decided.length) { container.appendChild(el("div", "empty-state", "No decided requests yet.")); return; }
+    decided.forEach(function (r) {
+      var row = el("div", "aq-row");
+      var main = el("div", "aq-main");
+      main.appendChild(el("div", "aq-title", r.item_no + " &middot; " + r.item_name));
+      main.appendChild(el("div", "aq-sub",
+        '<span>' + (r.requested_by_name || r.requested_by_email) + '</span>' +
+        (r.decided_at ? '<span class="sep">&middot;</span><span>' + fmtDate(r.decided_at.slice(0, 10)) + '</span>' : "") +
+        (r.decision_comment ? '<span class="sep">&middot;</span><span>&#8220;' + r.decision_comment + '&#8221;</span>' : "")));
+      row.appendChild(main);
+      row.appendChild(el("div", "", _historyStatusPill(r.status)));
+      container.appendChild(row);
+    });
+  });
   _setupHistoryToggle("bidValueReqHistoryToggle", "bidValueReqHistory", async function (container) {
     var all = await api("/api/projects/bid-value-requests?status=");
     var decided = all.filter(function (r) { return r.status !== "pending"; });
@@ -6095,6 +6166,529 @@
       container.appendChild(row);
     });
   });
+
+  /* ================= DELIVERABLES CONFIGURATION (branch editor + admin/SME pages) ================= */
+  // Shared branch-editor widget, reused verbatim by the admin definition
+  // modal and the Owner/SME suggestion modal -- see renderBranchEditorRows()/
+  // collectBranchesFromEditor() below and their two call sites.
+  var _FE_CONDITION_TYPES = [
+    { value: "always", label: "Always" },
+    { value: "scope_contains_pbu", label: "If PBU scope" },
+    { value: "site_visit_unset", label: "If no Site Visit Date" },
+    { value: "tender_window_lt_days", label: "If tender window < N days" },
+  ];
+  var _FE_ANCHOR_TYPES = [
+    { value: "announcement", label: "Announcement (M1)" },
+    { value: "bsd", label: "BSD" },
+    { value: "site_visit", label: "Site Visit Date" },
+    { value: "pre_bid", label: "Pre-bid Deadline" },
+    { value: "predecessor", label: "Predecessor item" },
+  ];
+  var _FE_TIE_BREAKS = [
+    { value: "", label: "No tie-break" },
+    { value: "earliest_of_siblings", label: "Earliest of siblings" },
+    { value: "latest_of_siblings", label: "Latest of siblings" },
+  ];
+  function _feBuildSelect(options, selected) {
+    var sel = document.createElement("select");
+    options.forEach(function (o) {
+      var opt = document.createElement("option");
+      opt.value = o.value; opt.textContent = o.label;
+      if (o.value === (selected || "")) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    return sel;
+  }
+  function _feBuildBranchRow(branch) {
+    branch = branch || { condition_type: "always", anchor_type: "predecessor", offset_days: 0, offset_direction: "after" };
+    var row = el("div", "fe-branch-row");
+
+    var condSel = _feBuildSelect(_FE_CONDITION_TYPES, branch.condition_type);
+    condSel.className = "fe-condition-type";
+    row.appendChild(condSel);
+
+    var condVal = document.createElement("input");
+    condVal.type = "number"; condVal.className = "fe-condition-value"; condVal.placeholder = "days";
+    condVal.value = branch.condition_value || "";
+    condVal.style.display = branch.condition_type === "tender_window_lt_days" ? "" : "none";
+    row.appendChild(condVal);
+
+    var anchorSel = _feBuildSelect(_FE_ANCHOR_TYPES, branch.anchor_type);
+    anchorSel.className = "fe-anchor-type";
+    row.appendChild(anchorSel);
+
+    var predInput = document.createElement("input");
+    predInput.type = "text"; predInput.className = "fe-predecessor"; predInput.placeholder = "item no e.g. 1.1";
+    predInput.value = branch.predecessor_item_no || "";
+    predInput.style.display = branch.anchor_type === "predecessor" ? "" : "none";
+    row.appendChild(predInput);
+
+    var offsetInput = document.createElement("input");
+    offsetInput.type = "number"; offsetInput.className = "fe-offset-days"; offsetInput.value = branch.offset_days || 0;
+    row.appendChild(offsetInput);
+
+    var dirSel = _feBuildSelect([{ value: "after", label: "days after" }, { value: "before", label: "days before" }], branch.offset_direction);
+    dirSel.className = "fe-offset-direction";
+    row.appendChild(dirSel);
+
+    var wdLabel = el("label", "", "");
+    wdLabel.style.fontSize = "11.5px"; wdLabel.style.display = (branch.anchor_type === "announcement" || branch.anchor_type === "site_visit") ? "inline-flex" : "none";
+    wdLabel.style.alignItems = "center"; wdLabel.style.gap = "3px"; wdLabel.title = "Workday-duration math instead of a simple calendar-day add";
+    var wdCheck = document.createElement("input");
+    wdCheck.type = "checkbox"; wdCheck.className = "fe-workday-duration"; wdCheck.checked = !!branch.workday_duration;
+    wdLabel.appendChild(wdCheck);
+    wdLabel.appendChild(document.createTextNode("workdays"));
+    row.appendChild(wdLabel);
+
+    var tieSel = _feBuildSelect(_FE_TIE_BREAKS, branch.tie_break || "");
+    tieSel.className = "fe-tie-break";
+    tieSel.title = "Branches sharing a tie-break race each other -- the earliest/latest one that resolves wins, instead of a data condition";
+    row.appendChild(tieSel);
+
+    var removeBtn = el("button", "btn ghost-crit fe-remove-branch", "&#10005;");
+    removeBtn.type = "button";
+    removeBtn.addEventListener("click", function () { row.remove(); });
+    row.appendChild(removeBtn);
+
+    condSel.addEventListener("change", function () {
+      condVal.style.display = condSel.value === "tender_window_lt_days" ? "" : "none";
+    });
+    anchorSel.addEventListener("change", function () {
+      predInput.style.display = anchorSel.value === "predecessor" ? "" : "none";
+      wdLabel.style.display = (anchorSel.value === "announcement" || anchorSel.value === "site_visit") ? "inline-flex" : "none";
+    });
+
+    return row;
+  }
+  function renderBranchEditorRows(container, branches) {
+    container.innerHTML = "";
+    (branches && branches.length ? branches : [null]).forEach(function (b) {
+      container.appendChild(_feBuildBranchRow(b));
+    });
+  }
+  function collectBranchesFromEditor(container) {
+    var rows = Array.from(container.querySelectorAll(".fe-branch-row"));
+    return rows.map(function (row, idx) {
+      var conditionType = row.querySelector(".fe-condition-type").value;
+      var conditionValueRaw = row.querySelector(".fe-condition-value").value;
+      return {
+        branch_order: idx,
+        condition_type: conditionType,
+        condition_value: conditionType === "tender_window_lt_days" ? (parseInt(conditionValueRaw, 10) || null) : null,
+        anchor_type: row.querySelector(".fe-anchor-type").value,
+        predecessor_item_no: row.querySelector(".fe-predecessor").value.trim() || null,
+        offset_days: parseInt(row.querySelector(".fe-offset-days").value, 10) || 0,
+        offset_direction: row.querySelector(".fe-offset-direction").value,
+        workday_duration: row.querySelector(".fe-workday-duration").checked,
+        tie_break: row.querySelector(".fe-tie-break").value || null,
+      };
+    });
+  }
+
+  // --- Non-admin "Deliverable Formulas": browse + suggest a change ---
+  var dfStage = "L0", dfItems = [], dfMySuggestions = [];
+  async function loadDeliverableFormulas() {
+    document.querySelectorAll("#dfStageToggle .chip").forEach(function (b) { b.classList.toggle("active", b.dataset.stage === dfStage); });
+    var qs = "stage=" + (dfStage === "L0intl" ? "L0" : dfStage) +
+      (dfStage === "L0intl" ? "&international=true" : (dfStage === "L0" ? "&international=false" : ""));
+    dfItems = await api("/api/deliverables/config/formulas?" + qs);
+    renderDfItems();
+    var email = passiveIdentity();
+    dfMySuggestions = email
+      ? await api("/api/deliverables/config/formula-change-requests?status=&requested_by_email=" + encodeURIComponent(email))
+      : [];
+    renderDfMySuggestions();
+  }
+  document.querySelectorAll("#dfStageToggle .chip").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      if (btn.dataset.stage === dfStage) return;
+      dfStage = btn.dataset.stage;
+      loadDeliverableFormulas();
+    });
+  });
+  document.getElementById("dfFilter").addEventListener("input", renderDfItems);
+  function renderDfItems() {
+    var filterText = document.getElementById("dfFilter").value.trim().toLowerCase();
+    var wrap = document.getElementById("dfItemList");
+    wrap.innerHTML = "";
+    var filtered = dfItems.filter(function (d) {
+      return !filterText || (d.item_no + " " + d.name).toLowerCase().indexOf(filterText) !== -1;
+    });
+    if (!filtered.length) { wrap.appendChild(el("div", "empty-state", "No matching items.")); return; }
+    filtered = filtered.slice().sort(function (a, b) {
+      if (a.department_number !== b.department_number) return (a.department_number || 0) - (b.department_number || 0);
+      if (a.department !== b.department) return a.department < b.department ? -1 : 1;
+      return _itemSortKey(a.item_no) < _itemSortKey(b.item_no) ? -1 : 1;
+    });
+    var lastDept = null;
+    filtered.forEach(function (d) {
+      if (d.department !== lastDept) {
+        wrap.appendChild(el("div", "deliv-subheader", deptLabel(d.department, d.department_number)));
+        lastDept = d.department;
+      }
+      var row = el("div", "deliv-row");
+      var body = el("div", "deliv-body");
+      body.appendChild(el("div", "deliv-name", d.item_no + " &middot; " + d.name));
+      body.appendChild(el("div", "", '<span style="font-size:11.5px;color:var(--ink-500);">' + d.formula_text + '</span>'));
+      row.appendChild(body);
+      var btn = el("button", "btn", "Suggest a Change");
+      btn.addEventListener("click", function () { openSuggestFormulaModal(d); });
+      row.appendChild(btn);
+      wrap.appendChild(row);
+    });
+  }
+  function renderDfMySuggestions() {
+    var wrap = document.getElementById("dfMySuggestions");
+    wrap.innerHTML = "";
+    if (!dfMySuggestions.length) { wrap.appendChild(el("div", "empty-state", "You haven't suggested any changes yet.")); return; }
+    dfMySuggestions.slice().reverse().forEach(function (r) {
+      var row = el("div", "aq-row");
+      var main = el("div", "aq-main");
+      main.appendChild(el("div", "aq-title", r.item_no + " &middot; " + r.item_name));
+      main.appendChild(el("div", "aq-sub", '<span>&#8220;' + r.comment + '&#8221;</span>'));
+      row.appendChild(main);
+      row.appendChild(el("div", "", r.status === "pending"
+        ? '<span class="pill neutral"><span class="dot"></span>Pending</span>'
+        : _historyStatusPill(r.status)));
+      wrap.appendChild(row);
+    });
+  }
+
+  var _suggestFormulaTarget = null;
+  function openSuggestFormulaModal(d) {
+    _suggestFormulaTarget = d;
+    document.getElementById("suggestFormulaTitle").textContent = d.item_no + " · " + d.name;
+    document.getElementById("suggestFormulaCurrent").textContent = "Currently: " + d.formula_text;
+    renderBranchEditorRows(document.getElementById("suggestFormulaBranchList"), d.branches);
+    document.getElementById("suggestFormulaReason").value = "";
+    document.getElementById("suggestFormulaOverlay").hidden = false;
+  }
+  function closeSuggestFormulaModal() { document.getElementById("suggestFormulaOverlay").hidden = true; }
+  document.getElementById("suggestFormulaClose").addEventListener("click", closeSuggestFormulaModal);
+  document.getElementById("suggestFormulaCancel").addEventListener("click", closeSuggestFormulaModal);
+  document.getElementById("suggestFormulaAddBranch").addEventListener("click", function () {
+    document.getElementById("suggestFormulaBranchList").appendChild(_feBuildBranchRow(null));
+  });
+  document.getElementById("suggestFormulaSubmit").addEventListener("click", async function () {
+    var reason = document.getElementById("suggestFormulaReason").value.trim();
+    if (!reason) { showToast("A reason is required", true); return; }
+    var branches = collectBranchesFromEditor(document.getElementById("suggestFormulaBranchList"));
+    if (!branches.length) { showToast("At least one branch is required", true); return; }
+    var email = passiveIdentity();
+    if (!email) { showToast("Enter your acting email first", true); return; }
+    try {
+      await api("/api/deliverables/config/formula-change-requests", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          deliverable_definition_id: _suggestFormulaTarget.id, proposed_branches: branches,
+          comment: reason, actor_email: email, actor_name: passiveIdentity(),
+        }),
+      });
+    } catch (err) {
+      showToast("Could not submit &#8211; " + apiErrorDetail(err), true);
+      return;
+    }
+    closeSuggestFormulaModal();
+    showToast("Suggestion submitted &#8212; pending admin approval");
+    loadDeliverableFormulas();
+  });
+
+  // --- Admin "Deliverables Configuration": formulas / departments / history ---
+  var dcTab = "L0", dcItems = [], dcDepartments = [];
+  document.querySelectorAll("#dcSubTabs .chip").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      if (btn.dataset.dc === dcTab) return;
+      document.querySelectorAll("#dcSubTabs .chip").forEach(function (b) { b.classList.remove("active"); });
+      btn.classList.add("active");
+      dcTab = btn.dataset.dc;
+      loadDeliverablesConfig();
+    });
+  });
+  document.getElementById("dcFilter").addEventListener("input", renderDcFormulas);
+  document.getElementById("dcAddDeliverableBtn").addEventListener("click", function () { openAdminDefModal(null); });
+
+  async function loadDeliverablesConfig() {
+    var isFormulas = dcTab === "L0" || dcTab === "L1" || dcTab === "L0intl";
+    document.getElementById("dcFormulasPanel").hidden = !isFormulas;
+    document.getElementById("dcDepartmentsPanel").hidden = dcTab !== "departments";
+    document.getElementById("dcHistoryPanel").hidden = dcTab !== "history";
+    document.getElementById("dcFilter").style.display = isFormulas ? "" : "none";
+    document.getElementById("dcAddDeliverableBtn").style.display = isFormulas ? "" : "none";
+    if (isFormulas) {
+      var stage = dcTab === "L1" ? "L1" : "L0";
+      var qs = "stage=" + stage + "&include_inactive=true" +
+        (dcTab === "L0intl" ? "&international=true" : (dcTab === "L0" ? "&international=false" : ""));
+      dcItems = await api("/api/deliverables/admin/definitions?" + qs);
+      renderDcFormulas();
+    } else if (dcTab === "departments") {
+      dcDepartments = await api("/api/departments?include_inactive=true");
+      renderDcDepartments();
+    } else {
+      var defRows = (await api("/api/deliverables/admin/change-history?limit=200"))
+        .map(function (r) { return Object.assign({ kind: "definition" }, r); });
+      var deptRows = (await api("/api/departments/change-history?limit=200"))
+        .map(function (r) { return Object.assign({ kind: "department" }, r); });
+      var merged = defRows.concat(deptRows).sort(function (a, b) {
+        return (b.changed_at || "").localeCompare(a.changed_at || "");
+      });
+      renderDcHistory(merged);
+    }
+  }
+  function renderDcFormulas() {
+    var filterText = document.getElementById("dcFilter").value.trim().toLowerCase();
+    var wrap = document.getElementById("dcFormulasBody");
+    wrap.innerHTML = "";
+    var filtered = dcItems.filter(function (d) {
+      return !filterText || (d.item_no + " " + d.name).toLowerCase().indexOf(filterText) !== -1;
+    });
+    if (!filtered.length) { wrap.appendChild(el("div", "empty-state", "No matching items.")); return; }
+    filtered = filtered.slice().sort(function (a, b) {
+      if (a.department_number !== b.department_number) return (a.department_number || 0) - (b.department_number || 0);
+      if (a.department !== b.department) return a.department < b.department ? -1 : 1;
+      return _itemSortKey(a.item_no) < _itemSortKey(b.item_no) ? -1 : 1;
+    });
+    var lastDept = null;
+    filtered.forEach(function (d) {
+      if (d.department !== lastDept) {
+        wrap.appendChild(el("div", "deliv-subheader", deptLabel(d.department, d.department_number)));
+        lastDept = d.department;
+      }
+      var row = el("div", "deliv-row");
+      if (!d.active) row.style.opacity = "0.5";
+      var body = el("div", "deliv-body");
+      body.appendChild(el("div", "deliv-name", d.item_no + " &middot; " + d.name +
+        (d.is_customized ? ' <span style="color:var(--ink-500);font-size:11px;">(customized)</span>' : "") +
+        (!d.active ? ' <span style="color:var(--crit);font-size:11px;">(inactive)</span>' : "")));
+      body.appendChild(el("div", "", '<span style="font-size:11.5px;color:var(--ink-500);">' + d.formula_text + '</span>'));
+      row.appendChild(body);
+      var btn = el("button", "btn", "Edit");
+      btn.addEventListener("click", function () { openAdminDefModal(d); });
+      row.appendChild(btn);
+      wrap.appendChild(row);
+    });
+  }
+
+  var _adminDefTarget = null;
+  async function openAdminDefModal(d) {
+    _adminDefTarget = d;
+    var deptSel = document.getElementById("adminDefDept");
+    deptSel.innerHTML = "";
+    var depts = dcDepartments.length ? dcDepartments : await api("/api/departments?include_inactive=true");
+    depts.forEach(function (dep) {
+      var opt = document.createElement("option");
+      opt.value = dep.id; opt.textContent = deptLabel(dep.name, dep.number);
+      deptSel.appendChild(opt);
+    });
+    if (d) {
+      document.getElementById("adminDefEyebrow").textContent = "Edit Deliverable";
+      document.getElementById("adminDefTitle").textContent = d.item_no + " · " + d.name;
+      document.getElementById("adminDefItemNo").value = d.item_no;
+      document.getElementById("adminDefName").value = d.name;
+      deptSel.value = d.department_id;
+      document.getElementById("adminDefType").value = d.deliverable_type;
+      document.getElementById("adminDefMilestone").checked = d.is_milestone;
+      document.getElementById("adminDefMilestoneCode").value = d.milestone_code || "";
+      renderBranchEditorRows(document.getElementById("adminDefBranchList"), d.branches);
+      document.getElementById("adminDefRestoreBtn").style.display = d.can_restore ? "" : "none";
+      document.getElementById("adminDefDeactivateBtn").style.display = "";
+      document.getElementById("adminDefDeactivateBtn").textContent = d.active ? "Deactivate" : "Reactivate";
+    } else {
+      document.getElementById("adminDefEyebrow").textContent = "Deliverables Configuration";
+      document.getElementById("adminDefTitle").textContent = "Add Deliverable";
+      document.getElementById("adminDefItemNo").value = "";
+      document.getElementById("adminDefName").value = "";
+      document.getElementById("adminDefType").value = "date_driven";
+      document.getElementById("adminDefMilestone").checked = false;
+      document.getElementById("adminDefMilestoneCode").value = "";
+      renderBranchEditorRows(document.getElementById("adminDefBranchList"), []);
+      document.getElementById("adminDefRestoreBtn").style.display = "none";
+      document.getElementById("adminDefDeactivateBtn").style.display = "none";
+    }
+    document.getElementById("adminDefModalOverlay").hidden = false;
+  }
+  function closeAdminDefModal() { document.getElementById("adminDefModalOverlay").hidden = true; }
+  document.getElementById("adminDefClose").addEventListener("click", closeAdminDefModal);
+  document.getElementById("adminDefCancel").addEventListener("click", closeAdminDefModal);
+  document.getElementById("adminDefAddBranch").addEventListener("click", function () {
+    document.getElementById("adminDefBranchList").appendChild(_feBuildBranchRow(null));
+  });
+  document.getElementById("adminDefSave").addEventListener("click", async function () {
+    var itemNo = document.getElementById("adminDefItemNo").value.trim();
+    var name = document.getElementById("adminDefName").value.trim();
+    var deptId = parseInt(document.getElementById("adminDefDept").value, 10);
+    var dtype = document.getElementById("adminDefType").value;
+    var isMs = document.getElementById("adminDefMilestone").checked;
+    var msCode = document.getElementById("adminDefMilestoneCode").value.trim() || null;
+    var branches = collectBranchesFromEditor(document.getElementById("adminDefBranchList"));
+    if (!itemNo || !name) { showToast("Item number and name are required", true); return; }
+    try {
+      if (_adminDefTarget) {
+        await api("/api/deliverables/admin/definitions/" + _adminDefTarget.id, {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            item_no: itemNo, name: name, department_id: deptId, deliverable_type: dtype,
+            is_milestone: isMs, milestone_code: msCode,
+            actor_role: CURRENT_ROLE, actor_email: actingEmail(), actor_name: passiveIdentity(),
+          }),
+        });
+        if (dtype === "date_driven" && branches.length) {
+          await api("/api/deliverables/admin/definitions/" + _adminDefTarget.id + "/branches", {
+            method: "PUT", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ branches: branches, actor_role: CURRENT_ROLE, actor_email: actingEmail(), actor_name: passiveIdentity() }),
+          });
+        }
+      } else {
+        await api("/api/deliverables/admin/definitions", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            stage: (dcTab === "L1" ? "L1" : "L0"), item_no: itemNo, name: name, department_id: deptId,
+            deliverable_type: dtype, is_milestone: isMs, milestone_code: msCode, branches: branches,
+            actor_role: CURRENT_ROLE, actor_email: actingEmail(), actor_name: passiveIdentity(),
+          }),
+        });
+      }
+    } catch (err) {
+      showToast("Could not save &#8211; " + apiErrorDetail(err), true);
+      return;
+    }
+    closeAdminDefModal();
+    showToast("Saved");
+    loadDeliverablesConfig();
+  });
+  document.getElementById("adminDefRestoreBtn").addEventListener("click", async function () {
+    if (!_adminDefTarget) return;
+    if (!(await customConfirm("Restore " + _adminDefTarget.item_no + " to its default formula? This clears any customization.", { danger: true, okLabel: "Restore" }))) return;
+    try {
+      await api("/api/deliverables/admin/definitions/" + _adminDefTarget.id + "/restore-default", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actor_role: CURRENT_ROLE, actor_email: actingEmail(), actor_name: passiveIdentity() }),
+      });
+    } catch (err) {
+      showToast("Could not restore &#8211; " + apiErrorDetail(err), true);
+      return;
+    }
+    closeAdminDefModal();
+    showToast("Restored to default");
+    loadDeliverablesConfig();
+  });
+  document.getElementById("adminDefDeactivateBtn").addEventListener("click", async function () {
+    if (!_adminDefTarget) return;
+    var nowActive = !_adminDefTarget.active;
+    await api("/api/deliverables/admin/definitions/" + _adminDefTarget.id + "/active", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ active: nowActive, actor_role: CURRENT_ROLE, actor_email: actingEmail(), actor_name: passiveIdentity() }),
+    });
+    closeAdminDefModal();
+    showToast(nowActive ? "Reactivated" : "Deactivated");
+    loadDeliverablesConfig();
+  });
+
+  function renderDcDepartments() {
+    var wrap = document.getElementById("dcDepartmentsBody");
+    wrap.innerHTML = "";
+    dcDepartments.forEach(function (dep) {
+      var tr = el("tr");
+      if (!dep.active) tr.style.opacity = "0.5";
+      var nameInput = document.createElement("input"); nameInput.type = "text"; nameInput.value = dep.name; nameInput.style.width = "100%";
+      var tdName = el("td"); tdName.appendChild(nameInput); tr.appendChild(tdName);
+      var orderInput = document.createElement("input"); orderInput.type = "number"; orderInput.value = dep.order; orderInput.style.width = "60px";
+      var tdOrder = el("td"); tdOrder.appendChild(orderInput); tr.appendChild(tdOrder);
+      var numberInput = document.createElement("input"); numberInput.type = "number"; numberInput.value = dep.number || ""; numberInput.style.width = "60px";
+      var tdNumber = el("td"); tdNumber.appendChild(numberInput); tr.appendChild(tdNumber);
+      var intlCheck = document.createElement("input"); intlCheck.type = "checkbox"; intlCheck.checked = dep.is_international;
+      var tdIntl = el("td"); tdIntl.appendChild(intlCheck); tr.appendChild(tdIntl);
+      tr.appendChild(el("td", "", dep.active
+        ? '<span class="pill good"><span class="dot"></span>Active</span>'
+        : '<span class="pill neutral"><span class="dot"></span>Removed</span>'));
+      var actions = el("td");
+      var saveBtn = el("button", "btn", "Save");
+      saveBtn.addEventListener("click", async function () {
+        try {
+          await api("/api/departments/" + dep.id, {
+            method: "PATCH", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: nameInput.value.trim(), order: parseInt(orderInput.value, 10) || 0,
+              number: numberInput.value ? parseInt(numberInput.value, 10) : null, is_international: intlCheck.checked,
+              actor_role: CURRENT_ROLE, actor_email: actingEmail(), actor_name: passiveIdentity(),
+            }),
+          });
+        } catch (err) { showToast("Could not save &#8211; " + apiErrorDetail(err), true); return; }
+        showToast("Saved");
+        loadDeliverablesConfig();
+      });
+      actions.appendChild(saveBtn);
+      if (dep.active) {
+        var delBtn = el("button", "btn ghost-crit", "Remove");
+        delBtn.style.marginLeft = "6px";
+        delBtn.addEventListener("click", async function () {
+          if (!(await customConfirm("Remove department \"" + dep.name + "\"? Its own deliverables will be deactivated with it.", { danger: true, okLabel: "Remove" }))) return;
+          await api("/api/departments/" + dep.id, {
+            method: "DELETE", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actor_role: CURRENT_ROLE, actor_email: actingEmail(), actor_name: passiveIdentity() }),
+          });
+          showToast("Department removed");
+          loadDeliverablesConfig();
+        });
+        actions.appendChild(delBtn);
+      }
+      tr.appendChild(actions);
+      wrap.appendChild(tr);
+    });
+    document.getElementById("dcDeptAddBtn").onclick = async function () {
+      var name = document.getElementById("dcDeptNewName").value.trim();
+      if (!name) { showToast("Name is required", true); return; }
+      try {
+        await api("/api/departments", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: name, order: parseInt(document.getElementById("dcDeptNewOrder").value, 10) || 0,
+            number: document.getElementById("dcDeptNewNumber").value ? parseInt(document.getElementById("dcDeptNewNumber").value, 10) : null,
+            is_international: document.getElementById("dcDeptNewIntl").checked,
+            actor_role: CURRENT_ROLE, actor_email: actingEmail(), actor_name: passiveIdentity(),
+          }),
+        });
+      } catch (err) { showToast("Could not add &#8211; " + apiErrorDetail(err), true); return; }
+      document.getElementById("dcDeptNewName").value = "";
+      document.getElementById("dcDeptNewNumber").value = "";
+      document.getElementById("dcDeptNewIntl").checked = false;
+      showToast("Department added");
+      loadDeliverablesConfig();
+    };
+  }
+
+  function renderDcHistory(rows) {
+    var wrap = document.getElementById("dcHistoryBody");
+    wrap.innerHTML = "";
+    if (!rows.length) { wrap.appendChild(el("div", "empty-state", "No changes yet.")); return; }
+    rows.forEach(function (r) {
+      var row = el("div", "aq-row");
+      var main = el("div", "aq-main");
+      var titleText = r.kind === "department" ? (r.department_name || r.summary) : (r.item_no + " &middot; " + r.item_name);
+      main.appendChild(el("div", "aq-title", titleText));
+      main.appendChild(el("div", "aq-sub",
+        '<span>' + r.summary + '</span><span class="sep">&middot;</span>' +
+        '<span>' + (r.actor_name || r.actor_email || "system") + '</span><span class="sep">&middot;</span>' +
+        '<span>' + fmtDate((r.changed_at || "").slice(0, 10)) + '</span>'));
+      row.appendChild(main);
+      var revertBtn = el("button", "btn", "Revert");
+      revertBtn.addEventListener("click", async function () {
+        if (!(await customConfirm("Revert this change?"))) return;
+        var revertPath = r.kind === "department"
+          ? "/api/departments/change-history/" + r.id + "/revert"
+          : "/api/deliverables/admin/change-history/" + r.id + "/revert";
+        try {
+          await api(revertPath, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ actor_role: CURRENT_ROLE, actor_email: actingEmail(), actor_name: passiveIdentity() }),
+          });
+        } catch (err) { showToast("Could not revert &#8211; " + apiErrorDetail(err), true); return; }
+        showToast("Reverted");
+        loadDeliverablesConfig();
+      });
+      row.appendChild(revertBtn);
+      wrap.appendChild(row);
+    });
+  }
 
   /* ================= BM TRIAGE STATUS (admin) ================= */
   var BM_TRIAGE_STATUS_META = {

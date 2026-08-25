@@ -746,6 +746,22 @@
   .tour-table tr:last-child td { border-bottom: none; }
   .modal-section-title { font-size: 12px; font-weight: 700; color: var(--ink-700); margin: 18px 0 8px; text-transform: uppercase; letter-spacing: .04em; }
   .modal-actions-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; margin-bottom: 16px; }
+  /* [Deliverables Configuration] form field labels + inputs inside the
+     admin/suggestion formula modals -- small uppercase label above a
+     regular bordered input/select, matching this app's other form idioms. */
+  .fe-label { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--ink-500); margin-bottom: 3px; }
+  #adminDefModalOverlay input[type="text"], #adminDefModalOverlay select,
+  #suggestFormulaOverlay input[type="text"], #suggestFormulaOverlay select {
+    padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--surface-sunken); color: var(--ink-900); font-size: 13px; font-family: inherit; box-sizing: border-box;
+  }
+  .fe-branch-row {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px;
+    border: 1px solid var(--line); border-radius: 8px; margin-bottom: 6px; background: var(--surface-sunken);
+  }
+  .fe-branch-row select, .fe-branch-row input { padding: 5px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-900); font-size: 12px; font-family: inherit; }
+  .fe-branch-row input[type="number"] { width: 64px; }
+  .fe-branch-row .fe-remove-branch { margin-left: auto; }
   .modal-actions-row .btn { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
   .modal-actions-row .btn:hover { filter: brightness(0.97); }
   .modal-actions-row .btn.primary { background: linear-gradient(135deg, var(--purple-1), var(--purple-2)); color: #fff; }
