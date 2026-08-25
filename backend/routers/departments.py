@@ -15,10 +15,15 @@ class FocalPointUpdate(BaseModel):
 
 
 @router.get("")
-def list_departments(db: Session = Depends(get_db)):
-    depts = db.query(models.Department).order_by(models.Department.number).all()
+def list_departments(include_inactive: bool = False, db: Session = Depends(get_db)):
+    q = db.query(models.Department)
+    if not include_inactive:
+        q = q.filter(models.Department.active.is_not(False))  # NULL (pre-migration rows) counts as active
+    depts = q.order_by(models.Department.number).all()
     return [
-        {"id": d.id, "name": d.name, "number": d.number, "focal_point_name": d.focal_point_name, "focal_point_email": d.focal_point_email}
+        {"id": d.id, "name": d.name, "number": d.number, "focal_point_name": d.focal_point_name,
+         "focal_point_email": d.focal_point_email, "order": d.order, "is_international": bool(d.is_international),
+         "active": d.active is not False}
         for d in depts
     ]
 
@@ -33,6 +38,171 @@ def update_focal_point(department_id: int, payload: FocalPointUpdate, db: Sessio
     db.commit()
     return {"id": dept.id, "name": dept.name, "number": dept.number,
             "focal_point_name": dept.focal_point_name, "focal_point_email": dept.focal_point_email}
+
+
+# ---------------------------------------------------------------------------
+# Department CRUD (Deliverables Configuration) -- plain add/remove only, no
+# BU/scope-conditional-visibility UI (a new department shows on every
+# applicable project by default, matching the existing fail-open behavior
+# rules.is_bu_applicable/is_scope_variant_applicable already give any
+# department name they don't recognize).
+# ---------------------------------------------------------------------------
+def _dept_snapshot(d: "models.Department") -> dict:
+    return {"name": d.name, "order": d.order, "number": d.number,
+            "is_international": bool(d.is_international), "active": d.active is not False}
+
+
+def _log_department_change(db: Session, dept: "models.Department", change_type: str,
+                            before: dict | None, after: dict, actor_email: str | None,
+                            actor_name: str | None, summary: str) -> None:
+    db.add(models.DepartmentChangeLog(
+        department_id=dept.id, actor_email=actor_email or None, actor_name=actor_name or None,
+        change_type=change_type, before_snapshot=before, after_snapshot=after, summary=summary,
+    ))
+
+
+class DepartmentCreate(BaseModel):
+    name: str
+    order: int = 0
+    number: int | None = None
+    is_international: bool = False
+    actor_role: str = "Admin"
+    actor_email: str = ""
+    actor_name: str = ""
+
+
+@router.post("", status_code=201)
+def create_department(payload: DepartmentCreate, db: Session = Depends(get_db)):
+    if payload.actor_role != "Admin":
+        raise HTTPException(403, "Only an Admin can add a department")
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(400, "Name is required")
+    if db.query(models.Department).filter(models.Department.name.ilike(name)).first():
+        raise HTTPException(400, f"A department named '{name}' already exists")
+    dept = models.Department(name=name, order=payload.order, number=payload.number,
+                              is_international=payload.is_international, active=True)
+    db.add(dept)
+    db.flush()
+    _log_department_change(db, dept, "created", None, _dept_snapshot(dept),
+                            payload.actor_email, payload.actor_name, f"Created department '{name}'")
+    db.commit()
+    return _dept_snapshot(dept) | {"id": dept.id}
+
+
+class DepartmentUpdate(BaseModel):
+    name: str | None = None
+    order: int | None = None
+    number: int | None = None
+    is_international: bool | None = None
+    actor_role: str = "Admin"
+    actor_email: str = ""
+    actor_name: str = ""
+
+
+@router.patch("/{department_id}")
+def update_department(department_id: int, payload: DepartmentUpdate, db: Session = Depends(get_db)):
+    if payload.actor_role != "Admin":
+        raise HTTPException(403, "Only an Admin can edit a department")
+    dept = db.get(models.Department, department_id)
+    if not dept:
+        raise HTTPException(404, "Department not found")
+    before = _dept_snapshot(dept)
+    if payload.name is not None:
+        name = payload.name.strip()
+        if not name:
+            raise HTTPException(400, "Name is required")
+        clash = db.query(models.Department).filter(
+            models.Department.name.ilike(name), models.Department.id != department_id,
+        ).first()
+        if clash:
+            raise HTTPException(400, f"A department named '{name}' already exists")
+        dept.name = name
+    if payload.order is not None:
+        dept.order = payload.order
+    if payload.number is not None:
+        dept.number = payload.number
+    if payload.is_international is not None:
+        dept.is_international = payload.is_international
+    after = _dept_snapshot(dept)
+    if after != before:
+        _log_department_change(db, dept, "edited", before, after,
+                                payload.actor_email, payload.actor_name, f"Edited department '{dept.name}'")
+    db.commit()
+    return after | {"id": dept.id}
+
+
+class DepartmentActorOnly(BaseModel):
+    actor_role: str = "Admin"
+    actor_email: str = ""
+    actor_name: str = ""
+
+
+@router.delete("/{department_id}")
+def delete_department(department_id: int, payload: DepartmentActorOnly = DepartmentActorOnly(), db: Session = Depends(get_db)):
+    """Soft-delete (mirrors remove_bid_manager's active=False convention) --
+    a department already referenced by existing projects/definitions keeps
+    its real name/history; this only removes it from admin CRUD dropdowns
+    and cascade-deactivates its own DeliverableDefinitions (same pattern
+    seed.py's old-Operation-Units backfill already uses) so new projects
+    stop being offered deliverables under a department that's gone.
+    """
+    if payload.actor_role != "Admin":
+        raise HTTPException(403, "Only an Admin can remove a department")
+    dept = db.get(models.Department, department_id)
+    if not dept:
+        raise HTTPException(404, "Department not found")
+    before = _dept_snapshot(dept)
+    dept.active = False
+    deactivated = (
+        db.query(models.DeliverableDefinition)
+        .filter(models.DeliverableDefinition.department_id == department_id,
+                models.DeliverableDefinition.active == True)  # noqa: E712
+        .update({"active": False})
+    )
+    _log_department_change(db, dept, "deactivated", before, _dept_snapshot(dept),
+                            payload.actor_email, payload.actor_name,
+                            f"Removed department '{dept.name}'" + (f" ({deactivated} deliverable(s) deactivated with it)" if deactivated else ""))
+    db.commit()
+    return {"id": dept.id, "active": False, "deliverables_deactivated": deactivated}
+
+
+@router.get("/change-history")
+def list_department_change_history(department_id: int | None = None, limit: int = 100, db: Session = Depends(get_db)):
+    q = db.query(models.DepartmentChangeLog).order_by(models.DepartmentChangeLog.changed_at.desc())
+    if department_id is not None:
+        q = q.filter(models.DepartmentChangeLog.department_id == department_id)
+    rows = q.limit(limit).all()
+    return [
+        {"id": r.id, "department_id": r.department_id,
+         "department_name": r.department.name if r.department else None,
+         "changed_at": r.changed_at, "actor_email": r.actor_email, "actor_name": r.actor_name,
+         "change_type": r.change_type, "summary": r.summary}
+        for r in rows
+    ]
+
+
+@router.post("/change-history/{log_id}/revert")
+def revert_department_change(log_id: int, payload: DepartmentActorOnly, db: Session = Depends(get_db)):
+    if payload.actor_role != "Admin":
+        raise HTTPException(403, "Only an Admin can revert a change")
+    log = db.get(models.DepartmentChangeLog, log_id)
+    if not log or not log.before_snapshot:
+        raise HTTPException(404, "Change not found or has nothing to revert to")
+    dept = db.get(models.Department, log.department_id)
+    if not dept:
+        raise HTTPException(404, "Department not found")
+    before = _dept_snapshot(dept)
+    snap = log.before_snapshot
+    dept.name = snap["name"]
+    dept.order = snap["order"]
+    dept.number = snap["number"]
+    dept.is_international = snap["is_international"]
+    dept.active = snap["active"]
+    _log_department_change(db, dept, "edited", before, _dept_snapshot(dept),
+                            payload.actor_email, payload.actor_name, f"Reverted department '{dept.name}' to an earlier version")
+    db.commit()
+    return _dept_snapshot(dept) | {"id": dept.id}
 
 
 @router.get("/options")

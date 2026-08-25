@@ -874,7 +874,7 @@ def _describe_branch(branch: "models.DeliverableFormulaBranch") -> str:
         formula = "no computable date"
 
     if branch.condition_type == "always":
-        return formula.capitalize()
+        return formula[:1].upper() + formula[1:]
     if branch.condition_type == "tender_window_lt_days":
         return f"If tender window < {branch.condition_value} days: {formula}"
     return f"{_CONDITION_LABELS.get(branch.condition_type, branch.condition_type)}: {formula}"

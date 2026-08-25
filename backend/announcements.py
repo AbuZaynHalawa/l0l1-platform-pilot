@@ -465,3 +465,30 @@ def user_add_decision(db: Session, requester_email: str, email: str, approved: b
             body += f' &#8211; &quot;{comment}&quot;'
     return _create(db, type=models.AnnouncementType.GROUP_ADD_DECISION, title=title, body=body,
                     recipients=[requester_email] if requester_email else [], greeting="Team")
+
+
+def formula_change_requested(db: Session, admin_emails: list[str], requester_email: str,
+                              requester_name: str | None, item_no: str, item_name: str) -> models.Announcement:
+    """Not tied to a project (a formula is a catalog-wide template setting)
+    -- DEADLINE-typed like every other Follow Up tab request, same
+    reasoning as sme_nomination_requested above.
+    """
+    title = "Formula Change Suggested &#8211; Admin Action Needed"
+    who = f"{_b(requester_name)} ({_b(requester_email)})" if requester_name else _b(requester_email)
+    body = f"{who} suggested a formula change for {_b(item_no)} {item_name}. Awaiting your decision."
+    return _create(db, type=models.AnnouncementType.DEADLINE, title=title, body=body,
+                    recipients=sorted({e for e in admin_emails if e}), greeting="Admin")
+
+
+def formula_change_decision(db: Session, requester_email: str, item_no: str, item_name: str,
+                             approved: bool, comment: str | None = None) -> models.Announcement:
+    if approved:
+        title = "Formula Change Approved"
+        body = f"Your suggested formula change for {_b(item_no)} {item_name} was {_hl('approved', 'good')} and is now live."
+    else:
+        title = "Formula Change Declined"
+        body = f"Your suggested formula change for {_b(item_no)} {item_name} was {_hl('declined', 'crit')}."
+        if comment:
+            body += f' &#8211; &quot;{comment}&quot;'
+    return _create(db, type=models.AnnouncementType.FORMULA_CHANGE_DECISION, title=title, body=body,
+                    recipients=[requester_email] if requester_email else [], greeting="Team")
