@@ -265,15 +265,20 @@ L0_SITE_VISIT_FALLBACK_ITEMS = {"2.4", "3.1", "4.1", "5.1", "9.1", "10.1", "11.1
 # item_no, alt offset_days, alt offset_direction). Confirmed with the user
 # (2026-08-24, reviewing the Est-1641 sample against this catalog): compute
 # both the item's own normal (predecessor_item_no/offset_days) branch AND
-# this alternate, and take whichever lands LATER. "4.5" doubles as both a
-# key here (its own OR is against submission/1.24) and the alt-predecessor
-# for 1.10/1.11/1.12 ("receiving engineering inputs") -- no circularity,
-# since 4.5's own resolution never depends on any of those three.
+# this alternate. "4.5" doubles as both a key here (its own OR is against
+# submission/1.24) and the alt-predecessor for 1.10/1.11/1.12 ("receiving
+# engineering inputs") -- no circularity, since 4.5's own resolution never
+# depends on any of those three.
+# Which branch wins differs by item: the four Engineering items' own source
+# formula literally ends "(which come first)" -- EARLIER of the two wins.
+# 1.10/1.11/1.12 carry no such qualifier in their own source text, so they
+# keep the later-wins convention decided when this was first implemented.
 L0_INTL_OR_ITEMS = {
     "1.10": ("4.5", 2, "after"), "1.11": ("4.5", 2, "after"), "1.12": ("4.5", 2, "after"),
     "4.4": ("1.24", 10, "before"), "4.5": ("1.24", 10, "before"),
     "4.7": ("1.24", 10, "before"), "4.9": ("1.24", 7, "before"),
 }
+L0_INTL_OR_ITEMS_EARLIEST_WINS = {"4.4", "4.5", "4.7", "4.9"}
 
 
 def _tender_window_days(project: "models.Project") -> int | None:
@@ -771,8 +776,8 @@ def compute_due_date(db: Session, sub: "models.DeliverableSubmission", project: 
             primary = duration_end(start, _scaled_duration(project, offset) if is_l0 else offset)
 
         # [L0 International OR-formula items]: a genuine second branch, not
-        # just the primary one above -- compute it too and take the later
-        # date. See L0_INTL_OR_ITEMS' own docstring for why.
+        # just the primary one above -- compute it too. See L0_INTL_OR_ITEMS'
+        # own docstring for which branch wins on which item.
         if getattr(project, "is_international", False) and item_no in L0_INTL_OR_ITEMS:
             alt_pred, alt_offset, alt_direction = L0_INTL_OR_ITEMS[item_no]
             alt_anchor = _resolve_predecessor_anchor(db, project, alt_pred, definition.department_id,
@@ -782,7 +787,10 @@ def compute_due_date(db: Session, sub: "models.DeliverableSubmission", project: 
                     alt_result = _skip_weekend_backward(alt_anchor - timedelta(days=alt_offset))
                 else:
                     alt_result = duration_end(next_workday_after(alt_anchor), alt_offset)
-                if alt_result > primary:
+                if item_no in L0_INTL_OR_ITEMS_EARLIEST_WINS:
+                    if alt_result < primary:
+                        return alt_result
+                elif alt_result > primary:
                     return alt_result
         return primary
 

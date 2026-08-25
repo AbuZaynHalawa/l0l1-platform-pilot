@@ -596,7 +596,9 @@ L0_INTERNATIONAL_ITEMS = [
     ("2.2", "Prepare and circulate Site Visit Report to understand terrain, accessibility, logistics, local suppliers, labor availability, and infrastructure includes Site visit certificate", "operation_intl", "site_visit", None, 3, "after", "date_driven", "M2"),
     ("2.3", "Assign Focal Point during L0 stage", "operation_intl", "predecessor", "1.1", 3, "after", "date_driven", None),
     ("2.4", "Review any local construction codes, safety standards, taxes, and permitting processes that may impact cost or timeline.", "operation_intl", "site_visit", None, 3, "after", "date_driven", None),
-    ("2.5", "Check the Security & Stability requirements such as security services or additional insurance.", "operation_intl", "site_visit", None, 3, "after", "date_driven", None),
+    # Item [2.5 formula correction]: was anchored on Site Visit +3 days;
+    # now matches 5.3's own formula exactly (predecessor 1.1, +15 workdays).
+    ("2.5", "Check the Security & Stability requirements such as security services or additional insurance.", "operation_intl", "predecessor", "1.1", 15, "after", "date_driven", None),
     ("2.6", "Provide recommendations on Site Establishment requirment: Fencing, signage, utilities, access roads, Supervision & Admin Staff", "operation_intl", "site_visit", None, 3, "after", "date_driven", None),
     ("2.7", "Highlight points require Pre-bid clarifications", "operation_intl", "pre_bid", None, 3, "before", "date_driven", None),
     ("2.8", "Prepare Risk Register", "operation_intl", "predecessor", "2.2", 1, "after", "date_driven", None),
@@ -1772,6 +1774,18 @@ def run():
             dept = dept_map[L1_DEPT[dkey]]
             upsert("L1", item_no, name, L1_SHORT_NAMES.get(item_no, name), dept.id, anchor, pred, offset, direction, "date_driven", bool(ms), ms)
 
+        # Same snapshot-before-upsert trick as the two blocks above, for
+        # International's 2.5 formula correction (was Site Visit +3 days,
+        # now matches 5.3's own formula: predecessor 1.1, +15 workdays).
+        _intl_due_fix_items = ["2.5"]
+        _intl_due_fix_before = {
+            (d.item_no, d.department_id): (d.anchor_type, d.predecessor_item_no, d.offset_days)
+            for d in db.query(models.DeliverableDefinition)
+            .filter(models.DeliverableDefinition.stage == models.Stage.L0,
+                    models.DeliverableDefinition.item_no.in_(_intl_due_fix_items))
+            .all()
+        }
+
         # [L0 International]: still Stage.L0 (no separate Stage value), on its
         # own departments -- no short-name catalog of its own yet, so
         # short_name just falls back to the full name (matches how any
@@ -1814,6 +1828,32 @@ def run():
                 .all()
             }
             for proj in l0_affected_projects:
+                rules.recompute_project_due_dates(db, proj, force=True)
+            db.commit()
+
+        _intl_due_fix_changed_def_ids = [
+            d.id for d in db.query(models.DeliverableDefinition)
+            .filter(models.DeliverableDefinition.stage == models.Stage.L0,
+                    models.DeliverableDefinition.item_no.in_(_intl_due_fix_items))
+            .all()
+            if _intl_due_fix_before.get((d.item_no, d.department_id)) != (d.anchor_type, d.predecessor_item_no, d.offset_days)
+        ]
+        # This same pass also carries the 4.4/4.5/4.7/4.9 OR-formula
+        # winner-logic fix (later-wins -> earliest-wins, see
+        # L0_INTL_OR_ITEMS_EARLIEST_WINS in rules.py) through to every
+        # existing international project -- that fix isn't a
+        # DeliverableDefinition field so it has no snapshot-diff of its own,
+        # but recompute_project_due_dates(force=True) below recomputes a
+        # project's every item, not just 2.5, so it rides along for free on
+        # 2.5's own trigger below (2.5 is real on every international
+        # project, so this reaches all of them in one shot).
+        if _intl_due_fix_changed_def_ids:
+            intl_affected_projects = {
+                s.project for s in db.query(models.DeliverableSubmission)
+                .filter(models.DeliverableSubmission.deliverable_definition_id.in_(_intl_due_fix_changed_def_ids))
+                .all()
+            }
+            for proj in intl_affected_projects:
                 rules.recompute_project_due_dates(db, proj, force=True)
             db.commit()
 
