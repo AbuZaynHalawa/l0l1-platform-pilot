@@ -182,7 +182,11 @@ def _tool_lookup_deliverables(db: Session, stage: str = "", item_no: str = "", q
 
 
 def _tool_list_departments(db: Session) -> str:
-    depts = db.query(models.Department).filter(models.Department.active != False).order_by(models.Department.number).all()  # noqa: E712
+    # .is_not(False), not != False -- NULL (pre-migration rows, most
+    # departments) fails a plain != comparison in SQL and gets silently
+    # excluded; NULL counts as active everywhere else in this app (see
+    # departments.py's own list endpoint) and must here too.
+    depts = db.query(models.Department).filter(models.Department.active.is_not(False)).order_by(models.Department.number).all()
     return "\n".join(
         # Some international departments already spell it out in their own
         # name (e.g. "Tendering Department (International)"); only append
