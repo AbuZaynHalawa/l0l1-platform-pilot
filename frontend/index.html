@@ -38,6 +38,7 @@
       <button class="nav-item" data-view="deliverableformulas"><span class="ic">&#128220;</span> Deliverables Catalog</button>
       <button class="nav-item" data-view="myrequests"><span class="ic">&#128203;</span> My Requests</button>
       <button class="nav-item" data-view="support"><span class="ic">&#128172;</span> Q/A - Ask the Team</button>
+      <button class="nav-item" data-view="aisupport"><span class="ic">&#129302;</span> AI Support</button>
     </nav>
 
     <div class="nav-group-label" id="adminGroupLabel">Admin</div>
@@ -415,6 +416,31 @@
           <select id="kbCategoryFilter"><option value="">All categories</option></select>
         </div>
         <div id="kbList"></div>
+      </div>
+    </section>
+
+    <!-- AI SUPPORT (everyone): a Claude-powered chat for general platform
+         questions and the asking user's own assigned deliverables --
+         stateless on the backend (see ai_support.py), the message array
+         lives in aiChatHistory below and is resent each turn. Always keeps
+         a permanent "Ask the Team" escape hatch alongside the chat. -->
+    <section class="view" id="view-aisupport" hidden>
+      <div class="view-head">
+        <div>
+          <div class="eyebrow">Support</div>
+          <h1>AI Support</h1>
+          <p class="sub">Ask how something in the platform works, or about your own assigned deliverables. Not what you needed? Ask the Team reaches a real person.</p>
+        </div>
+      </div>
+      <div class="card table-card" style="display:flex;flex-direction:column;height:min(60vh,560px);">
+        <div id="aiChatMessages" style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:10px;"></div>
+        <div style="border-top:1px solid var(--line);padding:12px 16px;display:flex;gap:8px;align-items:flex-end;">
+          <textarea id="aiChatInput" rows="2" placeholder="Ask a question&#8230;" style="flex:1;padding:8px 12px;border-radius:9px;border:1px solid var(--line);background:var(--surface-sunken);color:var(--ink-900);font-size:13px;box-sizing:border-box;font-family:inherit;resize:none;"></textarea>
+          <button class="btn primary" id="aiChatSend">Send</button>
+        </div>
+      </div>
+      <div style="margin-top:14px;text-align:center;">
+        <button class="btn" id="aiChatAskTeam">Didn't answer your question? Ask the Team &#8594;</button>
       </div>
     </section>
 

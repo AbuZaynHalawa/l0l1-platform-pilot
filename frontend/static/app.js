@@ -332,7 +332,7 @@
     l0: function () { loadProjectsTable("L0"); }, l1: function () { loadProjectsTable("L1"); },
     performance: loadPerformance, create: loadCreateOptions, gantt: loadGantt,
     journey: loadJourney, scores: loadScores, focalpoints: loadFocalPoints, followup: loadFollowUp, requests: loadRequests,
-    support: loadSupport, bmtriage: loadBmTriageStatus, tickets: loadTickets,
+    support: loadSupport, aisupport: loadAiSupport, bmtriage: loadBmTriageStatus, tickets: loadTickets,
     deliverableformulas: loadDeliverableFormulas, deliverablesconfig: loadDeliverablesConfig,
     archivedprojects: loadArchivedProjects, myrequests: loadMyRequests,
     "report-performance": loadReportPerformance, "report-masterpo": loadReportMasterPo,
@@ -1805,6 +1805,7 @@
         featureRowMock("&#128220;", "accent", "Deliverables Catalog", "Every due-date formula and scoring weight in plain English &#8212; suggest a formula change with your reasoning.") +
         featureRowMock("&#128203;", "accent", "My Requests", "Every request you've sent to an Admin &#8212; due-dates, reassignments, SME nominations, and more &#8212; and where each stands.") +
         featureRowMock("&#128172;", "accent", "Q/A &#8211; Ask the Team", "Raise a question, track your own requests.") +
+        featureRowMock("&#129302;", "accent", "AI Support", "Ask how something in the platform works, or about your own assigned work &#8212; falls back to Ask the Team for anything it can't answer.") +
         featureRowMock("&#128736;", "crit", "Admin Only", "Reports (4 filterable/printable report types), Top Achievers, Focal Points, Deliverables Configuration, Requests, Follow Up, Open Questions, Archived Projects.") +
         "</div>" +
         '<div class="tour-callout">&#127881; That\'s the full picture &#8212; close this and start ' +
@@ -7991,6 +7992,69 @@
     }
 
   }
+
+  // --- AI SUPPORT: Claude-powered chat, stateless on the backend -- this
+  // array IS the conversation's memory, resent (capped) on every turn. ---
+  var aiChatHistory = [];
+  function _renderAiChatMessages() {
+    var wrap = document.getElementById("aiChatMessages");
+    wrap.innerHTML = "";
+    if (!aiChatHistory.length) {
+      wrap.appendChild(el("div", "empty-state", "Ask anything about how the platform works, or about your own assigned deliverables."));
+      return;
+    }
+    aiChatHistory.forEach(function (m) {
+      wrap.appendChild(el("div", "ai-chat-msg " + m.role, _mdLiteToHtml(m.content)));
+    });
+    wrap.scrollTop = wrap.scrollHeight;
+  }
+  // Just enough formatting for lists/bold/newlines in a model's plain-text
+  // reply to read decently -- not a real Markdown renderer, and text comes
+  // from Claude (not another user), so this is about readability, not an
+  // injection boundary.
+  function _mdLiteToHtml(text) {
+    var escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    escaped = escaped.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
+    return escaped.split("\n").map(function (line) {
+      var bullet = line.match(/^[-*]\s+(.*)/);
+      return bullet ? "&#8226; " + bullet[1] : line;
+    }).join("<br>");
+  }
+  async function loadAiSupport() {
+    _renderAiChatMessages();
+  }
+  function _aiChatSetSending(sending) {
+    document.getElementById("aiChatSend").disabled = sending;
+    document.getElementById("aiChatSend").textContent = sending ? "Thinking…" : "Send";
+  }
+  async function _sendAiChatMessage() {
+    var input = document.getElementById("aiChatInput");
+    var message = input.value.trim();
+    if (!message) return;
+    aiChatHistory.push({ role: "user", content: message });
+    input.value = "";
+    _renderAiChatMessages();
+    _aiChatSetSending(true);
+    try {
+      var res = await api("/api/ai-support/chat", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: message, history: aiChatHistory.slice(0, -1),
+          actor_email: passiveIdentity() || "", actor_role: CURRENT_ROLE,
+        }),
+      });
+      aiChatHistory.push({ role: "assistant", content: res.reply });
+    } catch (err) {
+      aiChatHistory.push({ role: "assistant", content: apiErrorDetail(err) || "Something went wrong — try Ask the Team instead." });
+    }
+    _aiChatSetSending(false);
+    _renderAiChatMessages();
+  }
+  document.getElementById("aiChatSend").addEventListener("click", _sendAiChatMessage);
+  document.getElementById("aiChatInput").addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); _sendAiChatMessage(); }
+  });
+  document.getElementById("aiChatAskTeam").addEventListener("click", function () { switchView("support"); });
 
   // Item 151: every Ask the Team thread, admin-only, in its own dedicated
   // view -- same reply/resolve/reference-KB behavior that used to live
