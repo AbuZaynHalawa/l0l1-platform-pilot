@@ -2037,6 +2037,30 @@ def run():
         # TBU/PBU removal right below: only deletes if genuinely unused.
         old_operation_dept = db.query(models.Department).filter_by(name="Operation Units").first()
         if old_operation_dept:
+            # Production's own safety check (below) correctly caught one
+            # known blocker on its first run: Est-1711 ("test 10-8-9:37am",
+            # obviously a test project by name) has a test PDF uploaded on
+            # 2.2, plus 2.1/2.3 marked not_required. Confirmed with Yasser
+            # this is throwaway test data, not real work -- explicit
+            # authorization to clear it so the removal below can proceed.
+            # Scoped tightly to this one known est_no so the safety check
+            # keeps protecting anything else it might find, anywhere else.
+            _op_test_proj = db.query(models.Project).filter_by(est_no="Est-1711").first()
+            if _op_test_proj:
+                _op_test_subs = (
+                    db.query(models.DeliverableSubmission)
+                    .join(models.DeliverableDefinition)
+                    .filter(models.DeliverableSubmission.project_id == _op_test_proj.id,
+                            models.DeliverableDefinition.department_id == old_operation_dept.id)
+                    .all()
+                )
+                for s in _op_test_subs:
+                    if s.status != models.SubmissionStatus.NO_PROGRESS or s.file_name:
+                        s.status = models.SubmissionStatus.NO_PROGRESS
+                        s.file_name = None
+                        s.file_ref = None
+                        print(f"Cleared known test blocker on Est-1711 item {s.definition.item_no} so the Operation Units removal below can proceed.")
+                db.commit()
             op_subs = (
                 db.query(models.DeliverableSubmission)
                 .join(models.DeliverableDefinition)
