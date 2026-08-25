@@ -8060,6 +8060,7 @@
     document.getElementById("aiChatBubble").hidden = true;
     _renderAiChatMessages();
     document.getElementById("aiChatInput").focus();
+    _refreshAiChatUsage();
   }
   function _closeAiChatPanel() {
     document.getElementById("aiChatPanel").hidden = true;
@@ -8067,9 +8068,36 @@
   }
   document.getElementById("aiChatBubble").addEventListener("click", _openAiChatPanel);
   document.getElementById("aiChatPanelClose").addEventListener("click", _closeAiChatPanel);
+  // _aiChatSetSending(false) (the "request just finished" reset) must not
+  // blindly re-enable Send if the usage badge separately disabled it for
+  // being out of messages -- this flag is what lets the two coexist
+  // instead of racing to overwrite the input's disabled state.
+  var _aiChatAtLimit = false;
   function _aiChatSetSending(sending) {
-    document.getElementById("aiChatSend").disabled = sending;
+    document.getElementById("aiChatSend").disabled = sending || _aiChatAtLimit;
     document.getElementById("aiChatSend").textContent = sending ? "Thinking…" : "Send";
+  }
+  // 10 messages/day, tracked server-side per actor_email (see
+  // ai_support.py) -- this just reflects that count, it isn't the source
+  // of truth, so a fresh GET on open always shows what's real even if the
+  // count changed in another tab/session today.
+  function _setAiChatUsageDisplay(used, limit) {
+    var el2 = document.getElementById("aiChatUsage");
+    var remaining = Math.max(0, limit - used);
+    el2.textContent = remaining + "/" + limit + " today";
+    el2.classList.toggle("low", remaining > 0 && remaining <= 3);
+    el2.classList.toggle("zero", remaining === 0);
+    _aiChatAtLimit = remaining === 0;
+    document.getElementById("aiChatSend").disabled = _aiChatAtLimit;
+    document.getElementById("aiChatInput").disabled = _aiChatAtLimit;
+    document.getElementById("aiChatInput").placeholder = _aiChatAtLimit
+      ? "Out of messages for today — try again tomorrow" : "Ask a question…";
+  }
+  async function _refreshAiChatUsage() {
+    try {
+      var usage = await api("/api/ai-support/usage?actor_email=" + encodeURIComponent(passiveIdentity() || ""));
+      _setAiChatUsageDisplay(usage.used, usage.limit);
+    } catch (err) { /* usage display is a courtesy, not worth surfacing a failure for */ }
   }
   async function _sendAiChatMessage() {
     var input = document.getElementById("aiChatInput");
@@ -8088,8 +8116,14 @@
         }),
       });
       aiChatHistory.push({ role: "assistant", content: res.reply });
+      if (res.limit != null) _setAiChatUsageDisplay(res.limit - res.remaining, res.limit);
     } catch (err) {
       aiChatHistory.push({ role: "assistant", content: apiErrorDetail(err) || "Something went wrong — try Ask the Team instead." });
+      // Covers the 429-at-limit case (err carries no parsed status code,
+      // just the message/detail text) without needing to parse it out --
+      // refreshing from the server is correct regardless of which error
+      // this was, and cheap enough not to special-case.
+      _refreshAiChatUsage();
     }
     _aiChatSetSending(false);
     _renderAiChatMessages();

@@ -1688,7 +1688,10 @@
 <div id="aiChatPanel" class="ai-chat-panel" hidden>
   <div class="ai-chat-panel-head">
     <span><span class="ai-chat-panel-ic">&#129302;</span> AI Support</span>
-    <button class="modal-close" id="aiChatPanelClose">&#10005;</button>
+    <span style="display:flex;align-items:center;gap:8px;">
+      <span id="aiChatUsage" class="ai-chat-usage" title="Messages left today"></span>
+      <button class="modal-close" id="aiChatPanelClose">&#10005;</button>
+    </span>
   </div>
   <div id="aiChatMessages" class="ai-chat-panel-messages"></div>
   <div class="ai-chat-panel-input-row">

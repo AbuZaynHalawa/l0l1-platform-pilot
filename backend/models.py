@@ -8,7 +8,7 @@ rules.py for how this drives both due-date chaining and milestone status.
 """
 from datetime import datetime, date
 from sqlalchemy import (
-    Column, Integer, String, Date, DateTime, ForeignKey, Boolean, Text, Enum, JSON, Float
+    Column, Integer, String, Date, DateTime, ForeignKey, Boolean, Text, Enum, JSON, Float, UniqueConstraint
 )
 from sqlalchemy.orm import declarative_base, relationship
 import enum
@@ -875,3 +875,21 @@ class Announcement(Base):
         # [L0 International]: Announcement has no stage/international column
         # of its own -- badging a row is always resolved through its project.
         return bool(self.project.is_international) if self.project else False
+
+
+class AiChatUsage(Base):
+    """Daily message-count throttle for AI Support -- keyed by the same
+    self-reported actor_email everything else in this pilot trusts (see
+    support.py's own docstring on the trust model; an empty/unset email
+    shares one "(anonymous)" bucket, same backstop as everywhere else).
+    DB-backed rather than an in-memory counter: this app redeploys often,
+    and an in-memory count would reset on every deploy, making a "per day"
+    limit meaningless. One row per (email, day); see ai_support.py.
+    """
+    __tablename__ = "ai_chat_usage"
+    id = Column(Integer, primary_key=True)
+    email = Column(String, nullable=False)
+    usage_date = Column(Date, nullable=False)
+    count = Column(Integer, default=0)
+
+    __table_args__ = (UniqueConstraint("email", "usage_date", name="uq_ai_chat_usage_email_date"),)

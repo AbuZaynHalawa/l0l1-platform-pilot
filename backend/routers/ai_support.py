@@ -204,6 +204,23 @@ def _run_tool(db: Session, name: str, tool_input: dict) -> str:
     return f"Unknown tool: {name}"
 
 
+_DAILY_LIMIT = 10
+
+
+def _usage_key(email: str) -> str:
+    return (email or "").strip().lower() or "(anonymous)"
+
+
+def _get_usage_row(db: Session, email: str, today: date, create: bool) -> "models.AiChatUsage | None":
+    key = _usage_key(email)
+    row = db.query(models.AiChatUsage).filter_by(email=key, usage_date=today).first()
+    if not row and create:
+        row = models.AiChatUsage(email=key, usage_date=today, count=0)
+        db.add(row)
+        db.flush()
+    return row
+
+
 class ChatMessage(BaseModel):
     role: str  # "user" | "assistant"
     content: str
@@ -216,6 +233,13 @@ class ChatRequest(BaseModel):
     actor_role: str = "Viewer"
 
 
+@router.get("/usage")
+def get_usage(actor_email: str = "", db: Session = Depends(get_db)):
+    row = _get_usage_row(db, actor_email, date.today(), create=False)
+    used = row.count if row else 0
+    return {"used": used, "limit": _DAILY_LIMIT, "remaining": max(0, _DAILY_LIMIT - used)}
+
+
 @router.post("/chat")
 def chat(payload: ChatRequest, db: Session = Depends(get_db)):
     api_key = os.environ.get("ANTHROPIC_API_KEY")
@@ -224,6 +248,14 @@ def chat(payload: ChatRequest, db: Session = Depends(get_db)):
     message = payload.message.strip()
     if not message:
         raise HTTPException(400, "Message is required")
+
+    # Checked (and only actually incremented on a successful reply, further
+    # down) before spending anything on the Anthropic call itself -- the
+    # whole point is capping API cost, so an already-exhausted user should
+    # never trigger a real request.
+    usage = _get_usage_row(db, payload.actor_email, date.today(), create=True)
+    if usage.count >= _DAILY_LIMIT:
+        raise HTTPException(429, f"You've used all {_DAILY_LIMIT} AI Support messages for today -- try again tomorrow, or use Ask the Team.")
 
     who = f"role: {payload.actor_role or 'Viewer'}" + (f", email: {payload.actor_email}" if payload.actor_email else "")
     system = (
@@ -261,4 +293,12 @@ def chat(payload: ChatRequest, db: Session = Depends(get_db)):
         print(f"[ai-support] Anthropic call failed: {e}")
         raise HTTPException(502, "AI Support is temporarily unavailable -- try Ask the Team instead.")
 
-    return {"reply": reply or "I don't have a good answer for that -- try Ask the Team instead."}
+    # Only counted once we actually have a reply -- a failed call above
+    # already exits via the except block before reaching here, so it never
+    # costs the user one of their 10.
+    usage.count += 1
+    db.commit()
+    return {
+        "reply": reply or "I don't have a good answer for that -- try Ask the Team instead.",
+        "remaining": max(0, _DAILY_LIMIT - usage.count), "limit": _DAILY_LIMIT,
+    }
