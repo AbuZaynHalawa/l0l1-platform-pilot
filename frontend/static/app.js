@@ -331,7 +331,7 @@
     dashboard: loadDashboard, assigned: loadAssigned, announcements: loadAnnouncements, reminders: loadReminders,
     l0: function () { loadProjectsTable("L0"); }, l1: function () { loadProjectsTable("L1"); },
     performance: loadPerformance, create: loadCreateOptions, gantt: loadGantt,
-    journey: loadJourney, scores: loadScores, focalpoints: loadFocalPoints, followup: loadFollowUp,
+    journey: loadJourney, scores: loadScores, focalpoints: loadFocalPoints, followup: loadFollowUp, requests: loadRequests,
     support: loadSupport, bmtriage: loadBmTriageStatus, tickets: loadTickets,
     deliverableformulas: loadDeliverableFormulas, deliverablesconfig: loadDeliverablesConfig,
     archivedprojects: loadArchivedProjects, myrequests: loadMyRequests,
@@ -1242,11 +1242,11 @@
       document.getElementById("l1Badge").textContent = projects.filter(function (p) { return p.stage === "L1" && isNew(p); }).length || "";
     } catch (e) {}
 
-    // Follow Up is Admin-only server-side and its nav item is hidden for
+    // Requests is Admin-only server-side and its nav item is hidden for
     // every other role -- same skip-the-fetch pattern as Open Questions
-    // above. Badge sums both request queues that actually live on that
-    // page, so a pending extension/hold request an SME hasn't acted on yet
-    // still surfaces to Admin as a fallback.
+    // above. Badge sums all 6 pending-approval queues that live on that
+    // page (see loadRequests), so a pending extension/hold request an SME
+    // hasn't acted on yet still surfaces to Admin as a fallback.
     if (CURRENT_ROLE === "Admin") {
       try {
         var reassigns = await api("/api/deliverables/reassignment-requests?status=pending");
@@ -1255,11 +1255,11 @@
         var bvReqs = await api("/api/projects/bid-value-requests?status=pending");
         var groupReqs = await api("/api/departments/user-add-requests?status=pending");
         var formulaReqs = await api("/api/deliverables/config/formula-change-requests?status=pending");
-        document.getElementById("followupBadge").textContent =
+        document.getElementById("requestsBadge").textContent =
           (reassigns.length + dueDateReqs.length + smeNoms.length + bvReqs.length + groupReqs.length + formulaReqs.length) || "";
       } catch (e) {}
     } else {
-      document.getElementById("followupBadge").textContent = "";
+      document.getElementById("requestsBadge").textContent = "";
     }
   }
 
@@ -1730,10 +1730,28 @@
     },
     {
       eyebrow: "Around the Portal · Admin",
+      title: "Requests",
+      body:
+        '<p class="tour-step-text">Every pending request waiting on an Admin decision, in one place:</p>' +
+        '<ul class="tour-list">' +
+        "<li><b>Due-Date Requests</b> (Extensions &amp; Holds)</li>" +
+        "<li><b>Reassignment Requests</b></li>" +
+        "<li><b>SME Nominations</b> (someone self-nominating to be an item's SME)</li>" +
+        "<li><b>Bid Value Access Requests</b></li>" +
+        "<li><b>Group Add Requests</b> (anyone in the L0-L1 Group requesting a new email be added to it)</li>" +
+        "<li><b>Formula Change Requests</b> (someone suggesting a different due-date formula and/or " +
+        "scoring weight for a deliverable)</li>" +
+        "</ul>" +
+        '<div class="tour-callout">&#128203; Click any pending request for its full details before deciding ' +
+        "&#8212; a formula request shows exactly what it'd change the formula to (and the weight change " +
+        "as a %), not just what it is today.</div>",
+    },
+    {
+      eyebrow: "Around the Portal · Admin",
       title: "Follow Up",
       body:
-        '<p class="tour-step-text">The Admin triage hub for everything that needs a nudge or a decision, in ' +
-        "one place:</p>" +
+        '<p class="tour-step-text">Every overdue deliverable across the whole portal, with bulk ' +
+        "reminders:</p>" +
         '<div class="mock-window"><div class="mock-titlebar"><div class="mock-dot-3"></div>' +
         '<div class="mock-dot-3"></div><div class="mock-dot-3"></div><span>Follow Up</span></div>' +
         '<div class="fu-stats" style="padding:12px 14px;">' +
@@ -1750,20 +1768,10 @@
         '<details class="fu-dept-group"><summary><span class="fu-dept-name">Supply Chain</span>' +
         '<span class="fu-dept-tags"><span class="fu-dept-count">3 overdue</span></span></summary></details>' +
         "</div>" +
-        '<ul class="tour-list">' +
-        "<li>Six pending-request queues, side by side: <b>Due-Date Requests</b> (Extensions &amp; " +
-        "Holds), <b>Reassignment Requests</b>, <b>SME Nominations</b> (someone self-nominating to be " +
-        "an item's SME), <b>Bid Value Access Requests</b>, <b>Group Add Requests</b> (anyone in " +
-        "the L0-L1 Group requesting a new email be added to it), and <b>Formula Change Requests</b> " +
-        "(someone suggesting a different due-date formula for a deliverable)</li>" +
-        "<li>Every <b>overdue deliverable</b> across the whole portal, grouped by department, most " +
-        "overdue first, with a Critical (15+ days) severity filter</li>" +
-        "</ul>" +
-        '<div class="tour-callout">&#128276; Click any pending request for its full details before deciding ' +
-        "&#8212; a formula request shows exactly what it'd change the formula to, not just what it is " +
-        "today. Remind one stubborn item, or send to everyone currently shown &#8212; both are one " +
-        "click, and each department's group stays collapsed until you open it so the page isn't a " +
-        "wall of rows.</div>",
+        '<div class="tour-callout">&#128276; Grouped by department, most overdue first, with a Critical ' +
+        "(15+ days) severity filter. Remind one stubborn item, or send to everyone currently shown " +
+        "&#8212; both are one click, and each department's group stays collapsed until you open it so " +
+        "the page isn't a wall of rows.</div>",
     },
     {
       eyebrow: "Around the Portal",
@@ -1797,7 +1805,7 @@
         featureRowMock("&#128220;", "accent", "Deliverables Catalog", "Every due-date formula and scoring weight in plain English &#8212; suggest a formula change with your reasoning.") +
         featureRowMock("&#128203;", "accent", "My Requests", "Every request you've sent to an Admin &#8212; due-dates, reassignments, SME nominations, and more &#8212; and where each stands.") +
         featureRowMock("&#128172;", "accent", "Q/A &#8211; Ask the Team", "Raise a question, track your own requests.") +
-        featureRowMock("&#128736;", "crit", "Admin Only", "Reports (4 filterable/printable report types), Top Achievers, Focal Points, Deliverables Configuration, Follow Up, Open Questions, Archived Projects.") +
+        featureRowMock("&#128736;", "crit", "Admin Only", "Reports (4 filterable/printable report types), Top Achievers, Focal Points, Deliverables Configuration, Requests, Follow Up, Open Questions, Archived Projects.") +
         "</div>" +
         '<div class="tour-callout">&#127881; That\'s the full picture &#8212; close this and start ' +
         "exploring. You can reopen this walkthrough anytime from the nav.</div>",
@@ -2689,7 +2697,7 @@
 
   // Self-service "add someone to the L0-L1 Group" request -- open to
   // everyone already in the roster themselves (same gate as Become an SME
-  // above); an Admin approves/rejects in Follow Up -> Group Add Requests.
+  // above); an Admin approves/rejects in Requests -> Group Add Requests.
   var groupInviteRequesterEmail = "", groupInviteRequesterName = "";
   async function openGroupInviteModal() {
     var overlay = document.getElementById("groupInviteOverlay");
@@ -6125,7 +6133,16 @@
   document.getElementById("fuDetailClose").addEventListener("click", closeFuDetailModal);
   document.getElementById("fuDetailOverlay").addEventListener("click", function (e) { if (e.target === this) closeFuDetailModal(); });
 
-  async function loadFollowUp() {
+  // [Requests/Follow Up split]: this page used to be one function covering
+  // both the 6 pending-approval queues (Due-Date/Reassignment/SME
+  // Nomination/Bid Value/Group Add/Formula Change) and the Due & Overdue
+  // Deliverables bulk-reminder tool -- two genuinely different jobs living
+  // on one page. loadRequests() now owns the 6 queues (view-requests);
+  // loadFollowUp() further below owns just the reminder tool
+  // (view-followup). Both still call refreshNavBadges() at the end since
+  // either page's approve/reject can change counts the OTHER page's nav
+  // badge shows.
+  async function loadRequests() {
     // Item [due-date requests]: same .aq-row list pattern as Reassignment
     // Requests right below it, covering both extension and hold kinds.
     var ddReqs = await api("/api/deliverables/due-date-requests?status=pending");
@@ -6153,7 +6170,7 @@
             body: JSON.stringify({ approved: true, comment: "", actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
           });
           showToast(kindLabel + " approved");
-          loadFollowUp();
+          loadRequests();
         };
         var doReject = async function () {
           await api("/api/deliverables/due-date-requests/" + r.id + "/decide", {
@@ -6161,7 +6178,7 @@
             body: JSON.stringify({ approved: false, comment: "", actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
           });
           showToast(kindLabel + " rejected");
-          loadFollowUp();
+          loadRequests();
         };
         row.style.cursor = "pointer";
         row.addEventListener("click", function () {
@@ -6208,7 +6225,7 @@
             body: JSON.stringify({ approved: true, actor_role: CURRENT_ROLE }),
           });
           showToast("Reassigned to " + r.to_email);
-          loadFollowUp();
+          loadRequests();
         };
         var doReject = async function () {
           await api("/api/deliverables/reassignment-requests/" + r.id + "/decide", {
@@ -6216,7 +6233,7 @@
             body: JSON.stringify({ approved: false, actor_role: CURRENT_ROLE }),
           });
           showToast("Reassignment rejected");
-          loadFollowUp();
+          loadRequests();
         };
         row.style.cursor = "pointer";
         row.addEventListener("click", function () {
@@ -6276,7 +6293,7 @@
               body: JSON.stringify({ approved: true, comment: "", actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
             });
             showToast(email + " is now the SME for " + n.item_no);
-            loadFollowUp();
+            loadRequests();
           };
           var doReject = function () {
             openChecklistEditModal({
@@ -6291,7 +6308,7 @@
                   body: JSON.stringify({ approved: false, comment: comment, actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
                 });
                 showToast("Nomination declined");
-                loadFollowUp();
+                loadRequests();
               },
             });
           };
@@ -6339,7 +6356,7 @@
             body: JSON.stringify({ approved: true, actor_role: CURRENT_ROLE }),
           });
           showToast("Access approved for " + r.requested_by_email);
-          loadFollowUp();
+          loadRequests();
         };
         var doReject = async function () {
           await api("/api/projects/bid-value-requests/" + r.id + "/decide", {
@@ -6347,7 +6364,7 @@
             body: JSON.stringify({ approved: false, actor_role: CURRENT_ROLE }),
           });
           showToast("Request rejected");
-          loadFollowUp();
+          loadRequests();
         };
         row.style.cursor = "pointer";
         row.addEventListener("click", function () {
@@ -6389,7 +6406,7 @@
             body: JSON.stringify({ approved: true, comment: "", actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
           });
           showToast(r.email + " added to the L0-L1 Group");
-          loadFollowUp();
+          loadRequests();
         };
         var doReject = async function () {
           await api("/api/departments/user-add-requests/" + r.id + "/decide", {
@@ -6397,7 +6414,7 @@
             body: JSON.stringify({ approved: false, comment: "", actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
           });
           showToast("Request rejected");
-          loadFollowUp();
+          loadRequests();
         };
         row.style.cursor = "pointer";
         row.addEventListener("click", function () {
@@ -6443,7 +6460,7 @@
             body: JSON.stringify({ approved: true, comment: "", actor_role: CURRENT_ROLE, actor_email: actingEmail(), actor_name: passiveIdentity() }),
           });
           showToast("Formula updated for " + r.item_no);
-          loadFollowUp();
+          loadRequests();
         };
         var doReject = function () {
           openChecklistEditModal({
@@ -6458,7 +6475,7 @@
                 body: JSON.stringify({ approved: false, comment: comment, actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
               });
               showToast("Suggestion declined");
-              loadFollowUp();
+              loadRequests();
             },
           });
         };
@@ -6492,7 +6509,10 @@
         formulaReqWrap.appendChild(row);
       });
     }
+    refreshNavBadges();
+  }
 
+  async function loadFollowUp() {
     // Item [follow-up redesign]: was one flat, unsorted, ungrouped list --
     // confusing once more than a handful of items are overdue at once. Now
     // grouped by Department (collapsed accordion, so the page opens calm
@@ -6614,11 +6634,11 @@
     severitySel.onchange = renderFollowUpList;
     sortSel.onchange = renderFollowUpList;
     renderFollowUpList();
-    // Item [badge auto-refresh]: every Approve/Reject above reloads this
-    // page via loadFollowUp(), so refreshing badges here (rather than at
-    // each of the 4 action call sites individually) covers all of them in
-    // one place -- the followupBadge count actually changes the moment a
-    // request is decided, not only after a manual page reload.
+    // This page has no approve/reject of its own (see loadRequests for
+    // that), but still refreshes every nav badge on load -- e.g. sending a
+    // reminder here doesn't change any badge count today, but keeping this
+    // consistent with every other page-load means a badge never goes stale
+    // just because the last thing the admin did happened to be here.
     refreshNavBadges();
   }
 

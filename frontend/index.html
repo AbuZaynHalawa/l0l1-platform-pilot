@@ -47,7 +47,8 @@
       <button class="nav-item" data-view="scores"><span class="ic">&#127942;</span> Top Achievers</button>
       <button class="nav-item" data-view="focalpoints"><span class="ic">&#128222;</span> Focal Points</button>
       <button class="nav-item" data-view="deliverablesconfig"><span class="ic">&#9881;</span> Deliverables Configuration</button>
-      <button class="nav-item" id="followupNavItem" data-view="followup"><span class="ic">&#128276;</span> Follow Up <span class="nav-badge" id="followupBadge"></span></button>
+      <button class="nav-item" id="requestsNavItem" data-view="requests"><span class="ic">&#128203;</span> Requests <span class="nav-badge" id="requestsBadge"></span></button>
+      <button class="nav-item" id="followupNavItem" data-view="followup"><span class="ic">&#128276;</span> Follow Up</button>
       <!-- Item 151: every Ask the Team thread, in one dedicated admin view --
            the asker-facing "Ask a Question" tab keeps its own My Requests
            list, but replying/resolving as an admin now lives here instead. -->
@@ -609,13 +610,15 @@
       </div>
     </section>
 
-    <!-- FOLLOW UP (admin-only: due/overdue bulk reminders + reassignment approvals) -->
-    <section class="view" id="view-followup" hidden>
+    <!-- REQUESTS (admin-only: every pending approval queue -- due-date,
+         reassignment, SME nomination, Bid Value access, group add, formula
+         change -- split out from Follow Up so each page has one job. -->
+    <section class="view" id="view-requests" hidden>
       <div class="view-head">
         <div>
           <div class="eyebrow">Admin</div>
-          <h1>Follow Up</h1>
-          <p class="sub">Everything currently due or overdue, with bulk reminders &#8212; plus pending reassignment requests.</p>
+          <h1>Requests</h1>
+          <p class="sub">Every pending request waiting on an Admin decision, across the app.</p>
         </div>
       </div>
 
@@ -672,6 +675,17 @@
           </div>
           <div id="formulaReqList"></div>
           <div id="formulaReqHistory" hidden></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FOLLOW UP (admin-only: due/overdue bulk reminders) -->
+    <section class="view" id="view-followup" hidden>
+      <div class="view-head">
+        <div>
+          <div class="eyebrow">Admin</div>
+          <h1>Follow Up</h1>
+          <p class="sub">Everything currently due or overdue, with bulk reminders.</p>
         </div>
       </div>
 
