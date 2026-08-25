@@ -1283,6 +1283,48 @@
   .trend-legend .sw { width: 12px; height: 3px; border-radius: 2px; }
   .report-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 
+  /* ---------- Reports landing page: category picker ---------- */
+  .report-category-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; }
+  .report-category-box {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+    background: var(--surface); border: 1.5px solid var(--line); border-radius: 14px;
+    padding: 24px 22px; cursor: pointer; text-align: left; font-family: inherit;
+    transition: transform .15s, box-shadow .15s, border-color .15s;
+  }
+  .report-category-box:hover { transform: translateY(-2px); box-shadow: var(--shadow-2); border-color: var(--accent-line); }
+  .rcb-icon { font-size: 28px; }
+  .rcb-title { font-size: 16px; font-weight: 800; color: var(--ink-900); }
+  .rcb-desc { font-size: 12.5px; color: var(--ink-500); line-height: 1.4; }
+
+  /* ---------- Report cards (Master PO / Overview PO) -- the visual
+     language from Dashboard Design System Reference.md: left-border-by-
+     status cards, a progress bar per item, status-tinted stat tiles --
+     rebuilt on this app's own existing --good/--warn/--crit tokens (same
+     hex values as the reference's excellent/acceptable/needs-action) and
+     --accent (its own indigo-family brand color) rather than a second,
+     parallel color system. Scoped to .report-design-ref views only. ---------- */
+  .rep-po-summary { display: flex; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
+  .rep-po-stat { background: var(--surface); border: 1.5px solid var(--line); border-radius: 10px; padding: 12px 18px; min-width: 110px; }
+  .rep-po-stat .v { font-size: 22px; font-weight: 800; line-height: 1.1; }
+  .rep-po-stat .l { font-size: 10.5px; text-transform: uppercase; color: var(--ink-500); font-weight: 700; letter-spacing: .03em; margin-top: 3px; }
+  .rep-po-stat.complete .v { color: var(--good); }
+  .rep-po-stat.in_progress .v { color: var(--warn); }
+  .rep-po-stat.blocked .v { color: var(--crit); }
+  .rep-po-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+  .rep-po-card { background: var(--surface); border-radius: 10px; border: 1.5px solid var(--line); border-left-width: 5px; padding: 16px 18px; box-shadow: var(--shadow-1); }
+  .rep-po-card.complete { border-left-color: var(--good); }
+  .rep-po-card.in_progress { border-left-color: var(--warn); }
+  .rep-po-card.blocked { border-left-color: var(--crit); }
+  .rep-po-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 3px; }
+  .rep-po-card-title { font-size: 13.5px; font-weight: 700; }
+  .rep-po-card-sub { font-size: 11.5px; color: var(--ink-500); margin-bottom: 10px; }
+  .rep-po-bar { height: 8px; border-radius: 6px; background: var(--surface-sunken); overflow: hidden; margin-bottom: 8px; }
+  .rep-po-bar-fill { height: 100%; }
+  .rep-po-bar-fill.complete { background: var(--good); }
+  .rep-po-bar-fill.in_progress { background: var(--warn); }
+  .rep-po-bar-fill.blocked { background: var(--crit); }
+  .rep-po-card-foot { font-size: 11px; color: var(--ink-500); display: flex; justify-content: space-between; gap: 8px; }
+
   /* ================= ITEM 42: PERFORMANCE DASHBOARD ================= */
   /* L0/L1 each get their own identity color, consistently, everywhere they
      appear across the whole app (Dashboard cards, stage badges, journey
@@ -1534,11 +1576,16 @@
     body { padding: 18px; }
     .rail, .topbar, .rail-toggle, #perfSearch, .perf-chip-row, .perf-compare-check,
     .perf-history-btn, .perf-compare-bar, .psc2-hint, .back-link, #perfPrintBtn,
-    .perf-filter-card-head input { display: none !important; }
+    .perf-filter-card-head input,
+    #repPerfFilterRow, #repPerfPrintBtn, #repMasterPoFilterRow, #repMasterPoPrintBtn,
+    #repOverviewPoFilterRow, #repOverviewPoPrintBtn, #repBudgetFilterRow, #repBudgetPrintBtn
+      { display: none !important; }
     .view { padding: 0 !important; max-width: none !important; }
     .shell { display: block !important; }
     .perf-card2, .perf-summary-card2, .perf-filter-card { break-inside: avoid; box-shadow: none !important; border: 1px solid #ddd; }
     .perf-card-grid { grid-template-columns: 1fr 1fr !important; }
+    .rep-po-card, .rank-row, .fp-table tr { break-inside: avoid; }
+    .rep-po-card { box-shadow: none !important; border: 1px solid #ddd; border-left-width: 4px; }
   }
 
 /* ================= PO LIFECYCLE (read-only tab) =================

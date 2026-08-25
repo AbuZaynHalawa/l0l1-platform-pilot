@@ -911,15 +911,149 @@
         <div>
           <div class="eyebrow">Admin</div>
           <h1>Reports</h1>
-          <p class="sub">Company-wide ranking behind the Performance page's headline numbers.</p>
+          <p class="sub">Pick a report to view, filter, and print.</p>
+        </div>
+      </div>
+      <div class="report-category-grid">
+        <button class="report-category-box" data-report="performance">
+          <span class="rcb-icon">&#128200;</span>
+          <span class="rcb-title">Performance Report</span>
+          <span class="rcb-desc">Department L0/L1 performance, ranked and filterable.</span>
+        </button>
+        <button class="report-category-box" data-report="masterpo">
+          <span class="rcb-icon">&#128203;</span>
+          <span class="rcb-title">Master PO Report</span>
+          <span class="rcb-desc">Every PO line item across every L1 project, in one place.</span>
+        </button>
+        <button class="report-category-box" data-report="overviewpo">
+          <span class="rcb-icon">&#128194;</span>
+          <span class="rcb-title">Overview PO Report</span>
+          <span class="rcb-desc">The full PO Lifecycle for one project at a time.</span>
+        </button>
+        <button class="report-category-box" data-report="budgetstatus">
+          <span class="rcb-icon">&#128176;</span>
+          <span class="rcb-title">Budget Status Report</span>
+          <span class="rcb-desc">Temp / Baseline / Locked Oracle budget status, every L1 project.</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- PERFORMANCE REPORT -->
+    <section class="view" id="view-report-performance" hidden>
+      <button class="back-link" id="repPerfBack">&#8592; Back to Reports</button>
+      <div class="view-head">
+        <div>
+          <div class="eyebrow">Reports</div>
+          <h1>Performance Report</h1>
+          <p class="sub">Live department performance, ranked and filterable.</p>
         </div>
         <div class="report-actions">
-          <button class="btn" id="reportsExport">Export to Excel</button>
+          <button class="btn" id="repPerfPrintBtn">&#128424; Print</button>
         </div>
+      </div>
+      <div class="fp-add-row" id="repPerfFilterRow">
+        <select id="repPerfDeptFilter"><option value="">All Departments</option></select>
+        <select id="repPerfStageFilter">
+          <option value="">Both Stages</option>
+          <option value="l0">L0</option>
+          <option value="l1">L1</option>
+        </select>
+        <select id="repPerfStatusFilter">
+          <option value="">Any Status</option>
+          <option value="Excellent">Excellent</option>
+          <option value="Acceptable">Acceptable</option>
+          <option value="Needs Action">Needs Action</option>
+        </select>
       </div>
       <div class="card">
         <div class="section-title">Departments Ranked <span class="cnt">by live approval rate</span></div>
-        <div id="rankList"></div>
+        <div id="repPerfRankList"></div>
+      </div>
+      <div class="card table-card" style="margin-top:16px;">
+        <table class="fp-table">
+          <thead><tr><th>Department</th><th style="width:90px;">Stage</th><th style="width:90px;">%</th><th style="width:150px;">Status</th><th style="width:120px;">Trend (MoM)</th></tr></thead>
+          <tbody id="repPerfBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- MASTER PO REPORT -->
+    <section class="view report-design-ref" id="view-report-masterpo" hidden>
+      <button class="back-link" id="repMasterPoBack">&#8592; Back to Reports</button>
+      <div class="view-head">
+        <div>
+          <div class="eyebrow">Reports</div>
+          <h1>Master PO Report</h1>
+          <p class="sub">Every PO line item across every active L1 project.</p>
+        </div>
+        <div class="report-actions">
+          <button class="btn" id="repMasterPoPrintBtn">&#128424; Print</button>
+        </div>
+      </div>
+      <div class="fp-add-row" id="repMasterPoFilterRow">
+        <select id="repMasterPoProjectFilter"><option value="">All Projects</option></select>
+        <select id="repMasterPoCategoryFilter"><option value="">All Categories</option></select>
+        <select id="repMasterPoStatusFilter">
+          <option value="">Any Status</option>
+          <option value="complete">Complete</option>
+          <option value="in_progress">In Progress</option>
+          <option value="blocked">Blocked</option>
+        </select>
+      </div>
+      <div class="rep-po-summary" id="repMasterPoSummary"></div>
+      <div class="rep-po-grid" id="repMasterPoGrid"></div>
+    </section>
+
+    <!-- OVERVIEW PO REPORT (per project) -->
+    <section class="view report-design-ref" id="view-report-overviewpo" hidden>
+      <button class="back-link" id="repOverviewPoBack">&#8592; Back to Reports</button>
+      <div class="view-head">
+        <div>
+          <div class="eyebrow">Reports</div>
+          <h1>Overview PO Report</h1>
+          <p class="sub">Full PO Lifecycle for one project.</p>
+        </div>
+        <div class="report-actions">
+          <button class="btn" id="repOverviewPoPrintBtn">&#128424; Print</button>
+        </div>
+      </div>
+      <div class="fp-add-row" id="repOverviewPoFilterRow">
+        <select id="repOverviewPoProjectSelect"><option value="">Select a project&#8230;</option></select>
+        <select id="repOverviewPoCategoryFilter"><option value="">All Categories</option></select>
+        <select id="repOverviewPoStatusFilter">
+          <option value="">Any Status</option>
+          <option value="complete">Complete</option>
+          <option value="in_progress">In Progress</option>
+          <option value="blocked">Blocked</option>
+        </select>
+      </div>
+      <div class="rep-po-summary" id="repOverviewPoSummary"></div>
+      <div class="rep-po-grid" id="repOverviewPoGrid"></div>
+    </section>
+
+    <!-- BUDGET STATUS REPORT -->
+    <section class="view" id="view-report-budgetstatus" hidden>
+      <button class="back-link" id="repBudgetBack">&#8592; Back to Reports</button>
+      <div class="view-head">
+        <div>
+          <div class="eyebrow">Reports</div>
+          <h1>Budget Status Report</h1>
+          <p class="sub">Temp / Baseline / Locked Project Budget on Oracle (6.1 / 6.2 / 6.3), every active L1 project. Workflow status only &#8212; no dollar figures are tracked anywhere in the system today.</p>
+        </div>
+        <div class="report-actions">
+          <button class="btn" id="repBudgetPrintBtn">&#128424; Print</button>
+        </div>
+      </div>
+      <div class="fp-add-row" id="repBudgetFilterRow">
+        <select id="repBudgetProjectFilter"><option value="">All Projects</option></select>
+        <select id="repBudgetItemFilter"><option value="">All Budget Items</option></select>
+        <select id="repBudgetStatusFilter"><option value="">Any Status</option></select>
+      </div>
+      <div class="card table-card">
+        <table class="fp-table">
+          <thead><tr><th>Project</th><th style="width:200px;">Budget Item</th><th style="width:130px;">Status</th><th style="width:140px;">Owner</th><th style="width:110px;">Due Date</th><th style="width:120px;">Deadline</th></tr></thead>
+          <tbody id="repBudgetBody"></tbody>
+        </table>
       </div>
     </section>
 
