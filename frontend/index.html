@@ -36,6 +36,7 @@
       <button class="nav-item" id="bmTriageNavItem" data-view="bmtriage"><span class="ic">&#9989;</span> BM Triage Status <span class="nav-badge" id="bmTriageBadge"></span></button>
       <button class="nav-item" data-view="performance"><span class="ic">&#128200;</span> Performance</button>
       <button class="nav-item" data-view="deliverableformulas"><span class="ic">&#128220;</span> Deliverable Formulas</button>
+      <button class="nav-item" data-view="myrequests"><span class="ic">&#128203;</span> My Requests</button>
       <button class="nav-item" data-view="support"><span class="ic">&#128172;</span> Q/A - Ask the Team</button>
     </nav>
 
@@ -883,6 +884,27 @@
       </div>
     </section>
 
+    <!-- MY REQUESTS (all roles): every request the acting user has ever
+         sent to an Admin, across every request type in the app, with
+         where each one stands. -->
+    <section class="view" id="view-myrequests" hidden>
+      <div class="view-head">
+        <div>
+          <div class="eyebrow">Workspace</div>
+          <h1>My Requests</h1>
+          <p class="sub">Every request you've sent to an Admin &#8212; due-date extensions/holds, reassignments,
+            SME nominations, Bid Value access, L0-L1 Group adds, and formula change suggestions &#8212; and
+            where each one stands. Click any row for the full details.</p>
+        </div>
+      </div>
+      <div class="card table-card">
+        <table class="fp-table">
+          <thead><tr><th style="width:170px;">Type</th><th>Request</th><th style="width:150px;">Status</th><th style="width:110px;">Requested</th></tr></thead>
+          <tbody id="myRequestsBody"></tbody>
+        </table>
+      </div>
+    </section>
+
     <!-- REPORTS -->
     <section class="view" id="view-reports" hidden>
       <div class="view-head">
@@ -1352,6 +1374,17 @@
       <button class="modal-close" id="perfBreakdownClose">&#10005;</button>
     </div>
     <div class="modal-body" id="perfBreakdownBody"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="fuDetailOverlay" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <div><div class="eyebrow" id="fuDetailEyebrow"></div><h2 id="fuDetailTitle"></h2></div>
+      <button class="modal-close" id="fuDetailClose">&#10005;</button>
+    </div>
+    <div class="modal-body" id="fuDetailBody"></div>
+    <div class="modal-actions-row" id="fuDetailActions" style="margin-top:20px;"></div>
   </div>
 </div>
 

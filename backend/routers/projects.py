@@ -575,10 +575,12 @@ def _can_view_bid_value(db: Session, project: models.Project, actor_role: str, a
 # (non-numeric) project_id and 422 before ever reaching the real handler.
 # Same reasoning as deliverables.py's reassignment-requests/due-date-requests.
 @router.get("/bid-value-requests")
-def list_bid_value_requests(status: str = "pending", db: Session = Depends(get_db)):
+def list_bid_value_requests(status: str = "pending", requested_by_email: str | None = None, db: Session = Depends(get_db)):
     q = db.query(models.BidValueAccessRequest)
     if status:
         q = q.filter(models.BidValueAccessRequest.status == status)
+    if requested_by_email:
+        q = q.filter(models.BidValueAccessRequest.requested_by_email.ilike(requested_by_email.strip()))
     reqs = q.order_by(models.BidValueAccessRequest.requested_at.desc()).all()
     return [
         {

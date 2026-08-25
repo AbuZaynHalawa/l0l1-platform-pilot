@@ -880,29 +880,55 @@ def _describe_branch(branch: "models.DeliverableFormulaBranch") -> str:
     return f"{_CONDITION_LABELS.get(branch.condition_type, branch.condition_type)}: {formula}"
 
 
+def describe_branch_list(branches: list) -> str:
+    """Shared core of describe_formula_branches/describe_proposed_branches
+    below -- takes anything whose items support dot-access to the same
+    fields DeliverableFormulaBranch has (a real ORM branch, or a
+    SimpleNamespace wrapping a proposed_branches JSON dict), so a formula
+    change request's "what would this actually become" text is built by the
+    exact same wording logic as the live admin/Owner-SME formula pages,
+    never a second, driftable implementation.
+    """
+    active = [b for b in branches if getattr(b, "active", True)]
+    ordered = sorted(active, key=lambda b: getattr(b, "branch_order", 0))
+    if not ordered:
+        return "No computable due date (on request / library item)."
+    parts: list[str] = []
+    seen: set[str] = set()
+    for branch in ordered:
+        tie = getattr(branch, "tie_break", None)
+        if tie:
+            if tie in seen:
+                continue
+            seen.add(tie)
+            group = [b for b in ordered if getattr(b, "tie_break", None) == tie]
+            which = "earliest" if tie == "earliest_of_siblings" else "latest"
+            options = "; or ".join(_describe_branch(gb) for gb in group)
+            parts.append(f"Whichever is {which} of: {options}")
+        else:
+            parts.append(_describe_branch(branch))
+    return ". ".join(parts) + "."
+
+
 def describe_formula_branches(definition: "models.DeliverableDefinition") -> str:
     """Human-readable summary of every active branch, in order -- shared by
     the admin definitions list and the Owner/SME read-only formulas page so
     the two never disagree on wording. Tie-break groups are described as
     "earliest/latest of: A, or B" rather than as separate sentences.
     """
-    branches = sorted((b for b in definition.branches if b.active), key=lambda b: b.branch_order)
-    if not branches:
-        return "No computable due date (on request / library item)."
-    parts: list[str] = []
-    seen: set[str] = set()
-    for branch in branches:
-        if branch.tie_break:
-            if branch.tie_break in seen:
-                continue
-            seen.add(branch.tie_break)
-            group = [b for b in branches if b.tie_break == branch.tie_break]
-            which = "earliest" if branch.tie_break == "earliest_of_siblings" else "latest"
-            options = "; or ".join(_describe_branch(gb) for gb in group)
-            parts.append(f"Whichever is {which} of: {options}")
-        else:
-            parts.append(_describe_branch(branch))
-    return ". ".join(parts) + "."
+    return describe_branch_list(definition.branches)
+
+
+def describe_proposed_branches(raw_branches: list[dict]) -> str:
+    """Same wording as describe_formula_branches, but for a formula change
+    request's proposed_branches -- a plain JSON list, not a persisted
+    definition's ORM branches. Used so the Follow Up admin page can show
+    what a suggestion would actually change the formula TO, not just what
+    it currently is (current_summary alone left an admin unable to
+    meaningfully decide the request).
+    """
+    from types import SimpleNamespace
+    return describe_branch_list([SimpleNamespace(**b) for b in raw_branches])
 
 
 def refresh_status(submission: models.DeliverableSubmission) -> None:

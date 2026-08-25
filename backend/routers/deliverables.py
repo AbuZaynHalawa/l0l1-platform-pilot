@@ -659,10 +659,14 @@ def request_reassignment(submission_id: int, payload: schemas.ReassignRequestCre
 
 
 @router.get("/reassignment-requests")
-def list_reassignment_requests(status: str = "pending", db: Session = Depends(get_db)):
+def list_reassignment_requests(status: str = "pending", requested_by_email: str | None = None, db: Session = Depends(get_db)):
     q = db.query(models.ReassignmentRequest)
     if status:
         q = q.filter(models.ReassignmentRequest.status == status)
+    if requested_by_email:
+        # [My Requests]: owner-initiated (see the model's own docstring) --
+        # from_email IS the requester, there's no separate tracked field.
+        q = q.filter(models.ReassignmentRequest.from_email.ilike(requested_by_email.strip()))
     reqs = q.order_by(models.ReassignmentRequest.requested_at.desc()).all()
     return [
         {
@@ -759,10 +763,12 @@ def request_hold(submission_id: int, payload: schemas.DueDateRequestCreate, db: 
 
 
 @router.get("/due-date-requests")
-def list_due_date_requests(status: str = "pending", db: Session = Depends(get_db)):
+def list_due_date_requests(status: str = "pending", requested_by_email: str | None = None, db: Session = Depends(get_db)):
     q = db.query(models.DueDateRequest)
     if status:
         q = q.filter(models.DueDateRequest.status == status)
+    if requested_by_email:
+        q = q.filter(models.DueDateRequest.requested_by_email.ilike(requested_by_email.strip()))
     reqs = q.order_by(models.DueDateRequest.requested_at.desc()).all()
     return [
         {

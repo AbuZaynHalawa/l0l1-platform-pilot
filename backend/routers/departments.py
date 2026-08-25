@@ -539,7 +539,7 @@ def create_sme_nomination(payload: SmeNominationCreate, db: Session = Depends(ge
 
 
 @router.get("/sme-nominations")
-def list_sme_nominations(status: str | None = None, db: Session = Depends(get_db)):
+def list_sme_nominations(status: str | None = None, requested_by_email: str | None = None, db: Session = Depends(get_db)):
     q = (
         db.query(models.SmeNomination)
         .join(models.DeliverableDefinition)
@@ -548,6 +548,10 @@ def list_sme_nominations(status: str | None = None, db: Session = Depends(get_db
     )
     if status:
         q = q.filter(models.SmeNomination.status == status)
+    if requested_by_email:
+        # [My Requests]: self-nomination (see the model's own docstring) --
+        # email IS the requester/nominee, there's no separate tracked field.
+        q = q.filter(models.SmeNomination.email.ilike(requested_by_email.strip()))
     return [_serialize_nomination(n) for n in q.all()]
 
 
@@ -669,10 +673,12 @@ def create_user_add_request(payload: UserAddRequestCreate, db: Session = Depends
 
 
 @router.get("/user-add-requests")
-def list_user_add_requests(status: str | None = "pending", db: Session = Depends(get_db)):
+def list_user_add_requests(status: str | None = "pending", requested_by_email: str | None = None, db: Session = Depends(get_db)):
     q = db.query(models.UserAddRequest).order_by(models.UserAddRequest.requested_at.desc())
     if status:
         q = q.filter(models.UserAddRequest.status == status)
+    if requested_by_email:
+        q = q.filter(models.UserAddRequest.requested_by_email.ilike(requested_by_email.strip()))
     return [_serialize_user_add_request(r) for r in q.all()]
 
 

@@ -530,6 +530,7 @@ def _serialize_formula_request(r: "models.FormulaChangeRequest") -> dict:
         "department": d.department.name if d else None,
         "requested_by_email": r.requested_by_email, "requested_by_name": r.requested_by_name,
         "current_summary": r.current_summary, "proposed_branches": r.proposed_branches,
+        "proposed_formula_text": rules.describe_proposed_branches(r.proposed_branches),
         "comment": r.comment, "status": r.status,
         "requested_at": r.requested_at, "decided_at": r.decided_at,
         "decided_by_email": r.decided_by_email, "decision_comment": r.decision_comment,

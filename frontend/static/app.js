@@ -334,7 +334,7 @@
     journey: loadJourney, scores: loadScores, focalpoints: loadFocalPoints, followup: loadFollowUp,
     support: loadSupport, bmtriage: loadBmTriageStatus, tickets: loadTickets,
     deliverableformulas: loadDeliverableFormulas, deliverablesconfig: loadDeliverablesConfig,
-    archivedprojects: loadArchivedProjects,
+    archivedprojects: loadArchivedProjects, myrequests: loadMyRequests,
   };
   var ADMIN_ONLY_VIEWS = ["create", "reports", "scores", "focalpoints", "followup", "tickets", "deliverablesconfig", "archivedprojects"];
   // Item 110: BM Triage Status isn't strictly admin-only — a Bid Manager
@@ -5644,12 +5644,50 @@
   }
 
   /* ================= FOLLOW UP (admin) ================= */
+  // Item [Follow Up detail modal]: every request row across the 6 panels
+  // below was decide-only-from-the-compact-row -- fine for a one-line
+  // reassignment, not enough to actually evaluate a formula change (whose
+  // full proposed branches never fit inline) or anything else that
+  // deserves a second look before Approve/Reject. Clicking a row now opens
+  // this one shared modal with every field the request has, plus the same
+  // Approve/Reject actions the row itself already wires up (passed straight
+  // through, so there's exactly one place each decision's real logic lives).
+  function openFuDetailModal(opts) {
+    document.getElementById("fuDetailEyebrow").innerHTML = opts.eyebrow || "";
+    document.getElementById("fuDetailTitle").innerHTML = opts.title || "";
+    var body = document.getElementById("fuDetailBody");
+    body.innerHTML = "";
+    opts.fields.forEach(function (f) {
+      if (!f[1]) return;
+      var row = el("div", "meta-item");
+      row.appendChild(el("div", "mk", f[0]));
+      row.appendChild(el("div", "mv", f[1]));
+      body.appendChild(row);
+    });
+    var actions = document.getElementById("fuDetailActions");
+    actions.innerHTML = "";
+    if (opts.onApprove) {
+      var appr = el("button", "btn primary", opts.approveLabel || "Approve");
+      appr.addEventListener("click", function () { closeFuDetailModal(); opts.onApprove(); });
+      actions.appendChild(appr);
+    }
+    if (opts.onReject) {
+      var rej = el("button", "btn ghost-crit", opts.rejectLabel || "Reject");
+      rej.addEventListener("click", function () { closeFuDetailModal(); opts.onReject(); });
+      actions.appendChild(rej);
+    }
+    document.getElementById("fuDetailOverlay").hidden = false;
+  }
+  function closeFuDetailModal() { document.getElementById("fuDetailOverlay").hidden = true; }
+  document.getElementById("fuDetailClose").addEventListener("click", closeFuDetailModal);
+  document.getElementById("fuDetailOverlay").addEventListener("click", function (e) { if (e.target === this) closeFuDetailModal(); });
+
   async function loadFollowUp() {
     // Item [due-date requests]: same .aq-row list pattern as Reassignment
     // Requests right below it, covering both extension and hold kinds.
     var ddReqs = await api("/api/deliverables/due-date-requests?status=pending");
     var ddWrap = document.getElementById("dueDateReqList");
-    document.getElementById("dueDateReqCount").textContent = ddReqs.length || "";
+    document.getElementById("dueDateReqCount").textContent = ddReqs.length ? "(" + ddReqs.length + ")" : "";
     ddWrap.innerHTML = "";
     if (!ddReqs.length) {
       ddWrap.appendChild(el("div", "empty-state", "No pending extension/hold requests."));
@@ -5666,24 +5704,38 @@
           '<span class="sep">&middot;</span><span>' + r.reason + '</span>'));
         row.appendChild(main);
         var actions = el("div", "deliv-actions");
-        var appr = el("button", "btn primary", "Approve");
-        appr.addEventListener("click", async function () {
+        var doApprove = async function () {
           await api("/api/deliverables/due-date-requests/" + r.id + "/decide", {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ approved: true, comment: "", actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
           });
           showToast(kindLabel + " approved");
           loadFollowUp();
-        });
-        var rej = el("button", "btn ghost-crit", "Reject");
-        rej.addEventListener("click", async function () {
+        };
+        var doReject = async function () {
           await api("/api/deliverables/due-date-requests/" + r.id + "/decide", {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ approved: false, comment: "", actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
           });
           showToast(kindLabel + " rejected");
           loadFollowUp();
+        };
+        row.style.cursor = "pointer";
+        row.addEventListener("click", function () {
+          openFuDetailModal({
+            eyebrow: kindLabel + " Request", title: r.item_no + " &middot; " + r.name,
+            fields: [
+              ["Project", r.est_no], ["Requested by", r.requested_by_email],
+              ["Change", r.kind === "extension" ? (fmtDate(r.current_due_date) + " &#8594; " + fmtDate(r.requested_due_date)) : "Put this item on hold"],
+              ["Reason", r.reason],
+            ],
+            onApprove: doApprove, onReject: doReject,
+          });
         });
+        var appr = el("button", "btn primary", "Approve");
+        appr.addEventListener("click", function (e) { e.stopPropagation(); doApprove(); });
+        var rej = el("button", "btn ghost-crit", "Reject");
+        rej.addEventListener("click", function (e) { e.stopPropagation(); doReject(); });
         actions.appendChild(appr); actions.appendChild(rej);
         row.appendChild(actions);
         ddWrap.appendChild(row);
@@ -5692,7 +5744,7 @@
 
     var reqs = await api("/api/deliverables/reassignment-requests?status=pending");
     var reassignWrap = document.getElementById("reassignList");
-    document.getElementById("reassignCount").textContent = reqs.length || "";
+    document.getElementById("reassignCount").textContent = reqs.length ? "(" + reqs.length + ")" : "";
     reassignWrap.innerHTML = "";
     if (!reqs.length) {
       reassignWrap.appendChild(el("div", "empty-state", "No pending reassignment requests."));
@@ -5707,24 +5759,37 @@
           (r.reason ? '<span class="sep">&middot;</span><span>' + r.reason + '</span>' : "")));
         row.appendChild(main);
         var actions = el("div", "deliv-actions");
-        var appr = el("button", "btn primary", "Approve");
-        appr.addEventListener("click", async function () {
+        var doApprove = async function () {
           await api("/api/deliverables/reassignment-requests/" + r.id + "/decide", {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ approved: true, actor_role: CURRENT_ROLE }),
           });
           showToast("Reassigned to " + r.to_email);
           loadFollowUp();
-        });
-        var rej = el("button", "btn ghost-crit", "Reject");
-        rej.addEventListener("click", async function () {
+        };
+        var doReject = async function () {
           await api("/api/deliverables/reassignment-requests/" + r.id + "/decide", {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ approved: false, actor_role: CURRENT_ROLE }),
           });
           showToast("Reassignment rejected");
           loadFollowUp();
+        };
+        row.style.cursor = "pointer";
+        row.addEventListener("click", function () {
+          openFuDetailModal({
+            eyebrow: "Reassignment Request", title: r.item_no + " &middot; " + r.name,
+            fields: [
+              ["Project", r.est_no], ["From", r.from_email || "Unassigned"], ["To", r.to_email],
+              ["Reason", r.reason],
+            ],
+            onApprove: doApprove, onReject: doReject,
+          });
         });
+        var appr = el("button", "btn primary", "Approve");
+        appr.addEventListener("click", function (e) { e.stopPropagation(); doApprove(); });
+        var rej = el("button", "btn ghost-crit", "Reject");
+        rej.addEventListener("click", function (e) { e.stopPropagation(); doReject(); });
         actions.appendChild(appr); actions.appendChild(rej);
         row.appendChild(actions);
         reassignWrap.appendChild(row);
@@ -5737,7 +5802,7 @@
     // Approve/Reject, decided independently.
     var smeNoms = await api("/api/departments/sme-nominations?status=pending");
     var smeNomWrap = document.getElementById("smeNomList");
-    document.getElementById("smeNomCount").textContent = smeNoms.length || "";
+    document.getElementById("smeNomCount").textContent = smeNoms.length ? "(" + smeNoms.length + ")" : "";
     smeNomWrap.innerHTML = "";
     if (!smeNoms.length) {
       smeNomWrap.appendChild(el("div", "empty-state", "No pending SME nominations."));
@@ -5762,17 +5827,15 @@
             '<span>' + n.stage + '</span><span class="sep">&middot;</span><span>' + deptLabel(n.department, n.department_number) + '</span>'));
           row.appendChild(main);
           var actions = el("div", "deliv-actions");
-          var appr = el("button", "btn primary", "Approve");
-          appr.addEventListener("click", async function () {
+          var doApprove = async function () {
             await api("/api/departments/sme-nominations/" + n.id + "/decide", {
               method: "POST", headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ approved: true, comment: "", actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
             });
             showToast(email + " is now the SME for " + n.item_no);
             loadFollowUp();
-          });
-          var rej = el("button", "btn ghost-crit", "Reject");
-          rej.addEventListener("click", function () {
+          };
+          var doReject = function () {
             openChecklistEditModal({
               type: "text",
               title: "Decline Nomination",
@@ -5788,7 +5851,22 @@
                 loadFollowUp();
               },
             });
+          };
+          row.style.cursor = "pointer";
+          row.addEventListener("click", function () {
+            openFuDetailModal({
+              eyebrow: "SME Nomination", title: n.item_no + " &middot; " + n.item_name,
+              fields: [
+                ["Nominee", (n.name || email) + (n.name ? " (" + email + ")" : "")],
+                ["Stage", n.stage], ["Department", deptLabel(n.department, n.department_number)],
+              ],
+              onApprove: doApprove, onReject: doReject,
+            });
           });
+          var appr = el("button", "btn primary", "Approve");
+          appr.addEventListener("click", function (e) { e.stopPropagation(); doApprove(); });
+          var rej = el("button", "btn ghost-crit", "Reject");
+          rej.addEventListener("click", function (e) { e.stopPropagation(); doReject(); });
           actions.appendChild(appr); actions.appendChild(rej);
           row.appendChild(actions);
           group.appendChild(row);
@@ -5799,7 +5877,7 @@
 
     var bvReqs = await api("/api/projects/bid-value-requests?status=pending");
     var bvReqWrap = document.getElementById("bidValueReqList");
-    document.getElementById("bidValueReqCount").textContent = bvReqs.length || "";
+    document.getElementById("bidValueReqCount").textContent = bvReqs.length ? "(" + bvReqs.length + ")" : "";
     bvReqWrap.innerHTML = "";
     if (!bvReqs.length) {
       bvReqWrap.appendChild(el("div", "empty-state", "No pending Bid Value access requests."));
@@ -5812,24 +5890,34 @@
           '<span>' + (r.requested_by_name ? r.requested_by_name + " (" + r.requested_by_email + ")" : r.requested_by_email) + '</span>'));
         row.appendChild(main);
         var actions = el("div", "deliv-actions");
-        var appr = el("button", "btn primary", "Approve");
-        appr.addEventListener("click", async function () {
+        var doApprove = async function () {
           await api("/api/projects/bid-value-requests/" + r.id + "/decide", {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ approved: true, actor_role: CURRENT_ROLE }),
           });
           showToast("Access approved for " + r.requested_by_email);
           loadFollowUp();
-        });
-        var rej = el("button", "btn ghost-crit", "Reject");
-        rej.addEventListener("click", async function () {
+        };
+        var doReject = async function () {
           await api("/api/projects/bid-value-requests/" + r.id + "/decide", {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ approved: false, actor_role: CURRENT_ROLE }),
           });
           showToast("Request rejected");
           loadFollowUp();
+        };
+        row.style.cursor = "pointer";
+        row.addEventListener("click", function () {
+          openFuDetailModal({
+            eyebrow: "Bid Value Access Request", title: r.est_no + " &middot; " + r.name,
+            fields: [["Requested by", r.requested_by_name ? r.requested_by_name + " (" + r.requested_by_email + ")" : r.requested_by_email]],
+            onApprove: doApprove, onReject: doReject,
+          });
         });
+        var appr = el("button", "btn primary", "Approve");
+        appr.addEventListener("click", function (e) { e.stopPropagation(); doApprove(); });
+        var rej = el("button", "btn ghost-crit", "Reject");
+        rej.addEventListener("click", function (e) { e.stopPropagation(); doReject(); });
         actions.appendChild(appr); actions.appendChild(rej);
         row.appendChild(actions);
         bvReqWrap.appendChild(row);
@@ -5838,7 +5926,7 @@
 
     var groupReqs = await api("/api/departments/user-add-requests?status=pending");
     var groupReqWrap = document.getElementById("groupAddReqList");
-    document.getElementById("groupAddReqCount").textContent = groupReqs.length || "";
+    document.getElementById("groupAddReqCount").textContent = groupReqs.length ? "(" + groupReqs.length + ")" : "";
     groupReqWrap.innerHTML = "";
     if (!groupReqs.length) {
       groupReqWrap.appendChild(el("div", "empty-state", "No pending group add requests."));
@@ -5852,24 +5940,37 @@
           '<span>Requested by ' + (r.requested_by_name ? r.requested_by_name + " (" + r.requested_by_email + ")" : r.requested_by_email) + '</span>'));
         row.appendChild(main);
         var actions = el("div", "deliv-actions");
-        var appr = el("button", "btn primary", "Approve");
-        appr.addEventListener("click", async function () {
+        var doApprove = async function () {
           await api("/api/departments/user-add-requests/" + r.id + "/decide", {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ approved: true, comment: "", actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
           });
           showToast(r.email + " added to the L0-L1 Group");
           loadFollowUp();
-        });
-        var rej = el("button", "btn ghost-crit", "Reject");
-        rej.addEventListener("click", async function () {
+        };
+        var doReject = async function () {
           await api("/api/departments/user-add-requests/" + r.id + "/decide", {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ approved: false, comment: "", actor_role: CURRENT_ROLE, actor_email: actingEmail() }),
           });
           showToast("Request rejected");
           loadFollowUp();
+        };
+        row.style.cursor = "pointer";
+        row.addEventListener("click", function () {
+          openFuDetailModal({
+            eyebrow: "Group Add Request", title: (r.name || r.email) + " &middot; " + r.role,
+            fields: [
+              ["Email", r.email], ["Role", r.role],
+              ["Requested by", r.requested_by_name ? r.requested_by_name + " (" + r.requested_by_email + ")" : r.requested_by_email],
+            ],
+            onApprove: doApprove, onReject: doReject,
+          });
         });
+        var appr = el("button", "btn primary", "Approve");
+        appr.addEventListener("click", function (e) { e.stopPropagation(); doApprove(); });
+        var rej = el("button", "btn ghost-crit", "Reject");
+        rej.addEventListener("click", function (e) { e.stopPropagation(); doReject(); });
         actions.appendChild(appr); actions.appendChild(rej);
         row.appendChild(actions);
         groupReqWrap.appendChild(row);
@@ -5878,7 +5979,7 @@
 
     var formulaReqs = await api("/api/deliverables/config/formula-change-requests?status=pending");
     var formulaReqWrap = document.getElementById("formulaReqList");
-    document.getElementById("formulaReqCount").textContent = formulaReqs.length || "";
+    document.getElementById("formulaReqCount").textContent = formulaReqs.length ? "(" + formulaReqs.length + ")" : "";
     formulaReqWrap.innerHTML = "";
     if (!formulaReqs.length) {
       formulaReqWrap.appendChild(el("div", "empty-state", "No pending formula change requests."));
@@ -5893,17 +5994,15 @@
           '<span class="sep">&middot;</span><span>&#8220;' + r.comment + '&#8221;</span>'));
         row.appendChild(main);
         var actions = el("div", "deliv-actions");
-        var appr = el("button", "btn primary", "Approve");
-        appr.addEventListener("click", async function () {
+        var doApprove = async function () {
           await api("/api/deliverables/config/formula-change-requests/" + r.id + "/decide", {
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ approved: true, comment: "", actor_role: CURRENT_ROLE, actor_email: actingEmail(), actor_name: passiveIdentity() }),
           });
           showToast("Formula updated for " + r.item_no);
           loadFollowUp();
-        });
-        var rej = el("button", "btn ghost-crit", "Reject");
-        rej.addEventListener("click", function () {
+        };
+        var doReject = function () {
           openChecklistEditModal({
             type: "text",
             title: "Decline Suggestion",
@@ -5919,7 +6018,30 @@
               loadFollowUp();
             },
           });
+        };
+        row.style.cursor = "pointer";
+        row.addEventListener("click", function () {
+          // [Formula request detail]: current_summary alone (what it IS
+          // today) never showed what the suggestion would actually change
+          // it TO -- proposed_formula_text (rules.describe_proposed_branches,
+          // same wording engine the live formula pages use) is the field
+          // that was actually missing for an admin to decide this.
+          openFuDetailModal({
+            eyebrow: "Formula Change Request", title: r.item_no + " &middot; " + r.item_name,
+            fields: [
+              ["Department", r.department],
+              ["Requested by", r.requested_by_name ? r.requested_by_name + " (" + r.requested_by_email + ")" : r.requested_by_email],
+              ["Currently", r.current_summary],
+              ["Proposed change", r.proposed_formula_text],
+              ["Reason", r.comment],
+            ],
+            onApprove: doApprove, onReject: doReject,
+          });
         });
+        var appr = el("button", "btn primary", "Approve");
+        appr.addEventListener("click", function (e) { e.stopPropagation(); doApprove(); });
+        var rej = el("button", "btn ghost-crit", "Reject");
+        rej.addEventListener("click", function (e) { e.stopPropagation(); doReject(); });
         actions.appendChild(appr); actions.appendChild(rej);
         row.appendChild(actions);
         formulaReqWrap.appendChild(row);
@@ -6750,6 +6872,103 @@
       tr2.appendChild(actions);
       tr2.addEventListener("click", function () { openDetail(p.id); });
       tbody.appendChild(tr2);
+    });
+  }
+
+  /* ================= MY REQUESTS (all roles) ================= */
+  // One unified, read-only view across every request type in the app --
+  // Deliverable Formulas already had its own scoped "My Suggestions" panel
+  // for formula requests specifically; this is the general version Yasser
+  // asked for, covering all 6 request types the app has (Due-Date,
+  // Reassignment, SME Nomination, Bid Value Access, L0-L1 Group Add,
+  // Formula Change), reusing the same openFuDetailModal Follow Up already
+  // built rather than a second detail-view implementation.
+  async function loadMyRequests() {
+    var email = passiveIdentity();
+    var tbody = document.getElementById("myRequestsBody");
+    tbody.innerHTML = "";
+    if (!email) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--ink-500);padding:30px;">Set your acting email to see your requests.</td></tr>';
+      return;
+    }
+    var qs = "status=&requested_by_email=" + encodeURIComponent(email);
+    var results = await Promise.all([
+      api("/api/deliverables/due-date-requests?" + qs),
+      api("/api/deliverables/reassignment-requests?" + qs),
+      api("/api/departments/sme-nominations?" + qs),
+      api("/api/projects/bid-value-requests?" + qs),
+      api("/api/departments/user-add-requests?" + qs),
+      api("/api/deliverables/config/formula-change-requests?" + qs),
+    ]);
+    var dueDateReqs = results[0], reassignReqs = results[1], smeNoms = results[2],
+        bvReqs = results[3], groupReqs = results[4], formulaReqs = results[5];
+
+    var rows = [];
+    dueDateReqs.forEach(function (r) {
+      var kindLabel = r.kind === "extension" ? "Extension" : "Hold";
+      rows.push({
+        type: "Due-Date " + kindLabel, title: r.item_no + " &middot; " + r.name, status: r.status, at: r.requested_at,
+        fields: [
+          ["Project", r.est_no],
+          ["Change", r.kind === "extension" ? (fmtDate(r.current_due_date) + " &#8594; " + fmtDate(r.requested_due_date)) : "Put this item on hold"],
+          ["Reason", r.reason], ["Decision note", r.decision_comment],
+        ],
+      });
+    });
+    reassignReqs.forEach(function (r) {
+      rows.push({
+        type: "Reassignment", title: r.item_no + " &middot; " + r.name, status: r.status, at: r.requested_at,
+        fields: [["Project", r.est_no], ["From", r.from_email || "Unassigned"], ["To", r.to_email], ["Reason", r.reason]],
+      });
+    });
+    smeNoms.forEach(function (n) {
+      rows.push({
+        type: "SME Nomination", title: n.item_no + " &middot; " + n.item_name, status: n.status, at: n.requested_at,
+        fields: [["Stage", n.stage], ["Department", deptLabel(n.department, n.department_number)]],
+      });
+    });
+    bvReqs.forEach(function (r) {
+      rows.push({
+        type: "Bid Value Access", title: r.est_no + " &middot; " + r.name, status: r.status, at: r.requested_at,
+        fields: [],
+      });
+    });
+    groupReqs.forEach(function (r) {
+      rows.push({
+        type: "L0-L1 Group Add", title: (r.name || r.email) + " &middot; " + r.role, status: r.status, at: r.requested_at,
+        fields: [["Email", r.email], ["Role", r.role]],
+      });
+    });
+    formulaReqs.forEach(function (r) {
+      rows.push({
+        type: "Formula Change", title: r.item_no + " &middot; " + r.item_name, status: r.status, at: r.requested_at,
+        fields: [
+          ["Department", r.department], ["Currently", r.current_summary],
+          ["Proposed change", r.proposed_formula_text], ["Reason", r.comment],
+          ["Decision note", r.decision_comment],
+        ],
+      });
+    });
+    rows.sort(function (a, b) { return new Date(b.at) - new Date(a.at); });
+
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--ink-500);padding:30px;">You haven\'t sent any requests yet.</td></tr>';
+      return;
+    }
+    rows.forEach(function (r) {
+      var tr = el("tr");
+      tr.style.cursor = "pointer";
+      var statusPill = r.status === "pending"
+        ? '<span class="pill neutral"><span class="dot"></span>Pending</span>'
+        : _historyStatusPill(r.status);
+      tr.appendChild(el("td", "", r.type));
+      tr.appendChild(el("td", "", r.title));
+      tr.appendChild(el("td", "", statusPill));
+      tr.appendChild(el("td", "", fmtDate((r.at || "").slice(0, 10))));
+      tr.addEventListener("click", function () {
+        openFuDetailModal({ eyebrow: r.type + " &middot; " + (r.status === "pending" ? "Pending" : (r.status === "approved" ? "Approved" : "Rejected")), title: r.title, fields: r.fields });
+      });
+      tbody.appendChild(tr);
     });
   }
 
