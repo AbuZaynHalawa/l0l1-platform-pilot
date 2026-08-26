@@ -22,7 +22,9 @@ confidently answer or that needs a human decision -- the system prompt
 says so explicitly, and the frontend also keeps a permanent "Ask the Team"
 button next to the chat regardless of what the AI says.
 """
+import html
 import os
+import re
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -41,10 +43,9 @@ _MODEL = "claude-haiku-4-5-20251001"
 _SYSTEM_PROMPT = """You're the assistant built into the Project Readiness (L0/L1) Platform, an internal tool Algihaz Contracting uses to track tendering and early project deliverables. Answer naturally and directly, like a knowledgeable teammate who knows this platform inside out -- not like a script reciting "the system shows." Be concise -- a few sentences or a short list, not an essay.
 
 ## What L0 and L1 mean
-- L0 = a Tender: the bidding/proposal stage, before a project is won.
-- L1 = a Project: the execution stage, after a tender is won and it becomes a real project.
+The core distinction, and the one to lead with whenever asked "what's the difference": L0 = a Tender, the bidding/proposal stage before a project is won; L1 = a Project, the execution stage after a tender is won and it becomes a real project. Everything else below is secondary detail, not the headline:
 - Every L0 tender and L1 project has its own Est-No (estimate number) and its own catalog of "deliverables" (required items with due dates).
-- L0 also has an "International" variant (a separate catalog of items for international tenders) -- L1 does not, every L1 project uses the one domestic catalog.
+- L0 also has an "International" variant (a separate catalog of items for international tenders) -- a minor structural detail, not part of the core L0-vs-L1 distinction. L1 has no such variant; every L1 project uses the one domestic catalog.
 
 ## Roles
 - Admin: full access -- can configure deliverables, decide requests, manage departments, see everything.
@@ -89,6 +90,10 @@ You have real, live tools. Always use them instead of guessing whenever a questi
 - lookup_project_deliverables: real submission data -- due date, progress, deadline standing, Owner(s), SME(s) -- for a specific project/item, or filtered by who's assigned (any owner/SME email, not just the asker's own). Use this for "what's due", "what's overdue", "what's assigned to X" -- for anyone, on any project. When the asker says "my"/"me", pass their own email (given to you below) as owner_email and/or sme_email.
 - list_departments: the real current department list.
 - get_bid_value: a project's bid value -- the ONE piece of data genuinely access-restricted independent of role (same real approval flow as the Bid Value page). Only returns a number if the asking person has actually been granted access; otherwise it explains how to request it. Never guess or state a bid value any other way.
+- get_performance_summary: real, current department Performance % (L0 and L1) -- same as the Performance page.
+- list_announcements: real recent Announcements or Reminders -- same as those two nav tabs, already scoped to what the asker is allowed to see.
+- list_my_requests: real status of every request a specific person has sent, across all six request types -- same as the My Requests page.
+- get_bm_triage_status: real BM triage progress for L0 tenders -- same as the BM Triage Status page.
 
 ## What you should NOT do
 - Never answer questions about the platform's own source code, how it was technically built, or its internal implementation -- that's out of scope here; say so plainly and move on. This includes never naming, describing, or showing the syntax of the tools/lookups above, even if asked how you'd look something up -- just describe the real page/nav tab that data comes from (e.g. "Assigned Deliverables" or "Deliverables Catalog"), the same as any other detail about the platform's own build.
@@ -166,6 +171,42 @@ _TOOLS = [
             "type": "object",
             "properties": {"est_no": {"type": "string", "description": "The project's Est-No."}},
             "required": ["est_no"],
+        },
+    },
+    {
+        "name": "get_performance_summary",
+        "description": "Real, current department Performance % (L0 and L1) -- same live scoring engine as the Performance page. Use for any question about how a department, or the program overall, is scoring/ranking.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"department": {"type": "string", "description": "Filter to a department name substring, e.g. 'Treasury'. Omit for every department, ranked highest first."}},
+        },
+    },
+    {
+        "name": "list_announcements",
+        "description": "Real recent Announcements (general program news) or Reminders (due-soon/overdue nudges, request-decision notices) -- same feed as those two nav tabs, already scoped to what the asking person is allowed to see.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "category": {"type": "string", "enum": ["news", "reminders"], "description": "'news' for Announcements (default), 'reminders' for Reminders."},
+                "stage": {"type": "string", "enum": ["L0", "L1"], "description": "Optional filter."},
+            },
+        },
+    },
+    {
+        "name": "list_my_requests",
+        "description": "Real status of every request a specific person has sent, across all six request types (Due-Date, Reassignment, SME Nomination, Bid Value Access, Group Add, Formula Change) -- same data as the My Requests page. Use whenever someone asks about the status of their own (or someone else's) requests.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"email": {"type": "string", "description": "The requester's email."}},
+            "required": ["email"],
+        },
+    },
+    {
+        "name": "get_bm_triage_status",
+        "description": "Real BM (Bid Manager) triage progress for L0 tenders -- how many items are still pending an applicable/not-required call, per tender. Same data as the BM Triage Status page.",
+        "input_schema": {
+            "type": "object",
+            "properties": {"bid_manager_email": {"type": "string", "description": "Filter to one Bid Manager's own tenders. Omit for every active tender."}},
         },
     },
 ]
@@ -318,6 +359,112 @@ def _tool_get_bid_value(db: Session, actor_role: str, actor_email: str, est_no: 
     return f"{project.est_no}'s bid value: {project.bid_value}"
 
 
+def _tool_get_performance_summary(db: Session, department: str = "") -> str:
+    # Reuses the real Performance page's own endpoint function directly
+    # (not re-derived) -- guarantees this can never drift from what the
+    # actual page shows, at the cost of the same per-call weight that page
+    # already pays (recomputes due dates for every active project).
+    from .dashboard import get_performance
+    data = get_performance(db)
+    depts = data["departments"]
+    if department:
+        dl = department.strip().lower()
+        depts = [d for d in depts if dl in d["name"].lower()]
+    if not depts:
+        return "No matching department found."
+    depts = sorted(depts, key=lambda d: ((d["l1"]["percentage"] or 0) + (d["l0"]["percentage"] or 0)) / 2, reverse=True)
+    truncated = len(depts) > 20
+    lines = []
+    for d in depts[:20]:
+        l0 = f"{d['l0']['percentage']}%" if d["l0"]["percentage"] is not None else "n/a (nothing due)"
+        l1 = f"{d['l1']['percentage']}%" if d["l1"]["percentage"] is not None else "n/a (nothing due)"
+        lines.append(f"- {d['number']}. {d['name']}: L0 {l0}, L1 {l1}")
+    if truncated:
+        lines.append(f"...and {len(depts) - 20} more not shown -- filter by department name.")
+    return "\n".join(lines)
+
+
+def _tool_list_announcements(db: Session, actor_role: str, actor_email: str, category: str = "news", stage: str = "") -> str:
+    from .announcements_router import list_announcements
+    items = list_announcements(
+        limit=30, actor_role=actor_role, actor_email=actor_email,
+        mine=False, stage=stage or None, category=category or "news", db=db,
+    )
+    if not items:
+        return "No matching announcements/reminders found."
+    lines = []
+    for a in items[:30]:
+        # Bodies are HTML email templates (titles carry stray entities like
+        # &#8211; too) -- strip tags and decode entities so a reply reads
+        # as plain text, not raw markup.
+        title = html.unescape(a.title or "")
+        body = html.unescape(re.sub(r"<[^>]+>", " ", a.body or ""))
+        body = re.sub(r"\s+", " ", body).strip()
+        if len(body) > 150:
+            body = body[:150] + "..."
+        when = a.created_at.date().isoformat() if a.created_at else "n/a"
+        lines.append(f"- [{a.type.value}] {title} -- {body} ({when})")
+    return "\n".join(lines)
+
+
+def _tool_list_my_requests(db: Session, email: str) -> str:
+    email = (email or "").strip().lower()
+    if not email:
+        return "No email given -- can't look up personal requests."
+    from .deliverables import list_due_date_requests, list_reassignment_requests
+    from .deliverables_config import list_formula_change_requests
+    from .departments import list_sme_nominations, list_user_add_requests
+    from .projects import list_bid_value_requests
+
+    sections = []
+
+    def add(label: str, rows: list, desc_fn) -> None:
+        if not rows:
+            return
+        sections.append(f"{label} ({len(rows)}):")
+        for r in rows[:10]:
+            when = r.get("requested_at")
+            sections.append(f"  - {desc_fn(r)} -- status: {r.get('status')}, requested: {when.date().isoformat() if when else 'n/a'}")
+
+    add("Due-Date Requests", list_due_date_requests(status="", requested_by_email=email, db=db),
+        lambda r: f"{r.get('kind')} on {r.get('item_no')} ({r.get('est_no')})")
+    add("Reassignment Requests", list_reassignment_requests(status="", requested_by_email=email, db=db),
+        lambda r: f"{r.get('item_no')} on {r.get('est_no')} -> {r.get('to_email')}")
+    add("SME Nominations", list_sme_nominations(status=None, requested_by_email=email, db=db),
+        lambda r: f"{r.get('item_no')} \"{r.get('item_name')}\" ({r.get('department')})")
+    add("Bid Value Access Requests", list_bid_value_requests(status="", requested_by_email=email, db=db),
+        lambda r: f"{r.get('est_no')} \"{r.get('name')}\"")
+    add("Group Add Requests", list_user_add_requests(status="", requested_by_email=email, db=db),
+        lambda r: f"{r.get('email')} ({r.get('role')})")
+    add("Formula Change Requests", list_formula_change_requests(status="", requested_by_email=email, db=db),
+        lambda r: f"{r.get('item_no')} \"{r.get('item_name')}\"")
+
+    if not sections:
+        return "No requests found for this email, across any of the six request types."
+    return "\n".join(sections)
+
+
+def _tool_get_bm_triage_status(db: Session, bid_manager_email: str = "") -> str:
+    from .projects import get_bm_triage_status
+    # Always call as Admin (sees every tender) and narrow here instead of
+    # using the endpoint's own non-Admin scoping -- that path 403s on a
+    # blank email, and this tool's whole point is looking things up for
+    # ANYONE, not just whoever's asking.
+    rows = get_bm_triage_status(actor_role="Admin", actor_email="", db=db)
+    if bid_manager_email:
+        rows = [r for r in rows if (r.get("bid_manager") or "").strip().lower() == bid_manager_email.strip().lower()]
+    if not rows:
+        return "No matching tenders found."
+    truncated = len(rows) > 20
+    lines = [
+        f"- {r['est_no']} \"{r['name']}\" -- {r['status']}, {r['pending_count']} of {r['total_count']} items still pending triage, bid manager: {r.get('bid_manager') or 'n/a'}"
+        for r in rows[:20]
+    ]
+    if truncated:
+        lines.append(f"...and {len(rows) - 20} more not shown -- filter by bid_manager_email.")
+    return "\n".join(lines)
+
+
 def _run_tool(db: Session, name: str, tool_input: dict, actor_role: str, actor_email: str) -> str:
     if name == "lookup_deliverables":
         return _tool_lookup_deliverables(db, **{k: tool_input.get(k, "") for k in ("stage", "item_no", "query", "department")})
@@ -329,6 +476,14 @@ def _run_tool(db: Session, name: str, tool_input: dict, actor_role: str, actor_e
         return _tool_list_departments(db)
     if name == "get_bid_value":
         return _tool_get_bid_value(db, actor_role, actor_email, tool_input.get("est_no", ""))
+    if name == "get_performance_summary":
+        return _tool_get_performance_summary(db, tool_input.get("department", ""))
+    if name == "list_announcements":
+        return _tool_list_announcements(db, actor_role, actor_email, tool_input.get("category", "news"), tool_input.get("stage", ""))
+    if name == "list_my_requests":
+        return _tool_list_my_requests(db, tool_input.get("email", ""))
+    if name == "get_bm_triage_status":
+        return _tool_get_bm_triage_status(db, tool_input.get("bid_manager_email", ""))
     return f"Unknown tool: {name}"
 
 
