@@ -204,7 +204,7 @@ def _run_tool(db: Session, name: str, tool_input: dict) -> str:
     return f"Unknown tool: {name}"
 
 
-_DAILY_LIMIT = 10
+_DAILY_LIMIT = 5
 
 
 def _usage_key(email: str) -> str:
