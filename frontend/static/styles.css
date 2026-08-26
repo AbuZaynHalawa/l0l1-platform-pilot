@@ -1,84 +1,138 @@
 
+  /* ============================================================
+     INSTRUMENT — the platform's visual direction.
+
+     Token NAMES are unchanged from the previous palette on purpose:
+     ~450 component selectors already read from them, so re-cutting the
+     VALUES re-themes the whole app without touching those selectors.
+
+     :root carries the light build. Light is re-cut, not inverted --
+     champagne (#C7B07B) sits at 1.9:1 on white and disappears, so the
+     accent becomes a bronze that holds 4.5:1 as text, and every
+     semantic colour is darkened to clear the same bar. Dark reads by
+     emitted light (inset top highlight on panels); light reads by
+     raised surface (hairline + soft drop).
+
+     Every text colour in both builds clears 4.5:1 against the surface
+     behind it; --neutral is the one 3:1 value and is used only for
+     non-text graphics (bar fills, inactive stepper dots).
+     ============================================================ */
   :root {
-    --purple-1: #667eea;
-    --purple-2: #764ba2;
+    /* Named --purple-* for continuity with existing selectors; the hues
+       are the Instrument accent (bronze on light, champagne on dark). */
+    --purple-1: #7d6430;
+    --purple-2: #6a5428;
+    /* L1's counterpart to --l0-*, previously a hardcoded #1f9d5c. */
+    --l1-1: #2f5f80;
+    --l1-2: #244a66;
     /* L0's identity color, wherever L0 vs L1 needs to read at a glance
        (project cards, badges, Est numbers, section titles) -- kept
        separate from --purple-1/2, which stay the app's generic brand
        accent (buttons, nav, focus ring) used regardless of stage.
        A muted burnt-orange/terracotta rather than a bright orange --
-       bright orange sits too close to --crit's red (#e74c3c) at a
+       bright orange sat too close to --crit's red at a
        glance (e.g. an L0 Est number next to a red "Late" pill); the
        lower saturation and darker value keep it reading as clearly its
        own color instead of a shade of red. */
-    --l0-1: #cc6a1e;
-    --l0-2: #9c4a0a;
-    --good: #27ae60;      --good-bg: #d4edda;      --good-2: #1e8449;
-    --crit: #e74c3c;      --crit-bg: #f8d7da;
-    --warn: #f39c12;      --warn-bg: #fff3cd;
-    --neutral: #95a5a6;   --neutral-bg: #eef0f5;
-    --ink-900: #2c3e50;
-    --ink-700: #4a5578;
-    --ink-500: #65718c;
-    --ink-300: #9aa4bb;
-    --page-bg-1: #eef1f8;
-    --page-bg-2: #e3e8f5;
+    --l0-1: #7d6430;
+    --l0-2: #6a5428;
+    --good: #1e6b41;      --good-bg: #e1f0e7;      --good-2: #175934;
+    --crit: #b3312a;      --crit-bg: #f8e4e2;
+    --warn: #8f5d0a;      --warn-bg: #f7eedc;
+    --neutral: #8496a6;   --neutral-bg: #e8ecf1;
+    --ink-900: #10161d;
+    --ink-700: #3f4b55;
+    --ink-500: #58656f;
+    --ink-300: #63707b;
+    --page-bg-1: #edf0f3;
+    --page-bg-2: #edf0f3;
     --surface: #ffffff;
-    --surface-sunken: #f5f7fb;
-    --line: #e2e5ee;
-    --card-border: rgba(44,62,80,0.12);
-    --concern-bg: #fdecea; --concern-border: #f5b7b1; --concern-text: #8b291c;
+    --surface-sunken: #f4f6f8;
+    --line: #dce2e8;
+    --card-border: rgba(16,22,29,0.08);
+    --concern-bg: #f8e4e2; --concern-border: #e6b8b3; --concern-text: #8f251f;
     --accent: var(--purple-1);
-    --accent-soft: #eef0fb;
-    --accent-line: #d7dcf5;
-    --shadow-1: 0 4px 15px rgba(44,62,80,0.07);
-    --shadow-2: 0 8px 22px rgba(44,62,80,0.12);
-    --radius: 10px;
-    --font: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    --on-accent: #ffffff;
+    --on-stage: #ffffff;
+    --accent-soft: #f2ede2;
+    --accent-line: #d8cbb0;
+    /* Light reads by raised surface; the hairline is part of the shadow
+       so a panel needs no border of its own. */
+    --panel-lift: 0 1px 2px rgba(16,22,29,0.05), inset 0 0 0 1px rgba(16,22,29,0.07);
+    --shadow-1: 0 1px 2px rgba(16,22,29,0.05);
+    --shadow-2: 0 12px 30px rgba(16,22,29,0.13);
+    --radius: 5px;
+    --font: 'Manrope', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
   }
+  /* Instrument dark. Repeated across all three selectors because the
+     viewer has three states: system-default (stamps nothing, so only
+     the media query applies), explicit dark, and explicit light. */
   @media (prefers-color-scheme: dark) {
-    :root {
-      --ink-900: #eef0f5; --ink-700: #c7cee0; --ink-500: #9aa4bb; --ink-300: #65718c;
-      --page-bg-1: #16213c; --page-bg-2: #1a2540;
-      --surface: #1e2a4a; --surface-sunken: #192442; --line: #33406b;
-      --card-border: rgba(255,255,255,0.14);
-      --concern-bg: #3a1f22; --concern-border: #7a3630; --concern-text: #f1a69f;
-      --accent-soft: #262f52; --accent-line: #3b4a8f;
-      --good: #2ecc71; --good-bg: #163a27; --good-2: #1e7e42; --crit: #ec7063; --crit-bg: #3a1f22; --warn: #f5b041; --warn-bg: #3a2c14;
-      --neutral: #8b96ad; --neutral-bg: #232d4d;
-      --shadow-1: 0 4px 15px rgba(0,0,0,0.35); --shadow-2: 0 10px 26px rgba(0,0,0,0.45);
+    :root:not([data-theme="light"]) {
+      --purple-1: #c7b07b; --purple-2: #b49a63;
+      --l0-1: #c7b07b; --l0-2: #a98f55;
+      --l1-1: #7fa8c9; --l1-2: #5f88a9;
+      --ink-900: #e4e9f0; --ink-700: #b4bfcb; --ink-500: #8a97a8; --ink-300: #7e8c9b;
+      --page-bg-1: #0d1117; --page-bg-2: #0d1117;
+      --surface: #151b23; --surface-sunken: #1a222c; --line: #232c38;
+      --card-border: transparent;
+      --concern-bg: #2e1a19; --concern-border: #5c2f2b; --concern-text: #f0a9a3;
+      --accent-soft: #1e2530; --accent-line: #3a4553; --on-accent: #14181d; --on-stage: #14181d;
+      --good: #4fb477; --good-bg: #16301f; --good-2: #3e9460; --crit: #e96257; --crit-bg: #2e1a19; --warn: #e8a33d; --warn-bg: #2e2415;
+      --neutral: #8496a6; --neutral-bg: #1e2530;
+      /* Dark reads by emitted light: a 1px inner top highlight instead
+         of a border, which is why --card-border goes transparent above. */
+      --panel-lift: inset 0 1px 0 rgba(255,255,255,0.055);
+      --shadow-1: 0 1px 2px rgba(0,0,0,0.4); --shadow-2: 0 14px 34px rgba(0,0,0,0.5);
     }
   }
   :root[data-theme="dark"] {
-    --ink-900: #eef0f5; --ink-700: #c7cee0; --ink-500: #9aa4bb; --ink-300: #65718c;
-    --page-bg-1: #16213c; --page-bg-2: #1a2540;
-    --surface: #1e2a4a; --surface-sunken: #192442; --line: #33406b;
-    --card-border: rgba(255,255,255,0.14);
-    --concern-bg: #3a1f22; --concern-border: #7a3630; --concern-text: #f1a69f;
-    --accent-soft: #262f52; --accent-line: #3b4a8f;
-    --good: #2ecc71; --good-bg: #163a27; --good-2: #1e7e42; --crit: #ec7063; --crit-bg: #3a1f22; --warn: #f5b041; --warn-bg: #3a2c14;
-    --neutral: #8b96ad; --neutral-bg: #232d4d;
-    --shadow-1: 0 4px 15px rgba(0,0,0,0.35); --shadow-2: 0 10px 26px rgba(0,0,0,0.45);
+    --purple-1: #c7b07b; --purple-2: #b49a63;
+    --l0-1: #c7b07b; --l0-2: #a98f55;
+    --l1-1: #7fa8c9; --l1-2: #5f88a9;
+    --ink-900: #e4e9f0; --ink-700: #b4bfcb; --ink-500: #8a97a8; --ink-300: #7e8c9b;
+    --page-bg-1: #0d1117; --page-bg-2: #0d1117;
+    --surface: #151b23; --surface-sunken: #1a222c; --line: #232c38;
+    --card-border: transparent;
+    --concern-bg: #2e1a19; --concern-border: #5c2f2b; --concern-text: #f0a9a3;
+    --accent-soft: #1e2530; --accent-line: #3a4553; --on-accent: #14181d; --on-stage: #14181d;
+    --good: #4fb477; --good-bg: #16301f; --good-2: #3e9460; --crit: #e96257; --crit-bg: #2e1a19; --warn: #e8a33d; --warn-bg: #2e2415;
+    --neutral: #8496a6; --neutral-bg: #1e2530;
+    --panel-lift: inset 0 1px 0 rgba(255,255,255,0.055);
+    --shadow-1: 0 1px 2px rgba(0,0,0,0.4); --shadow-2: 0 14px 34px rgba(0,0,0,0.5);
   }
   :root[data-theme="light"] {
-    --ink-900: #2c3e50; --ink-700: #4a5578; --ink-500: #65718c; --ink-300: #9aa4bb;
-    --page-bg-1: #eef1f8; --page-bg-2: #e3e8f5;
-    --surface: #ffffff; --surface-sunken: #f5f7fb; --line: #e2e5ee;
-    --card-border: rgba(44,62,80,0.12);
-    --concern-bg: #fdecea; --concern-border: #f5b7b1; --concern-text: #8b291c;
-    --accent-soft: #eef0fb; --accent-line: #d7dcf5;
-    --good: #27ae60; --good-bg: #d4edda; --good-2: #1e8449; --crit: #e74c3c; --crit-bg: #f8d7da; --warn: #f39c12; --warn-bg: #fff3cd;
-    --neutral: #95a5a6; --neutral-bg: #eef0f5;
-    --shadow-1: 0 4px 15px rgba(44,62,80,0.07); --shadow-2: 0 8px 22px rgba(44,62,80,0.12);
+    --purple-1: #7d6430; --purple-2: #6a5428;
+    --l0-1: #7d6430; --l0-2: #6a5428;
+    --l1-1: #2f5f80; --l1-2: #244a66;
+    --ink-900: #10161d; --ink-700: #3f4b55; --ink-500: #58656f; --ink-300: #63707b;
+    --page-bg-1: #edf0f3; --page-bg-2: #edf0f3;
+    --surface: #ffffff; --surface-sunken: #f4f6f8; --line: #dce2e8;
+    --card-border: rgba(16,22,29,0.08);
+    --concern-bg: #f8e4e2; --concern-border: #e6b8b3; --concern-text: #8f251f;
+    --accent-soft: #f2ede2; --accent-line: #d8cbb0; --on-accent: #ffffff; --on-stage: #ffffff;
+    --good: #1e6b41; --good-bg: #e1f0e7; --good-2: #175934; --crit: #b3312a; --crit-bg: #f8e4e2; --warn: #8f5d0a; --warn-bg: #f7eedc;
+    --neutral: #8496a6; --neutral-bg: #e8ecf1;
+    --panel-lift: 0 1px 2px rgba(16,22,29,0.05), inset 0 0 0 1px rgba(16,22,29,0.07);
+    --shadow-1: 0 1px 2px rgba(16,22,29,0.05); --shadow-2: 0 12px 30px rgba(16,22,29,0.13);
   }
 
   * { box-sizing: border-box; }
   html, body { height: 100%; }
+  /* Flat ground. The previous diagonal gradient competed with the
+     readouts for attention; Instrument spends its boldness on the
+     figures, so the ground stays quiet. */
   body {
     margin: 0; color: var(--ink-900);
-    background: linear-gradient(135deg, var(--page-bg-1) 0%, var(--page-bg-2) 100%);
+    background: var(--page-bg-1);
     font-family: var(--font); font-size: 14px; line-height: 1.5;
     -webkit-font-smoothing: antialiased;
+  }
+  /* Every figure in the app is mono so digits align down a column. */
+  .num, .aqt-est, .aqt-due, .est-no, .stat-tile .value, .fu-overdue-badge,
+  .rank-val, .achiever-pct, .fu-stat-num, .folder-pct, .pc2-pct, .psc2-avg {
+    font-family: var(--font-mono); font-variant-numeric: tabular-nums;
   }
   h1, h2, h3 { font-family: var(--font); font-weight: 700; text-wrap: balance; color: var(--ink-900); margin: 0; }
   .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -130,8 +184,8 @@
   .nav-item .ic { width: 17px; text-align: center; opacity: .85; }
   .nav-item:hover { background: var(--surface-sunken); color: var(--ink-900); }
   .nav-item.active {
-    background: linear-gradient(135deg, var(--purple-1) 0%, var(--purple-2) 100%);
-    color: #fff; box-shadow: var(--shadow-1);
+    background: var(--accent);
+    color: var(--on-accent); box-shadow: var(--shadow-1);
   }
   .nav-badge { margin-left: auto; background: var(--crit-bg); color: var(--crit); font-size: 10.5px; font-weight: 800; padding: 1px 6px; border-radius: 20px; }
   .nav-item.active .nav-badge { background: rgba(255,255,255,.25); color: #fff; }
@@ -151,8 +205,7 @@
   .topbar-title { display: flex; flex-direction: column; line-height: 1.2; white-space: nowrap; padding-right: 18px; margin-right: 4px; border-right: 1px solid var(--line); }
   .topbar-title b {
     font-size: 25px; font-weight: 800; letter-spacing: -.01em;
-    background: linear-gradient(135deg, var(--purple-1) 0%, var(--purple-2) 100%);
-    -webkit-background-clip: text; background-clip: text; color: transparent;
+    color: var(--ink-900);
   }
   .topbar-title span { font-size: 11.5px; font-weight: 700; color: var(--ink-500); text-transform: uppercase; letter-spacing: .08em; margin-top: 3px; }
   /* flex-basis floor of 220px: with a bare flex:1 the input collapsed to
@@ -188,7 +241,7 @@
     padding: 6px 10px; font-size: 12px; font-weight: 700; cursor: pointer;
   }
   .theme-btn { border: 1px solid var(--line); background: var(--surface); color: var(--ink-700); border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: 12px; font-weight: 600; }
-  .avatar { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, var(--purple-1), var(--purple-2)); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
+  .avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: var(--on-accent); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
 
   .view { padding: 26px 30px 60px; max-width: 1280px; }
   /* The Dashboard is the default landing view -- on a wide monitor the
@@ -229,16 +282,34 @@
   .view-head p.sub { color: var(--ink-500); font-size: 13.5px; margin-top: 3px; }
   .eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--purple-1); font-weight: 700; margin-bottom: 6px; }
 
-  .card { background: var(--surface); border: 1.5px solid var(--card-border); border-radius: var(--radius); box-shadow: var(--shadow-1); }
+  /* The old 1.5px border + soft drop was the most repeated generic
+     element in the app. Panels now read as lit (dark) or raised
+     (light) via --panel-lift, with no border of their own. */
+  .card { background: var(--surface); border: 0; border-radius: var(--radius); box-shadow: var(--panel-lift); }
   .card-pad { padding: 18px 20px; }
 
   .stat-row { display: flex; flex-direction: column; gap: 16px; margin-bottom: 22px; }
-  .stat-tile { padding: 16px 18px; }
-  .stat-tile .label { font-size: 11.5px; color: var(--ink-500); text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
-  .stat-tile .value { font-size: 29px; margin-top: 6px; font-weight: 700; font-variant-numeric: tabular-nums; }
-  .stat-tile .delta { font-size: 12px; margin-top: 4px; color: var(--ink-500); }
+  /* SIGNATURE — the readout. The figure leads at mono weight 500 (not a
+     heavy sans), and a luminous rule under it takes the colour of the
+     state it reports, so "3 Late" is legible across a room. The rule is
+     the one place this direction spends brightness. */
+  .stat-tile { padding: 16px 18px 18px; position: relative; }
+  .stat-tile .label { font-size: 11px; color: var(--ink-500); text-transform: uppercase; letter-spacing: .09em; font-weight: 600; order: 2; }
+  .stat-tile .value { font-size: 27px; margin: 0 0 5px; font-weight: 500; letter-spacing: -.03em; line-height: 1.05; order: 1; }
+  .stat-tile .delta { font-size: 12px; margin-top: 5px; color: var(--ink-500); order: 3; }
   .stat-tile .delta.up { color: var(--good); }
   .stat-tile .delta.crit { color: var(--crit); }
+  .stat-tile { display: flex; flex-direction: column; }
+  .stat-tile::after {
+    content: ""; position: absolute; left: 18px; right: 18px; bottom: 9px; height: 1px;
+    background: linear-gradient(90deg, var(--accent), transparent); opacity: .5;
+  }
+  .stat-tile.crit .value { color: var(--crit); }
+  .stat-tile.crit::after { background: linear-gradient(90deg, var(--crit), transparent); }
+  .stat-tile.warn .value { color: var(--warn); }
+  .stat-tile.warn::after { background: linear-gradient(90deg, var(--warn), transparent); }
+  .stat-tile.good .value { color: var(--good); }
+  .stat-tile.good::after { background: linear-gradient(90deg, var(--good), transparent); }
 
   /* Item [dashboard redesign 2]: every 2-column dashboard section shares
      this one grid (same columns, same gap) so their card edges line up
@@ -252,14 +323,14 @@
   .dash-project-row > * { min-width: 0; }
   .dash-project-card { padding: 0; border: none; overflow: hidden; display: flex; flex-direction: column; }
   .dash-project-card .dpc-head { padding: 16px 22px; display: flex; align-items: center; gap: 14px; }
-  .dash-project-card.l0 .dpc-head { background: linear-gradient(135deg, var(--l0-1) 0%, var(--l0-2) 100%); }
-  .dash-project-card.l1 .dpc-head { background: linear-gradient(135deg, #1f9d5c 0%, #146c3e 100%); }
+  .dash-project-card.l0 .dpc-head { background: var(--l0-1); }
+  .dash-project-card.l1 .dpc-head { background: var(--l1-1); }
   .dash-project-card .dpc-tag {
     width: 44px; height: 44px; border-radius: 11px; display: flex; align-items: center; justify-content: center;
-    font-size: 22px; font-weight: 800; flex-shrink: 0; background: rgba(255,255,255,.22); color: #fff;
+    font-size: 22px; font-weight: 800; flex-shrink: 0; background: color-mix(in srgb, var(--on-stage) 20%, transparent); color: var(--on-stage);
   }
-  .dash-project-card .dpc-value { font-size: 30px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; color: #fff; }
-  .dash-project-card .dpc-label { font-size: 12.5px; color: rgba(255,255,255,.85); font-weight: 700; margin-top: 3px; }
+  .dash-project-card .dpc-value { font-family: var(--font-mono); font-size: 29px; font-weight: 500; letter-spacing: -.03em; line-height: 1; font-variant-numeric: tabular-nums; color: var(--on-stage); }
+  .dash-project-card .dpc-label { font-size: 12.5px; color: var(--on-stage); opacity: .88; font-weight: 700; margin-top: 3px; }
   .dash-project-card .dpc-body { padding: 6px 10px 8px; flex: 1; }
   .dpc-body-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-500); padding: 6px 12px 2px; }
   .dpc-recent-row {
@@ -268,7 +339,7 @@
   .dpc-recent-row:hover { background: var(--surface-sunken); }
   .dpc-recent-est { font-weight: 800; font-size: 12.5px; flex-shrink: 0; }
   .dash-project-card.l0 .dpc-recent-est { color: var(--l0-1); }
-  .dash-project-card.l1 .dpc-recent-est { color: #1f9d5c; }
+  .dash-project-card.l1 .dpc-recent-est { color: var(--l1-1); }
   .dpc-recent-name { font-size: 12.5px; color: var(--ink-700); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; }
   .dpc-recent-date { font-size: 11px; color: var(--ink-500); flex-shrink: 0; white-space: nowrap; }
   .dpc-empty { padding: 10px 12px; font-size: 12px; color: var(--ink-500); }
@@ -278,16 +349,29 @@
   .dash-status-card { padding: 16px 20px 18px; }
   .dash-status-card .dsc-head { font-size: 12.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-500); margin-bottom: 12px; }
   .dash-status-card .dsc-children { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 10px; }
+  /* SIGNATURE — the readout. These are the app's real stat figures, so
+     this is where the direction spends its brightness: a mono numeral
+     over a luminous rule that takes the colour of the state it reports,
+     making "3 Late" legible at a glance instead of one number among
+     nine identical ones. Left-aligned rather than centred so the digits
+     line up down the grid. */
   .dsc-child {
-    background: var(--surface-sunken); border-radius: 10px; padding: 10px 8px; text-align: center;
-    border: 1px solid var(--line); transition: background .15s;
+    background: var(--surface-sunken); border-radius: var(--radius); padding: 12px 12px 15px; text-align: left;
+    border: 0; position: relative; transition: background .15s;
   }
   .dsc-child:hover { background: var(--accent-soft); }
-  .dsc-child .dsc-child-val { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
-  .dsc-child .dsc-child-label { font-size: 10.5px; color: var(--ink-500); font-weight: 700; margin-top: 3px; line-height: 1.25; }
+  .dsc-child::after {
+    content: ""; position: absolute; left: 12px; right: 12px; bottom: 7px; height: 1px;
+    background: linear-gradient(90deg, var(--neutral), transparent); opacity: .55;
+  }
+  .dsc-child .dsc-child-val { font-family: var(--font-mono); font-size: 21px; font-weight: 500; letter-spacing: -.03em; font-variant-numeric: tabular-nums; line-height: 1.05; }
+  .dsc-child .dsc-child-label { font-size: 10.5px; color: var(--ink-500); font-weight: 600; margin-top: 5px; line-height: 1.25; text-transform: uppercase; letter-spacing: .06em; }
   .dsc-child.crit .dsc-child-val { color: var(--crit); }
+  .dsc-child.crit::after { background: linear-gradient(90deg, var(--crit), transparent); opacity: .8; }
   .dsc-child.warn .dsc-child-val { color: var(--warn); }
+  .dsc-child.warn::after { background: linear-gradient(90deg, var(--warn), transparent); opacity: .8; }
   .dsc-child.good .dsc-child-val { color: var(--good); }
+  .dsc-child.good::after { background: linear-gradient(90deg, var(--good), transparent); opacity: .8; }
   @media (max-width: 980px) { .dash-project-row, .dash-status-row { grid-template-columns: 1fr; } }
 
   /* Item [dashboard stage alignment]: L0 and L1 must land in the same row
@@ -322,7 +406,7 @@
      banner strip. */
   .concerns-title-row { color: var(--crit); }
   .stage-title-l0 { color: var(--l0-1); }
-  .stage-title-l1 { color: #1f9d5c; }
+  .stage-title-l1 { color: var(--l1-1); }
   .concerns-card ul { margin: 0; padding: 0 20px 4px; list-style: none; }
   .concerns-card li { position: relative; padding: 7px 0 7px 18px; font-size: 13px; color: var(--ink-700); line-height: 1.5; border-bottom: 1px solid var(--line); }
   .concerns-card li:last-child { border-bottom: none; }
@@ -377,7 +461,7 @@
   .pipeline::before { content: ""; position: absolute; top: 15px; left: 6%; right: 6%; height: 3px; border-radius: 2px; background: var(--line); z-index: 0; }
   .pipe-stage { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; }
   .pipe-dot { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; background: var(--surface); border: 3px solid var(--line); color: var(--ink-500); }
-  .pipe-stage.on .pipe-dot { border-color: var(--purple-1); color: #fff; background: linear-gradient(135deg, var(--purple-1), var(--purple-2)); }
+  .pipe-stage.on .pipe-dot { border-color: var(--accent); color: var(--on-accent); background: var(--accent); }
   .pipe-stage .pname { font-weight: 700; font-size: 12.5px; }
   .pipe-stage .pcount { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
   .pipe-stage .pdesc { font-size: 11px; color: var(--ink-500); max-width: 130px; }
@@ -415,7 +499,7 @@
   table.data tbody tr:last-child td { border-bottom: none; }
   .est-no { font-weight: 700; white-space: nowrap; }
   .est-no.l0 { color: var(--l0-1); }
-  .est-no.l1 { color: #1f9d5c; }
+  .est-no.l1 { color: var(--l1-1); }
   .proj-name { display: block; max-width: 340px; white-space: normal; }
   .mini-stepper { display: flex; gap: 3px; }
   .mini-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line); }
@@ -463,7 +547,7 @@
      so the line itself shows real progress instead of just the dots. */
   .fs-row::after {
     content: ""; position: absolute; top: 19px; left: 4%; height: 4px; border-radius: 2px;
-    background: linear-gradient(90deg, var(--good), var(--good-2));
+    background: var(--good);
     width: var(--fs-progress, 0%); transition: width .5s ease;
   }
   .fs-step { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; }
@@ -473,7 +557,7 @@
     z-index: 1; box-shadow: 0 2px 6px rgba(20,25,50,.07); transition: transform .15s ease;
   }
   .fs-step.done .fs-dot {
-    background: linear-gradient(135deg, var(--good), var(--good-2)); border-color: transparent; color: #fff;
+    background: var(--good); border-color: transparent; color: #fff;
     box-shadow: 0 3px 12px rgba(39,174,96,.4);
   }
   .fs-step.current .fs-dot {
@@ -613,12 +697,12 @@
     color: var(--ink-300); font-size: 13px; font-weight: 700; line-height: 1;
   }
   .tt-step:last-child::after { content: none; }
-  .tt-step.pilot { background: var(--surface); border-color: var(--l1-1, #1f9d5c); }
+  .tt-step.pilot { background: var(--surface); border-color: var(--l1-1); }
   .tt-step-aside {
     display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 4px;
     font-size: 8.5px; font-weight: 700; color: var(--ink-900);
   }
-  .tt-step-aside .tt-aside-dot { width: 6px; height: 6px; border-radius: 50%; background: #1f9d5c; flex: none; }
+  .tt-step-aside .tt-aside-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--l1-1); flex: none; }
   @media (max-width: 760px) {
     .tt-layout { grid-template-columns: 1fr; }
   }
@@ -690,7 +774,7 @@
   .tgc-box { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; }
   .tgc-box-label { fill: var(--ink-900); font-size: 13px; font-weight: 700; }
   .tgc-stage-band.l0 { fill: var(--l0-1); }
-  .tgc-stage-band.l1 { fill: #1f9d5c; }
+  .tgc-stage-band.l1 { fill: var(--l1-1); }
   .tgc-stage-text { fill: #fff; font-size: 11.5px; font-weight: 700; }
   .tgc-arrow { stroke: var(--ink-500); stroke-width: 2; fill: none; }
   .tgc-arrowhead { fill: var(--ink-500); }
@@ -747,11 +831,11 @@
      available as a hover tooltip via the title attribute. */
   .tt-bar.row0 { top: 4px; height: 34px; }
   .tt-bar.row1 { top: 44px; height: 22px; font-size: 8.5px; font-weight: 600; opacity: .92; }
-  .tt-bar.orange { background: linear-gradient(135deg, var(--l0-1), var(--l0-2)); }
+  .tt-bar.orange { background: var(--l0-1); }
   /* Item [L0/L1 identity colors]: no invented third color for this chart --
      orange marks general/both-stage program work (same identity color as
      L0 elsewhere in the app), green marks work that's specifically L1. */
-  .tt-bar.green { background: linear-gradient(135deg, #1f9d5c, #146c3e); }
+  .tt-bar.green { background: var(--l1-1); }
   .tt-bar.grey { background: var(--ink-300); color: var(--ink-900); }
   .tt-marker { position: absolute; top: 74px; transform: translateX(-50%); text-align: center; width: 130px; }
   .tt-marker .tt-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--crit); margin: 0 auto 3px; box-shadow: 0 0 0 3px var(--crit-bg); }
@@ -803,7 +887,7 @@
   .fe-branch-row .fe-remove-branch { margin-left: auto; }
   .modal-actions-row .btn { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
   .modal-actions-row .btn:hover { filter: brightness(0.97); }
-  .modal-actions-row .btn.primary { background: linear-gradient(135deg, var(--purple-1), var(--purple-2)); color: #fff; }
+  .modal-actions-row .btn.primary { background: var(--accent); color: var(--on-accent); }
   .modal-actions-row .btn.ghost-crit { background: var(--crit-bg); color: var(--crit); }
   /* Item [action-comment-modal]: Mark Completed / Confirm / Send Back now
      open a real centered modal instead of the browser's native prompt(). */
@@ -846,9 +930,9 @@
   .deliv-actions { display: flex; gap: 6px; flex: none; }
   .btn { border: 1px solid var(--line); background: var(--surface); color: var(--ink-700); border-radius: 20px; padding: 7px 14px; font-size: 12px; font-weight: 700; cursor: pointer; }
   .btn:hover { border-color: var(--accent-line); color: var(--purple-1); }
-  .btn.primary { background: linear-gradient(135deg, var(--purple-1), var(--purple-2)); border-color: transparent; color: #fff; }
+  .btn.primary { background: var(--accent); border-color: transparent; color: var(--on-accent); }
   .btn.primary:hover { filter: brightness(1.06); color: #fff; }
-  .btn.active { background: linear-gradient(135deg, var(--purple-1), var(--purple-2)); border-color: transparent; color: #fff; }
+  .btn.active { background: var(--accent); border-color: transparent; color: var(--on-accent); }
   .btn.active:hover { filter: brightness(1.06); color: #fff; }
   .btn-loading { opacity: .7; cursor: wait; }
   .btn.ghost-crit { color: var(--crit); border-color: var(--crit-bg); }
@@ -957,18 +1041,18 @@
      select (too many values for a chip row to stay readable). */
   #assignedEstFilter { border: 1px solid var(--line); background: var(--surface); color: var(--ink-700); border-radius: 20px; padding: 7px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer; min-width: 140px; }
   .chip .cnum { background: var(--surface-sunken); border-radius: 20px; padding: 1px 7px; font-size: 11px; }
-  .chip.active { background: linear-gradient(135deg, var(--purple-1), var(--purple-2)); border-color: transparent; color: #fff; }
+  .chip.active { background: var(--accent); border-color: transparent; color: var(--on-accent); }
   .chip.active .cnum { background: rgba(255,255,255,.25); color: #fff; }
   /* L0/L1 stage toggles (matrix, gantt, focal points, etc.) get their real
      identity color when active instead of both turning the same purple --
      a visible tinted glow under each (matching the app's other gradient
      chips/buttons) instead of a flat, shadowless block of color. */
   .chip.active[data-stage="L0"] {
-    background: linear-gradient(135deg, #d9812e 0%, var(--l0-2) 100%);
+    background: var(--l0-1);
     box-shadow: 0 5px 14px rgba(204, 106, 30, .5);
   }
   .chip.active[data-stage="L1"] {
-    background: linear-gradient(135deg, #27c586 0%, #0e8f57 100%);
+    background: var(--l1-1);
     box-shadow: 0 5px 14px rgba(32, 185, 118, .5);
   }
   .aq-row { display: flex; align-items: center; gap: 14px; padding: 13px 18px; border-bottom: 1px solid var(--line); }
@@ -1035,17 +1119,21 @@
      table ever needing horizontal scroll. */
   .aqt { width: 100%; }
   .aqt-row { display: grid; grid-template-columns: 78px minmax(0,2.3fr) minmax(0,1.1fr) minmax(0,1fr) 148px 168px 96px 200px; align-items: center; gap: 10px; }
-  .aqt-head { padding: 10px 18px; border-bottom: 1px solid var(--line); background: var(--surface-sunken); }
-  .aqt-head .aqt-cell { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-500); }
+  /* The header is a hairline under plain type rather than a filled bar --
+     a shaded strip above 500 rows reads as another row of content. */
+  .aqt-head { padding: 4px 18px 11px; border-bottom: 1px solid var(--line); background: none; }
+  .aqt-head .aqt-cell { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .11em; color: var(--ink-500); }
   .aqt-head .aqt-cell:last-child { text-align: right; }
-  .aqt-body-row { padding: 12px 18px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .aqt-body-row { padding: 13px 18px; border-bottom: 1px solid var(--line); cursor: pointer; transition: background .18s; }
   .aqt-body-row:last-child { border-bottom: none; }
-  .aqt-body-row:hover { background: var(--surface-sunken); }
+  /* Hover tints with the accent rather than a flat grey, so the row that
+     is about to be clicked is unmistakable in a long list. */
+  .aqt-body-row:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); }
   .aqt-cell { min-width: 0; }
   .aqt-cell.aqt-ellipsis { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .aqt-est { font-weight: 700; font-size: 12.5px; }
+  .aqt-est { font-family: var(--font-mono); font-weight: 500; font-size: 12.5px; }
   .aqt-est.l0 { color: var(--l0-1); }
-  .aqt-est.l1 { color: #1f9d5c; }
+  .aqt-est.l1 { color: var(--l1-1); }
   .aqt-name { font-size: 13px; font-weight: 700; }
   .aqt-name .aqt-proj { font-weight: 500; color: var(--ink-500); }
   .aqt-dept, .aqt-focal, .aqt-due { font-size: 12.5px; color: var(--ink-700); }
@@ -1376,7 +1464,7 @@
   .rank-num { color: var(--ink-300); font-weight: 700; font-size: 12px; }
   .rank-name { font-size: 13px; font-weight: 700; }
   .rank-bar-track { height: 10px; border-radius: 6px; background: var(--surface-sunken); overflow: hidden; }
-  .rank-bar-fill { height: 100%; border-radius: 6px; background: linear-gradient(90deg, var(--purple-1), var(--purple-2)); }
+  .rank-bar-fill { height: 100%; border-radius: 6px; background: var(--neutral); }
   .rank-val { font-size: 13px; font-weight: 700; text-align: right; }
   .trend-chart-wrap { padding: 20px 22px 10px; }
   .trend-legend { display: flex; gap: 18px; margin-bottom: 12px; font-size: 12px; color: var(--ink-700); font-weight: 600; }
