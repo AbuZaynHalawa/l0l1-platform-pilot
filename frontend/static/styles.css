@@ -53,6 +53,13 @@
     --radius: 14px;      /* cards, modals */
     --radius-sm: 12px;   /* inputs, chips, buttons, nav */
     --font: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    /* Narrow slice of the Instrument direction, scoped deliberately: the
+       mono treatment for reference codes and figures, not the full
+       Manrope swap -- that stays a separate decision. A system stack, no
+       webfont request, matching --font's own no-network-dependency
+       approach: every OS ships a monospace face, this just names the
+       real one on each rather than falling back to a serif default. */
+    --font-mono: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', Consolas, 'Liberation Mono', Menlo, monospace;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -107,7 +114,20 @@
     -webkit-font-smoothing: antialiased;
   }
   h1, h2, h3 { font-family: var(--font); font-weight: 700; text-wrap: balance; color: var(--ink-900); margin: 0; }
-  .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  /* Reference codes and figures get the mono face: Est numbers, item
+     numbers, dates, percentages, dashboard readouts. These read as
+     identifiers to scan, not prose, and a monospace face makes that
+     legible at a glance -- digits align down a column instead of
+     drifting, which matters most in the dense tables (Assigned
+     Deliverables, Follow Up) and the dashboard's own headline stats.
+     Deliberately scoped to figures only, not the whole UI face --
+     that's a separate, bigger decision. The dashboard's two other
+     figure classes (.dpc-value, .dsc-child-val) get the same treatment
+     at their own rules further down, since each already carries other
+     size/weight/colour overrides that would fight a shared selector. */
+  .num, .aqt-est, .aqt-due, .est-no, .rank-val, .folder-pct {
+    font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
   a { color: inherit; }
   button { font-family: inherit; }
   select { font-family: inherit; }
@@ -330,7 +350,7 @@
     width: 44px; height: 44px; border-radius: 11px; display: flex; align-items: center; justify-content: center;
     font-size: 22px; font-weight: 800; flex-shrink: 0; background: rgba(255,255,255,.22); color: #fff;
   }
-  .dash-project-card .dpc-value { font-size: 30px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; color: #fff; }
+  .dash-project-card .dpc-value { font-family: var(--font-mono); font-size: 30px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; color: #fff; }
   .dash-project-card .dpc-label { font-size: 12.5px; color: rgba(255,255,255,.85); font-weight: 700; margin-top: 3px; }
   .dash-project-card .dpc-body { padding: 6px 10px 8px; flex: 1; }
   .dpc-body-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-500); padding: 6px 12px 2px; }
@@ -355,7 +375,7 @@
     border: 1px solid var(--line); transition: background .15s;
   }
   .dsc-child:hover { background: var(--accent-soft); }
-  .dsc-child .dsc-child-val { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .dsc-child .dsc-child-val { font-family: var(--font-mono); font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
   .dsc-child .dsc-child-label { font-size: 10.5px; color: var(--ink-500); font-weight: 700; margin-top: 3px; line-height: 1.25; }
   .dsc-child.crit .dsc-child-val { color: var(--crit); }
   .dsc-child.warn .dsc-child-val { color: var(--warn); }
@@ -522,7 +542,10 @@
   /* Item 169: the tentative-date-pending-predecessor note appended next to
      an already-computed due date -- deliberately quieter than the date
      itself, since the date is still the primary/actionable value here. */
-  .pending-note { font-weight: 500; color: var(--warn); font-size: .92em; }
+  /* font-family reset: it nests inside .aqt-due below, which now sets a
+     mono face for the date -- without this the "(Pending ...)" prose
+     would silently inherit that mono too. */
+  .pending-note { font-weight: 500; color: var(--warn); font-size: .92em; font-family: var(--font); }
   .meta-edit-link { font-size: 11px; font-weight: 600; color: var(--purple-2); text-decoration: none; }
   .meta-edit-link:hover { text-decoration: underline; }
 
