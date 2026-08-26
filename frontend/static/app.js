@@ -832,13 +832,27 @@
         return ascending ? av - bv : bv - av;
       };
     }
+    // Most items on this page have no submit/review activity at all yet
+    // (still "No Progress Yet"), so a pure activity sort leaves every one
+    // of them tied at null -- a no-op that just falls back to whatever
+    // arbitrary order the backend query returned. Break that tie by due
+    // date (soonest first) so "Newest/Oldest Activity First" still yields
+    // a sensible, stable order even when nothing has happened on anything
+    // yet, instead of looking broken.
+    var dueSoonTiebreak = byNullableNumber(dueTs, true);
     switch (sortBy) {
-      case "oldest": return byNullableNumber(actionTs, true);
+      case "oldest": {
+        var cmpOldest = byNullableNumber(actionTs, true);
+        return function (a, b) { return cmpOldest(a, b) || dueSoonTiebreak(a, b); };
+      }
       case "due_soon": return byNullableNumber(dueTs, true);
       case "due_late": return byNullableNumber(dueTs, false);
       case "est_no": return function (a, b) { return (a.est_no || "").localeCompare(b.est_no || ""); };
       case "name": return function (a, b) { return (a.name || "").localeCompare(b.name || ""); };
-      case "newest": default: return byNullableNumber(actionTs, false);
+      case "newest": default: {
+        var cmpNewest = byNullableNumber(actionTs, false);
+        return function (a, b) { return cmpNewest(a, b) || dueSoonTiebreak(a, b); };
+      }
     }
   }
   async function loadAssigned() {
