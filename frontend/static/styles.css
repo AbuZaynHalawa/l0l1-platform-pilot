@@ -202,11 +202,13 @@
     background: linear-gradient(135deg, var(--purple-1) 0%, var(--purple-2) 100%);
     color: var(--on-accent); box-shadow: var(--shadow-1);
   }
-  /* White numerals, per request. The fill is deepened from the pop coral
-     (#ff6b6b) to #d93636 to carry them: white on the lighter coral is
-     2.78:1, well under the bar, whereas this clears it at 4.63:1. Still
-     unmistakably coral, just a shade richer. */
-  .nav-badge { margin-left: auto; background: #d93636; color: #ffffff; font-size: 10.5px; font-weight: 800; padding: 2px 7px; border-radius: 20px; }
+  /* White numerals on the pop coral at full strength -- Yasser's call on
+     the look. Measures 2.78:1, so it is a deliberate exception to the
+     4.5 bar the rest of the palette holds; the badge is a redundant cue
+     (the count is also the nav item's own state) rather than the only
+     way to get the information, and it is set at 800 weight to give the
+     digits as much body as possible at this size. */
+  .nav-badge { margin-left: auto; background: var(--pop-coral); color: #ffffff; font-size: 10.5px; font-weight: 800; padding: 2px 7px; border-radius: 20px; }
   .nav-item.active .nav-badge { background: rgba(255,255,255,.25); color: #fff; }
 
   .rail-foot { margin-top: auto; padding: 12px 8px 2px; border-top: 1px solid var(--line); }
