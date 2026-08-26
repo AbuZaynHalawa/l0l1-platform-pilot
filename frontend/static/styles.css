@@ -202,9 +202,11 @@
     background: linear-gradient(135deg, var(--purple-1) 0%, var(--purple-2) 100%);
     color: var(--on-accent); box-shadow: var(--shadow-1);
   }
-  /* Ink is darker than --ink-900 on purpose: the app's usual #2c3e50 sits
-     at 3.96:1 on coral, under the bar. #1f2d3d clears it at 5.04:1. */
-  .nav-badge { margin-left: auto; background: var(--pop-coral); color: #1f2d3d; font-size: 10.5px; font-weight: 800; padding: 2px 7px; border-radius: 20px; }
+  /* White numerals, per request. The fill is deepened from the pop coral
+     (#ff6b6b) to #d93636 to carry them: white on the lighter coral is
+     2.78:1, well under the bar, whereas this clears it at 4.63:1. Still
+     unmistakably coral, just a shade richer. */
+  .nav-badge { margin-left: auto; background: #d93636; color: #ffffff; font-size: 10.5px; font-weight: 800; padding: 2px 7px; border-radius: 20px; }
   .nav-item.active .nav-badge { background: rgba(255,255,255,.25); color: #fff; }
 
   .rail-foot { margin-top: auto; padding: 12px 8px 2px; border-top: 1px solid var(--line); }
