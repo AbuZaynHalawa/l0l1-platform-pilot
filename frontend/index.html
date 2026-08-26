@@ -36,7 +36,11 @@
       <button class="nav-item" id="bmTriageNavItem" data-view="bmtriage"><span class="ic">&#9989;</span> BM Triage Status <span class="nav-badge" id="bmTriageBadge"></span></button>
       <button class="nav-item" data-view="performance"><span class="ic">&#128200;</span> Performance</button>
       <button class="nav-item" data-view="deliverableformulas"><span class="ic">&#128220;</span> Deliverables Catalog</button>
-      <button class="nav-item" data-view="myrequests"><span class="ic">&#128203;</span> My Requests</button>
+      <!-- Item [nav icon collisions]: was the same clipboard as Assigned
+           Deliverables and admin Requests below -- three different pages
+           sharing one icon made the rail unscannable by icon alone.
+           Outbox tray: things I sent out, tracking their status. -->
+      <button class="nav-item" data-view="myrequests"><span class="ic">&#128228;</span> My Requests</button>
       <button class="nav-item" data-view="support"><span class="ic">&#128172;</span> Q/A - Ask the Team</button>
     </nav>
 
@@ -47,8 +51,15 @@
       <button class="nav-item" data-view="scores"><span class="ic">&#127942;</span> Top Achievers</button>
       <button class="nav-item" data-view="focalpoints"><span class="ic">&#128222;</span> Focal Points</button>
       <button class="nav-item" data-view="deliverablesconfig"><span class="ic">&#9881;</span> Deliverables Configuration</button>
-      <button class="nav-item" id="requestsNavItem" data-view="requests"><span class="ic">&#128203;</span> Requests <span class="nav-badge" id="requestsBadge"></span></button>
-      <button class="nav-item" id="followupNavItem" data-view="followup"><span class="ic">&#128276;</span> Follow Up</button>
+      <!-- Item [nav icon collisions]: was the same clipboard as Assigned
+           Deliverables and My Requests above. Inbox tray: this is the
+           admin-side queue of things coming IN to decide on. -->
+      <button class="nav-item" id="requestsNavItem" data-view="requests"><span class="ic">&#128229;</span> Requests <span class="nav-badge" id="requestsBadge"></span></button>
+      <!-- Was the same bell as Announcements above -- Follow Up is the
+           admin bulk-reminder tool, not the notification feed itself, so
+           a megaphone (broadcasting a nudge to many people) fits better
+           than reusing the bell. -->
+      <button class="nav-item" id="followupNavItem" data-view="followup"><span class="ic">&#128227;</span> Follow Up</button>
       <!-- Item 151: every Ask the Team thread, in one dedicated admin view --
            the asker-facing "Ask a Question" tab keeps its own My Requests
            list, but replying/resolving as an admin now lives here instead. -->

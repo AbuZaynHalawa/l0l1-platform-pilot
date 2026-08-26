@@ -1807,7 +1807,7 @@
         '<details class="fu-dept-group"><summary><span class="fu-dept-name">Supply Chain</span>' +
         '<span class="fu-dept-tags"><span class="fu-dept-count">3 overdue</span></span></summary></details>' +
         "</div>" +
-        '<div class="tour-callout">&#128276; Grouped by department, most overdue first, with a Critical ' +
+        '<div class="tour-callout">&#128227; Grouped by department, most overdue first, with a Critical ' +
         "(15+ days) severity filter. Remind one stubborn item, or send to everyone currently shown " +
         "&#8212; either opens a window to pick who's included (Owner, SME, Owner's Manager, or anyone " +
         "else you type in), write a custom message, and attach files, and each department's group " +
@@ -1875,7 +1875,7 @@
         featureRowMock("&#9989;", "good", "BM Triage Status", "Every active tender's applicable/not-required progress.") +
         featureRowMock("&#128200;", "accent", "Performance", "On-time-rate tracking by department, feeding Top Achievers.") +
         featureRowMock("&#128220;", "accent", "Deliverables Catalog", "Every due-date formula and scoring weight in plain English &#8212; suggest a formula change with your reasoning.") +
-        featureRowMock("&#128203;", "accent", "My Requests", "Every request you've sent to an Admin &#8212; due-dates, reassignments, SME nominations, and more &#8212; and where each stands.") +
+        featureRowMock("&#128228;", "accent", "My Requests", "Every request you've sent to an Admin &#8212; due-dates, reassignments, SME nominations, and more &#8212; and where each stands.") +
         featureRowMock("&#128172;", "accent", "Q/A &#8211; Ask the Team", "Raise a question, track your own requests.") +
         featureRowMock("&#129302;", "accent", "AI Support", "Ask how something in the platform works, or about your own assigned work &#8212; falls back to Ask the Team for anything it can't answer.") +
         featureRowMock("&#128736;", "crit", "Admin Only", "Reports (4 filterable/printable report types), Top Achievers, Focal Points, Deliverables Configuration, Requests, Follow Up, Open Questions, Archived Projects.") +
