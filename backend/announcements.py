@@ -63,7 +63,7 @@ def _signature_html() -> str:
 def _create(db: Session, *, type: models.AnnouncementType, title: str, body: str,
             recipients: list[str], project: models.Project | None = None,
             submission_id: int | None = None, greeting: str = "Team",
-            link_html: str | None = None) -> models.Announcement:
+            link_html: str | None = None, attachments: list | None = None) -> models.Announcement:
     """`greeting` names the role this message is actually addressed to (SME,
     Owner, Bid Manager...), not a per-recipient lookup -- a single call can
     still go to a mixed list (e.g. SME(s) + the requesting Owner together),
@@ -82,7 +82,7 @@ def _create(db: Session, *, type: models.AnnouncementType, title: str, body: str
     # actually gets mailed.
     display_body = f'<p style="margin:0 0 14px;">Dear {greeting},</p>' + body
     email_body = display_body + (f"<br><br>{link_html}" if link_html else "") + _signature_html()
-    status = _mail.send_mail(recipients, title, email_body) if recipients else "simulated"
+    status = _mail.send_mail(recipients, title, email_body, attachments=attachments) if recipients else "simulated"
     ann = models.Announcement(
         type=type, title=title, body=display_body,
         recipients=", ".join(recipients) if recipients else "",
@@ -330,6 +330,27 @@ def reminder_sent(db: Session, project: models.Project, owner_email: str, item_n
     return _create(db, type=models.AnnouncementType.DEADLINE, title=title, body=body,
                     recipients=recipients, project=project, submission_id=submission_id, greeting="Owner",
                     link_html=link_html)
+
+
+def bulk_reminder_sent(db: Session, project: models.Project, recipients: list[str], item_no: str, item_name: str,
+                        due_date, submission_id: int | None = None, custom_message: str | None = None,
+                        attachments: list | None = None) -> models.Announcement:
+    """Like reminder_sent(), but for the Follow Up "advanced" reminder modal,
+    where the admin picks an arbitrary recipient mix (Owner / SME / Owner's
+    Manager / typed-in extra emails) rather than always anchoring the "to"
+    on a single owner with everyone else CC'd -- there may be no owner in
+    the mix at all if the admin unchecked it.
+    """
+    title = f"Reminder &#8211; {item_no} is due"
+    if custom_message:
+        body = custom_message
+    else:
+        due_str = due_date.isoformat() if due_date else "unspecified"
+        body = f"{_b(item_no)} {item_name} on {_b(project.est_no)} is due ({_hl(due_str, 'warn')}). Please submit as soon as possible."
+    link_html = _deliverable_link(submission_id, "Submit it now") if submission_id is not None else None
+    return _create(db, type=models.AnnouncementType.DEADLINE, title=title, body=body,
+                    recipients=recipients, project=project, submission_id=submission_id, greeting="Team",
+                    link_html=link_html, attachments=attachments)
 
 
 def followers_notified(db: Session, project: models.Project, recipients: list[str],

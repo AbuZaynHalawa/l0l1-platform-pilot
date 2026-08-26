@@ -1795,8 +1795,9 @@
         "</div>" +
         '<div class="tour-callout">&#128276; Grouped by department, most overdue first, with a Critical ' +
         "(15+ days) severity filter. Remind one stubborn item, or send to everyone currently shown " +
-        "&#8212; both are one click, and each department's group stays collapsed until you open it so " +
-        "the page isn't a wall of rows.</div>",
+        "&#8212; either opens a window to pick who's included (Owner, SME, Owner's Manager, or anyone " +
+        "else you type in), write a custom message, and attach files, and each department's group " +
+        "stays collapsed until you open it so the page isn't a wall of rows.</div>",
     },
     {
       eyebrow: "Around the Portal",
@@ -2618,6 +2619,62 @@
   });
   document.getElementById("dueDateRequestCancel").addEventListener("click", function () {
     document.getElementById("dueDateRequestOverlay").hidden = true;
+  });
+
+  // Follow Up bulk reminder modal -- opened either from the per-row
+  // "Remind" button (a single id) or "Send Reminders..." (every id
+  // currently shown), same modal either way so the recipient-mix/message/
+  // attachment options aren't duplicated between the two entry points.
+  function openRemindModal(ids, onDone) {
+    document.getElementById("remindModalTitle").textContent = ids.length === 1 ? "Send Reminder" : "Send Reminders";
+    document.getElementById("remindModalCount").textContent =
+      ids.length + " deliverable" + (ids.length === 1 ? "" : "s") + " selected.";
+    document.getElementById("remindIncludeOwner").checked = true;
+    document.getElementById("remindIncludeSme").checked = false;
+    document.getElementById("remindIncludeManager").checked = false;
+    document.getElementById("remindExtraEmails").value = "";
+    document.getElementById("remindMessage").value = "";
+    document.getElementById("remindAttachments").value = "";
+    var sendBtn = document.getElementById("remindModalSend");
+    var newSendBtn = sendBtn.cloneNode(true); // drop any listener from a previous open
+    sendBtn.parentNode.replaceChild(newSendBtn, sendBtn);
+    newSendBtn.addEventListener("click", async function () {
+      newSendBtn.disabled = true;
+      try {
+        var fd = new FormData();
+        fd.append("submission_ids", JSON.stringify(ids));
+        fd.append("actor_role", CURRENT_ROLE);
+        var msg = document.getElementById("remindMessage").value.trim();
+        if (msg) fd.append("message", msg);
+        fd.append("include_owner", document.getElementById("remindIncludeOwner").checked);
+        fd.append("include_sme", document.getElementById("remindIncludeSme").checked);
+        fd.append("include_manager", document.getElementById("remindIncludeManager").checked);
+        var extra = document.getElementById("remindExtraEmails").value.trim();
+        if (extra) fd.append("additional_emails", extra);
+        var files = document.getElementById("remindAttachments").files;
+        for (var i = 0; i < files.length; i++) fd.append("files", files[i]);
+        var res;
+        try {
+          res = await api("/api/deliverables/bulk-remind-advanced", { method: "POST", body: fd });
+        } catch (err) {
+          showToast("Could not send &#8211; " + apiErrorDetail(err), true);
+          return;
+        }
+        document.getElementById("remindModalOverlay").hidden = true;
+        showToast("Sent " + res.sent + " reminder(s)" +
+          (res.skipped ? " (" + res.skipped + " skipped &#8211; no recipients selected)" : ""));
+        if (onDone) onDone();
+      } finally {
+        newSendBtn.disabled = false;
+      }
+    });
+    document.getElementById("remindModalOverlay").hidden = false;
+  }
+  document.getElementById("remindModalClose").addEventListener("click", function () {
+    document.getElementById("remindModalOverlay").hidden = true;
+  });
+  document.getElementById("remindModalCancel").addEventListener("click", function () {
+    document.getElementById("remindModalOverlay").hidden = true;
   });
 
   // Self-service SME nomination -- open to everyone, but the nominee's own
@@ -6654,17 +6711,7 @@
           var side = el("div", "fu-row-side");
           side.appendChild(el("span", "fu-overdue-badge " + sev, d.days_overdue + " day" + (d.days_overdue === 1 ? "" : "s") + " overdue"));
           var remindBtn = el("button", "btn", "Remind");
-          remindBtn.addEventListener("click", async function () {
-            var res = await api("/api/deliverables/bulk-remind", {
-              method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                submission_ids: [d.id], actor_role: CURRENT_ROLE,
-                message: document.getElementById("fuMessage").value.trim() || null,
-                cc_manager: document.getElementById("fuCcManager").checked,
-              }),
-            });
-            showToast(res.sent ? "Reminder sent to " + d.owner : "Could not send &#8211; no assigned owner");
-          });
+          remindBtn.addEventListener("click", function () { openRemindModal([d.id]); });
           side.appendChild(remindBtn);
           row.appendChild(side);
           group.appendChild(row);
@@ -6672,18 +6719,10 @@
         wrap.appendChild(group);
       });
 
-      document.getElementById("fuRemindAll").onclick = async function () {
+      document.getElementById("fuRemindAll").onclick = function () {
         var ids = filtered.map(function (d) { return d.id; });
-        if (!ids.length) return;
-        var res = await api("/api/deliverables/bulk-remind", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            submission_ids: ids, actor_role: CURRENT_ROLE,
-            message: document.getElementById("fuMessage").value.trim() || null,
-            cc_manager: document.getElementById("fuCcManager").checked,
-          }),
-        });
-        showToast("Sent " + res.sent + " reminder(s)");
+        if (!ids.length) { showToast("Nothing shown to remind", true); return; }
+        openRemindModal(ids);
       };
     }
     deptSel.onchange = renderFollowUpList;

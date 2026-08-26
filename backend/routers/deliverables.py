@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, date, timedelta
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
@@ -943,6 +944,67 @@ def bulk_remind(payload: schemas.BulkRemindRequest, db: Session = Depends(get_db
                                          submission_id=s.id, custom_message=payload.message, cc=cc)
             sent += 1
     return {"sent": sent}
+
+
+_BULK_REMIND_MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024  # Graph's direct sendMail JSON payload chokes well before this
+
+
+@router.post("/bulk-remind-advanced")
+async def bulk_remind_advanced(submission_ids: str = Form(...), actor_role: str = Form(...),
+                                message: str | None = Form(None), include_owner: bool = Form(True),
+                                include_sme: bool = Form(False), include_manager: bool = Form(False),
+                                additional_emails: str | None = Form(None),
+                                files: list[UploadFile] = File(default=[]), db: Session = Depends(get_db)):
+    """Backs the Follow Up "Send Reminders" modal: unlike bulk_remind() above
+    (single owner + optional manager cc, JSON body), the admin here picks an
+    arbitrary recipient mix and can attach files -- both need a multipart
+    body, so this is a separate endpoint rather than an extended one.
+    """
+    if actor_role != "Admin":
+        raise HTTPException(403, "Only an Admin can send reminders")
+    try:
+        ids = json.loads(submission_ids)
+    except ValueError:
+        raise HTTPException(400, "Malformed submission_ids")
+
+    extra_emails = [e.strip() for e in (additional_emails or "").split(",") if e.strip()]
+
+    attachments = []
+    total_bytes = 0
+    for f in files:
+        content = await f.read()
+        if not content:
+            continue
+        total_bytes += len(content)
+        if total_bytes > _BULK_REMIND_MAX_ATTACHMENT_BYTES:
+            raise HTTPException(400, "Attachments are too large -- keep the combined size under 10 MB")
+        attachments.append((f.filename, content, f.content_type or "application/octet-stream"))
+
+    users_by_email = {u.email.strip().lower(): u for u in db.query(models.User).all()} if include_manager else {}
+    subs = db.query(models.DeliverableSubmission).filter(models.DeliverableSubmission.id.in_(ids)).all()
+    sent = 0
+    skipped = 0
+    for s in subs:
+        recipients = []
+        if include_owner:
+            recipients.extend(rules.resolve_owners(s))
+        if include_sme:
+            recipients.extend(rules.resolve_smes(s))
+        if include_manager:
+            for owner_email in rules.resolve_owners(s):
+                u = users_by_email.get(owner_email.strip().lower())
+                if u and u.manager_email:
+                    recipients.append(u.manager_email)
+        recipients.extend(extra_emails)
+        seen = set()
+        recipients = [r for r in recipients if r and not (r.strip().lower() in seen or seen.add(r.strip().lower()))]
+        if not recipients:
+            skipped += 1
+            continue
+        announcements.bulk_reminder_sent(db, s.project, recipients, s.definition.item_no, rules.submission_display_name(s),
+                                          s.due_date, submission_id=s.id, custom_message=message, attachments=attachments)
+        sent += 1
+    return {"sent": sent, "skipped": skipped}
 
 
 @router.get("/{submission_id}")

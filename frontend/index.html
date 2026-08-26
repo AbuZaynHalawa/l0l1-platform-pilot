@@ -719,11 +719,7 @@
           </select>
         </div>
         <div class="fp-add-row">
-          <input type="text" id="fuMessage" placeholder="Custom reminder message (optional &#8211; leave blank for the standard one)" />
-          <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;white-space:nowrap;">
-            <input type="checkbox" id="fuCcManager" /> CC owner's manager
-          </label>
-          <button class="btn primary" id="fuRemindAll">Send Reminders to All Shown</button>
+          <button class="btn primary" id="fuRemindAll">Send Reminders&#8230;</button>
         </div>
         <div id="followUpList"></div>
       </div>
@@ -1433,6 +1429,56 @@
           <button class="btn" id="groupInviteCancel">Cancel</button>
           <button class="btn primary" id="groupInviteSubmit">Submit Request</button>
         </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Admin: Follow Up bulk reminder -- lets the admin pick who gets included
+     (Owner/SME/Owner's Manager/typed extra emails), a custom message, and
+     optional attachments, instead of the old single "Send Reminders to All
+     Shown" button that always just emailed the owner. -->
+<div class="modal-overlay" id="remindModalOverlay" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <div class="eyebrow">Follow Up</div>
+        <h2 id="remindModalTitle">Send Reminders</h2>
+      </div>
+      <button class="modal-close" id="remindModalClose">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Include as Recipients</label>
+        <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:6px;">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;">
+            <input type="checkbox" id="remindIncludeOwner" checked /> Owner
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;">
+            <input type="checkbox" id="remindIncludeSme" /> SME
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;">
+            <input type="checkbox" id="remindIncludeManager" /> Owner's Manager
+          </label>
+        </div>
+      </div>
+      <div class="field" style="margin-top:14px;">
+        <label>Additional Recipients</label>
+        <input type="text" id="remindExtraEmails" placeholder="Another owner or anyone else, comma-separated&#8230;" />
+      </div>
+      <div class="field" style="margin-top:14px;">
+        <label>Message</label>
+        <textarea id="remindMessage" rows="3" placeholder="Custom reminder message (optional &#8211; leave blank for the standard one)"></textarea>
+      </div>
+      <div class="field" style="margin-top:14px;">
+        <label>Attachments</label>
+        <input type="file" id="remindAttachments" multiple />
+        <div class="sub" style="margin-top:4px;">Up to 10&#8239;MB combined.</div>
+      </div>
+      <div class="sub" id="remindModalCount" style="margin-top:10px;"></div>
+      <div class="modal-actions-row" style="margin-top:20px;">
+        <button class="btn" id="remindModalCancel">Cancel</button>
+        <button class="btn primary" id="remindModalSend">Send Reminders</button>
       </div>
     </div>
   </div>
