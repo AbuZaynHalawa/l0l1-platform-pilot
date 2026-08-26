@@ -89,12 +89,20 @@
   @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 
   /* ---------- shell ---------- */
-  .shell { display: grid; grid-template-columns: 264px 1fr; min-height: 100vh; }
+  /* dvh (with a vh fallback for older engines) so mobile browser chrome
+     collapsing/expanding doesn't leave a dead strip under the layout. */
+  .shell { display: grid; grid-template-columns: 264px 1fr; min-height: 100vh; min-height: 100dvh; }
   .rail { background: var(--surface); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 20px 14px; gap: 18px; }
   /* Item 154: hamburger toggle + backdrop, both display:none until the
      mobile breakpoint below turns the rail into an off-canvas drawer. */
+  /* z-index sits BELOW .rail-backdrop (39) and .rail (40) on purpose: the
+     toggle is fixed at top-left, which is exactly where the open drawer
+     lands, so a higher value left the button floating over the drawer's
+     own logo and swallowing clicks meant for it. Underneath, the open
+     drawer covers it, and a click on that spot hits the backdrop --
+     which closes the drawer, the behaviour a user expects there. */
   .rail-toggle {
-    display: none; position: fixed; top: 12px; left: 12px; z-index: 45; width: 38px; height: 38px;
+    display: none; position: fixed; top: 12px; left: 12px; z-index: 38; width: 44px; height: 44px;
     border-radius: 9px; border: 1px solid var(--line); background: var(--surface); color: var(--ink-700);
     font-size: 18px; align-items: center; justify-content: center; box-shadow: var(--shadow-1); cursor: pointer;
   }
@@ -134,7 +142,12 @@
   .rail-note { font-size: 11.5px; color: var(--ink-500); margin-top: 8px; line-height: 1.45; }
 
   .main { display: flex; flex-direction: column; min-width: 0; }
-  .topbar { display: flex; align-items: center; gap: 14px; padding: 14px 26px; border-bottom: 1px solid var(--line); background: var(--surface); position: sticky; top: 0; z-index: 5; }
+  /* flex-wrap is unconditional rather than breakpoint-gated: the bar's
+     contents (masthead + search + meta cluster) need ~1400px to sit on one
+     line, so any fixed breakpoint is either too low (page scrolls
+     sideways below it) or too high. Wrapping by content means the bar
+     reflows exactly when it runs out of room, at any width. */
+  .topbar { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; row-gap: 8px; padding: 14px 26px; border-bottom: 1px solid var(--line); background: var(--surface); position: sticky; top: 0; z-index: 5; }
   .topbar-title { display: flex; flex-direction: column; line-height: 1.2; white-space: nowrap; padding-right: 18px; margin-right: 4px; border-right: 1px solid var(--line); }
   .topbar-title b {
     font-size: 25px; font-weight: 800; letter-spacing: -.01em;
@@ -142,12 +155,34 @@
     -webkit-background-clip: text; background-clip: text; color: transparent;
   }
   .topbar-title span { font-size: 11.5px; font-weight: 700; color: var(--ink-500); text-transform: uppercase; letter-spacing: .08em; margin-top: 3px; }
-  .search-wrap { position: relative; flex: 1; max-width: 400px; }
+  /* flex-basis floor of 220px: with a bare flex:1 the input collapsed to
+     ~46px -- narrower than its own 32px icon padding, so there was
+     effectively nowhere to type. */
+  .search-wrap { position: relative; flex: 1 1 220px; min-width: 220px; max-width: 400px; }
   .search-wrap input { width: 100%; padding: 8px 12px 8px 32px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface-sunken); color: var(--ink-900); font-size: 13.5px; }
   .search-wrap input:focus { background: var(--surface); border-color: var(--accent-line); }
   .search-wrap .sic { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--ink-500); font-size: 13px; }
-  .top-spacer { flex: 1; }
-  .top-meta { display: flex; align-items: center; gap: 14px; color: var(--ink-500); font-size: 12.5px; }
+  /* Redundant once .top-meta carries margin-left:auto -- and actively
+     harmful under flex-wrap, since a flex:1 spacer claims width on the
+     first line and pushes the meta cluster onto a second one while there
+     was still room for it. */
+  .top-spacer { display: none; }
+  .top-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; row-gap: 8px; margin-left: auto; color: var(--ink-500); font-size: 12.5px; }
+  /* Every control in the meta cluster holds its natural width instead of
+     being compressed by its siblings. Without this the buttons kept their
+     labels but shrank their boxes, so "Add to L0-L1 Group" wrapped to
+     three stacked lines inside a 76px-wide button (and dragged the whole
+     topbar to 91px tall), while the avatar squashed from 26px to 15px. */
+  .top-meta > * { flex: none; }
+  .top-meta > button, .top-meta > select, .top-meta > span { white-space: nowrap; }
+  /* The bar carries ~720px of controls, so once it wraps to three rows it
+     stands ~190-260px tall. Sticky at that height claims a third of a
+     phone screen permanently, so below this width it scrolls away with
+     the page instead. Above it the bar is one or two rows (76-116px) and
+     staying pinned is still worth the space. */
+  @media (max-width: 1100px) {
+    .topbar { position: static; }
+  }
   .role-select {
     border: 1px solid var(--line); background: var(--surface-sunken); color: var(--ink-700); border-radius: 8px;
     padding: 6px 10px; font-size: 12px; font-weight: 700; cursor: pointer;
@@ -973,7 +1008,8 @@
   .ai-chat-bubble[hidden] { display: none; }
   .ai-chat-panel {
     position: fixed; right: 24px; bottom: 94px; z-index: 70;
-    width: 380px; max-width: calc(100vw - 32px); height: min(600px, calc(100vh - 130px));
+    width: 380px; max-width: calc(100vw - 32px);
+    height: min(600px, calc(100vh - 130px)); height: min(600px, calc(100dvh - 130px));
     background: var(--surface); border: 1.5px solid var(--line); border-radius: 16px;
     box-shadow: var(--shadow-2); display: flex; flex-direction: column; overflow: hidden;
   }
@@ -1693,14 +1729,20 @@
   .pbd-total { font-size: 13px; color: var(--ink-700); background: var(--accent-soft); border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; }
   .pbd-total b { color: var(--purple-2); font-size: 15px; }
 
-  @media (max-width: 860px) {
+  @media (max-width: 980px) {
     .perf-card-grid, .perf-card2-cols { grid-template-columns: 1fr !important; }
   }
 
   /* ================= ITEM 154: RESPONSIVE ================= */
-  /* Tablet and below: the fixed 236px rail becomes an off-canvas drawer,
-     opened by the hamburger button (both are display:none above this). */
-  @media (max-width: 860px) {
+  /* Tablet and below: the fixed 264px rail becomes an off-canvas drawer,
+     opened by the hamburger button (both are display:none above this).
+
+     Raised from 860px to 980px so it matches the breakpoint every content
+     grid already collapses at. At 861-980px the grids had gone
+     single-column while the rail still held 264px, leaving the actual
+     content column ~620px on a ~900px screen -- the rail was costing more
+     than it returned there. One breakpoint now governs both. */
+  @media (max-width: 980px) {
     .shell { grid-template-columns: 1fr; }
     .rail-toggle { display: flex; }
     .rail {
@@ -1720,6 +1762,24 @@
     .search-wrap { order: 1; flex: 1 1 100%; max-width: none; }
     .top-spacer { display: none; }
     .top-meta { flex-wrap: wrap; row-gap: 8px; }
+  }
+
+  /* Touch-target floor for the drawer/tablet range and below. Sizes here
+     are deliberately min-height + padding + centering only -- no font-size
+     is touched, so nothing about the type scale changes. Measured before
+     this: nav items 36px, .btn/.chip ~30px, .modal-close 28px, all under
+     the 44px minimum a finger needs, and the phone block below actually
+     tightened .role-select further. Row gaps go to 8px minimum too, so
+     adjacent targets can't be tapped by accident. */
+  @media (max-width: 980px) {
+    .nav-item { min-height: 44px; }
+    .btn, .chip, .theme-btn, .role-select, .subtab-row .chip {
+      min-height: 44px; display: inline-flex; align-items: center; justify-content: center;
+    }
+    .chip, .subtab-row .chip { display: flex; }
+    .modal-close { width: 44px; height: 44px; }
+    .filter-chips, .filter-chips-row, .deliv-actions, .detail-head-actions,
+    .modal-actions-row, .form-actions { gap: 8px; }
   }
 
   /* Phone and below: stack every multi-column grid to one column, tighten
