@@ -1,7 +1,7 @@
 import json
 from datetime import datetime, date, timedelta
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, contains_eager
 
 from .. import models, schemas, announcements, rules
 from ..database import get_db
@@ -58,13 +58,38 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
         rules.recompute_project_due_dates(db, p)
     db.commit()
 
+    # Item [Assigned Deliverables perf]: this endpoint returns every
+    # deliverable across the whole platform (3300+ rows) on every page
+    # load, so per-row cost multiplies fast. Two fixes:
+    # 1. contains_eager reuses the joins already in the WHERE clause to
+    #    populate s.project / s.definition / s.definition.department, so
+    #    accessing them below doesn't lazy-load a fresh query per unique
+    #    project/definition/department.
+    # 2. awaiting_milestone_note (below) was being called with no lookup
+    #    cache, so every predecessor check ran its own fresh join+filter
+    #    query -- with ~half the catalog being predecessor-anchored,
+    #    across 3300+ rows that's the dominant cost by far. Build one
+    #    lookup dict per project (same shape recompute_project_due_dates
+    #    already builds for its own internal use, see rules.py) up front
+    #    instead.
     q = (
         db.query(models.DeliverableSubmission)
         .join(models.DeliverableDefinition)
         .join(models.Department)
         .join(models.Project)
-        .filter(models.DeliverableSubmission.auto_completed.isnot(True), models.Project.archived.is_not(True))
+        .options(
+            contains_eager(models.DeliverableSubmission.definition).contains_eager(models.DeliverableDefinition.department),
+            contains_eager(models.DeliverableSubmission.project),
+        )
+        .filter(models.Project.archived.is_not(True))
     )
+    # auto_completed rows (e.g. 1.1) are filtered out of the RESPONSE below,
+    # same as before -- but NOT out of this query, because they're exactly
+    # the causal-chain anchors other items' predecessor checks depend on
+    # (see projects.py get_deliverables' own comment on this). Building the
+    # lookup from an already-filtered list would make awaiting_milestone_note
+    # blind to an auto-completed predecessor and misreport a real item as
+    # still "Awaiting" one that's actually done.
     subs = q.all()
     my_follows = set()
     if actor_email:
@@ -74,10 +99,14 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
         }
     scope_to_mine = bool(actor_role) and actor_role != "Admin"
     my_email = (actor_email or "").strip().lower()
-    doc_counts = rules.document_counts(db, [s.id for s in subs])
-    pending_kinds = rules.pending_due_date_request_kinds(db, [s.id for s in subs])
-    out = []
+    visible_subs = [s for s in subs if not s.auto_completed]
+    doc_counts = rules.document_counts(db, [s.id for s in visible_subs])
+    pending_kinds = rules.pending_due_date_request_kinds(db, [s.id for s in visible_subs])
+    lookups_by_project: dict[int, dict[str, list]] = {}
     for s in subs:
+        lookups_by_project.setdefault(s.project_id, {}).setdefault(s.definition.item_no, []).append(s)
+    out = []
+    for s in visible_subs:
         if status and s.status.value != status:
             continue
         if scope_to_mine:
@@ -113,7 +142,7 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
             "review_comment": s.review_comment, "completion_note": rules.mark_complete_note(s),
             "following": s.id in my_follows,
             "doc_total": doc_counts.get(s.id, 0),
-            "awaiting_note": rules.awaiting_milestone_note(db, s),
+            "awaiting_note": rules.awaiting_milestone_note(db, s, lookups_by_project.get(s.project_id)),
             # Newest-action-first ordering on Assigned Deliverables: the most
             # recent of submit/review timestamps, so a just-completed or
             # just-rejected item surfaces at the top instead of wherever the
