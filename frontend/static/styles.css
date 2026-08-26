@@ -358,7 +358,7 @@
     display: flex; align-items: baseline; gap: 10px; padding: 10px 14px; border-radius: var(--radius-sm); cursor: pointer;
   }
   .dpc-recent-row:hover { background: var(--surface-sunken); }
-  .dpc-recent-est { font-weight: 800; font-size: 12.5px; flex-shrink: 0; }
+  .dpc-recent-est { font-family: var(--font-mono); font-weight: 800; font-size: 12.5px; flex-shrink: 0; }
   .dash-project-card.l0 .dpc-recent-est { color: var(--l0-1); }
   .dash-project-card.l1 .dpc-recent-est { color: #1f9d5c; }
   .dpc-recent-name { font-size: 12.5px; color: var(--ink-700); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; }
@@ -1275,7 +1275,7 @@
     width: 80px; flex-shrink: 0;
     font-size: 11.5px; color: var(--ink-700); font-variant-numeric: tabular-nums;
   }
-  .gantt-est-col { width: 70px; font-weight: 600; color: var(--ink-500); }
+  .gantt-est-col { font-family: var(--font-mono); width: 70px; font-weight: 600; color: var(--ink-500); }
   /* Est column only appears in the pooled (cross-project) Timeline -- when
      present, the track offset (axis padding + gridlines) shifts right by
      its width + gap; computed in JS per render since it depends on the
