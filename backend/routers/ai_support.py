@@ -1,12 +1,17 @@
-"""AI Support -- a Claude-powered chat assistant for general platform
-questions, with enough knowledge of the asking user's own assigned
-deliverables (Owner/SME scoped, resolved the same way Assigned Deliverables
-does -- see deliverables.py's list_all_deliverables) to answer personal
-questions too ("what's due for me this week?"). Same trust model as every
-other actor_email/actor_role field in this app: self-reported, no real
-login exists in this pilot (see support.py's own docstring) -- an AI
-question is read-only, so that's an acceptable ceiling here same as
-everywhere else.
+"""AI Support -- a Claude-powered chat assistant answering as a knowledgeable
+teammate who knows this platform inside out. Read-only, live tools reach real
+current data for ANY project/deliverable/person -- not just the asker's own
+(confirmed with Yasser 2026-08-25: due dates/formulas/statuses are already
+visible to any role in the real UI, so scoping the AI tighter than the app
+itself just breaks answers it should be able to give -- see the "13 due
+items" bug this replaced _my_deliverables_summary to fix). The one genuine
+exception is Bid Value, which stays gated behind the real approval flow
+(projects.py's _can_view_bid_value) -- see get_bid_value below.
+
+Same trust model as every other actor_email/actor_role field in this app:
+self-reported, no real login exists in this pilot (see support.py's own
+docstring) -- read-only access at this ceiling is an acceptable extension
+of what every role can already browse manually.
 
 Stateless on the backend by design: the frontend keeps the conversation
 array and resends it every turn (capped client-side), rather than adding a
@@ -27,12 +32,13 @@ from sqlalchemy.orm import Session
 from .. import models, rules
 from ..database import get_db
 from .deliverables_config import _normalized_weight_pct
+from .projects import _can_view_bid_value
 
 router = APIRouter(prefix="/api/ai-support", tags=["ai-support"])
 
 _MODEL = "claude-haiku-4-5-20251001"
 
-_SYSTEM_PROMPT = """You are the AI Support assistant embedded in the Project Readiness (L0/L1) Platform, an internal tool Algihaz Contracting uses to track tendering and early project deliverables. Answer questions about how the platform works and, when given the asker's own assigned-deliverables list below, about their own work. Be concise -- a few sentences or a short list, not an essay.
+_SYSTEM_PROMPT = """You're the assistant built into the Project Readiness (L0/L1) Platform, an internal tool Algihaz Contracting uses to track tendering and early project deliverables. Answer naturally and directly, like a knowledgeable teammate who knows this platform inside out -- not like a script reciting "the system shows." Be concise -- a few sentences or a short list, not an essay.
 
 ## What L0 and L1 mean
 - L0 = a Tender: the bidding/proposal stage, before a project is won.
@@ -49,7 +55,7 @@ One person can be Owner on some items and SME on others, even within the same pr
 
 ## Deliverables and due dates
 - Each deliverable ("item", e.g. "1.3 Announce the site visit date") has a formula-driven due date -- computed relative to an anchor like the tender announcement date (M1), the Bid Submission Date (BSD), the site visit date, or another item's own due date (a predecessor).
-- Submission statuses: Not Due, Due (Not Submitted), Pending SME Review, Approved (Completed), Rejected.
+- A deliverable has two independent statuses: Progress (no_progress / in_progress / pending_review / approved / rejected -- how far the work has gotten) and Deadline standing (not_due / due / on_time / early / late / on_hold -- where it stands against its due date, "due" meaning overdue and not yet completed). "What's due/overdue for X" is a deadline-standing question, not a progress question.
 - A deliverable can be a "milestone" (a named checkpoint like M3), which other items can anchor their own due dates to.
 
 ## Scoring (Performance %)
@@ -73,19 +79,23 @@ There are six kinds, all reviewed on the Requests admin page:
 Every non-admin can track their own requests, across all six kinds, on the "My Requests" page.
 
 ## Where things live in the nav
-Workspace (everyone): Dashboard, L0 Tenders, L1 Projects, Timeline (Gantt), Assigned Deliverables (your own work), Announcements, Reminders, BM Triage Status, Performance, Deliverables Catalog (browse formulas/weights, suggest changes), My Requests, Q/A - Ask the Team, AI Support (this chat).
+Workspace (everyone): Dashboard, L0 Tenders, L1 Projects, Timeline (Gantt), Assigned Deliverables (your own work), Announcements, Reminders, BM Triage Status, Performance, Deliverables Catalog (browse formulas/weights, suggest changes), My Requests, Q/A - Ask the Team, AI Support (this chat, floating bottom-right bubble).
 Admin only: Create L0/L1, Reports (Performance/Master PO/Overview PO/Budget Status reports), Top Achievers, Focal Points, Deliverables Configuration (edit formulas/weights directly), Requests (decide the six queues above), Follow Up (overdue deliverables + bulk reminders), Open Questions (Q/A inbox), Archived Projects.
 
-## Live lookups
-You have two tools for real, current data -- use them instead of guessing whenever a question is about a *specific* item or department, not just how the system works in general:
-- lookup_deliverables: the real due-date formula, scoring weight, and department for a specific item number (e.g. "what's the formula for 2.2 in L1?"), or to search/browse by name or department.
-- list_departments: the real current list of departments (name, number, whether it's an international variant).
-Both mirror exactly what Deliverables Catalog and the department pickers already show any user -- general reference data, not anyone's private information.
+## Live lookups -- use these for ANY real data, about ANY project or person
+You have real, live tools. Always use them instead of guessing whenever a question is about a specific item, project, person, or department -- nothing here is scoped to "only the asker's own": due dates, formulas, and statuses are already visible to any role in the real UI (only editing/acting is role-restricted, not viewing), so answer freely for anyone.
+- lookup_deliverables: real due-date formula, scoring weight, department for a catalog item.
+- search_projects: find/browse real L0 tenders and L1 projects by name, Est-No, stage, or status.
+- lookup_project_deliverables: real submission data -- due date, progress, deadline standing, Owner(s), SME(s) -- for a specific project/item, or filtered by who's assigned (any owner/SME email, not just the asker's own). Use this for "what's due", "what's overdue", "what's assigned to X" -- for anyone, on any project. When the asker says "my"/"me", pass their own email (given to you below) as owner_email and/or sme_email.
+- list_departments: the real current department list.
+- get_bid_value: a project's bid value -- the ONE piece of data genuinely access-restricted independent of role (same real approval flow as the Bid Value page). Only returns a number if the asking person has actually been granted access; otherwise it explains how to request it. Never guess or state a bid value any other way.
 
 ## What you should NOT do
-- Don't make up specific facts about a particular project, deliverable, or person -- use the tools above for anything about deliverables/departments, and the "their own assigned deliverables" data below for anything personal. If neither covers it, say you don't have that.
+- Never answer questions about the platform's own source code, how it was technically built, or its internal implementation -- that's out of scope here; say so plainly and move on.
+- Never take, promise, or simulate taking an action (approving/rejecting a request, editing/creating/deleting anything, changing a due date) -- you're read-only. Point to the real page/nav tab where that action actually happens.
+- Never make up specific facts about a project, deliverable, or person -- use the tools above for anything real. If a tool doesn't cover it, say so.
 - Don't give an opinion on a judgment call that's really an Admin's decision to make (e.g. "should my due-date extension be approved?").
-- If you're not confident you've actually answered the question, say so plainly and suggest they use Q/A - Ask the Team to reach an Admin/team member directly.
+- If you're not confident you've actually answered the question, say so plainly and suggest Q/A - Ask the Team to reach a real person.
 """
 
 _TOOLS = [
@@ -109,47 +119,56 @@ _TOOLS = [
         },
     },
     {
+        "name": "search_projects",
+        "description": "Search or list real L0 tenders and L1 projects -- Est-No, name, stage, status, bid manager, key dates. Use this to find a project by name/Est-No, or to browse what's currently active.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "stage": {"type": "string", "enum": ["L0", "L1"], "description": "Optional filter."},
+                "query": {"type": "string", "description": "Search text matched against Est-No or project name."},
+                "status": {"type": "string", "description": "Filter by status substring, e.g. 'In Progress'."},
+            },
+        },
+    },
+    {
+        "name": "lookup_project_deliverables",
+        "description": (
+            "Look up real deliverable submissions: due date, progress, deadline standing (due/overdue/on "
+            "time/early/late), Owner(s), SME(s) -- for a specific project, a specific item, or filtered by "
+            "who's assigned. Use this for ANY question about what's due, overdue, or assigned to someone, "
+            "on any project -- not just the asker's own. 'due'/'overdue' maps to the deadline filter, not progress."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "est_no": {"type": "string", "description": "A specific project's Est-No, e.g. 'Est-1553'. Omit to search across all active projects."},
+                "item_no": {"type": "string", "description": "Filter to one specific item number, e.g. '2.2'."},
+                "owner_email": {"type": "string", "description": "Filter to items where this email is an Owner."},
+                "sme_email": {"type": "string", "description": "Filter to items where this email is an SME."},
+                "progress": {"type": "string", "enum": ["no_progress", "in_progress", "pending_review", "approved", "rejected"], "description": "Filter by progress status."},
+                "deadline": {"type": "string", "enum": ["not_due", "due", "on_hold", "on_time", "early", "late"], "description": "Filter by deadline standing -- 'due' means overdue and not yet completed."},
+            },
+        },
+    },
+    {
         "name": "list_departments",
         "description": "List the platform's real current departments -- name, number, and whether it's an international variant. Same data as the department pickers throughout the app.",
         "input_schema": {"type": "object", "properties": {}},
     },
+    {
+        "name": "get_bid_value",
+        "description": (
+            "Get a project's bid value. Only returns the real number if the asking person has genuinely "
+            "been granted access (same check as the real Bid Value page); otherwise explains that access "
+            "needs to be requested. Never state or estimate a bid value any other way."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"est_no": {"type": "string", "description": "The project's Est-No."}},
+            "required": ["est_no"],
+        },
+    },
 ]
-
-
-def _my_deliverables_summary(db: Session, email: str) -> str:
-    email = (email or "").strip().lower()
-    if not email:
-        return "(No email provided for this conversation -- can't look up personal assignments.)"
-    subs = (
-        db.query(models.DeliverableSubmission)
-        .join(models.DeliverableDefinition)
-        .join(models.Project)
-        .filter(models.DeliverableSubmission.auto_completed.isnot(True), models.Project.archived.is_not(True))
-        .all()
-    )
-    mine = []
-    for s in subs:
-        owners = {e.strip().lower() for e in rules.resolve_owners(s) if e}
-        smes = {e.strip().lower() for e in rules.resolve_smes(s) if e}
-        if email not in owners and email not in smes:
-            continue
-        mine.append((s, "Owner" if email in owners else "SME"))
-    if not mine:
-        return "(This user has no assigned deliverables right now.)"
-    # Soonest-due (and undated) items lead -- those are what a support
-    # question is almost always actually about; a long tail of far-future
-    # not-due items would just burn tokens without helping.
-    mine.sort(key=lambda pair: (pair[0].due_date is None, pair[0].due_date or date.max))
-    lines = []
-    for s, role in mine[:25]:
-        lines.append(
-            f"- {s.definition.item_no} \"{rules.display_name(s.definition, s.project)}\" "
-            f"({s.project.est_no} {s.project.name}, {s.project.stage.value}) -- "
-            f"role: {role}, status: {s.status.value}, due: {s.due_date or 'n/a'}"
-        )
-    if len(mine) > 25:
-        lines.append(f"...and {len(mine) - 25} more.")
-    return "\n".join(lines)
 
 
 def _tool_lookup_deliverables(db: Session, stage: str = "", item_no: str = "", query: str = "", department: str = "") -> str:
@@ -181,6 +200,89 @@ def _tool_lookup_deliverables(db: Session, stage: str = "", item_no: str = "", q
     return "\n".join(lines)
 
 
+def _tool_search_projects(db: Session, stage: str = "", query: str = "", status: str = "") -> str:
+    q = db.query(models.Project).filter(models.Project.archived.is_not(True))
+    if stage in ("L0", "L1"):
+        q = q.filter(models.Project.stage == stage)
+    if status:
+        q = q.filter(models.Project.status.ilike(f"%{status.strip()}%"))
+    projects = q.order_by(models.Project.created_at.desc()).all()
+    if query:
+        ql = query.strip().lower()
+        projects = [p for p in projects if ql in p.est_no.lower() or ql in (p.name or "").lower()]
+    if not projects:
+        return "No matching projects found."
+    truncated = len(projects) > 20
+    lines = [
+        f"- {p.est_no} \"{p.name}\" ({p.stage.value}) -- status: {p.status}, bid manager: {p.bid_manager or 'n/a'}"
+        + (f", BSD: {p.bsd}" if p.bsd else "")
+        for p in projects[:20]
+    ]
+    if truncated:
+        lines.append(f"...and {len(projects) - 20} more matches not shown -- narrow the search.")
+    return "\n".join(lines)
+
+
+def _tool_lookup_project_deliverables(db: Session, est_no: str = "", item_no: str = "", owner_email: str = "",
+                                       sme_email: str = "", progress: str = "", deadline: str = "") -> str:
+    q = (
+        db.query(models.DeliverableSubmission)
+        .join(models.DeliverableDefinition)
+        .join(models.Project)
+        .filter(models.DeliverableSubmission.auto_completed.isnot(True), models.Project.archived.is_not(True))
+    )
+    if est_no:
+        q = q.filter(models.Project.est_no.ilike(est_no.strip()))
+    if item_no:
+        q = q.filter(models.DeliverableDefinition.item_no == item_no.strip())
+    if progress:
+        q = q.filter(models.DeliverableSubmission.status == progress)
+    subs = q.all()
+    if owner_email:
+        oe = owner_email.strip().lower()
+        subs = [s for s in subs if oe in {e.strip().lower() for e in rules.resolve_owners(s) if e}]
+    if sme_email:
+        se = sme_email.strip().lower()
+        subs = [s for s in subs if se in {e.strip().lower() for e in rules.resolve_smes(s) if e}]
+
+    # deadline_status() is computed live per submission (never stored), so
+    # this filter has to happen in Python after the SQL query, not in it.
+    enriched = []
+    for s in subs:
+        if s.status in (models.SubmissionStatus.PENDING_TRIAGE, models.SubmissionStatus.NOT_REQUIRED):
+            key, days = (s.status.value, None)
+        else:
+            key, days = rules.deadline_status(s)
+        enriched.append((s, key, days))
+    if deadline:
+        enriched = [e for e in enriched if e[1] == deadline]
+    if not enriched:
+        return "No matching deliverables found -- double check the Est-No/item number, or try broader filters."
+
+    enriched.sort(key=lambda e: (e[0].due_date is None, e[0].due_date or date.max))
+    truncated = len(enriched) > 30
+    lines = []
+    for s, key, days in enriched[:30]:
+        if key == "due" and days is not None:
+            deadline_txt = f"due, {abs(days)} day(s) overdue"
+        elif key == "late" and days is not None:
+            deadline_txt = f"late, completed {abs(days)} day(s) after due"
+        elif key == "early" and days is not None:
+            deadline_txt = f"completed {days} day(s) early"
+        else:
+            deadline_txt = key.replace("_", " ")
+        lines.append(
+            f"- {s.definition.item_no} \"{rules.display_name(s.definition, s.project)}\" "
+            f"({s.project.est_no} {s.project.name}, {s.project.stage.value}) -- "
+            f"progress: {s.status.value}, deadline: {deadline_txt}, due date: {s.due_date or 'n/a'}, "
+            f"owner: {', '.join(rules.resolve_owners(s)) or 'unassigned'}, "
+            f"SME: {', '.join(rules.resolve_smes(s)) or 'unassigned'}"
+        )
+    if truncated:
+        lines.append(f"...and {len(enriched) - 30} more matches not shown -- narrow the search (est_no, item_no, owner/sme email, progress, or deadline).")
+    return "\n".join(lines)
+
+
 def _tool_list_departments(db: Session) -> str:
     # .is_not(False), not != False -- NULL (pre-migration rows, most
     # departments) fails a plain != comparison in SQL and gets silently
@@ -196,11 +298,37 @@ def _tool_list_departments(db: Session) -> str:
     )
 
 
-def _run_tool(db: Session, name: str, tool_input: dict) -> str:
+def _tool_get_bid_value(db: Session, actor_role: str, actor_email: str, est_no: str = "") -> str:
+    # actor_role/actor_email are bound from the real request (payload), NOT
+    # a tool-input argument the model could set -- otherwise a user could
+    # just ask the AI to "check as someone else" and bypass the real gate.
+    if not est_no:
+        return "est_no is required."
+    project = db.query(models.Project).filter(models.Project.est_no.ilike(est_no.strip())).first()
+    if not project:
+        return "No project found with that Est-No."
+    can_view = rules.can_act(actor_role, actor_email, project.bid_manager) or _can_view_bid_value(db, project, actor_role, actor_email)
+    if not can_view:
+        return (
+            f"You don't currently have access to {project.est_no}'s bid value -- it's restricted to the bid "
+            "manager and anyone an Admin has specifically approved. Request access from that project's page."
+        )
+    if project.bid_value is None:
+        return f"{project.est_no} doesn't have a bid value recorded yet."
+    return f"{project.est_no}'s bid value: {project.bid_value}"
+
+
+def _run_tool(db: Session, name: str, tool_input: dict, actor_role: str, actor_email: str) -> str:
     if name == "lookup_deliverables":
         return _tool_lookup_deliverables(db, **{k: tool_input.get(k, "") for k in ("stage", "item_no", "query", "department")})
+    if name == "search_projects":
+        return _tool_search_projects(db, **{k: tool_input.get(k, "") for k in ("stage", "query", "status")})
+    if name == "lookup_project_deliverables":
+        return _tool_lookup_project_deliverables(db, **{k: tool_input.get(k, "") for k in ("est_no", "item_no", "owner_email", "sme_email", "progress", "deadline")})
     if name == "list_departments":
         return _tool_list_departments(db)
+    if name == "get_bid_value":
+        return _tool_get_bid_value(db, actor_role, actor_email, tool_input.get("est_no", ""))
     return f"Unknown tool: {name}"
 
 
@@ -257,13 +385,8 @@ def chat(payload: ChatRequest, db: Session = Depends(get_db)):
     if usage.count >= _DAILY_LIMIT:
         raise HTTPException(429, f"You've used all {_DAILY_LIMIT} AI Support messages for today -- try again tomorrow, or use Ask the Team.")
 
-    who = f"role: {payload.actor_role or 'Viewer'}" + (f", email: {payload.actor_email}" if payload.actor_email else "")
-    system = (
-        _SYSTEM_PROMPT
-        + f"\n\n---\n\nThe person you're talking to is acting as {who}.\n\n"
-        + "Their own assigned deliverables (Owner or SME) right now:\n"
-        + _my_deliverables_summary(db, payload.actor_email)
-    )
+    who = f"role: {payload.actor_role or 'Viewer'}" + (f", email: {payload.actor_email}" if payload.actor_email else " (no email given -- ask them to set an acting email first for anything personal)")
+    system = _SYSTEM_PROMPT + f"\n\n---\n\nThe person you're talking to is acting as {who}."
 
     # Lazy import, same convention as httpx in providers/mail.py and
     # providers/storage.py -- keeps this an optional dependency at import
@@ -274,17 +397,19 @@ def chat(payload: ChatRequest, db: Session = Depends(get_db)):
     history = [{"role": m.role, "content": m.content} for m in payload.history[-10:] if m.role in ("user", "assistant")]
     history.append({"role": "user", "content": message})
     try:
-        # Tool-use loop: Claude can call lookup_deliverables/list_departments
-        # for real current data instead of guessing (see _SYSTEM_PROMPT's
-        # "Live lookups" section) -- capped at a few round-trips so a
-        # confused model can't loop forever racking up API calls.
-        for _ in range(4):
-            resp = client.messages.create(model=_MODEL, max_tokens=800, system=system, messages=history, tools=_TOOLS)
+        # Tool-use loop: Claude can call any of the live-data tools above
+        # instead of guessing (see _SYSTEM_PROMPT's "Live lookups" section)
+        # -- capped at a few round-trips so a confused model can't loop
+        # forever racking up API calls (e.g. search_projects then
+        # lookup_project_deliverables is a normal 2-hop question).
+        for _ in range(5):
+            resp = client.messages.create(model=_MODEL, max_tokens=1024, system=system, messages=history, tools=_TOOLS)
             if resp.stop_reason != "tool_use":
                 break
             history.append({"role": "assistant", "content": resp.content})
             tool_results = [
-                {"type": "tool_result", "tool_use_id": block.id, "content": _run_tool(db, block.name, block.input)}
+                {"type": "tool_result", "tool_use_id": block.id,
+                 "content": _run_tool(db, block.name, block.input, payload.actor_role, payload.actor_email)}
                 for block in resp.content if block.type == "tool_use"
             ]
             history.append({"role": "user", "content": tool_results})
@@ -295,7 +420,7 @@ def chat(payload: ChatRequest, db: Session = Depends(get_db)):
 
     # Only counted once we actually have a reply -- a failed call above
     # already exits via the except block before reaching here, so it never
-    # costs the user one of their 10.
+    # costs the user one of their daily messages.
     usage.count += 1
     db.commit()
     return {
