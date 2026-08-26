@@ -105,6 +105,25 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
     lookups_by_project: dict[int, dict[str, list]] = {}
     for s in subs:
         lookups_by_project.setdefault(s.project_id, {}).setdefault(s.definition.item_no, []).append(s)
+    # Second N+1, same shape as awaiting_milestone_note's: rules.mark_complete_note(s)
+    # only short-circuits when s.file_name is set, and most of the catalog
+    # (No Progress Yet, no upload) has none -- so it was lazy-loading
+    # s.history (a fresh WorkflowHistory query) on nearly every row. Not
+    # touching mark_complete_note's own signature (its other two call
+    # sites are single-submission/single-project scale, not a problem
+    # there) -- just batch-fetching what it needs and reproducing its
+    # exact logic (file_name -> None; else the latest "submitted" note,
+    # ordered by created_at, or None if there isn't one) inline below.
+    no_file_ids = [s.id for s in visible_subs if not s.file_name]
+    latest_submitted_note: dict[int, str] = {}
+    if no_file_ids:
+        for h in (
+            db.query(models.WorkflowHistory)
+            .filter(models.WorkflowHistory.submission_id.in_(no_file_ids), models.WorkflowHistory.action == "submitted")
+            .order_by(models.WorkflowHistory.created_at)
+            .all()
+        ):
+            latest_submitted_note[h.submission_id] = h.note  # ascending order -> last write wins, matches [-1] below
     out = []
     for s in visible_subs:
         if status and s.status.value != status:
@@ -139,7 +158,8 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
             "sme_emails": rules.resolve_smes(s),
             "is_milestone": s.definition.is_milestone, "milestone_code": s.definition.milestone_code,
             "file_name": s.file_name, "file_url": _storage.file_url(s.file_ref) if s.file_ref else None,
-            "review_comment": s.review_comment, "completion_note": rules.mark_complete_note(s),
+            "review_comment": s.review_comment,
+            "completion_note": None if s.file_name else latest_submitted_note.get(s.id),
             "following": s.id in my_follows,
             "doc_total": doc_counts.get(s.id, 0),
             "awaiting_note": rules.awaiting_milestone_note(db, s, lookups_by_project.get(s.project_id)),
