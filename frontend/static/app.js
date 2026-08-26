@@ -771,6 +771,7 @@
   var assignedDeadlineFilter = "";
   var assignedProgressFilter = "";
   var assignedEstFilter = "";
+  var assignedSortBy = "newest";
   var assignedStage = "";
   var DEADLINE_FILTERS = [
     ["", "All"], ["not_due", "Not Due"], ["due", "Due"],
@@ -813,6 +814,33 @@
       loadAssigned();
     });
   });
+  // Sort options for Assigned Deliverables -- "newest" (last submit/review
+  // activity, most recent first) is the default, matching what this page
+  // always did before this was made selectable. Items missing the relevant
+  // field (no activity yet / no due date) always sink to the bottom
+  // regardless of direction, rather than clustering at whichever end the
+  // raw sort value (-1/Infinity) would otherwise put them.
+  function _assignedSortComparator(sortBy) {
+    function actionTs(d) { return d.last_action_at ? new Date(d.last_action_at).getTime() : null; }
+    function dueTs(d) { return d.due_date ? new Date(d.due_date).getTime() : null; }
+    function byNullableNumber(getter, ascending) {
+      return function (a, b) {
+        var av = getter(a), bv = getter(b);
+        if (av === null && bv === null) return 0;
+        if (av === null) return 1;
+        if (bv === null) return -1;
+        return ascending ? av - bv : bv - av;
+      };
+    }
+    switch (sortBy) {
+      case "oldest": return byNullableNumber(actionTs, true);
+      case "due_soon": return byNullableNumber(dueTs, true);
+      case "due_late": return byNullableNumber(dueTs, false);
+      case "est_no": return function (a, b) { return (a.est_no || "").localeCompare(b.est_no || ""); };
+      case "name": return function (a, b) { return (a.name || "").localeCompare(b.name || ""); };
+      case "newest": default: return byNullableNumber(actionTs, false);
+    }
+  }
   async function loadAssigned() {
     // Item 166: a non-admin only sees their own assigned deliverables
     // (owner or SME on that item) -- previously every role saw the
@@ -852,15 +880,12 @@
     estSel.value = assignedEstFilter;
     estSel.onchange = function () { assignedEstFilter = estSel.value; loadAssigned(); };
 
+    var sortSel = document.getElementById("assignedSortBy");
+    sortSel.value = assignedSortBy;
+    sortSel.onchange = function () { assignedSortBy = sortSel.value; loadAssigned(); };
+
     var items = all.filter(deliverableMatchesFilters);
-    // Newest action first: items with a real submit/review timestamp sort
-    // by that descending; untouched items (no action yet) sink to the
-    // bottom, in their existing relative order.
-    items = items.slice().sort(function (a, b) {
-      var at = a.last_action_at ? new Date(a.last_action_at).getTime() : -1;
-      var bt = b.last_action_at ? new Date(b.last_action_at).getTime() : -1;
-      return bt - at;
-    });
+    items = items.slice().sort(_assignedSortComparator(assignedSortBy));
     var wrap = document.getElementById("assignedList");
     wrap.innerHTML = "";
     if (!items.length) { wrap.appendChild(el("div", "empty-state", "Nothing here right now.")); return; }

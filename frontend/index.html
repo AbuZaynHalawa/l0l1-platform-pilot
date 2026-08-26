@@ -214,6 +214,16 @@
       <div class="filter-chips-row"><span class="filter-chips-label">Deadline</span><div class="filter-chips" id="assignedDeadlineChips"></div></div>
       <div class="filter-chips-row"><span class="filter-chips-label">Progress</span><div class="filter-chips" id="assignedProgressChips"></div></div>
       <div class="filter-chips-row"><span class="filter-chips-label">Est No.</span><select id="assignedEstFilter"><option value="">All</option></select></div>
+      <div class="filter-chips-row"><span class="filter-chips-label">Sort By</span>
+        <select id="assignedSortBy">
+          <option value="newest">Newest Activity First</option>
+          <option value="oldest">Oldest Activity First</option>
+          <option value="due_soon">Due Date (Soonest)</option>
+          <option value="due_late">Due Date (Latest)</option>
+          <option value="est_no">Est No.</option>
+          <option value="name">Deliverable Name (A&#8211;Z)</option>
+        </select>
+      </div>
       <div class="card"><div id="assignedList"></div></div>
     </section>
 
