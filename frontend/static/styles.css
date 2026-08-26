@@ -1,82 +1,138 @@
 
+  /* ============================================================
+     ROYAL PURPLE — professional but energetic.
+
+     Token NAMES are unchanged: ~450 selectors already read from them,
+     so re-cutting the VALUES re-themes the app without touching those
+     selectors. :root carries light; dark is redefined below for all
+     three viewer states (system default, explicit dark, explicit light).
+
+     Brief palette, used exactly as specified:
+       light  bg #F8FAFC · text #0F172A · royal purple #6D28D9
+       dark   bg #0B0614 · text #E2E8F0 · neon  purple #A855F7
+       pop    coral #FF6B6B · mint #10B981
+
+     Coral and mint are kept at their exact specified values wherever
+     they are a FILL or a dot (badges, micro-details). As small TEXT on
+     the light ground they measure 2.65:1 and 2.42:1, so light mode uses
+     darkened siblings of the same hue for text-weight use; dark mode
+     uses the exact values, which clear 7:1 there.
+     ============================================================ */
   :root {
-    --purple-1: #667eea;
-    --purple-2: #764ba2;
-    /* L0's identity color, wherever L0 vs L1 needs to read at a glance
-       (project cards, badges, Est numbers, section titles) -- kept
-       separate from --purple-1/2, which stay the app's generic brand
-       accent (buttons, nav, focus ring) used regardless of stage.
-       A muted burnt-orange/terracotta rather than a bright orange --
-       bright orange sits too close to --crit's red (#e74c3c) at a
-       glance (e.g. an L0 Est number next to a red "Late" pill); the
-       lower saturation and darker value keep it reading as clearly its
-       own color instead of a shade of red. */
-    --l0-1: #cc6a1e;
-    --l0-2: #9c4a0a;
-    --good: #27ae60;      --good-bg: #d4edda;      --good-2: #1e8449;
-    --crit: #e74c3c;      --crit-bg: #f8d7da;
-    --warn: #f39c12;      --warn-bg: #fff3cd;
-    --neutral: #95a5a6;   --neutral-bg: #eef0f5;
-    --ink-900: #2c3e50;
-    --ink-700: #4a5578;
-    --ink-500: #65718c;
-    --ink-300: #9aa4bb;
-    --page-bg-1: #eef1f8;
-    --page-bg-2: #e3e8f5;
+    --purple-1: #6d28d9;   /* royal purple — primary buttons, nav, accents */
+    --purple-2: #5b21b6;   /* one step down, for pressed/!hover depth      */
+    --pop-coral: #ff6b6b;  /* fills + dots at full strength                */
+    --pop-mint:  #10b981;
+    --pop-coral-ink: #c92f2f;  /* same hue, text-safe on light (5.11:1)    */
+    --pop-mint-ink:  #087f5b;  /* 4.78:1                                    */
+    /* L0 keeps an identity colour distinct from both the purple accent
+       and the semantic reds; a warm amber reads as its own thing beside
+       a coral "Late" badge. L1 gets the mint side of the pop pair. */
+    --l0-1: #b45309;
+    --l0-2: #92400e;
+    --l1-1: #087f5b;
+    --l1-2: #06614799;
+    --good: #087f5b;      --good-bg: #d7f5e9;      --good-2: #067452;
+    --crit: #c92f2f;      --crit-bg: #ffe4e4;
+    --warn: #b45309;      --warn-bg: #fdf0d5;
+    --neutral: #94a3b8;   --neutral-bg: #eef2f7;
+    --ink-900: #0f172a;
+    --ink-700: #334155;
+    --ink-500: #556274;
+    --ink-300: #64748b;
+    --page-bg-1: #f8fafc;
+    --page-bg-2: #f8fafc;
     --surface: #ffffff;
-    --surface-sunken: #f5f7fb;
-    --line: #e2e5ee;
-    --card-border: rgba(44,62,80,0.12);
-    --concern-bg: #fdecea; --concern-border: #f5b7b1; --concern-text: #8b291c;
+    --surface-sunken: #f1f5f9;
+    --line: #e2e8f0;
+    --card-border: rgba(15,23,42,0.07);
+    --concern-bg: #ffe4e4; --concern-border: #f8b4b4; --concern-text: #a12525;
     --accent: var(--purple-1);
-    --accent-soft: #eef0fb;
-    --accent-line: #d7dcf5;
-    --shadow-1: 0 4px 15px rgba(44,62,80,0.07);
-    --shadow-2: 0 8px 22px rgba(44,62,80,0.12);
-    --radius: 10px;
+    --accent-soft: #f3eeff;
+    --accent-line: #d9cbf7;
+    --on-accent: #ffffff;             /* 7.10:1 on royal purple */
+    --on-stage: #ffffff;              /* 5.02:1 on amber, 5.00:1 on mint */
+    --shadow-1: 0 1px 2px rgba(15,23,42,0.05), 0 4px 12px rgba(15,23,42,0.05);
+    --shadow-2: 0 10px 30px rgba(15,23,42,0.12);
+    --shadow-lift: 0 8px 22px rgba(109,40,217,0.18);  /* hover lift, tinted by the accent */
+    --radius: 14px;        /* cards / modals  */
+    --radius-sm: 12px;     /* inputs / chips  */
+    --ease: 0.2s ease-in-out;
     --font: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   }
+  /* Midnight-purple dark. Written three times because the viewer has
+     three states: system default (stamps nothing, so only the media
+     query applies), explicit dark, and explicit light. The media query
+     is guarded so an explicit light choice still beats a dark OS. */
   @media (prefers-color-scheme: dark) {
-    :root {
-      --ink-900: #eef0f5; --ink-700: #c7cee0; --ink-500: #9aa4bb; --ink-300: #65718c;
-      --page-bg-1: #16213c; --page-bg-2: #1a2540;
-      --surface: #1e2a4a; --surface-sunken: #192442; --line: #33406b;
-      --card-border: rgba(255,255,255,0.14);
-      --concern-bg: #3a1f22; --concern-border: #7a3630; --concern-text: #f1a69f;
-      --accent-soft: #262f52; --accent-line: #3b4a8f;
-      --good: #2ecc71; --good-bg: #163a27; --good-2: #1e7e42; --crit: #ec7063; --crit-bg: #3a1f22; --warn: #f5b041; --warn-bg: #3a2c14;
-      --neutral: #8b96ad; --neutral-bg: #232d4d;
-      --shadow-1: 0 4px 15px rgba(0,0,0,0.35); --shadow-2: 0 10px 26px rgba(0,0,0,0.45);
+    :root:not([data-theme="light"]) {
+      --purple-1: #a855f7; --purple-2: #9333ea;
+      --pop-coral-ink: #ff6b6b; --pop-mint-ink: #10b981;  /* exact values clear 7:1 here */
+      --l0-1: #fbbf24; --l0-2: #d97706;
+      --l1-1: #34d399; --l1-2: #10b981;
+      --ink-900: #e2e8f0; --ink-700: #b9c3d4; --ink-500: #94a3b8; --ink-300: #8492a6;
+      --page-bg-1: #0b0614; --page-bg-2: #0b0614;
+      --surface: #150d24; --surface-sunken: #1c1230; --line: #2e2044;
+      --card-border: rgba(255,255,255,0.07);
+      --concern-bg: #2c1420; --concern-border: #5e2b38; --concern-text: #ff9d9d;
+      --accent-soft: #241539; --accent-line: #3f2a5e;
+      --on-accent: #0b0614;            /* 5.05:1 on neon purple; white is only 3.96 */
+      --on-stage: #0b0614;             /* 11.98:1 on amber, 10.40:1 on mint */
+      --good: #34d399; --good-bg: #10291f; --good-2: #10b981;
+      --crit: #ff6b6b; --crit-bg: #2c1420;
+      --warn: #fbbf24; --warn-bg: #2b2010;
+      --neutral: #8492a6; --neutral-bg: #1c1230;
+      --shadow-1: 0 1px 2px rgba(0,0,0,0.5), 0 4px 12px rgba(0,0,0,0.4);
+      --shadow-2: 0 12px 34px rgba(0,0,0,0.6);
+      --shadow-lift: 0 8px 26px rgba(168,85,247,0.30);
     }
   }
   :root[data-theme="dark"] {
-    --ink-900: #eef0f5; --ink-700: #c7cee0; --ink-500: #9aa4bb; --ink-300: #65718c;
-    --page-bg-1: #16213c; --page-bg-2: #1a2540;
-    --surface: #1e2a4a; --surface-sunken: #192442; --line: #33406b;
-    --card-border: rgba(255,255,255,0.14);
-    --concern-bg: #3a1f22; --concern-border: #7a3630; --concern-text: #f1a69f;
-    --accent-soft: #262f52; --accent-line: #3b4a8f;
-    --good: #2ecc71; --good-bg: #163a27; --good-2: #1e7e42; --crit: #ec7063; --crit-bg: #3a1f22; --warn: #f5b041; --warn-bg: #3a2c14;
-    --neutral: #8b96ad; --neutral-bg: #232d4d;
-    --shadow-1: 0 4px 15px rgba(0,0,0,0.35); --shadow-2: 0 10px 26px rgba(0,0,0,0.45);
+    --purple-1: #a855f7; --purple-2: #9333ea;
+    --pop-coral-ink: #ff6b6b; --pop-mint-ink: #10b981;
+    --l0-1: #fbbf24; --l0-2: #d97706;
+    --l1-1: #34d399; --l1-2: #10b981;
+    --ink-900: #e2e8f0; --ink-700: #b9c3d4; --ink-500: #94a3b8; --ink-300: #8492a6;
+    --page-bg-1: #0b0614; --page-bg-2: #0b0614;
+    --surface: #150d24; --surface-sunken: #1c1230; --line: #2e2044;
+    --card-border: rgba(255,255,255,0.07);
+    --concern-bg: #2c1420; --concern-border: #5e2b38; --concern-text: #ff9d9d;
+    --accent-soft: #241539; --accent-line: #3f2a5e;
+    --on-accent: #0b0614; --on-stage: #0b0614;
+    --good: #34d399; --good-bg: #10291f; --good-2: #10b981;
+    --crit: #ff6b6b; --crit-bg: #2c1420;
+    --warn: #fbbf24; --warn-bg: #2b2010;
+    --neutral: #8492a6; --neutral-bg: #1c1230;
+    --shadow-1: 0 1px 2px rgba(0,0,0,0.5), 0 4px 12px rgba(0,0,0,0.4);
+    --shadow-2: 0 12px 34px rgba(0,0,0,0.6);
+    --shadow-lift: 0 8px 26px rgba(168,85,247,0.30);
   }
   :root[data-theme="light"] {
-    --ink-900: #2c3e50; --ink-700: #4a5578; --ink-500: #65718c; --ink-300: #9aa4bb;
-    --page-bg-1: #eef1f8; --page-bg-2: #e3e8f5;
-    --surface: #ffffff; --surface-sunken: #f5f7fb; --line: #e2e5ee;
-    --card-border: rgba(44,62,80,0.12);
-    --concern-bg: #fdecea; --concern-border: #f5b7b1; --concern-text: #8b291c;
-    --accent-soft: #eef0fb; --accent-line: #d7dcf5;
-    --good: #27ae60; --good-bg: #d4edda; --good-2: #1e8449; --crit: #e74c3c; --crit-bg: #f8d7da; --warn: #f39c12; --warn-bg: #fff3cd;
-    --neutral: #95a5a6; --neutral-bg: #eef0f5;
-    --shadow-1: 0 4px 15px rgba(44,62,80,0.07); --shadow-2: 0 8px 22px rgba(44,62,80,0.12);
+    --purple-1: #6d28d9; --purple-2: #5b21b6;
+    --pop-coral-ink: #c92f2f; --pop-mint-ink: #087f5b;
+    --l0-1: #b45309; --l0-2: #92400e;
+    --l1-1: #087f5b; --l1-2: #066147;
+    --ink-900: #0f172a; --ink-700: #334155; --ink-500: #556274; --ink-300: #64748b;
+    --page-bg-1: #f8fafc; --page-bg-2: #f8fafc;
+    --surface: #ffffff; --surface-sunken: #f1f5f9; --line: #e2e8f0;
+    --card-border: rgba(15,23,42,0.07);
+    --concern-bg: #ffe4e4; --concern-border: #f8b4b4; --concern-text: #a12525;
+    --accent-soft: #f3eeff; --accent-line: #d9cbf7;
+    --on-accent: #ffffff; --on-stage: #ffffff;
+    --good: #087f5b; --good-bg: #d7f5e9; --good-2: #067452;
+    --crit: #c92f2f; --crit-bg: #ffe4e4;
+    --warn: #b45309; --warn-bg: #fdf0d5;
+    --neutral: #94a3b8; --neutral-bg: #eef2f7;
+    --shadow-1: 0 1px 2px rgba(15,23,42,0.05), 0 4px 12px rgba(15,23,42,0.05);
+    --shadow-2: 0 10px 30px rgba(15,23,42,0.12);
+    --shadow-lift: 0 8px 22px rgba(109,40,217,0.18);
   }
 
   * { box-sizing: border-box; }
   html, body { height: 100%; }
   body {
     margin: 0; color: var(--ink-900);
-    background: linear-gradient(135deg, var(--page-bg-1) 0%, var(--page-bg-2) 100%);
+    background: var(--page-bg-1);
     font-family: var(--font); font-size: 14px; line-height: 1.5;
     -webkit-font-smoothing: antialiased;
   }
@@ -85,8 +141,36 @@
   a { color: inherit; }
   button { font-family: inherit; }
   select { font-family: inherit; }
-  :focus-visible { outline: 2px solid var(--purple-1); outline-offset: 2px; }
-  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---------- interactivity ----------
+     Every button, link, nav item and chip animates on the same 0.2s
+     ease-in-out curve, then lifts on hover: a 1.02 scale plus an
+     accent-tinted shadow. transform is used rather than a size change
+     so nothing reflows and long lists stay stable while the pointer
+     travels across them. The reduced-motion rule below still wins. */
+  .btn, .chip, .nav-item, .theme-btn, .role-select, .report-category-box,
+  .dsc-child, .dpc-recent-row, .rcb-title, .subtab-row .chip, .modal-close,
+  .stat-tile, .achiever-row, .folder-row, .aqt-body-row, .fu-row, .dash-project-card {
+    transition: all var(--ease);
+  }
+  .btn:hover, .chip:hover, .theme-btn:hover, .report-category-box:hover {
+    transform: scale(1.02);
+    box-shadow: var(--shadow-lift);
+  }
+  .btn:active, .chip:active, .theme-btn:active { transform: scale(0.99); }
+  .nav-item:hover { transform: translateX(2px); }
+  .dsc-child:hover, .dash-project-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lift); }
+  /* A tiny pop of the playful accent on the way in, so hover feels alive
+     without repainting the whole row. */
+  .dpc-recent-row:hover, .folder-row:hover { transform: translateX(3px); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+    .btn:hover, .chip:hover, .theme-btn:hover, .report-category-box:hover,
+    .nav-item:hover, .dsc-child:hover, .dash-project-card:hover,
+    .dpc-recent-row:hover, .folder-row:hover { transform: none !important; }
+  }
 
   /* ---------- shell ---------- */
   /* dvh (with a vh fallback for older engines) so mobile browser chrome
@@ -117,7 +201,7 @@
   .nav-group-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-300); font-weight: 700; padding: 8px 10px 2px; }
   .nav { display: flex; flex-direction: column; gap: 2px; }
   .nav-item {
-    display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 9px;
+    display: flex; align-items: center; gap: 10px; padding: 11px 12px; border-radius: var(--radius-sm);
     color: var(--ink-700); font-size: 13.5px; font-weight: 600; cursor: pointer; border: none; background: none;
     text-align: left; width: 100%; white-space: nowrap;
   }
@@ -130,11 +214,15 @@
   .nav-item .ic { width: 17px; text-align: center; opacity: .85; }
   .nav-item:hover { background: var(--surface-sunken); color: var(--ink-900); }
   .nav-item.active {
-    background: linear-gradient(135deg, var(--purple-1) 0%, var(--purple-2) 100%);
-    color: #fff; box-shadow: var(--shadow-1);
+    background: var(--accent);
+    color: var(--on-accent); box-shadow: var(--shadow-1);
   }
-  .nav-badge { margin-left: auto; background: var(--crit-bg); color: var(--crit); font-size: 10.5px; font-weight: 800; padding: 1px 6px; border-radius: 20px; }
-  .nav-item.active .nav-badge { background: rgba(255,255,255,.25); color: #fff; }
+  /* The one place coral runs at full strength: a solid count badge in
+     the nav is a genuine micro-detail and the thing you want your eye
+     caught by. Ink is near-black, not white: white on #FF6B6B measures
+     2.78:1, dark ink 7.2:1. */
+  .nav-badge { margin-left: auto; background: var(--pop-coral); color: #0b0614; font-size: 10.5px; font-weight: 800; padding: 2px 7px; border-radius: 20px; }
+  .nav-item.active .nav-badge { background: rgba(255,255,255,.28); color: var(--on-accent); }
 
   .rail-foot { margin-top: auto; padding: 12px 8px 2px; border-top: 1px solid var(--line); }
   .concept-tag { display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--purple-2); background: var(--accent-soft); border: 1px solid var(--accent-line); padding: 4px 8px; border-radius: 20px; }
@@ -151,15 +239,14 @@
   .topbar-title { display: flex; flex-direction: column; line-height: 1.2; white-space: nowrap; padding-right: 18px; margin-right: 4px; border-right: 1px solid var(--line); }
   .topbar-title b {
     font-size: 25px; font-weight: 800; letter-spacing: -.01em;
-    background: linear-gradient(135deg, var(--purple-1) 0%, var(--purple-2) 100%);
-    -webkit-background-clip: text; background-clip: text; color: transparent;
+    color: var(--accent);
   }
   .topbar-title span { font-size: 11.5px; font-weight: 700; color: var(--ink-500); text-transform: uppercase; letter-spacing: .08em; margin-top: 3px; }
   /* flex-basis floor of 220px: with a bare flex:1 the input collapsed to
      ~46px -- narrower than its own 32px icon padding, so there was
      effectively nowhere to type. */
   .search-wrap { position: relative; flex: 1 1 220px; min-width: 220px; max-width: 400px; }
-  .search-wrap input { width: 100%; padding: 8px 12px 8px 32px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface-sunken); color: var(--ink-900); font-size: 13.5px; }
+  .search-wrap input { width: 100%; padding: 10px 14px 10px 34px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface-sunken); color: var(--ink-900); font-size: 13.5px; }
   .search-wrap input:focus { background: var(--surface); border-color: var(--accent-line); }
   .search-wrap .sic { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--ink-500); font-size: 13px; }
   /* Redundant once .top-meta carries margin-left:auto -- and actively
@@ -184,13 +271,13 @@
     .topbar { position: static; }
   }
   .role-select {
-    border: 1px solid var(--line); background: var(--surface-sunken); color: var(--ink-700); border-radius: 8px;
-    padding: 6px 10px; font-size: 12px; font-weight: 700; cursor: pointer;
+    border: 1px solid var(--line); background: var(--surface-sunken); color: var(--ink-700); border-radius: var(--radius-sm);
+    padding: 8px 12px; font-size: 12px; font-weight: 700; cursor: pointer;
   }
-  .theme-btn { border: 1px solid var(--line); background: var(--surface); color: var(--ink-700); border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: 12px; font-weight: 600; }
-  .avatar { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, var(--purple-1), var(--purple-2)); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
+  .theme-btn { border: 1px solid var(--line); background: var(--surface); color: var(--ink-700); border-radius: var(--radius-sm); padding: 8px 12px; cursor: pointer; font-size: 12px; font-weight: 600; }
+  .avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: var(--on-accent); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
 
-  .view { padding: 26px 30px 60px; max-width: 1280px; }
+  .view { padding: 30px 34px 68px; max-width: 1280px; }
   /* The Dashboard is the default landing view -- on a wide monitor the
      1280px cap left a large dead strip down the right side instead of
      using the screen. Its own grids (.stat-row, .split, .achievers-row)
@@ -229,8 +316,8 @@
   .view-head p.sub { color: var(--ink-500); font-size: 13.5px; margin-top: 3px; }
   .eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--purple-1); font-weight: 700; margin-bottom: 6px; }
 
-  .card { background: var(--surface); border: 1.5px solid var(--card-border); border-radius: var(--radius); box-shadow: var(--shadow-1); }
-  .card-pad { padding: 18px 20px; }
+  .card { background: var(--surface); border: 1px solid var(--card-border); border-radius: var(--radius); box-shadow: var(--shadow-1); }
+  .card-pad { padding: 22px 24px; }
 
   .stat-row { display: flex; flex-direction: column; gap: 16px; margin-bottom: 22px; }
   .stat-tile { padding: 16px 18px; }
@@ -244,42 +331,42 @@
      this one grid (same columns, same gap) so their card edges line up
      all the way down the page -- this is what fixes the corner
      misalignment between the status cards and the row below them. */
-  .dash-row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
+  .dash-row { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-bottom: 22px; }
   .dash-row > * { min-width: 0; }
   @media (max-width: 980px) { .dash-row { grid-template-columns: 1fr; } }
 
-  .dash-project-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; margin-bottom: 18px; }
+  .dash-project-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 22px; margin-bottom: 22px; }
   .dash-project-row > * { min-width: 0; }
   .dash-project-card { padding: 0; border: none; overflow: hidden; display: flex; flex-direction: column; }
-  .dash-project-card .dpc-head { padding: 16px 22px; display: flex; align-items: center; gap: 14px; }
-  .dash-project-card.l0 .dpc-head { background: linear-gradient(135deg, var(--l0-1) 0%, var(--l0-2) 100%); }
-  .dash-project-card.l1 .dpc-head { background: linear-gradient(135deg, #1f9d5c 0%, #146c3e 100%); }
+  .dash-project-card .dpc-head { padding: 20px 24px; display: flex; align-items: center; gap: 14px; }
+  .dash-project-card.l0 .dpc-head { background: var(--l0-1); }
+  .dash-project-card.l1 .dpc-head { background: var(--l1-1); }
   .dash-project-card .dpc-tag {
     width: 44px; height: 44px; border-radius: 11px; display: flex; align-items: center; justify-content: center;
-    font-size: 22px; font-weight: 800; flex-shrink: 0; background: rgba(255,255,255,.22); color: #fff;
+    font-size: 22px; font-weight: 800; flex-shrink: 0; background: color-mix(in srgb, var(--on-stage) 22%, transparent); color: var(--on-stage);
   }
-  .dash-project-card .dpc-value { font-size: 30px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; color: #fff; }
-  .dash-project-card .dpc-label { font-size: 12.5px; color: rgba(255,255,255,.85); font-weight: 700; margin-top: 3px; }
+  .dash-project-card .dpc-value { font-size: 30px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; color: var(--on-stage); }
+  .dash-project-card .dpc-label { font-size: 12.5px; color: var(--on-stage); font-weight: 700; margin-top: 3px; }
   .dash-project-card .dpc-body { padding: 6px 10px 8px; flex: 1; }
   .dpc-body-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-500); padding: 6px 12px 2px; }
   .dpc-recent-row {
-    display: flex; align-items: baseline; gap: 10px; padding: 8px 12px; border-radius: 8px; cursor: pointer;
+    display: flex; align-items: baseline; gap: 10px; padding: 10px 14px; border-radius: var(--radius-sm); cursor: pointer;
   }
   .dpc-recent-row:hover { background: var(--surface-sunken); }
   .dpc-recent-est { font-weight: 800; font-size: 12.5px; flex-shrink: 0; }
   .dash-project-card.l0 .dpc-recent-est { color: var(--l0-1); }
-  .dash-project-card.l1 .dpc-recent-est { color: #1f9d5c; }
+  .dash-project-card.l1 .dpc-recent-est { color: var(--l1-1); }
   .dpc-recent-name { font-size: 12.5px; color: var(--ink-700); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; }
   .dpc-recent-date { font-size: 11px; color: var(--ink-500); flex-shrink: 0; white-space: nowrap; }
   .dpc-empty { padding: 10px 12px; font-size: 12px; color: var(--ink-500); }
 
-  .dash-status-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; margin-bottom: 18px; }
+  .dash-status-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 22px; margin-bottom: 22px; }
   .dash-status-row > * { min-width: 0; }
-  .dash-status-card { padding: 16px 20px 18px; }
+  .dash-status-card { padding: 22px 24px 24px; }
   .dash-status-card .dsc-head { font-size: 12.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-500); margin-bottom: 12px; }
-  .dash-status-card .dsc-children { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 10px; }
+  .dash-status-card .dsc-children { display: grid; grid-template-columns: repeat(auto-fit, minmax(78px, 1fr)); gap: 12px; }
   .dsc-child {
-    background: var(--surface-sunken); border-radius: 10px; padding: 10px 8px; text-align: center;
+    background: var(--surface-sunken); border-radius: var(--radius-sm); padding: 14px 12px; text-align: center;
     border: 1px solid var(--line); transition: background .15s;
   }
   .dsc-child:hover { background: var(--accent-soft); }
@@ -322,7 +409,7 @@
      banner strip. */
   .concerns-title-row { color: var(--crit); }
   .stage-title-l0 { color: var(--l0-1); }
-  .stage-title-l1 { color: #1f9d5c; }
+  .stage-title-l1 { color: var(--l1-1); }
   .concerns-card ul { margin: 0; padding: 0 20px 4px; list-style: none; }
   .concerns-card li { position: relative; padding: 7px 0 7px 18px; font-size: 13px; color: var(--ink-700); line-height: 1.5; border-bottom: 1px solid var(--line); }
   .concerns-card li:last-child { border-bottom: none; }
@@ -377,7 +464,7 @@
   .pipeline::before { content: ""; position: absolute; top: 15px; left: 6%; right: 6%; height: 3px; border-radius: 2px; background: var(--line); z-index: 0; }
   .pipe-stage { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; }
   .pipe-dot { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; background: var(--surface); border: 3px solid var(--line); color: var(--ink-500); }
-  .pipe-stage.on .pipe-dot { border-color: var(--purple-1); color: #fff; background: linear-gradient(135deg, var(--purple-1), var(--purple-2)); }
+  .pipe-stage.on .pipe-dot { border-color: var(--accent); color: var(--on-accent); background: var(--accent); }
   .pipe-stage .pname { font-weight: 700; font-size: 12.5px; }
   .pipe-stage .pcount { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
   .pipe-stage .pdesc { font-size: 11px; color: var(--ink-500); max-width: 130px; }
@@ -394,14 +481,18 @@
   .dept-metric .mtrend { font-size: 10.5px; margin-top: 2px; }
   .spark-wrap { margin-top: 10px; }
 
-  .pill { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 20px; font-size: 10.5px; font-weight: 700; letter-spacing: .02em; white-space: nowrap; }
+  /* Status badges keep their semantic hue but sit on a softer, rounder
+     chip with a little more room to breathe -- the dot inside each one
+     runs at the pop colour's full strength, which is where the coral and
+     mint actually show up at a glance. */
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 20px; font-size: 10.5px; font-weight: 700; letter-spacing: .02em; white-space: nowrap; }
   .pill .dot { width: 6px; height: 6px; border-radius: 50%; }
   .pill.good { background: var(--good-bg); color: var(--good); }
-  .pill.good .dot { background: var(--good); }
+  .pill.good .dot { background: var(--pop-mint); }
   .pill.warn { background: var(--warn-bg); color: var(--warn); }
   .pill.warn .dot { background: var(--warn); }
   .pill.crit { background: var(--crit-bg); color: var(--crit); }
-  .pill.crit .dot { background: var(--crit); }
+  .pill.crit .dot { background: var(--pop-coral); }
   .pill.neutral { background: var(--neutral-bg); color: var(--ink-700); }
   .pill.neutral .dot { background: var(--neutral); }
 
@@ -415,7 +506,7 @@
   table.data tbody tr:last-child td { border-bottom: none; }
   .est-no { font-weight: 700; white-space: nowrap; }
   .est-no.l0 { color: var(--l0-1); }
-  .est-no.l1 { color: #1f9d5c; }
+  .est-no.l1 { color: var(--l1-1); }
   .proj-name { display: block; max-width: 340px; white-space: normal; }
   .mini-stepper { display: flex; gap: 3px; }
   .mini-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line); }
@@ -463,7 +554,7 @@
      so the line itself shows real progress instead of just the dots. */
   .fs-row::after {
     content: ""; position: absolute; top: 19px; left: 4%; height: 4px; border-radius: 2px;
-    background: linear-gradient(90deg, var(--good), var(--good-2));
+    background: var(--good);
     width: var(--fs-progress, 0%); transition: width .5s ease;
   }
   .fs-step { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; }
@@ -473,7 +564,7 @@
     z-index: 1; box-shadow: 0 2px 6px rgba(20,25,50,.07); transition: transform .15s ease;
   }
   .fs-step.done .fs-dot {
-    background: linear-gradient(135deg, var(--good), var(--good-2)); border-color: transparent; color: #fff;
+    background: var(--good); border-color: transparent; color: #fff;
     box-shadow: 0 3px 12px rgba(39,174,96,.4);
   }
   .fs-step.current .fs-dot {
@@ -551,7 +642,7 @@
   .global-loading-spinner { width: 20px; height: 20px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--accent); animation: global-loading-spin .7s linear infinite; flex-shrink: 0; }
   @keyframes global-loading-spin { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .global-loading-spinner { animation-duration: 2.4s; } }
-  .modal-card { background: var(--surface); border-radius: 14px; box-shadow: var(--shadow-2); width: 100%; max-width: 620px; max-height: 88vh; display: flex; flex-direction: column; overflow: hidden; }
+  .modal-card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow-2); width: 100%; max-width: 620px; max-height: 88vh; display: flex; flex-direction: column; overflow: hidden; }
   .modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 20px 22px 14px; border-bottom: 1px solid var(--line); }
   .modal-head h2 { font-size: 17px; margin: 4px 0 0; }
   .modal-close { border: none; background: var(--surface-sunken); color: var(--ink-500); width: 28px; height: 28px; border-radius: 8px; cursor: pointer; font-size: 13px; flex-shrink: 0; }
@@ -613,12 +704,12 @@
     color: var(--ink-300); font-size: 13px; font-weight: 700; line-height: 1;
   }
   .tt-step:last-child::after { content: none; }
-  .tt-step.pilot { background: var(--surface); border-color: var(--l1-1, #1f9d5c); }
+  .tt-step.pilot { background: var(--surface); border-color: var(--l1-1); }
   .tt-step-aside {
     display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 4px;
     font-size: 8.5px; font-weight: 700; color: var(--ink-900);
   }
-  .tt-step-aside .tt-aside-dot { width: 6px; height: 6px; border-radius: 50%; background: #1f9d5c; flex: none; }
+  .tt-step-aside .tt-aside-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--l1-1); flex: none; }
   @media (max-width: 760px) {
     .tt-layout { grid-template-columns: 1fr; }
   }
@@ -690,7 +781,7 @@
   .tgc-box { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; }
   .tgc-box-label { fill: var(--ink-900); font-size: 13px; font-weight: 700; }
   .tgc-stage-band.l0 { fill: var(--l0-1); }
-  .tgc-stage-band.l1 { fill: #1f9d5c; }
+  .tgc-stage-band.l1 { fill: var(--l1-1); }
   .tgc-stage-text { fill: #fff; font-size: 11.5px; font-weight: 700; }
   .tgc-arrow { stroke: var(--ink-500); stroke-width: 2; fill: none; }
   .tgc-arrowhead { fill: var(--ink-500); }
@@ -747,11 +838,11 @@
      available as a hover tooltip via the title attribute. */
   .tt-bar.row0 { top: 4px; height: 34px; }
   .tt-bar.row1 { top: 44px; height: 22px; font-size: 8.5px; font-weight: 600; opacity: .92; }
-  .tt-bar.orange { background: linear-gradient(135deg, var(--l0-1), var(--l0-2)); }
+  .tt-bar.orange { background: var(--l0-1); }
   /* Item [L0/L1 identity colors]: no invented third color for this chart --
      orange marks general/both-stage program work (same identity color as
      L0 elsewhere in the app), green marks work that's specifically L1. */
-  .tt-bar.green { background: linear-gradient(135deg, #1f9d5c, #146c3e); }
+  .tt-bar.green { background: var(--l1-1); }
   .tt-bar.grey { background: var(--ink-300); color: var(--ink-900); }
   .tt-marker { position: absolute; top: 74px; transform: translateX(-50%); text-align: center; width: 130px; }
   .tt-marker .tt-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--crit); margin: 0 auto 3px; box-shadow: 0 0 0 3px var(--crit-bg); }
@@ -803,7 +894,7 @@
   .fe-branch-row .fe-remove-branch { margin-left: auto; }
   .modal-actions-row .btn { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
   .modal-actions-row .btn:hover { filter: brightness(0.97); }
-  .modal-actions-row .btn.primary { background: linear-gradient(135deg, var(--purple-1), var(--purple-2)); color: #fff; }
+  .modal-actions-row .btn.primary { background: var(--accent); color: var(--on-accent); }
   .modal-actions-row .btn.ghost-crit { background: var(--crit-bg); color: var(--crit); }
   /* Item [action-comment-modal]: Mark Completed / Confirm / Send Back now
      open a real centered modal instead of the browser's native prompt(). */
@@ -844,11 +935,11 @@
   .deliv-subheader { padding: 10px 18px 6px; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--purple-1); background: var(--accent-soft); }
   .deliv-subheader:first-child { border-top-left-radius: 12px; border-top-right-radius: 12px; }
   .deliv-actions { display: flex; gap: 6px; flex: none; }
-  .btn { border: 1px solid var(--line); background: var(--surface); color: var(--ink-700); border-radius: 20px; padding: 7px 14px; font-size: 12px; font-weight: 700; cursor: pointer; }
+  .btn { border: 1px solid var(--line); background: var(--surface); color: var(--ink-700); border-radius: var(--radius-sm); padding: 9px 16px; font-size: 12px; font-weight: 700; cursor: pointer; }
   .btn:hover { border-color: var(--accent-line); color: var(--purple-1); }
-  .btn.primary { background: linear-gradient(135deg, var(--purple-1), var(--purple-2)); border-color: transparent; color: #fff; }
+  .btn.primary { background: var(--accent); border-color: transparent; color: var(--on-accent); }
   .btn.primary:hover { filter: brightness(1.06); color: #fff; }
-  .btn.active { background: linear-gradient(135deg, var(--purple-1), var(--purple-2)); border-color: transparent; color: #fff; }
+  .btn.active { background: var(--accent); border-color: transparent; color: var(--on-accent); }
   .btn.active:hover { filter: brightness(1.06); color: #fff; }
   .btn-loading { opacity: .7; cursor: wait; }
   .btn.ghost-crit { color: var(--crit); border-color: var(--crit-bg); }
@@ -952,23 +1043,23 @@
   .filter-chips-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
   .filter-chips-row .filter-chips { margin-bottom: 0; }
   .filter-chips-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-500); flex: none; width: 62px; }
-  .chip { border: 1px solid var(--line); background: var(--surface); color: var(--ink-700); border-radius: 20px; padding: 7px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 7px; transition: background .15s, box-shadow .15s; }
+  .chip { border: 1px solid var(--line); background: var(--surface); color: var(--ink-700); border-radius: var(--radius-sm); padding: 8px 15px; font-size: 12.5px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 7px; transition: background .15s, box-shadow .15s; }
   /* Item 156: Est No. filter reuses the chip row's label but is a plain
      select (too many values for a chip row to stay readable). */
   #assignedEstFilter { border: 1px solid var(--line); background: var(--surface); color: var(--ink-700); border-radius: 20px; padding: 7px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer; min-width: 140px; }
   .chip .cnum { background: var(--surface-sunken); border-radius: 20px; padding: 1px 7px; font-size: 11px; }
-  .chip.active { background: linear-gradient(135deg, var(--purple-1), var(--purple-2)); border-color: transparent; color: #fff; }
+  .chip.active { background: var(--accent); border-color: transparent; color: var(--on-accent); }
   .chip.active .cnum { background: rgba(255,255,255,.25); color: #fff; }
   /* L0/L1 stage toggles (matrix, gantt, focal points, etc.) get their real
      identity color when active instead of both turning the same purple --
      a visible tinted glow under each (matching the app's other gradient
      chips/buttons) instead of a flat, shadowless block of color. */
   .chip.active[data-stage="L0"] {
-    background: linear-gradient(135deg, #d9812e 0%, var(--l0-2) 100%);
+    background: var(--l0-1);
     box-shadow: 0 5px 14px rgba(204, 106, 30, .5);
   }
   .chip.active[data-stage="L1"] {
-    background: linear-gradient(135deg, #27c586 0%, #0e8f57 100%);
+    background: var(--l1-1);
     box-shadow: 0 5px 14px rgba(32, 185, 118, .5);
   }
   .aq-row { display: flex; align-items: center; gap: 14px; padding: 13px 18px; border-bottom: 1px solid var(--line); }
@@ -1045,7 +1136,7 @@
   .aqt-cell.aqt-ellipsis { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .aqt-est { font-weight: 700; font-size: 12.5px; }
   .aqt-est.l0 { color: var(--l0-1); }
-  .aqt-est.l1 { color: #1f9d5c; }
+  .aqt-est.l1 { color: var(--l1-1); }
   .aqt-name { font-size: 13px; font-weight: 700; }
   .aqt-name .aqt-proj { font-weight: 500; color: var(--ink-500); }
   .aqt-dept, .aqt-focal, .aqt-due { font-size: 12.5px; color: var(--ink-700); }
@@ -1083,7 +1174,7 @@
   .field label .req { color: var(--crit); }
   .field input[type="text"], .field input[type="date"], .field select, .field textarea,
   #checklistEditOtherInput, #checklistEditSelect, #checklistEditDateInput, #checklistEditTextInput {
-    border: 1px solid var(--line); border-radius: 9px; padding: 9px 12px; font-size: 13px; background: var(--surface-sunken); color: var(--ink-900); font-family: inherit;
+    border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 11px 14px; font-size: 13px; background: var(--surface-sunken); color: var(--ink-900); font-family: inherit;
   }
   .field textarea { resize: vertical; }
   .field input[type="file"] { font-size: 12.5px; color: var(--ink-700); }
@@ -1376,7 +1467,7 @@
   .rank-num { color: var(--ink-300); font-weight: 700; font-size: 12px; }
   .rank-name { font-size: 13px; font-weight: 700; }
   .rank-bar-track { height: 10px; border-radius: 6px; background: var(--surface-sunken); overflow: hidden; }
-  .rank-bar-fill { height: 100%; border-radius: 6px; background: linear-gradient(90deg, var(--purple-1), var(--purple-2)); }
+  .rank-bar-fill { height: 100%; border-radius: 6px; background: var(--accent); }
   .rank-val { font-size: 13px; font-weight: 700; text-align: right; }
   .trend-chart-wrap { padding: 20px 22px 10px; }
   .trend-legend { display: flex; gap: 18px; margin-bottom: 12px; font-size: 12px; color: var(--ink-700); font-weight: 600; }
