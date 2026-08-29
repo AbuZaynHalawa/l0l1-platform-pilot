@@ -2428,6 +2428,7 @@
         featureRowMock(NAV_ICONS.bmtriage, "good", "BM Triage Status", "Every active tender's applicable/not-required progress.") +
         featureRowMock(NAV_ICONS.performance, "accent", "Performance", "On-time-rate tracking by department, feeding Top Achievers.") +
         featureRowMock(NAV_ICONS.deliverableformulas, "accent", "Deliverables Catalog", "Every due-date formula and scoring weight in plain English &#8212; suggest a formula change with your reasoning.") +
+        featureRowMock(NAV_ICONS.masterpo, "accent", "Master POs List", "Every L1 project's PO status at a glance, read-only &#8212; the same data as the Admin Master PO Report, open to everyone here.") +
         featureRowMock(NAV_ICONS.myrequests, "accent", "My Requests", "Every request you've sent to an Admin &#8212; due-dates, reassignments, SME nominations, and more &#8212; and where each stands.") +
         featureRowMock(NAV_ICONS.support, "accent", "Q/A &#8211; Ask the Team", "Raise a question, track your own requests.") +
         featureRowMock('<img src="/static/img/gahiz-icon.png" alt="GAHIZ" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />', "accent", "GAHIZ", "Ask how something in the platform works, or about your own assigned work &#8212; falls back to Ask the Team for anything it can't answer.") +
