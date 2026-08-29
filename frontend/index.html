@@ -1984,7 +1984,10 @@
      in aiChatHistory (app.js) and is resent each turn. Always keeps a
      permanent "Ask the Team" escape hatch alongside the chat. -->
 <!-- Item 33: GAHIZ, Al Gihaz's AI Agent, replaces the generic robot emoji. -->
-<button id="aiChatBubble" class="ai-chat-bubble" aria-label="GAHIZ &#8211; AI Support" title="GAHIZ &#8211; AI Support"><img src="/static/img/gahiz-float.png" alt="GAHIZ" /></button>
+<button id="aiChatBubble" class="ai-chat-bubble" aria-label="GAHIZ &#8211; AI Support" title="GAHIZ &#8211; AI Support">
+  <span class="ai-chat-bubble-tip">Click for Support</span>
+  <img src="/static/img/gahiz-bubble.png" alt="GAHIZ" />
+</button>
 <div id="aiChatPanel" class="ai-chat-panel" hidden>
   <div class="ai-chat-panel-head">
     <span><span class="ai-chat-panel-ic"><img src="/static/img/gahiz-icon.png" alt="GAHIZ" /></span> GAHIZ</span>
