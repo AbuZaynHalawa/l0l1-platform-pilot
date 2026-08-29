@@ -756,49 +756,10 @@
     clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 2"/></svg>',
     checkCircle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5 5.5-5.5"/></svg>',
   };
-  // A faint OHTL lattice-tower + conductor motif for the L0/L1 header's own
-  // decorative corner (spec: "engineering visual language", 10-25% white
-  // stroke opacity, never interfering with the header's real text). Built
-  // procedurally (one tower shape, drawn twice at different scales/x) --
-  // not literally the reference mockup's own asset (it isn't a file this
-  // repo has access to, just pixels inside a pasted screenshot), but a
-  // proper lattice silhouette: tapered legs, cross-arms with insulator
-  // drops, X-braced body -- not the earlier bare-triangle placeholder.
-  function _towerSvg(cx, baseY, topY, baseHalfW, topHalfW, armHalfW) {
-    var legL = "M" + (cx - baseHalfW) + " " + baseY + " L" + (cx - topHalfW) + " " + topY;
-    var legR = "M" + (cx + baseHalfW) + " " + baseY + " L" + (cx + topHalfW) + " " + topY;
-    var braces = "", n = 4;
-    for (var i = 1; i <= n; i++) {
-      var t = i / (n + 1);
-      var y = baseY - (baseY - topY) * t;
-      var hw = baseHalfW - (baseHalfW - topHalfW) * t;
-      braces += "M" + (cx - hw) + " " + y + " L" + (cx + hw) + " " + y + " ";
-      var yPrev = i === 1 ? baseY : baseY - (baseY - topY) * ((i - 1) / (n + 1));
-      var hwPrev = i === 1 ? baseHalfW : baseHalfW - (baseHalfW - topHalfW) * ((i - 1) / (n + 1));
-      braces += "M" + (cx - hwPrev) + " " + yPrev + " L" + (cx + hw) + " " + y + " ";
-      braces += "M" + (cx + hwPrev) + " " + yPrev + " L" + (cx - hw) + " " + y + " ";
-    }
-    var armY = topY + (baseY - topY) * 0.1;
-    var arms = "M" + (cx - armHalfW) + " " + armY + " L" + (cx + armHalfW) + " " + armY + " " +
-      "M" + (cx - armHalfW) + " " + armY + " L" + cx + " " + topY + " M" + (cx + armHalfW) + " " + armY + " L" + cx + " " + topY;
-    var drops = "M" + (cx - armHalfW) + " " + armY + " L" + (cx - armHalfW) + " " + (armY + 4) +
-      " M" + (cx + armHalfW) + " " + armY + " L" + (cx + armHalfW) + " " + (armY + 4) +
-      " M" + cx + " " + topY + " L" + cx + " " + (topY + 4);
-    return legL + " " + legR + " " + braces + arms + " " + drops;
-  }
-  function _powerGridArtSvg() {
-    var tower1 = _towerSvg(52, 100, 26, 16, 3, 11);
-    var tower2 = _towerSvg(168, 100, 12, 20, 4, 13);
-    return '<svg class="dpc-grid-art" viewBox="0 0 200 100" preserveAspectRatio="xMaxYMax meet" xmlns="http://www.w3.org/2000/svg">' +
-      '<g stroke="rgba(255,255,255,.28)" stroke-width="1.3" fill="none" stroke-linecap="round">' +
-      '<path d="' + tower1 + '"/>' +
-      '<path d="' + tower2 + '"/>' +
-      '<path d="M63 33 Q105 8 157 21" stroke-dasharray="0" opacity=".85"/>' +
-      '<path d="M63 37 Q105 14 157 25" opacity=".55"/>' +
-      '<path d="M40 100 Q0 60 -10 100" opacity=".5"/>' +
-      '<path d="M180 100 Q210 55 220 100" opacity=".5"/>' +
-      "</g></svg>";
-  }
+  // The L0/L1 header's decorative corner art (real OHTL photography Yasser
+  // provided, cropped into an orange-toned and a green-toned piece) is
+  // applied via CSS background-image on .dpc-head.l0/.l1 -- no JS
+  // injection needed here anymore (see styles.css).
   async function loadLifetimeKpis() {
     var k;
     try { k = await api("/api/dashboard/lifetime-kpis"); } catch (e) { return; }
@@ -880,7 +841,7 @@
       .forEach(function (s) {
         var card = el("div", "card dash-project-card " + s[0].toLowerCase());
         var head = el("div", "dpc-head");
-        head.innerHTML = _powerGridArtSvg() + '<div class="dpc-tag">' + s[0] + '</div><div><div class="dpc-value">' + s[2] +
+        head.innerHTML = '<div class="dpc-tag">' + s[0] + '</div><div><div class="dpc-value">' + s[2] +
           '</div><div class="dpc-label">' + s[1] + "</div></div>";
         card.appendChild(head);
         var body = el("div", "dpc-body");

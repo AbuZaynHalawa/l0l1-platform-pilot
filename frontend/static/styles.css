@@ -430,11 +430,25 @@
   .dash-project-row > * { min-width: 0; }
   .dash-project-card { padding: 0; border: none; overflow: hidden; display: flex; flex-direction: column; }
   .dash-project-card .dpc-head { padding: 20px 24px; display: flex; align-items: center; gap: 14px; }
-  .dash-project-card.l0 .dpc-head { background: linear-gradient(135deg, var(--l0-2) 0%, var(--l0-1) 100%); position: relative; overflow: hidden; }
-  .dash-project-card.l1 .dpc-head { background: linear-gradient(135deg, var(--l1-2) 0%, var(--l1-1) 100%); position: relative; overflow: hidden; }
-  /* [Red Dark Design] subtle OHTL/power-grid motif, spec section 10/11 --
-     decorative only, sits behind the header's own text (z-index below it). */
-  .dpc-head .dpc-grid-art { position: absolute; right: 0; bottom: 0; width: 42%; height: 100%; opacity: .7; pointer-events: none; z-index: 0; }
+  /* [Red Dark Design] real OHTL photography (Yasser's own asset, cropped
+     into an orange-toned and green-toned piece) as the header's decorative
+     corner, spec section 10/11 -- replaces the earlier hand-drawn SVG
+     placeholder. Layered UNDER the gradient (background shorthand paints
+     top-to-bottom: image first, gradient second, so the gradient tints the
+     photo instead of hiding it) so the tower art reads as part of the
+     panel's own color instead of a flat sticker. */
+  .dash-project-card.l0 .dpc-head {
+    background-color: var(--l0-1);
+    background-image: linear-gradient(135deg, color-mix(in srgb, var(--l0-2) 85%, transparent) 0%, color-mix(in srgb, var(--l0-1) 75%, transparent) 100%), url("/static/img/ohtl-orange.png");
+    background-position: center, right center; background-size: auto, cover; background-repeat: no-repeat, no-repeat;
+    position: relative; overflow: hidden;
+  }
+  .dash-project-card.l1 .dpc-head {
+    background-color: var(--l1-1);
+    background-image: linear-gradient(135deg, color-mix(in srgb, var(--l1-2) 85%, transparent) 0%, color-mix(in srgb, var(--l1-1) 75%, transparent) 100%), url("/static/img/ohtl-green.png");
+    background-position: center, right center; background-size: auto, cover; background-repeat: no-repeat, no-repeat;
+    position: relative; overflow: hidden;
+  }
   .dpc-head .dpc-tag, .dpc-head > div:last-child { position: relative; z-index: 1; }
   .dash-project-card .dpc-tag {
     width: 44px; height: 44px; border-radius: 11px; display: flex; align-items: center; justify-content: center;
