@@ -146,6 +146,7 @@
           <div class="card concerns-card" id="concernsL0Card">
             <div class="section-title concerns-title-row stage-title-l0">&#9888; L0 Concerns</div>
             <ul id="concernsL0List"></ul>
+            <div class="pager" id="concernsL0Pager"></div>
           </div>
           <div class="card">
             <div class="section-title stage-title-l0">Top L0 Departments</div>
@@ -164,6 +165,7 @@
           <div class="card concerns-card" id="concernsL1Card">
             <div class="section-title concerns-title-row stage-title-l1">&#9888; L1 Concerns</div>
             <ul id="concernsL1List"></ul>
+            <div class="pager" id="concernsL1Pager"></div>
           </div>
           <div class="card">
             <div class="section-title stage-title-l1">Top L1 Departments</div>
@@ -389,8 +391,12 @@
         <button class="chip" data-pane="kb">Knowledge Base</button>
       </div>
 
-      <div id="supAskPane">
-        <div class="card form-card" style="max-width:640px;">
+      <!-- Item 19: two columns -- Ask a Question on the left, My Questions
+           (renamed from "My Requests") on the right instead of stacked
+           below, rendered as high-level rows + pager, click for the full
+           thread (see #myQAOverlay). -->
+      <div id="supAskPane" class="split">
+        <div class="card form-card">
           <p class="sub" style="margin-bottom:16px;">Sent as <b id="supAsEmail">&#8213;</b> &#8212; set your acting email above to change this.</p>
           <div class="form-grid">
             <!-- Item 37: choose whether this reaches Admins generally or a
@@ -421,9 +427,10 @@
           <button class="btn primary" id="supSubmit" style="margin-top:18px;">Send to Admins</button>
         </div>
 
-        <div class="card table-card" id="supMineCard" style="margin-top:18px;">
-          <div class="section-title"><span>My Requests</span></div>
+        <div class="card table-card" id="supMineCard">
+          <div class="section-title"><span>My Questions</span></div>
           <div id="supMineList"></div>
+          <div class="pager" id="supMinePager"></div>
         </div>
       </div>
 
@@ -720,13 +727,16 @@
         </div>
       </div>
 
-      <div class="card table-card">
+      <div class="card">
         <div class="section-title">
           <span>Due &amp; Overdue Deliverables</span>
         </div>
         <div class="fu-stats" id="fuStats"></div>
+        <!-- Item 27: Focal Point is now a real per-person list (see
+             loadFollowUp) -- a deliverable with two focal points shows up
+             filterable under either one, not just under the combined
+             "john@x, jane@y" string it used to render as one option. -->
         <div class="fp-add-row" style="border-bottom:1px solid var(--line);">
-          <select id="fuDeptFilter"><option value="">All Departments</option></select>
           <select id="fuEstFilter"><option value="">All Est Numbers</option></select>
           <select id="fuFocalFilter"><option value="">All Focal Points</option></select>
           <select id="fuSeverityFilter">
@@ -742,7 +752,22 @@
         <div class="fp-add-row">
           <button class="btn primary" id="fuRemindAll">Send Reminders&#8230;</button>
         </div>
-        <div id="followUpList"></div>
+      </div>
+
+      <!-- Item 26: split view -- departments (with overdue counts) on the
+           left, replacing the old "All Departments" dropdown; the selected
+           department's items on the right, paged instead of one long
+           accordion list. -->
+      <div class="split detail-split">
+        <div class="card">
+          <div class="section-title">Departments</div>
+          <div class="folder-list" id="fuDeptList"></div>
+        </div>
+        <div class="card">
+          <div class="section-title" id="fuDeptDetailTitle">All Departments</div>
+          <div id="followUpList"></div>
+          <div class="pager" id="fuPager"></div>
+        </div>
       </div>
     </section>
 
@@ -1696,6 +1721,18 @@
         <button class="btn primary" id="actionCommentConfirm"></button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- Item 19: My Questions' full thread (reply UI included) opens here on
+     click, instead of every question rendering its whole thread inline. -->
+<div class="modal-overlay" id="myQAOverlay" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <div><h2>Your Question</h2></div>
+      <button class="modal-close" id="myQAClose">&#10005;</button>
+    </div>
+    <div class="modal-body" id="myQABody"></div>
   </div>
 </div>
 

@@ -147,7 +147,7 @@
   .btn, .chip, .theme-btn, .role-select, .nav-item, .card, .stat-tile,
   .dsc-child, .dash-project-card, .report-category-box, .modal-close,
   .dpc-recent-row, .folder-row, .aqt-body-row, .fu-row, .achiever-row,
-  .subtab-row .chip, .rank-row, .ann-row {
+  .subtab-row .chip, .rank-row, .ann-row, .aq-row-clickable {
     transition: all 0.2s ease-in-out;
   }
   /* self-contained controls + cards: scale + lift */
@@ -162,7 +162,8 @@
   }
   /* rows in a list: no scale, no reflow */
   .nav-item:hover, .dpc-recent-row:hover, .folder-row:hover,
-  .aqt-body-row:hover, .fu-row:hover, .ann-row:hover, .achiever-row:hover {
+  .aqt-body-row:hover, .fu-row:hover, .ann-row:hover, .achiever-row:hover,
+  .aq-row-clickable:hover {
     transform: translateX(3px);
   }
 
@@ -173,7 +174,8 @@
     .btn:hover, .chip:hover, .theme-btn:hover, .report-category-box:hover,
     .card:hover, .dsc-child:hover, .dash-project-card:hover, .stat-tile:hover,
     .nav-item:hover, .dpc-recent-row:hover, .folder-row:hover,
-    .aqt-body-row:hover, .fu-row:hover, .ann-row:hover, .achiever-row:hover {
+    .aqt-body-row:hover, .fu-row:hover, .ann-row:hover, .achiever-row:hover,
+    .aq-row-clickable:hover {
       transform: none !important;
     }
   }
@@ -427,6 +429,18 @@
   .concerns-card li:last-child { border-bottom: none; }
   .concerns-card li::before { content: "\26A0"; position: absolute; left: 0; color: var(--crit); font-size: 11px; }
   .concerns-card b { font-weight: 700; }
+  /* Shared pager (items 2/19/26) -- prev/next + "Page X of Y", used
+     wherever a list is capped to a page size instead of rendering
+     everything at once. */
+  .pager { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 10px 0 2px; }
+  .pager-btn {
+    width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface);
+    color: var(--ink-700); font-size: 14px; font-family: inherit; cursor: pointer; display: flex; align-items: center;
+    justify-content: center; padding: 0; transition: background .15s, color .15s;
+  }
+  .pager-btn:hover:not(:disabled) { background: var(--accent-soft); color: var(--purple-2); }
+  .pager-btn:disabled { opacity: .35; cursor: default; }
+  .pager-label { font-size: 11.5px; font-weight: 700; color: var(--ink-500); min-width: 84px; text-align: center; }
 
   /* Newest Milestones */
   .milestone-row { display: flex; align-items: center; gap: 12px; padding: 10px 20px; border-bottom: 1px solid var(--line); cursor: pointer; }
@@ -635,6 +649,10 @@
   .folder-focal { font-size: 11px; color: var(--ink-500); margin-top: 1px; }
   .folder-right { display: flex; align-items: center; gap: 10px; flex: none; }
   .folder-pct { font-size: 12px; color: var(--ink-500); min-width: 34px; text-align: right; font-weight: 700; }
+  /* Item 26: Follow Up's department list reuses .folder-pct as an overdue
+     count instead of a completion % -- .crit flags a department that has
+     at least one 15+ day critical item in it. */
+  .folder-pct.crit { color: var(--crit); }
 
   /* Item 98: same-numbered departments (e.g. Operation Units' BU split)
      nest under one shared group heading instead of repeating as separate

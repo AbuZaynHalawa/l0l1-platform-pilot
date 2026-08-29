@@ -960,6 +960,11 @@ def get_follow_up(department: str | None = None, project_id: int | None = None, 
             "days_overdue": (today - s.due_date).days,
             "owner": ", ".join(rules.resolve_owners(s)) or "Unassigned",
             "focal": rules.deliverable_focal(s.definition, s.project) or "Unassigned",
+            # Item 27: the real per-person list, not just the comma-joined
+            # display string above -- lets the Follow Up page filter by one
+            # co-focal without needing an exact match on the combined
+            # string of everyone who shares this deliverable.
+            "focal_emails": rules.resolve_focal_emails(s.definition, s.project),
         }
         for s in subs
     ]

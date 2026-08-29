@@ -33,6 +33,34 @@
     if (html !== undefined) e.innerHTML = html;
     return e;
   }
+  // Shared pager (items 2/19/26): "‹ Page X of Y ›" controls in `pagerEl`,
+  // re-invoking `render(pageSlice)` with just the current page's items
+  // every time the page changes (including the very first draw) --
+  // `render` only ever needs to know how to paint one page's worth of
+  // items into its own content container, not manage pagination itself.
+  // A page count of 1 (or 0 items) hides the controls entirely rather
+  // than showing a useless single "Page 1 of 1".
+  function renderPager(pagerEl, items, pageSize, render) {
+    var page = 0;
+    var totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+    function draw() {
+      render(items.slice(page * pageSize, page * pageSize + pageSize));
+      pagerEl.innerHTML = "";
+      if (totalPages <= 1) return;
+      var prev = el("button", "pager-btn", "&#8249;");
+      prev.type = "button";
+      prev.disabled = page === 0;
+      prev.addEventListener("click", function () { page--; draw(); });
+      var next = el("button", "pager-btn", "&#8250;");
+      next.type = "button";
+      next.disabled = page === totalPages - 1;
+      next.addEventListener("click", function () { page++; draw(); });
+      pagerEl.appendChild(prev);
+      pagerEl.appendChild(el("span", "pager-label", "Page " + (page + 1) + " of " + totalPages));
+      pagerEl.appendChild(next);
+    }
+    draw();
+  }
   // Item 170: DD-Mon-YYYY everywhere a date renders (e.g. "16-Sep-2026")
   // -- toLocaleDateString has no hyphen-separator preset, and en-GB's own
   // "short" month for September is the 4-letter "Sept", so this is a
@@ -452,14 +480,24 @@
     // disappearing entirely when there's nothing to flag -- a vanished card
     // on one side while the other stage still has one looked like a layout
     // bug, and broke the visual rhythm of the column below it.
+    // Item 2: capped to 6 per page with the shared pager, instead of
+    // rendering every concern (department below 80%, overdue count,
+    // missing focal points...) at once -- a department-heavy pilot could
+    // otherwise push this list quite long.
     [["L0", d.concerns_l0], ["L1", d.concerns_l1]].forEach(function (s) {
       var list = document.getElementById("concerns" + s[0] + "List");
-      list.innerHTML = "";
-      if (s[1] && s[1].length) {
-        s[1].forEach(function (c) { list.appendChild(el("li", "", c)); });
-      } else {
+      var pager = document.getElementById("concerns" + s[0] + "Pager");
+      var items = s[1] || [];
+      if (!items.length) {
+        list.innerHTML = "";
         list.appendChild(el("div", "empty-state", "No concerns."));
+        pager.innerHTML = "";
+        return;
       }
+      renderPager(pager, items, 6, function (pageItems) {
+        list.innerHTML = "";
+        pageItems.forEach(function (c) { list.appendChild(el("li", "", c)); });
+      });
     });
 
     var stats = document.getElementById("statRow");
@@ -6661,27 +6699,37 @@
     // first. days_overdue itself now comes pre-computed from the backend.
     var FU_CRITICAL_DAYS = 15;
     var items = await api("/api/deliverables/follow-up");
-    var deptSel = document.getElementById("fuDeptFilter");
     var estSel = document.getElementById("fuEstFilter");
     var focalSel = document.getElementById("fuFocalFilter");
     var severitySel = document.getElementById("fuSeverityFilter");
     var sortSel = document.getElementById("fuSortBy");
-    var seenDepts = {}, seenEsts = {}, seenFocals = {};
-    items.forEach(function (d) { seenDepts[d.department] = true; seenEsts[d.est_no] = true; if (d.focal) seenFocals[d.focal] = true; });
-    deptSel.innerHTML = '<option value="">All Departments</option>';
-    Object.keys(seenDepts).sort().forEach(function (n) { var o = el("option", "", n); o.value = n; deptSel.appendChild(o); });
+    var deptListEl = document.getElementById("fuDeptList");
+    var selectedDept = ""; // "" = All Departments
+    var seenEsts = {}, seenFocals = {};
+    items.forEach(function (d) {
+      seenEsts[d.est_no] = true;
+      // Item 27: focal_emails is a real per-person list now (see
+      // deliverable_focal/resolve_focal_emails on the backend) -- each
+      // co-focal gets their own filterable option instead of the whole
+      // deliverable only matching an exact "john@x, jane@y" string.
+      (d.focal_emails && d.focal_emails.length ? d.focal_emails : (d.focal ? [d.focal] : [])).forEach(function (f) { seenFocals[f] = true; });
+    });
     estSel.innerHTML = '<option value="">All Est Numbers</option>';
     Object.keys(seenEsts).sort().forEach(function (n) { var o = el("option", "", n); o.value = n; estSel.appendChild(o); });
     focalSel.innerHTML = '<option value="">All Focal Points</option>';
     Object.keys(seenFocals).sort().forEach(function (n) { var o = el("option", "", n); o.value = n; focalSel.appendChild(o); });
 
     function fuSeverity(d) { return d.days_overdue >= FU_CRITICAL_DAYS ? "critical" : "overdue"; }
+    function fuMatchesFocal(d, focal) {
+      if (!focal) return true;
+      var emails = d.focal_emails && d.focal_emails.length ? d.focal_emails : (d.focal ? [d.focal] : []);
+      return emails.indexOf(focal) !== -1;
+    }
 
     function renderFollowUpList() {
-      var dept = deptSel.value, estNo = estSel.value, focal = focalSel.value, severity = severitySel.value;
+      var estNo = estSel.value, focal = focalSel.value, severity = severitySel.value;
       var filtered = items.filter(function (d) {
-        return (!dept || d.department === dept) && (!estNo || d.est_no === estNo) &&
-          (!focal || d.focal === focal) && (!severity || fuSeverity(d) === severity);
+        return (!estNo || d.est_no === estNo) && fuMatchesFocal(d, focal) && (!severity || fuSeverity(d) === severity);
       });
 
       var statsWrap = document.getElementById("fuStats");
@@ -6697,10 +6745,10 @@
           '<span class="fu-stat-num">' + s[1] + '</span><span class="fu-stat-lbl">' + s[0] + '</span>'));
       });
 
-      var wrap = document.getElementById("followUpList");
-      wrap.innerHTML = "";
-      if (!filtered.length) { wrap.appendChild(el("div", "empty-state", "Nothing due or overdue right now.")); return; }
-
+      // Item 26: split view -- the left column lists every department
+      // that still has a filtered item, each showing its own overdue
+      // count; picking one narrows the right-hand list the same way the
+      // old dropdown did, "All Departments" (default) shows everything.
       var byDept = {};
       filtered.forEach(function (d) { (byDept[d.department] = byDept[d.department] || []).push(d); });
       var deptNames = Object.keys(byDept);
@@ -6710,46 +6758,65 @@
       } else {
         deptNames.sort(function (a, b) { return byDept[b][0].days_overdue - byDept[a][0].days_overdue; });
       }
+      if (selectedDept && deptNames.indexOf(selectedDept) === -1) selectedDept = "";
 
+      deptListEl.innerHTML = "";
+      var allRow = el("div", "folder-row" + (!selectedDept ? " active" : ""));
+      allRow.innerHTML = '<div class="folder-left"><span class="folder-ic">&#128193;</span><div class="folder-name">All Departments</div></div>' +
+        '<div class="folder-right"><span class="folder-pct">' + filtered.length + '</span></div>';
+      allRow.addEventListener("click", function () { selectedDept = ""; renderFollowUpList(); });
+      deptListEl.appendChild(allRow);
       deptNames.forEach(function (deptName) {
         var rows = byDept[deptName];
         var hasCritical = rows.some(function (d) { return fuSeverity(d) === "critical"; });
-        var group = document.createElement("details");
-        group.className = "fu-dept-group";
-        var summary = document.createElement("summary");
-        summary.appendChild(el("span", "fu-dept-name", deptLabel(deptName, null)));
-        summary.appendChild(el("span", "fu-dept-tags",
-          '<span class="fu-dept-count' + (hasCritical ? " has-critical" : "") + '">' + rows.length + ' overdue</span>'));
-        group.appendChild(summary);
-        rows.forEach(function (d) {
-          var sev = fuSeverity(d);
-          var row = el("div", "fu-row");
-          var main = el("div", "fu-row-main");
-          main.appendChild(el("div", "fu-row-title", d.item_no + " &middot; " + d.name));
-          main.appendChild(el("div", "fu-row-sub",
-            '<span>' + d.est_no + ' &#8211; ' + d.project_name + '</span><span class="sep">&middot;</span>' +
-            '<span>Owner: ' + d.owner + '</span><span class="sep">&middot;</span>' +
-            '<span>Focal: ' + d.focal + '</span><span class="sep">&middot;</span>' +
-            '<span>Due ' + fmtDate(d.due_date) + '</span>'));
-          row.appendChild(main);
-          var side = el("div", "fu-row-side");
-          side.appendChild(el("span", "fu-overdue-badge " + sev, d.days_overdue + " day" + (d.days_overdue === 1 ? "" : "s") + " overdue"));
-          var remindBtn = el("button", "btn", "Remind");
-          remindBtn.addEventListener("click", function () { openRemindModal([d.id]); });
-          side.appendChild(remindBtn);
-          row.appendChild(side);
-          group.appendChild(row);
-        });
-        wrap.appendChild(group);
+        var row = el("div", "folder-row" + (selectedDept === deptName ? " active" : ""));
+        row.innerHTML = '<div class="folder-left"><span class="folder-ic">&#128193;</span><div class="folder-name">' + deptLabel(deptName, null) + '</div></div>' +
+          '<div class="folder-right"><span class="folder-pct' + (hasCritical ? " crit" : "") + '">' + rows.length + '</span></div>';
+        row.addEventListener("click", function () { selectedDept = deptName; renderFollowUpList(); });
+        deptListEl.appendChild(row);
       });
 
+      var deptFiltered = selectedDept ? (byDept[selectedDept] || []) : filtered.slice().sort(function (a, b) { return b.days_overdue - a.days_overdue; });
+      document.getElementById("fuDeptDetailTitle").textContent = selectedDept ? deptLabel(selectedDept, null) : "All Departments";
+
+      var wrap = document.getElementById("followUpList");
+      var pager = document.getElementById("fuPager");
+      function fuRowEl(d) {
+        var sev = fuSeverity(d);
+        var row = el("div", "fu-row");
+        var main = el("div", "fu-row-main");
+        main.appendChild(el("div", "fu-row-title", d.item_no + " &middot; " + d.name));
+        main.appendChild(el("div", "fu-row-sub",
+          '<span>' + d.est_no + ' &#8211; ' + d.project_name + '</span><span class="sep">&middot;</span>' +
+          '<span>Owner: ' + d.owner + '</span><span class="sep">&middot;</span>' +
+          '<span>Focal: ' + d.focal + '</span><span class="sep">&middot;</span>' +
+          '<span>Due ' + fmtDate(d.due_date) + '</span>'));
+        row.appendChild(main);
+        var side = el("div", "fu-row-side");
+        side.appendChild(el("span", "fu-overdue-badge " + sev, d.days_overdue + " day" + (d.days_overdue === 1 ? "" : "s") + " overdue"));
+        var remindBtn = el("button", "btn", "Remind");
+        remindBtn.addEventListener("click", function () { openRemindModal([d.id]); });
+        side.appendChild(remindBtn);
+        row.appendChild(side);
+        return row;
+      }
+      if (!deptFiltered.length) {
+        wrap.innerHTML = "";
+        wrap.appendChild(el("div", "empty-state", "Nothing due or overdue right now."));
+        pager.innerHTML = "";
+      } else {
+        renderPager(pager, deptFiltered, 8, function (pageItems) {
+          wrap.innerHTML = "";
+          pageItems.forEach(function (d) { wrap.appendChild(fuRowEl(d)); });
+        });
+      }
+
       document.getElementById("fuRemindAll").onclick = function () {
-        var ids = filtered.map(function (d) { return d.id; });
+        var ids = deptFiltered.map(function (d) { return d.id; });
         if (!ids.length) { showToast("Nothing shown to remind", true); return; }
         openRemindModal(ids);
       };
     }
-    deptSel.onchange = renderFollowUpList;
     estSel.onchange = renderFollowUpList;
     focalSel.onchange = renderFollowUpList;
     severitySel.onchange = renderFollowUpList;
@@ -8091,8 +8158,10 @@
     await _populateSupTarget();
 
     var mineWrap = document.getElementById("supMineList");
+    var minePager = document.getElementById("supMinePager");
     var email = actingEmail() || localStorage.getItem("myEmail") || "";
     mineWrap.innerHTML = "";
+    minePager.innerHTML = "";
     if (!email) {
       mineWrap.appendChild(el("div", "empty-state", "Send a request above, or set your acting email, to see your own requests here."));
     } else {
@@ -8100,18 +8169,46 @@
       if (!mine.length) {
         mineWrap.appendChild(el("div", "empty-state", "No requests from you yet."));
       } else {
-        mine.forEach(function (r) {
-          var holder = el("div");
-          _renderSupportThread(holder, r, {
-            canReply: true, canResolve: false, replyEndpoint: "respond", replyPlaceholder: "Reply to the admin…",
-            onReplied: loadSupport,
-          });
-          mineWrap.appendChild(holder);
+        // Item 19: high-level rows (question + status) with the shared
+        // pager, instead of every question's full thread rendering inline
+        // -- click a row for the full conversation (see _openMyQADetail).
+        renderPager(minePager, mine, 6, function (pageItems) {
+          mineWrap.innerHTML = "";
+          pageItems.forEach(function (r) { mineWrap.appendChild(_supMineRowEl(r)); });
         });
       }
     }
 
   }
+  function _supMineRowEl(r) {
+    var row = el("div", "aq-row aq-row-clickable");
+    row.style.cursor = "pointer";
+    var main = el("div", "aq-main");
+    var snippet = r.message.length > 80 ? r.message.slice(0, 80) + "&#8230;" : r.message;
+    main.appendChild(el("div", "aq-title", snippet));
+    var context = [r.stage, r.est_no, r.deliverable, fmtDate((r.created_at || "").slice(0, 10))].filter(Boolean).join(" &middot; ");
+    main.appendChild(el("div", "aq-sub", context));
+    row.appendChild(main);
+    row.appendChild(r.status === "resolved"
+      ? el("span", "pill good", '<span class="dot"></span>Resolved')
+      : el("span", "pill warn", '<span class="dot"></span>Open'));
+    row.addEventListener("click", function () { _openMyQADetail(r); });
+    return row;
+  }
+  function _openMyQADetail(r) {
+    var body = document.getElementById("myQABody");
+    _renderSupportThread(body, r, {
+      canReply: true, canResolve: false, replyEndpoint: "respond", replyPlaceholder: "Reply to the admin…",
+      onReplied: async function () { await loadSupport(); document.getElementById("myQAOverlay").hidden = true; },
+    });
+    document.getElementById("myQAOverlay").hidden = false;
+  }
+  document.getElementById("myQAClose").addEventListener("click", function () {
+    document.getElementById("myQAOverlay").hidden = true;
+  });
+  document.getElementById("myQAOverlay").addEventListener("click", function (e) {
+    if (e.target === this) this.hidden = true;
+  });
 
   // --- AI SUPPORT: Claude-powered chat, stateless on the backend -- this
   // array IS the conversation's memory, resent (capped) on every turn. ---
