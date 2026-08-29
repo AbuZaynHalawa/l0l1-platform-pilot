@@ -530,11 +530,11 @@
      (was flat grey) and each row's icon/label now carry that same color
      too, so the identity reads immediately, not just as a border sliver. */
   .dash-status-card.l0 { border-top: 3px solid var(--l0-1); }
-  .dash-status-card.l1 { border-top: 3px solid #1f9d5c; }
+  .dash-status-card.l1 { border-top: 3px solid var(--l1-1); }
   .dash-status-card.l0 .dsc-head { color: var(--l0-1); }
-  .dash-status-card.l1 .dsc-head { color: #1f9d5c; }
+  .dash-status-card.l1 .dsc-head { color: var(--l1-1); }
   .dash-status-card.l0 .dsc-row-label { color: var(--l0-1); }
-  .dash-status-card.l1 .dsc-row-label { color: #1f9d5c; }
+  .dash-status-card.l1 .dsc-row-label { color: var(--l1-1); }
   /* Redlined: Deadline and Progress used to be two separate titled cards
      per stage -- now one row each inside a single card, DEADLINE/PROGRESS
      as a label to the left of the row instead of its own card header. */
@@ -595,7 +595,7 @@
      banner strip. */
   .concerns-title-row { color: var(--crit); }
   .stage-title-l0 { color: var(--l0-1); }
-  .stage-title-l1 { color: #1f9d5c; }
+  .stage-title-l1 { color: var(--l1-1); }
   .concerns-card ul { margin: 0; padding: 0 20px 4px; list-style: none; }
   .concerns-card li { position: relative; padding: 7px 0 7px 18px; font-size: 13px; color: var(--ink-700); line-height: 1.5; border-bottom: 1px solid var(--line); }
   .concerns-card li:last-child { border-bottom: none; }
@@ -707,8 +707,8 @@
      identity used everywhere else in the platform. */
   .pill.l0-tag { background: color-mix(in srgb, var(--l0-1) 15%, transparent); color: var(--l0-1); }
   .pill.l0-tag .dot { background: var(--l0-1); }
-  .pill.l1-tag { background: color-mix(in srgb, #1f9d5c 15%, transparent); color: #1f9d5c; }
-  .pill.l1-tag .dot { background: #1f9d5c; }
+  .pill.l1-tag { background: color-mix(in srgb, var(--l1-1) 15%, transparent); color: var(--l1-1); }
+  .pill.l1-tag .dot { background: var(--l1-1); }
 
   /* overflow-x needs an explicit value, not just omission -- per spec, an
      unset overflow-x paired with a non-visible overflow-y silently computes
@@ -777,7 +777,7 @@
   .xh-panel-actions .btn { flex: 1; padding: 7px 10px; font-size: 11.5px; }
   .est-no { font-weight: 700; white-space: nowrap; }
   .est-no.l0 { color: var(--l0-1); }
-  .est-no.l1 { color: #1f9d5c; }
+  .est-no.l1 { color: var(--l1-1); }
   .proj-name { display: block; max-width: 340px; white-space: normal; }
   .mini-stepper { display: flex; gap: 3px; }
   .mini-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line); }
@@ -1037,12 +1037,12 @@
     color: var(--ink-300); font-size: 13px; font-weight: 700; line-height: 1;
   }
   .tt-step:last-child::after { content: none; }
-  .tt-step.pilot { background: var(--surface); border-color: var(--l1-1, #1f9d5c); }
+  .tt-step.pilot { background: var(--surface); border-color: var(--l1-1); }
   .tt-step-aside {
     display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 4px;
     font-size: 8.5px; font-weight: 700; color: var(--ink-900);
   }
-  .tt-step-aside .tt-aside-dot { width: 6px; height: 6px; border-radius: 50%; background: #1f9d5c; flex: none; }
+  .tt-step-aside .tt-aside-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--l1-1); flex: none; }
   @media (max-width: 760px) {
     .tt-layout { grid-template-columns: 1fr; }
   }
@@ -1191,7 +1191,7 @@
   /* Item [L0/L1 identity colors]: no invented third color for this chart --
      orange marks general/both-stage program work (same identity color as
      L0 elsewhere in the app), green marks work that's specifically L1. */
-  .tt-bar.green { background: linear-gradient(135deg, #1f9d5c, #146c3e); }
+  .tt-bar.green { background: linear-gradient(135deg, var(--l1-1), var(--l1-2)); }
   .tt-bar.grey { background: var(--ink-300); color: var(--ink-900); }
   .tt-marker { position: absolute; top: 74px; transform: translateX(-50%); text-align: center; width: 130px; }
   .tt-marker .tt-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--crit); margin: 0 auto 3px; box-shadow: 0 0 0 3px var(--crit-bg); }
@@ -2269,7 +2269,7 @@
      everywhere else (renderPerfCol, the breakdown modal title, the trend
      line itself right below this very header). */
   .pcmp-section-head.l0 { color: var(--l0-1); background: color-mix(in srgb, var(--l0-1) 12%, transparent); }
-  .pcmp-section-head.l1 { color: #1f9d5c; background: color-mix(in srgb, #1f9d5c 12%, transparent); }
+  .pcmp-section-head.l1 { color: var(--l1-1); background: color-mix(in srgb, var(--l1-1) 12%, transparent); }
   .pmonth-picker { margin-bottom: 6px; }
   .pmonth-label { font-size: 11px; font-weight: 700; color: var(--ink-500); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
   .pmonth-pills { display: flex; flex-wrap: wrap; gap: 8px; }

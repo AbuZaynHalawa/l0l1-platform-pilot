@@ -5135,7 +5135,7 @@
       '<div class="pc2-label">YTD Trend' + (lv.ytd ? " (vs " + lv.ytd.month + ")" : "") + "</div>" +
       perfYtd(lv) +
       '<div class="pc2-label">Yearly Trend (2026)</div>' +
-      buildTrendChartHtml([{ label: d.name, color: levelKey === "l1" ? "#1f9d5c" : "#cc6a1e", points: lv.history }], 70);
+      buildTrendChartHtml([{ label: d.name, color: levelKey === "l1" ? "var(--l1-1)" : "var(--l0-1)", points: lv.history }], 70);
     return html;
   }
   function perfTrackedDepts() {
@@ -5255,7 +5255,7 @@
         // Item 7: match the real L0/L1 identity colors renderPerfCol() already
         // uses on the summary cards (green L1 / orange L0), instead of two
         // near-identical purples that made both levels look the same here.
-        var seriesList = [{ label: d.name, color: levelKey === "l1" ? "#1f9d5c" : "#cc6a1e", points: periods }];
+        var seriesList = [{ label: d.name, color: levelKey === "l1" ? "var(--l1-1)" : "var(--l0-1)", points: periods }];
         return '<div class="pcmp-section-head ' + levelKey + '">' + levelLabel + "</div>" +
           '<div class="pcmp-table-wrap"><table class="pcmp-table pcmp-align-table"><tbody>' + rows + "</tbody></table></div>" +
           buildTrendChartHtml(seriesList, 170, true);
@@ -5345,7 +5345,7 @@
     // Item 7 (doc redline): this modal had no L0/L1 color distinction at
     // all before -- the level word in the title now carries the same
     // identity color used everywhere else (green L1 / orange L0).
-    var levelColor = levelKey === "l1" ? "#1f9d5c" : "#cc6a1e";
+    var levelColor = levelKey === "l1" ? "var(--l1-1)" : "var(--l0-1)";
     document.getElementById("perfBreakdownTitle").innerHTML = deptName + " &#8211; <span style=\"color:" + levelColor + ";\">" + levelKey.toUpperCase() + "</span> Calculation Breakdown";
     var body = document.getElementById("perfBreakdownBody");
     var html = "";
