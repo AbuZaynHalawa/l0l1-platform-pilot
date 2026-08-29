@@ -111,6 +111,27 @@
   a { color: inherit; }
   button { font-family: inherit; }
   select { font-family: inherit; }
+  /* Item 28: a baseline refined look for every bare select/date/file input
+     platform-wide -- previously only inputs inside a .field wrapper (modal
+     forms) or a few individually-styled filter rows got this treatment;
+     anything else (Assigned Deliverables' Sort/Est filters, Reminders' and
+     Announcements' date range, any bare <input type="file">) fell back to
+     the squared OS-default look. More specific rules elsewhere (.field
+     select, .gantt-filter-row select, etc.) still win where they exist --
+     this only fills the gap. */
+  select, input[type="date"] {
+    border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-sunken);
+    padding: 8px 12px; font-size: 12.5px; color: var(--ink-700); font-family: inherit;
+  }
+  input[type="file"] {
+    border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-sunken);
+    padding: 7px 10px; font-size: 12.5px; color: var(--ink-700); font-family: inherit;
+  }
+  input[type="file"]::file-selector-button {
+    border: none; border-radius: 7px; background: var(--accent-soft); color: var(--purple-2);
+    padding: 5px 10px; font-size: 12px; font-weight: 700; font-family: inherit; cursor: pointer; margin-right: 10px;
+  }
+  input[type="file"]::file-selector-button:hover { background: var(--purple-1); color: #fff; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   /* ---------- interactivity ----------
@@ -489,11 +510,21 @@
   .pill.neutral { background: var(--neutral-bg); color: var(--ink-700); }
   .pill.neutral .dot { background: var(--neutral); }
 
-  .table-card { overflow-x: auto; overflow-y: hidden; }
-  .table-scroll { overflow-x: auto; }
-  table.data { width: 100%; border-collapse: collapse; min-width: 760px; }
+  /* overflow-x needs an explicit value, not just omission -- per spec, an
+     unset overflow-x paired with a non-visible overflow-y silently computes
+     to auto rather than staying visible, which would have quietly brought
+     the horizontal scrollbar right back. */
+  .table-card { overflow-x: hidden; overflow-y: hidden; }
+  /* Item 9: no horizontal scrolling anywhere in the platform except the
+     Deliverables Matrix (.matrix-wrap, a deliberate exception) -- .data
+     used to force a 760px floor and let unbroken content (emails, long
+     names) push past it, so .table-card/.table-scroll carried overflow-x:
+     auto to cope. table-layout:fixed + wrapping td text (same treatment
+     #perfTriagePane's .fp-table and .wrap-table already use) means the
+     table always fits its card, so neither wrapper needs to scroll now. */
+  table.data { width: 100%; border-collapse: collapse; table-layout: fixed; }
   table.data th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-500); padding: 11px 16px; border-bottom: 1px solid var(--line); font-weight: 700; white-space: nowrap; }
-  table.data td { padding: 12px 16px; border-bottom: 1px solid var(--line); font-size: 13px; vertical-align: middle; }
+  table.data td { padding: 12px 16px; border-bottom: 1px solid var(--line); font-size: 13px; vertical-align: middle; white-space: normal; word-break: break-word; }
   table.data tbody tr { cursor: pointer; }
   table.data tbody tr:hover { background: var(--surface-sunken); }
   table.data tbody tr:last-child td { border-bottom: none; }
@@ -583,7 +614,7 @@
   /* Item 125: the deliverables panel stays pinned in view while the
      department folder list (often long, especially with item 98's nested
      sub-folders) scrolls past it, instead of scrolling away together. */
-  #dDeliverablesPane.detail-split > .card:last-child { position: sticky; top: 20px; max-height: calc(100vh - 40px); overflow-y: auto; }
+  #dDeliverablesPane.detail-split > .card:last-child { position: sticky; top: 20px; max-height: calc(100vh - 40px); overflow-x: hidden; overflow-y: auto; }
   @media (max-width: 980px) { #dDeliverablesPane.detail-split > .card:last-child { position: static; max-height: none; } }
   /* Item 125 rework: the card itself scrolls internally once its
      deliverables list is longer than the viewport (via overflow-y above),
@@ -643,7 +674,7 @@
   .modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 20px 22px 14px; border-bottom: 1px solid var(--line); }
   .modal-head h2 { font-size: 17px; margin: 4px 0 0; }
   .modal-close { border: none; background: var(--surface-sunken); color: var(--ink-500); width: 28px; height: 28px; border-radius: 8px; cursor: pointer; font-size: 13px; flex-shrink: 0; }
-  .modal-body { padding: 18px 22px 22px; overflow-y: auto; }
+  .modal-body { padding: 18px 22px 22px; overflow-x: hidden; overflow-y: auto; }
   .confirm-card { max-width: 420px; }
   .confirm-card .modal-head { border-bottom: none; padding-bottom: 4px; }
   .confirm-card .modal-head h2 { margin-top: 0; }
@@ -1112,7 +1143,7 @@
   .ai-chat-usage { font-size: 10.5px; font-weight: 700; color: var(--ink-500); background: var(--surface-sunken); border-radius: 10px; padding: 3px 9px; white-space: nowrap; }
   .ai-chat-usage.low { color: var(--warn); }
   .ai-chat-usage.zero { color: var(--crit); }
-  .ai-chat-panel-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .ai-chat-panel-messages { flex: 1; overflow-x: hidden; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
   .ai-chat-panel-input-row { flex-shrink: 0; border-top: 1px solid var(--line); padding: 10px 12px; display: flex; gap: 8px; align-items: flex-end; }
   .ai-chat-panel-input-row textarea { flex: 1; padding: 8px 12px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface-sunken); color: var(--ink-900); font-size: 13px; box-sizing: border-box; font-family: inherit; resize: none; }
   .ai-chat-panel-footer { flex-shrink: 0; padding: 10px 12px 12px; text-align: center; }
@@ -1197,7 +1228,12 @@
 
   /* ---------- Timeline / Gantt ---------- */
   .gantt-filter-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
-  .gantt-filter-row select { border: 1px solid var(--line); background: var(--surface); color: var(--ink-700); border-radius: 9px; padding: 8px 12px; font-size: 12.5px; font-weight: 600; min-width: 160px; }
+  .gantt-filter-row select { border: 1px solid var(--line); background: var(--surface); color: var(--ink-700); border-radius: var(--radius-sm); padding: 8px 12px; font-size: 12.5px; font-weight: 600; min-width: 160px; }
+  /* Item 28: the two date inputs in this row (Announcements/Reminders'
+     range filter) fell back to the raw OS-default square look -- the
+     global select/date-input base rule above now covers them, this just
+     matches their min-width to the select beside them. */
+  .gantt-filter-row input[type="date"] { min-width: 140px; }
   /* Item 113: the Timeline tab's own filter row keeps its 3 selects on one
      line by sharing the row instead of each sizing to its own content --
      #ganttScope's project-name options are long enough to otherwise push
@@ -1307,6 +1343,11 @@
      in the app (Focal Points, Bid Managers, etc.), which stays nowrap. */
   #perfTriagePane .fp-table { table-layout: fixed; }
   #perfTriagePane .fp-table td { white-space: normal; word-break: break-word; }
+  /* Item 9: BM Triage Status had the same nowrap-forces-horizontal-scroll
+     issue (Tender name + Bid Manager email are long, unbroken content) --
+     same fix as Manage Tracking above. */
+  #view-bmtriage .fp-table { table-layout: fixed; }
+  #view-bmtriage .fp-table td { white-space: normal; word-break: break-word; }
   /* Same wrap-instead-of-nowrap treatment, reusable -- Deliverables
      Configuration / Deliverables Catalog tables also carry sentence-length
      Name/Formula text that shouldn't force the table to horizontal-scroll. */
@@ -1318,10 +1359,17 @@
      columns out of view. */
   .fp-deliv-name { max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
   .fp-hint { padding: 14px 18px 0; }
-  /* Sticky column header for the Focal Points deliverables table -- a
-     bounded scroll box (like the Matrix table's own .matrix-wrap) rather
-     than sticky-to-viewport, so it stays consistent with that pattern. */
-  .fp-table-scroll { max-height: 65vh; overflow-y: auto; }
+  /* Item 9: this used to be its own bounded scroll box (max-height:65vh +
+     overflow-y:auto) with a sticky header inside it -- a second, redundant
+     vertical scrollbar on top of the main page's own, on the exact pages
+     (Focal Points, L0 Formulas, Audit History, Deliverables Catalog) where
+     this table is the only real content. The page's own scroll is enough
+     now; thead's sticky (below) is cancelled for these wrapped tables
+     specifically since it would otherwise stick against the page instead
+     and fight the topbar (whose own height varies as it wraps) -- every
+     other .fp-table (BM Triage, Manage Tracking, etc.), never wrapped in
+     this class, keeps its sticky header unaffected. */
+  .fp-table-scroll .fp-table thead th { position: static; }
   .fp-table thead th { position: sticky; top: 0; background: var(--surface); z-index: 2; }
   .fp-stats { display: flex; gap: 18px; padding: 14px 18px 0; font-size: 12.5px; color: var(--ink-700); }
   .fp-stats b { color: var(--ink-900); font-variant-numeric: tabular-nums; }
@@ -1338,7 +1386,7 @@
   .roster-picker-input-wrap { position: relative; }
   .roster-picker-input { width: 100%; border: 1px solid var(--line); background: var(--surface-sunken); border-radius: 8px; padding: 6px 9px; font-size: 12px; color: var(--ink-900); font-family: inherit; }
   .roster-picker-input:focus { background: var(--surface); border-color: var(--accent-line); outline: none; }
-  .roster-picker-dropdown { position: absolute; top: calc(100% + 2px); left: 0; right: 0; z-index: 10; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow-2); max-height: 180px; overflow-y: auto; }
+  .roster-picker-dropdown { position: absolute; top: calc(100% + 2px); left: 0; right: 0; z-index: 10; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow-2); max-height: 180px; overflow-x: hidden; overflow-y: auto; }
   .roster-picker-option { padding: 7px 10px; font-size: 12px; cursor: pointer; white-space: nowrap; }
   .roster-picker-option:hover { background: var(--surface-sunken); }
   .fp-add-row { display: flex; gap: 8px; align-items: center; padding: 14px 18px; border-top: 1px solid var(--line); flex-wrap: wrap; }
@@ -1405,18 +1453,30 @@
   /* ---------- top achievers ---------- */
   .achievers-row { align-items: stretch; }
   .achievers-row > .card { display: flex; flex-direction: column; }
-  .achievers-row > .card > #digestList { flex: 1; overflow-y: auto; }
+  .achievers-row > .card > #digestList { flex: 1; overflow-x: hidden; overflow-y: auto; }
   .achievers-stack { display: flex; flex-direction: column; gap: 18px; }
   .achievers-stack > .card { flex: 1; display: flex; flex-direction: column; }
   .achievers-stack > .card > .card-pad { flex: 1; display: flex; flex-direction: column; }
   .achievers-stack .achiever-list { flex: 1; }
+  /* Item 25: the full Top Achievers page (Owners/SME side by side, unlike
+     the Dashboard widget above) never stretched its two cards to match --
+     Owners and SME rarely have the same headcount, so one card ran taller
+     than the other and the row of two boxes read as mismatched/uneven.
+     Same stretch-and-flex-fill treatment as .achievers-row above. */
+  #view-scores .split { align-items: stretch; }
+  #view-scores .split > .card { display: flex; flex-direction: column; }
+  #view-scores .achiever-list { flex: 1; overflow-x: hidden; overflow-y: auto; }
   .achiever-row { display: flex; align-items: center; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--line); }
   .achiever-row:last-child { border-bottom: none; }
   .achiever-rank { font-size: 17px; width: 24px; text-align: center; }
-  .achiever-main { flex: 1; min-width: 0; }
+  /* Item 25: "narrow the names" -- capped rather than flex:1 all the way
+     to the pct column, so a long name/email doesn't crowd out the number
+     on a wide card; still min-width:0 so the ellipsis truncation below
+     keeps working. */
+  .achiever-main { flex: 0 1 auto; min-width: 0; max-width: 68%; }
   .achiever-email { font-size: 13px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .achiever-sub { font-size: 11.5px; color: var(--ink-500); margin-top: 1px; }
-  .achiever-pct { font-size: 15px; font-weight: 700; color: var(--good); }
+  .achiever-pct { font-size: 15px; font-weight: 700; color: var(--good); margin-left: auto; }
   .sample-tag { font-size: 9.5px; font-weight: 700; color: var(--ink-500); background: var(--surface-sunken); border-radius: 8px; padding: 1px 6px; text-transform: uppercase; letter-spacing: .3px; vertical-align: middle; }
 
   /* ---------- history department accordion ---------- */
@@ -1601,11 +1661,14 @@
 
   #view-report-masterpo .card-grid-heading, #view-report-overviewpo .card-grid-heading { font-size: 15px; font-weight: 800; color: var(--ink-900); margin: 4px 0 12px; }
 
-  /* Master PO's data table */
-  .rep-po-table-wrap { overflow-x: auto; background: var(--surface); border-radius: 10px; box-shadow: var(--shadow-1); border: 1.5px solid var(--line); }
-  .rep-po-table { border-collapse: collapse; width: 100%; font-size: 12.5px; min-width: 900px; }
-  .rep-po-table thead th { position: sticky; top: 0; background: var(--accent); color: #fff; text-align: left; padding: 10px 12px; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .02em; white-space: nowrap; }
-  .rep-po-table tbody td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; white-space: nowrap; }
+  /* Master PO's data table. Item 9: table-layout:fixed + wrapping cells
+     (same treatment as .data/.wrap-table elsewhere) instead of a 900px
+     floor + horizontal scroll -- nine columns is a lot to fit, but that's
+     the trade-off the no-horizontal-scroll rule calls for here too. */
+  .rep-po-table-wrap { overflow-x: hidden; background: var(--surface); border-radius: 10px; box-shadow: var(--shadow-1); border: 1.5px solid var(--line); }
+  .rep-po-table { border-collapse: collapse; width: 100%; font-size: 12.5px; table-layout: fixed; }
+  .rep-po-table thead th { position: sticky; top: 0; background: var(--accent); color: #fff; text-align: left; padding: 10px 12px; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .02em; white-space: normal; word-break: break-word; }
+  .rep-po-table tbody td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; white-space: normal; word-break: break-word; }
   .rep-po-table tbody tr:hover { background: var(--surface-sunken); }
 
   /* ---------- Budget Status report: one compact row per project -- a
@@ -1766,14 +1829,18 @@
   .pmonth-pill { font-size: 12.5px; font-weight: 700; padding: 7px 16px; border-radius: 20px; background: var(--neutral-bg); color: var(--ink-500); border: none; cursor: pointer; font-family: inherit; }
   .pmonth-pill:hover { background: var(--surface-sunken); }
   .pmonth-pill.active { background: var(--purple-1); color: #fff; }
-  .pcmp-table-wrap { overflow-x: auto; }
+  .pcmp-table-wrap { overflow-x: hidden; }
   /* table-layout:fixed + an explicit width on just the label column makes
      the browser divide the rest equally among the data columns -- the
      chart below mirrors this exact split (a matching-width axis gutter,
      then N equal center-aligned slices) so its dots land directly under
      the table column they belong to. */
   .pcmp-table { width: 100%; border-collapse: collapse; font-size: 12.5px; table-layout: fixed; }
-  .pcmp-table td { padding: 9px 14px; border-bottom: 1px solid var(--line); vertical-align: top; white-space: nowrap; text-align: center; }
+  /* Item 9: table-layout:fixed already keeps this table from growing past
+     its wrapper, but nowrap data cells (a long department name in the
+     header row) could still visually spill past their own fixed-width
+     cell -- wrap instead. */
+  .pcmp-table td { padding: 9px 14px; border-bottom: 1px solid var(--line); vertical-align: top; white-space: normal; word-break: break-word; text-align: center; }
   .pcmp-table td:first-child { width: 150px; color: var(--ink-500); font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; white-space: normal; text-align: left; }
   .pcmp-head-row td { font-weight: 800; font-size: 13px; color: var(--ink-900); }
   .spark-axis.pcmp-aligned, .spark-axis-spacer.pcmp-aligned { width: 150px; }
@@ -1845,7 +1912,7 @@
          viewport, but the nav item list (especially Admin, with the most
          items) is regularly taller than that -- without a scroll, whatever
          didn't fit was just clipped off-screen with no way to reach it. */
-      overflow-y: auto; -webkit-overflow-scrolling: touch;
+      overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch;
     }
     .rail.open { transform: translateX(0); }
     .rail-backdrop.open { display: block; }
