@@ -371,10 +371,11 @@
     archivedprojects: loadArchivedProjects, myrequests: loadMyRequests, masterpo: loadMasterPo,
     "report-performance": loadReportPerformance, "report-masterpo": loadReportMasterPo,
     "report-overviewpo": loadReportOverviewPo, "report-budgetstatus": loadReportBudgetStatus,
+    "report-custom": loadReportCustom,
   };
   var ADMIN_ONLY_VIEWS = [
     "create", "reports", "scores", "focalpoints", "followup", "tickets", "deliverablesconfig", "archivedprojects",
-    "report-performance", "report-masterpo", "report-overviewpo", "report-budgetstatus",
+    "report-performance", "report-masterpo", "report-overviewpo", "report-budgetstatus", "report-custom",
   ];
   // Item 110: BM Triage Status isn't strictly admin-only — a Bid Manager
   // acting as themselves (Owner role, since that's the role they'd pick to
@@ -442,7 +443,7 @@
   document.querySelectorAll(".report-category-box").forEach(function (btn) {
     btn.addEventListener("click", function () { switchView("report-" + btn.dataset.report); });
   });
-  [["repPerfBack", "reports"], ["repMasterPoBack", "reports"], ["repOverviewPoBack", "reports"], ["repBudgetBack", "reports"]]
+  [["repPerfBack", "reports"], ["repMasterPoBack", "reports"], ["repOverviewPoBack", "reports"], ["repBudgetBack", "reports"], ["repCustomBack", "reports"]]
     .forEach(function (pair) { document.getElementById(pair[0]).addEventListener("click", function () { switchView(pair[1]); }); });
   document.getElementById("repPerfPrintBtn").addEventListener("click", function () { window.print(); });
   document.getElementById("repMasterPoPrintBtn").addEventListener("click", function () { window.print(); });
@@ -5552,6 +5553,211 @@
     projSel.onchange = render;
     statusSel.onchange = render;
     render();
+  }
+
+  /* ================= CUSTOM REPORT BUILDER (item 11) =================
+     Deliberately reuses the platform's own existing, already-correct data
+     endpoints (Projects, Deliverables, Performance, PO Line Items,
+     Requests) instead of a new generic query layer -- every field offered
+     here is a real field one of those endpoints already returns, so
+     there's no risk of this ever showing stale or differently-computed
+     numbers than the dedicated pages for the same data. "Pick columns" is
+     purely a display-time concern: the full row is always fetched, only
+     which fields render as table columns changes. */
+  var RC_ENTITIES = {
+    projects: {
+      label: "Projects (L0/L1)",
+      fields: {
+        est_no: "Est No.", name: "Name", stage: "Stage", status: "Status", contract_status: "Contract Status",
+        bid_manager: "Bid Manager", project_manager: "Project Manager", region: "Region", scope: "Scope",
+        business_units: "Business Units", announcement_date: "Announced", bsd: "BSD",
+        is_international: "International", archived: "Archived",
+      },
+      defaultFields: ["est_no", "name", "stage", "status", "bid_manager"],
+      fetch: async function () {
+        var rows = await api("/api/projects");
+        return rows.map(function (p) {
+          return {
+            est_no: p.est_no, name: p.name, stage: p.stage, status: p.status, contract_status: p.contract_status || "",
+            bid_manager: p.bid_manager || "", project_manager: p.project_manager || "",
+            region: joinList(p.region), scope: joinList(p.scope), business_units: joinList(p.business_units),
+            announcement_date: fmtDate(p.announcement_date), bsd: fmtDate(p.bsd),
+            is_international: p.is_international ? "Yes" : "No", archived: p.archived ? "Yes" : "No",
+          };
+        });
+      },
+    },
+    deliverables: {
+      label: "Deliverables",
+      fields: {
+        est_no: "Est No.", project_name: "Project", stage: "Stage", department: "Department", item_no: "Item No.",
+        name: "Name", status: "Progress", deadline_status: "Deadline", due_date: "Due Date", owner: "Owner",
+        is_milestone: "Milestone", doc_total: "Docs", points_earned: "Points",
+      },
+      defaultFields: ["est_no", "item_no", "name", "department", "status", "due_date"],
+      fetch: async function () {
+        var rows = await api("/api/deliverables?actor_role=Admin");
+        return rows.map(function (d) {
+          return {
+            est_no: d.est_no, project_name: d.project_name, stage: d.stage, department: d.department,
+            item_no: d.item_no, name: d.name, status: d.status, deadline_status: d.deadline_status,
+            due_date: fmtDate(d.due_date), owner: d.owner, is_milestone: d.is_milestone ? "Yes" : "No",
+            doc_total: d.doc_total, points_earned: d.points_earned == null ? "" : d.points_earned,
+          };
+        });
+      },
+    },
+    performance: {
+      label: "Performance (by department)",
+      fields: { department: "Department", l0_pct: "L0 %", l0_status: "L0 Status", l1_pct: "L1 %", l1_status: "L1 Status" },
+      defaultFields: ["department", "l0_pct", "l0_status", "l1_pct", "l1_status"],
+      fetch: async function () {
+        var data = await api("/api/dashboard/performance");
+        return data.departments.map(function (d) {
+          return {
+            department: deptLabel(d.name, d.number),
+            l0_pct: d.l0.percentage === null ? "" : d.l0.percentage + "%", l0_status: d.l0.status,
+            l1_pct: d.l1.percentage === null ? "" : d.l1.percentage + "%", l1_status: d.l1.status,
+          };
+        });
+      },
+    },
+    po: {
+      label: "PO Line Items",
+      fields: {
+        est_no: "Est No.", project_name: "Project", department: "Department", category: "PO Category",
+        name: "PO / Deliverable", po_status: "PO Status", final_due_date: "Final Due Date",
+        actual_or_signed: "Actual / Signed", delay_label: "Delay",
+      },
+      defaultFields: ["est_no", "category", "name", "po_status", "delay_label"],
+      fetch: async function () {
+        var rows = await api("/api/reports/master-po?actor_role=Admin");
+        return rows.map(function (r) {
+          return {
+            est_no: r.est_no, project_name: r.project_name, department: r.department || "",
+            category: r.category.replace(/_/g, " "), name: r.name, po_status: _PO_STATUS_LABEL2[r.po_status] || r.po_status,
+            final_due_date: fmtDate(r.final_due_date), actual_or_signed: r.actual_or_signed ? fmtDate(r.actual_or_signed) : "",
+            delay_label: r.delay_label,
+          };
+        });
+      },
+    },
+    requests: {
+      label: "Requests (all types)",
+      fields: { type: "Type", title: "Request", requested_by: "Requested By", status: "Status", requested_at: "Requested" },
+      defaultFields: ["type", "title", "requested_by", "status", "requested_at"],
+      fetch: async function () {
+        var results = await Promise.all([
+          api("/api/deliverables/due-date-requests?status="),
+          api("/api/deliverables/reassignment-requests?status="),
+          api("/api/departments/sme-nominations?status="),
+          api("/api/projects/bid-value-requests?status="),
+          api("/api/departments/user-add-requests?status="),
+          api("/api/deliverables/config/formula-change-requests?status="),
+        ]);
+        var rows = [];
+        results[0].forEach(function (r) { rows.push({ type: (r.kind === "extension" ? "Extension" : "Hold"), title: r.item_no + " " + r.name, requested_by: r.requested_by_email, status: r.status, requested_at: fmtDate((r.requested_at || "").slice(0, 10)) }); });
+        results[1].forEach(function (r) { rows.push({ type: "Reassignment", title: r.item_no + " " + r.name, requested_by: r.from_email || "", status: r.status, requested_at: fmtDate((r.requested_at || "").slice(0, 10)) }); });
+        results[2].forEach(function (n) { rows.push({ type: "SME Nomination", title: n.item_no + " " + n.item_name, requested_by: n.email || "", status: n.status, requested_at: fmtDate((n.requested_at || "").slice(0, 10)) }); });
+        results[3].forEach(function (r) { rows.push({ type: "Bid Value Access", title: r.est_no + " " + r.name, requested_by: r.requested_by_email || "", status: r.status, requested_at: fmtDate((r.requested_at || "").slice(0, 10)) }); });
+        results[4].forEach(function (r) { rows.push({ type: "L0-L1 Group Add", title: (r.name || r.email), requested_by: r.email, status: r.status, requested_at: fmtDate((r.requested_at || "").slice(0, 10)) }); });
+        results[5].forEach(function (r) { rows.push({ type: "Formula Change", title: r.department, requested_by: r.requested_by_email || "", status: r.status, requested_at: fmtDate((r.requested_at || "").slice(0, 10)) }); });
+        return rows;
+      },
+    },
+  };
+  var rcEntity = "projects", rcRows = [], rcFields = {}, rcSort = { key: null, dir: 1 };
+  async function loadReportCustom() {
+    var toggle = document.getElementById("rcEntityToggle");
+    toggle.innerHTML = "";
+    Object.keys(RC_ENTITIES).forEach(function (key) {
+      var chip = el("button", "chip" + (key === rcEntity ? " active" : ""), RC_ENTITIES[key].label);
+      chip.addEventListener("click", function () { _rcSelectEntity(key); });
+      toggle.appendChild(chip);
+    });
+    document.getElementById("rcSearch").oninput = _rcRenderTable;
+    await _rcSelectEntity(rcEntity);
+  }
+  async function _rcSelectEntity(key) {
+    rcEntity = key;
+    document.querySelectorAll("#rcEntityToggle .chip").forEach(function (c, i) {
+      c.classList.toggle("active", Object.keys(RC_ENTITIES)[i] === key);
+    });
+    var def = RC_ENTITIES[key];
+    rcFields = {};
+    def.defaultFields.forEach(function (f) { rcFields[f] = true; });
+    rcSort = { key: null, dir: 1 };
+    document.getElementById("rcSearch").value = "";
+    _rcRenderFieldGrid();
+    rcRows = await def.fetch();
+    _rcRenderTable();
+  }
+  function _rcRenderFieldGrid() {
+    var grid = document.getElementById("rcFieldGrid");
+    grid.innerHTML = "";
+    var def = RC_ENTITIES[rcEntity];
+    Object.keys(def.fields).forEach(function (key) {
+      var label = el("label", "rc-field-check");
+      label.innerHTML = '<input type="checkbox" value="' + key + '"' + (rcFields[key] ? " checked" : "") + " /> " + def.fields[key];
+      label.querySelector("input").addEventListener("change", function (e) {
+        if (e.target.checked) rcFields[key] = true; else delete rcFields[key];
+        _rcRenderTable();
+      });
+      grid.appendChild(label);
+    });
+  }
+  function _rcRenderTable() {
+    var def = RC_ENTITIES[rcEntity];
+    var cols = Object.keys(def.fields).filter(function (k) { return rcFields[k]; });
+    var term = document.getElementById("rcSearch").value.trim().toLowerCase();
+    // Searches every field this entity has, not just the visible columns --
+    // "Jeddah" should still find a deliverable row even when Project isn't
+    // one of the currently-checked columns.
+    var allKeys = Object.keys(def.fields);
+    var filtered = !term ? rcRows : rcRows.filter(function (r) {
+      return allKeys.some(function (c) { return String(r[c] == null ? "" : r[c]).toLowerCase().indexOf(term) !== -1; });
+    });
+    if (rcSort.key) {
+      filtered = filtered.slice().sort(function (a, b) {
+        var av = a[rcSort.key], bv = b[rcSort.key];
+        if (av === bv) return 0;
+        return (av > bv ? 1 : -1) * rcSort.dir;
+      });
+    }
+    document.getElementById("rcCount").textContent = "Showing " + filtered.length + " of " + rcRows.length + " rows";
+    var head = document.getElementById("rcTableHead");
+    head.innerHTML = "";
+    if (!cols.length) {
+      head.appendChild(el("th", "", "Pick at least one column above"));
+    } else {
+      cols.forEach(function (c) {
+        var th = el("th", "", def.fields[c] + (rcSort.key === c ? (rcSort.dir === 1 ? " &#9650;" : " &#9660;") : ""));
+        th.style.cursor = "pointer";
+        th.addEventListener("click", function () {
+          rcSort = { key: c, dir: rcSort.key === c ? -rcSort.dir : 1 };
+          _rcRenderTable();
+        });
+        head.appendChild(th);
+      });
+    }
+    var body = document.getElementById("rcTableBody");
+    body.innerHTML = "";
+    if (!cols.length || !filtered.length) {
+      var tr0 = el("tr");
+      var td0 = el("td", "", cols.length ? "No matching rows." : "");
+      td0.setAttribute("colspan", String(Math.max(cols.length, 1)));
+      tr0.appendChild(td0);
+      body.appendChild(tr0);
+      return;
+    }
+    renderPager(document.getElementById("rcPager"), filtered, 15, function (pageItems) {
+      body.innerHTML = "";
+      pageItems.forEach(function (r) {
+        var tr = el("tr");
+        cols.forEach(function (c) { tr.appendChild(el("td", "", r[c] == null || r[c] === "" ? "&#8213;" : String(r[c]))); });
+        body.appendChild(tr);
+      });
+    });
   }
 
   /* ================= JOURNEY / HISTORY ================= */

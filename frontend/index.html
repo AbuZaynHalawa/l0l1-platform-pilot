@@ -1158,6 +1158,44 @@
           <span class="rcb-title">Budget Status Report</span>
           <span class="rcb-desc">Temp / Baseline / Locked Oracle budget status, every L1 project.</span>
         </button>
+        <!-- Item 11: custom report builder. -->
+        <button class="report-category-box" data-report="custom">
+          <span class="rcb-icon">&#128295;</span>
+          <span class="rcb-title">Custom Report</span>
+          <span class="rcb-desc">Pick a data source and exactly the columns you want, filter, and sort.</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- CUSTOM REPORT (item 11) -->
+    <section class="view" id="view-report-custom" hidden>
+      <button class="back-link" id="repCustomBack">&#8592; Back to Reports</button>
+      <div class="view-head">
+        <div>
+          <div class="eyebrow">Reports</div>
+          <h1>Custom Report</h1>
+          <p class="sub">Pick a data source, choose your columns, then filter and sort the table.</p>
+        </div>
+      </div>
+      <div class="card card-pad" style="margin-bottom:18px;">
+        <div class="rc-step-label">1. Data source</div>
+        <div class="filter-chips" id="rcEntityToggle"></div>
+        <div class="rc-step-label" style="margin-top:18px;">2. Columns</div>
+        <div class="rc-field-grid" id="rcFieldGrid"></div>
+      </div>
+      <div class="search-wrap" style="margin-bottom:14px;">
+        <span class="sic">&#128269;</span>
+        <input id="rcSearch" type="text" placeholder="Filter the rows below&#8230;" />
+      </div>
+      <div class="rep-po-count-line" id="rcCount"></div>
+      <div class="card table-card">
+        <div class="rep-po-table-wrap">
+          <table class="rep-po-table" id="rcTable">
+            <thead><tr id="rcTableHead"></tr></thead>
+            <tbody id="rcTableBody"></tbody>
+          </table>
+        </div>
+        <div class="pager" id="rcPager"></div>
       </div>
     </section>
 
