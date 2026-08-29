@@ -504,7 +504,10 @@
   .dash-kpi-icon.red { --kpi-ic-c: var(--algihaz-red); background: linear-gradient(135deg, var(--algihaz-red) 0%, var(--l0-2) 100%); }
   .dash-kpi-icon.green { --kpi-ic-c: var(--l1-1); background: linear-gradient(135deg, var(--l1-1) 0%, var(--l1-2) 100%); }
   .dash-kpi-icon.ai { --kpi-ic-c: var(--ai-accent); background: linear-gradient(135deg, var(--ai-accent) 0%, color-mix(in srgb, var(--ai-accent) 65%, #4338ca) 100%); }
-  .dash-kpi-icon.amber { --kpi-ic-c: #c87900; background: linear-gradient(135deg, #e8940e 0%, #c87900 100%); }
+  /* [consistency sweep] the only one of these 5 gradients on raw hex
+     instead of a token -- var(--warn) darkened via color-mix, same
+     derivation style as .ai's second stop just above. */
+  .dash-kpi-icon.amber { --kpi-ic-c: var(--warn); background: linear-gradient(135deg, var(--warn) 0%, color-mix(in srgb, var(--warn), #000 20%) 100%); }
   .dash-kpi-icon.success { --kpi-ic-c: var(--good); background: linear-gradient(135deg, var(--good) 0%, var(--l1-2) 100%); }
   .dash-kpi-body { min-width: 0; }
   .dash-kpi-value { font-size: 26px; font-weight: 800; color: var(--ink-900); line-height: 1.1; font-variant-numeric: tabular-nums; }
@@ -793,7 +796,11 @@
   .back-link:hover { color: var(--purple-1); }
   .detail-title { font-size: 21px; margin-top: 8px; }
   .stage-badge { font-size: 12px; font-weight: 800; padding: 5px 14px; border-radius: 999px; letter-spacing: .04em; }
-  .stage-badge.l0 { background: #fbe6d3; color: var(--l0-1); }
+  /* [consistency sweep] was a hardcoded light-peach hex while .l1 right
+     below already correctly used a token (--good-bg) -- color-mix off
+     --l0-1 instead, same pattern .pill.l1-tag already uses, so this
+     re-themes with dark mode like its L1 sibling does. */
+  .stage-badge.l0 { background: color-mix(in srgb, var(--l0-1) 15%, transparent); color: var(--l0-1); }
   .stage-badge.l1 { background: var(--good-bg); color: var(--good); }
   /* [queued]: same card chrome as the milestone timeline right below it
      (.full-stepper) -- background/border/radius/shadow copied straight
@@ -2042,7 +2049,10 @@
   .rep-po-badge.acceptable { background: var(--warn-bg); color: var(--warn); }
   .rep-po-badge.needs-action { background: var(--crit-bg); color: var(--crit); }
   .rep-po-badge.neutral { background: var(--surface-sunken); color: var(--ink-500); border: 1px solid var(--line); }
-  .rep-po-badge.hold { background: color-mix(in srgb, #8e44ad 15%, transparent); color: #8e44ad; }
+  /* [consistency sweep] the only sibling here still on a raw hex while
+     excellent/acceptable/needs-action/neutral all use tokens -- reuses
+     the app's own purple/AI-accent token instead of a one-off value. */
+  .rep-po-badge.hold { background: color-mix(in srgb, var(--purple-1) 15%, transparent); color: var(--purple-1); }
 
   .rep-po-pm-row { margin-bottom: 12px; }
   .rep-po-pm-label { font-size: 10px; color: var(--ink-500); font-weight: 700; text-transform: uppercase; letter-spacing: .03em; margin-bottom: 5px; }
