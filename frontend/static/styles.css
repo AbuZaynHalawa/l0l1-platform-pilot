@@ -451,8 +451,8 @@
   }
   .dpc-head .dpc-tag, .dpc-head > div:last-child { position: relative; z-index: 1; }
   .dash-project-card .dpc-tag {
-    width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center;
-    font-size: 12.5px; font-weight: 800; flex-shrink: 0; background: rgba(255,255,255,.22); color: #fff;
+    width: 44px; height: 44px; border-radius: 11px; display: flex; align-items: center; justify-content: center;
+    font-size: 22px; font-weight: 800; flex-shrink: 0; background: rgba(255,255,255,.22); color: #fff;
   }
   .dash-project-card .dpc-value { font-size: 30px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; color: #fff; }
   .dash-project-card .dpc-label { font-size: 12.5px; color: rgba(255,255,255,.85); font-weight: 700; margin-top: 3px; }
@@ -1107,6 +1107,7 @@
   .mock-stat.tone-warn .value { color: var(--warn); }
   .mock-stat.tone-crit .value { color: var(--crit); }
   .mock-stat.tone-neutral .value { color: var(--ink-700); }
+  .mock-stat.tone-accent .value { color: var(--accent); }
 
   .tour-feature-list { display: flex; flex-direction: column; gap: 12px; margin: 14px 0; }
   .tour-feature-row { display: flex; gap: 12px; align-items: flex-start; }
