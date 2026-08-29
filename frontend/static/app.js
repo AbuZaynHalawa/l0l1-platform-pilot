@@ -845,6 +845,37 @@
     ["", "All"], ["pending_review", "Pending My Review"], ["rejected", "Rejected by Me"],
     ["approved", "Approved by Me"],
   ];
+  // Item 3: a segmented bar + clickable legend (same .psc2-bar/.psb-seg/
+  // .psc2-legend pattern the Performance tab's own summary cards use, see
+  // renderPerfSummaryCards) instead of a row of plain filter pills.
+  // `filters` is a DEADLINE_FILTERS/PROGRESS_FILTERS-shaped array (its
+  // leading ["", "All"] entry is dropped -- that's a reset, not a real
+  // segment); `classMap` maps each real value to good/warn/crit/"" (empty
+  // = neutral, matching item 32's Dashboard cards); clicking the active
+  // segment/legend item again clears the filter.
+  function _renderAssignedFilterBar(containerId, filters, base, statusGetter, currentFilter, classMap, onSelect) {
+    var container = document.getElementById(containerId);
+    var real = filters.filter(function (f) { return f[0]; });
+    var total = base.length;
+    var counts = {};
+    real.forEach(function (f) { counts[f[0]] = base.filter(function (d) { return statusGetter(d) === f[0]; }).length; });
+    var segsHtml = real.map(function (f) {
+      var w = total ? (counts[f[0]] / total * 100) : 0;
+      var cls = classMap[f[0]] || "neutral";
+      return '<div class="psb-seg ' + cls + '" style="width:' + w + '%;" title="' + f[1] + ': ' + counts[f[0]] + '"></div>';
+    }).join("");
+    var legendHtml = real.map(function (f) {
+      var active = currentFilter === f[0];
+      var dim = currentFilter && !active;
+      var cls = classMap[f[0]] || "neutral";
+      return '<span class="psc2-legend-item ' + cls + (active ? " active" : "") + (dim ? " dim" : "") + '" data-val="' + f[0] + '">' +
+        '<span class="dot"></span>' + f[1] + " " + counts[f[0]] + "</span>";
+    }).join("");
+    container.innerHTML = '<div class="psc2-bar">' + segsHtml + '</div><div class="psc2-legend">' + legendHtml + "</div>";
+    container.querySelectorAll("[data-val]").forEach(function (item) {
+      item.addEventListener("click", function () { onSelect(currentFilter === item.dataset.val ? "" : item.dataset.val); });
+    });
+  }
   function deliverableMatchesFilters(d) {
     if (assignedDeadlineFilter && d.deadline_status !== assignedDeadlineFilter) return false;
     if (assignedProgressFilter && d.status !== assignedProgressFilter) return false;
@@ -925,25 +956,22 @@
     document.getElementById("assignedBadge").textContent = everything.filter(function (d) { return d.deadline_status === "due"; }).length || "";
 
     var deadlineBase = assignedProgressFilter ? all.filter(function (d) { return d.status === assignedProgressFilter; }) : all;
-    var dchips = document.getElementById("assignedDeadlineChips");
-    dchips.innerHTML = "";
-    DEADLINE_FILTERS.forEach(function (f) {
-      var count = f[0] ? deadlineBase.filter(function (d) { return d.deadline_status === f[0]; }).length : deadlineBase.length;
-      var chip = el("button", "chip" + (assignedDeadlineFilter === f[0] ? " active" : ""), f[1] + ' <span class="cnum">' + count + '</span>');
-      chip.addEventListener("click", function () { assignedDeadlineFilter = f[0]; loadAssigned(); });
-      dchips.appendChild(chip);
-    });
-
     var progressBase = assignedDeadlineFilter ? all.filter(function (d) { return d.deadline_status === assignedDeadlineFilter; }) : all;
-    var pchips = document.getElementById("assignedProgressChips");
-    pchips.innerHTML = "";
     var progressFilterSet = CURRENT_ROLE === "SME" ? SME_PROGRESS_FILTERS : PROGRESS_FILTERS;
-    progressFilterSet.forEach(function (f) {
-      var count = f[0] ? progressBase.filter(function (d) { return d.status === f[0]; }).length : progressBase.length;
-      var chip = el("button", "chip" + (assignedProgressFilter === f[0] ? " active" : ""), f[1] + ' <span class="cnum">' + count + '</span>');
-      chip.addEventListener("click", function () { assignedProgressFilter = f[0]; loadAssigned(); });
-      pchips.appendChild(chip);
-    });
+    // Item 3: two clickable segmented bars (same .psc2-bar/.psb-seg/
+    // .psc2-legend pattern the Performance tab's own summary cards use)
+    // instead of a row of plain filter pills -- same semantic colors the
+    // Dashboard's own Deadline/Progress Status cards use (item 32): not_due
+    // neutral, due/late crit, early/on_time good; no_progress neutral,
+    // in_progress/pending_review warn, approved good, rejected crit.
+    _renderAssignedFilterBar("assignedDeadlineBar", DEADLINE_FILTERS, deadlineBase,
+      function (d) { return d.deadline_status; }, assignedDeadlineFilter,
+      { not_due: "", due: "crit", early: "good", on_time: "good", late: "crit" },
+      function (v) { assignedDeadlineFilter = v; loadAssigned(); });
+    _renderAssignedFilterBar("assignedProgressBar", progressFilterSet, progressBase,
+      function (d) { return d.status; }, assignedProgressFilter,
+      { no_progress: "", in_progress: "warn", pending_review: "warn", approved: "good", rejected: "crit" },
+      function (v) { assignedProgressFilter = v; loadAssigned(); });
 
     var estSel = document.getElementById("assignedEstFilter");
     var seenEsts = {};
@@ -2718,10 +2746,34 @@
   // "Remind" button (a single id) or "Send Reminders..." (every id
   // currently shown), same modal either way so the recipient-mix/message/
   // attachment options aren't duplicated between the two entry points.
-  function openRemindModal(ids, onDone) {
-    document.getElementById("remindModalTitle").textContent = ids.length === 1 ? "Send Reminder" : "Send Reminders";
+  // Item 29: `items` are full deliverable-like objects (id + item_no/name/
+  // est_no to actually show, not just the id) -- each gets its own
+  // checkbox, checked by default, so a reminder can be trimmed down right
+  // here before it goes out instead of being a fixed, invisible set
+  // decided entirely by whichever filters were active on the page that
+  // opened this.
+  function _remindSelectedIds() {
+    return Array.from(document.querySelectorAll('#remindDelivChecklist input[type="checkbox"]:checked'))
+      .map(function (cb) { return parseInt(cb.value, 10); });
+  }
+  function _updateRemindModalCount() {
+    var n = _remindSelectedIds().length;
     document.getElementById("remindModalCount").textContent =
-      ids.length + " deliverable" + (ids.length === 1 ? "" : "s") + " selected.";
+      n + " of " + document.querySelectorAll('#remindDelivChecklist input[type="checkbox"]').length + " deliverable(s) selected.";
+  }
+  function openRemindModal(items, onDone) {
+    document.getElementById("remindModalTitle").textContent = items.length === 1 ? "Send Reminder" : "Send Reminders";
+    var checklist = document.getElementById("remindDelivChecklist");
+    checklist.innerHTML = "";
+    items.forEach(function (d) {
+      var row = el("label", "remind-deliv-row");
+      row.innerHTML = '<input type="checkbox" value="' + d.id + '" checked />' +
+        '<span>' + (d.item_no ? d.item_no + " &middot; " : "") + (d.name || "") +
+        (d.est_no ? ' <span class="remind-deliv-est">' + d.est_no + '</span>' : "") + "</span>";
+      row.querySelector("input").addEventListener("change", _updateRemindModalCount);
+      checklist.appendChild(row);
+    });
+    _updateRemindModalCount();
     document.getElementById("remindIncludeOwner").checked = true;
     document.getElementById("remindIncludeSme").checked = false;
     document.getElementById("remindIncludeManager").checked = false;
@@ -2732,6 +2784,8 @@
     var newSendBtn = sendBtn.cloneNode(true); // drop any listener from a previous open
     sendBtn.parentNode.replaceChild(newSendBtn, sendBtn);
     newSendBtn.addEventListener("click", async function () {
+      var ids = _remindSelectedIds();
+      if (!ids.length) { showToast("Pick at least one deliverable", true); return; }
       newSendBtn.disabled = true;
       try {
         var fd = new FormData();
@@ -6890,7 +6944,7 @@
         var side = el("div", "fu-row-side");
         side.appendChild(el("span", "fu-overdue-badge " + sev, d.days_overdue + " day" + (d.days_overdue === 1 ? "" : "s") + " overdue"));
         var remindBtn = el("button", "btn", "Remind");
-        remindBtn.addEventListener("click", function () { openRemindModal([d.id]); });
+        remindBtn.addEventListener("click", function () { openRemindModal([d]); });
         side.appendChild(remindBtn);
         row.appendChild(side);
         return row;
@@ -6907,9 +6961,8 @@
       }
 
       document.getElementById("fuRemindAll").onclick = function () {
-        var ids = deptFiltered.map(function (d) { return d.id; });
-        if (!ids.length) { showToast("Nothing shown to remind", true); return; }
-        openRemindModal(ids);
+        if (!deptFiltered.length) { showToast("Nothing shown to remind", true); return; }
+        openRemindModal(deptFiltered);
       };
     }
     estSel.onchange = renderFollowUpList;

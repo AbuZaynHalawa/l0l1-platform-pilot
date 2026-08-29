@@ -423,6 +423,12 @@ class DeliverableDefinitionChangeLog(Base):
     after_snapshot = Column(JSON, nullable=True)
     summary = Column(Text, nullable=True)
     origin_request_id = Column(Integer, ForeignKey("formula_change_requests.id"), nullable=True)
+    # Item 34: set True on a row once it's been reverted (on the reverted
+    # row itself, and on the "revert" row that undid it) -- the change is
+    # no longer in effect, so the Audit History list hides both, same as
+    # if it never happened. NULL/False means "still in effect," the
+    # default for every existing row.
+    reverted = Column(Boolean, nullable=True)
 
     definition = relationship("DeliverableDefinition")
 
@@ -440,6 +446,7 @@ class DepartmentChangeLog(Base):
     before_snapshot = Column(JSON, nullable=True)
     after_snapshot = Column(JSON, nullable=True)
     summary = Column(Text, nullable=True)
+    reverted = Column(Boolean, nullable=True)  # item 34, same as DeliverableDefinitionChangeLog's
 
     department = relationship("Department")
 

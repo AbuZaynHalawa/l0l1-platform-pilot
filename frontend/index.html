@@ -112,7 +112,7 @@
       <div class="view-head">
         <div>
           <div class="eyebrow">Overview</div>
-          <h1>Here's where things stand</h1>
+          <h1>Dashboard</h1>
           <p class="sub">Click My Items below to narrow this to just what's assigned to you.</p>
         </div>
       </div>
@@ -231,8 +231,18 @@
         <button class="chip" data-stage="L0">L0 Tenders</button>
         <button class="chip" data-stage="L1">L1 Projects</button>
       </div>
-      <div class="filter-chips-row"><span class="filter-chips-label">Deadline</span><div class="filter-chips" id="assignedDeadlineChips"></div></div>
-      <div class="filter-chips-row"><span class="filter-chips-label">Progress</span><div class="filter-chips" id="assignedProgressChips"></div></div>
+      <!-- Item 3: clickable segmented bars (same pattern as the Performance
+           tab's own summary cards) instead of plain filter pills -- each
+           bar is its own row, filtering the list below the instant a
+           segment/legend item is clicked. -->
+      <div class="card assigned-bar-card">
+        <div class="assigned-bar-label">Deadline Status</div>
+        <div class="assigned-filter-bar" id="assignedDeadlineBar"></div>
+      </div>
+      <div class="card assigned-bar-card">
+        <div class="assigned-bar-label">Progress Status</div>
+        <div class="assigned-filter-bar" id="assignedProgressBar"></div>
+      </div>
       <div class="filter-chips-row"><span class="filter-chips-label">Est No.</span><select id="assignedEstFilter"><option value="">All</option></select></div>
       <div class="filter-chips-row"><span class="filter-chips-label">Sort By</span>
         <select id="assignedSortBy">
@@ -916,7 +926,7 @@
       <div class="view-head">
         <div>
           <div class="eyebrow">Departments Wide</div>
-          <h1>Department Performance</h1>
+          <h1>Performance</h1>
           <p class="sub">Live approval rate per department, this pilot.</p>
         </div>
         <div class="report-actions">
@@ -1070,6 +1080,20 @@
           <p class="sub">Every request you've sent to an Admin &#8212; due-date extensions/holds, reassignments,
             SME nominations, Bid Value access, L0-L1 Group adds, and formula change suggestions &#8212; and
             where each one stands. Click any row for the full details.</p>
+        </div>
+      </div>
+      <!-- Item 22: what you can actually request, and where -- previously
+           only listed in the prose above, with nothing to see once a user
+           had zero requests of their own. -->
+      <div class="card card-pad" style="margin-bottom:18px;">
+        <div class="section-title" style="padding:0 0 12px;">What you can request</div>
+        <div class="req-type-grid">
+          <div class="req-type"><b>Due-Date Extension / Hold</b><span>Open a deliverable you own and click <b>Request Extension</b> or <b>Put On Hold</b>.</span></div>
+          <div class="req-type"><b>Reassignment</b><span>Open a deliverable you own and click <b>Reassign</b>.</span></div>
+          <div class="req-type"><b>SME Nomination</b><span>Click <b>Become an SME</b> at the top of any page.</span></div>
+          <div class="req-type"><b>Bid Value Access</b><span>On a project's detail page, next to Bid Value, click <b>Request Access</b>.</span></div>
+          <div class="req-type"><b>L0-L1 Group Add</b><span>Click <b>Add to L0-L1 Group</b> at the top of any page.</span></div>
+          <div class="req-type"><b>Formula Change</b><span>On Deliverables Catalog, click <b>Suggest a Change</b> on any item.</span></div>
         </div>
       </div>
       <div class="card table-card">
@@ -1274,7 +1298,7 @@
       <div class="view-head">
         <div>
           <div class="eyebrow">Admin</div>
-          <h1>Create L0 / L1 Project</h1>
+          <h1>Create L0 / L1</h1>
           <p class="sub">Really creates the record, really provisions folders, really sends the announcement.</p>
         </div>
       </div>
@@ -1550,6 +1574,14 @@
       <button class="modal-close" id="remindModalClose">&#10005;</button>
     </div>
     <div class="modal-body">
+      <!-- Item 29: which deliverables this reminder actually covers,
+           each individually excludable before sending -- previously a
+           fixed, invisible set decided entirely by whatever filters were
+           active on the page that opened this. -->
+      <div class="field" id="remindDelivField">
+        <label>Deliverables</label>
+        <div class="remind-deliv-checklist" id="remindDelivChecklist"></div>
+      </div>
       <div class="field">
         <label>Include as Recipients</label>
         <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:6px;">

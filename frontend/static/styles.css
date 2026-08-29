@@ -320,12 +320,24 @@
   .subtab-row .chip .cnum { background: var(--surface-sunken); }
   .dash-focus { display: flex; align-items: center; gap: 8px; }
   .dash-focus input { border: 1px solid var(--line); background: var(--surface-sunken); border-radius: 20px; padding: 7px 14px; font-size: 12.5px; color: var(--ink-900); font-family: inherit; width: 190px; }
-  .view-head h1 { font-size: 23px; }
+  /* Item 18: one purple header per view (the exact nav-tab name) instead
+     of a small purple eyebrow label stacked above a separate black h1 --
+     the eyebrow (still used standalone elsewhere -- modal heads, report
+     cards) is hidden only inside .view-head, and h1 takes over its color
+     and a touch more size/weight to read as the page's real title. */
+  .view-head .eyebrow { display: none; }
+  .view-head h1 { font-size: 25px; color: var(--purple-1); }
   .view-head p.sub { color: var(--ink-500); font-size: 13.5px; margin-top: 3px; }
   .eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--purple-1); font-weight: 700; margin-bottom: 6px; }
 
   .card { background: var(--surface); border: 1.5px solid var(--card-border); border-radius: var(--radius); box-shadow: var(--shadow-1); }
   .card-pad { padding: 22px 24px; }
+  /* Item 22: My Requests' "what you can request" reference grid. */
+  .req-type-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+  .req-type { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; background: var(--surface-sunken); border-radius: var(--radius-sm); }
+  .req-type b { font-size: 12.5px; color: var(--ink-900); }
+  .req-type span { font-size: 12px; color: var(--ink-500); line-height: 1.5; }
+  .req-type span b { color: var(--ink-700); font-size: 12px; }
 
   .stat-row { display: flex; flex-direction: column; gap: 16px; margin-bottom: 22px; }
   .stat-tile { padding: 16px 18px; }
@@ -693,6 +705,13 @@
   .modal-head h2 { font-size: 17px; margin: 4px 0 0; }
   .modal-close { border: none; background: var(--surface-sunken); color: var(--ink-500); width: 28px; height: 28px; border-radius: 8px; cursor: pointer; font-size: 13px; flex-shrink: 0; }
   .modal-body { padding: 18px 22px 22px; overflow-x: hidden; overflow-y: auto; }
+  /* Item 29: the Send Reminder modal's per-deliverable checklist. */
+  .remind-deliv-checklist { max-height: 180px; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); margin-top: 6px; }
+  .remind-deliv-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; font-size: 12.5px; color: var(--ink-700); border-bottom: 1px solid var(--line); cursor: pointer; }
+  .remind-deliv-row:last-child { border-bottom: none; }
+  .remind-deliv-row:hover { background: var(--surface-sunken); }
+  .remind-deliv-row input { flex-shrink: 0; }
+  .remind-deliv-est { color: var(--ink-500); font-weight: 700; }
   .confirm-card { max-width: 420px; }
   .confirm-card .modal-head { border-bottom: none; padding-bottom: 4px; }
   .confirm-card .modal-head h2 { margin-top: 0; }
@@ -1089,6 +1108,12 @@
   .filter-chips-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
   .filter-chips-row .filter-chips { margin-bottom: 0; }
   .filter-chips-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-500); flex: none; width: 62px; }
+  /* Item 3: Assigned Deliverables' Deadline/Progress bars, each its own
+     small card above the list. */
+  .assigned-bar-card { padding: 14px 18px; margin-bottom: 10px; }
+  .assigned-bar-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-500); margin-bottom: 8px; }
+  .assigned-filter-bar .psc2-bar { height: 12px; }
+  .assigned-filter-bar .psc2-legend { margin-top: 12px; }
   .chip { border: 1px solid var(--line); background: var(--surface); color: var(--ink-700); border-radius: var(--radius-sm); padding: 8px 15px; font-size: 12.5px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 7px; transition: background .15s, box-shadow .15s; }
   /* Item 156: Est No. filter reuses the chip row's label but is a plain
      select (too many values for a chip row to stay readable). */
@@ -1743,6 +1768,15 @@
   .psb-seg.excellent { background: var(--good); }
   .psb-seg.acceptable { background: var(--warn); }
   .psb-seg.needs-action { background: var(--crit); }
+  /* Item 3: generic semantic variants (vs. the Excellent/Acceptable/Needs
+     Action words above, specific to Performance) so this same bar+legend
+     pattern reuses cleanly for Assigned Deliverables' Deadline/Progress
+     bars -- same --good/--warn/--crit/--neutral tokens every pill/status
+     dot in the app already uses. */
+  .psb-seg.good { background: var(--good); }
+  .psb-seg.warn { background: var(--warn); }
+  .psb-seg.crit { background: var(--crit); }
+  .psb-seg.neutral { background: var(--neutral); }
   .psc2-legend { display: flex; gap: 14px; margin-top: 10px; flex-wrap: wrap; }
   .psc2-legend-item { display: flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; color: var(--ink-700); cursor: pointer; border-radius: 6px; padding: 2px 4px; margin: -2px -4px; transition: opacity .15s ease, color .15s ease; }
   .psc2-legend-item:hover { background: var(--surface-sunken); }
@@ -1755,6 +1789,10 @@
   .psc2-legend-item.excellent .dot { background: var(--good); }
   .psc2-legend-item.acceptable .dot { background: var(--warn); }
   .psc2-legend-item.needs-action .dot { background: var(--crit); }
+  .psc2-legend-item.good .dot { background: var(--good); }
+  .psc2-legend-item.warn .dot { background: var(--warn); }
+  .psc2-legend-item.crit .dot { background: var(--crit); }
+  .psc2-legend-item.neutral .dot { background: var(--neutral); }
   .psc2-hint { font-size: 10.5px; color: var(--ink-300); text-align: right; margin-top: 8px; }
 
   .perf-filter-card { padding: 16px 20px; margin-bottom: 20px; border-top: 3px solid var(--ink-700); }

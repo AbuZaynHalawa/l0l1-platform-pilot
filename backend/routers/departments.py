@@ -76,11 +76,14 @@ def _diff_department_snapshots(before: dict | None, after: dict | None) -> list[
 
 def _log_department_change(db: Session, dept: "models.Department", change_type: str,
                             before: dict | None, after: dict, actor_email: str | None,
-                            actor_name: str | None, summary: str) -> None:
-    db.add(models.DepartmentChangeLog(
+                            actor_name: str | None, summary: str) -> "models.DepartmentChangeLog":
+    log = models.DepartmentChangeLog(
         department_id=dept.id, actor_email=actor_email or None, actor_name=actor_name or None,
         change_type=change_type, before_snapshot=before, after_snapshot=after, summary=summary,
-    ))
+    )
+    db.add(log)
+    db.flush()
+    return log
 
 
 class DepartmentCreate(BaseModel):
@@ -187,7 +190,13 @@ def delete_department(department_id: int, payload: DepartmentActorOnly = Departm
 
 @router.get("/change-history")
 def list_department_change_history(department_id: int | None = None, limit: int = 100, db: Session = Depends(get_db)):
-    q = db.query(models.DepartmentChangeLog).order_by(models.DepartmentChangeLog.changed_at.desc())
+    # Item 34: same as the deliverable-definition side -- a reverted change
+    # (and the revert entry that undid it) is hidden from the default list.
+    q = (
+        db.query(models.DepartmentChangeLog)
+        .filter(models.DepartmentChangeLog.reverted.is_not(True))
+        .order_by(models.DepartmentChangeLog.changed_at.desc())
+    )
     if department_id is not None:
         q = q.filter(models.DepartmentChangeLog.department_id == department_id)
     rows = q.limit(limit).all()
@@ -217,8 +226,14 @@ def revert_department_change(log_id: int, payload: DepartmentActorOnly, db: Sess
     dept.number = snap["number"]
     dept.is_international = snap["is_international"]
     dept.active = snap["active"]
-    _log_department_change(db, dept, "edited", before, _dept_snapshot(dept),
-                            payload.actor_email, payload.actor_name, f"Reverted department '{dept.name}' to an earlier version")
+    revert_log = _log_department_change(db, dept, "edited", before, _dept_snapshot(dept),
+                                         payload.actor_email, payload.actor_name,
+                                         f"Reverted department '{dept.name}' to an earlier version")
+    # Item 34: same as the deliverable-definition side -- both the change
+    # this undid and the revert action itself drop out of the default
+    # Audit History list, net effect is back to how it was.
+    log.reverted = True
+    revert_log.reverted = True
     db.commit()
     return _dept_snapshot(dept) | {"id": dept.id}
 

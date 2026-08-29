@@ -570,7 +570,14 @@ def toggle_admin_definition_active(definition_id: int, payload: ActiveToggle, db
 
 @router.get("/admin/change-history")
 def list_admin_change_history(deliverable_definition_id: int | None = None, limit: int = 100, db: Session = Depends(get_db)):
-    q = db.query(models.DeliverableDefinitionChangeLog).order_by(models.DeliverableDefinitionChangeLog.changed_at.desc())
+    # Item 34: a reverted change is back to how it was before it happened --
+    # hidden from the default list "like it never happened," along with the
+    # revert entry itself (see revert_admin_change, which marks both rows).
+    q = (
+        db.query(models.DeliverableDefinitionChangeLog)
+        .filter(models.DeliverableDefinitionChangeLog.reverted.is_not(True))
+        .order_by(models.DeliverableDefinitionChangeLog.changed_at.desc())
+    )
     if deliverable_definition_id is not None:
         q = q.filter(models.DeliverableDefinitionChangeLog.deliverable_definition_id == deliverable_definition_id)
     rows = q.limit(limit).all()
@@ -614,9 +621,14 @@ def revert_admin_change(log_id: int, payload: DefinitionActorOnly, db: Session =
     if branch_payloads:
         _apply_branches(db, d, branch_payloads)
     after = _definition_snapshot(d)
-    _log_definition_change(db, d, "revert", "field_edit", before, after,
-                            payload.actor_email, payload.actor_name,
-                            f"Reverted {d.item_no} {d.name} to an earlier version")
+    revert_log = _log_definition_change(db, d, "revert", "field_edit", before, after,
+                                         payload.actor_email, payload.actor_name,
+                                         f"Reverted {d.item_no} {d.name} to an earlier version")
+    # Item 34: the change this just undid, and the revert action itself,
+    # are both hidden from the default Audit History list -- net effect is
+    # back to how it was, nothing here still "deviates from default."
+    log.reverted = True
+    revert_log.reverted = True
     db.commit()
     affected = _force_recompute_affected(db, d.id)
     return _definition_out(d) | {"projects_recomputed": affected}
