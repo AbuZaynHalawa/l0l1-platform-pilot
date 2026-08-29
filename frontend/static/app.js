@@ -5682,16 +5682,25 @@
     var projectOf = function (r) { return r.est_no + " " + r.project_name; };
     var categoryOf = function (r) { return r.category.replace(/_/g, " "); };
     var poStatusOf = function (r) { return _PO_STATUS_LABEL2[r.po_status] || r.po_status; };
+    var itemOf = function (r) { return r.current_item_no || ""; };
+    var nameOf = function (r) { return r.name; };
+    var finalDueOf = function (r) { return fmtDate(r.final_due_date); };
+    var actualSignedOf = function (r) { return r.actual_or_signed ? fmtDate(r.actual_or_signed) : ""; };
+    var delayOf = function (r) { return r.delay_label; };
+    // [queued: filterability treatment] item/name/final_due/actual_signed/
+    // delay were filterable:false -- same "too many uniques" judgment call
+    // as Assigned Deliverables' Deliverable/Due Date columns originally
+    // got, reversed the same way once asked for consistently everywhere.
     var columns = [
       { key: "contract_status", get: function (r) { return r.contract_status || ""; }, uniqueValues: uniq(function (r) { return r.contract_status || ""; }) },
       { key: "project", get: projectOf, uniqueValues: uniq(projectOf) },
-      { key: "item", get: function (r) { return r.current_item_no || ""; }, filterable: false },
-      { key: "name", get: function (r) { return r.name; }, filterable: false },
+      { key: "item", get: itemOf, uniqueValues: uniq(itemOf) },
+      { key: "name", get: nameOf, uniqueValues: uniq(nameOf) },
       { key: "category", get: categoryOf, uniqueValues: uniq(categoryOf) },
       { key: "po_status", get: poStatusOf, uniqueValues: uniq(poStatusOf) },
-      { key: "final_due", get: function (r) { return fmtDate(r.final_due_date); }, sortValue: function (r) { return r.final_due_date || ""; }, filterable: false },
-      { key: "actual_signed", get: function (r) { return r.actual_or_signed ? fmtDate(r.actual_or_signed) : ""; }, sortValue: function (r) { return r.actual_or_signed || ""; }, filterable: false },
-      { key: "delay", get: function (r) { return r.delay_label; }, filterable: false },
+      { key: "final_due", get: finalDueOf, sortValue: function (r) { return r.final_due_date || ""; }, uniqueValues: uniq(finalDueOf) },
+      { key: "actual_signed", get: actualSignedOf, sortValue: function (r) { return r.actual_or_signed || ""; }, uniqueValues: uniq(actualSignedOf) },
+      { key: "delay", get: delayOf, uniqueValues: uniq(delayOf) },
     ];
     // Item 36: .rep-po-table is reused by the Custom Report table too (a
     // second, empty instance elsewhere in the DOM) -- anchor off
@@ -9303,9 +9312,13 @@
         return out.sort(function (a, b) { return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }); });
       };
     }
+    var questionOf = function (e) { return e.question; };
     var columns = [
-      { key: "id", get: function (e) { return e.id; }, filterable: false },
-      { key: "question", get: function (e) { return e.question; }, filterable: false },
+      { key: "id", get: function (e) { return e.id; }, filterable: false }, // "#" row rank, not a real filter dimension
+      // [queued: filterability treatment] was filterable:false (a whole
+      // question sentence, near-unique per row) -- same reversed judgment
+      // call as Assigned Deliverables' Deliverable column.
+      { key: "question", get: questionOf, uniqueValues: uniq(questionOf) },
       { key: "stage", get: function (e) { return e.category === "L0" || e.category === "L1" ? e.category : ""; }, uniqueValues: uniq(function (e) { return e.category === "L0" || e.category === "L1" ? e.category : ""; }) },
       { key: "est_no", get: function (e) { return e.est_no || ""; }, uniqueValues: uniq(function (e) { return e.est_no || ""; }) },
       { key: "deliverable", get: function (e) { return e.deliverable || ""; }, uniqueValues: uniq(function (e) { return e.deliverable || ""; }) },
@@ -9610,12 +9623,19 @@
       };
     }
     var statusGet = function (r) { return r.status === "resolved" ? "Resolved" : "Open"; };
+    var messageOf = function (r) { return r.message; };
+    // Matches the displayed dd-Mon-yyyy label (fmtDate, same as the row
+    // render below) rather than the raw ISO date the old filterable:false
+    // get() used -- keeps the filter's value-space the same text the
+    // checkbox list actually shows.
+    var dateOf = function (r) { return fmtDate((r.created_at || "").slice(0, 10)); };
+    // [queued: filterability treatment] message/date were filterable:false.
     var columns = [
       null, // Q-number is a display-only rank, not a real sortable/filterable field
-      { key: "message", get: function (r) { return r.message; }, filterable: false },
+      { key: "message", get: messageOf, uniqueValues: uniq(messageOf) },
       { key: "asker", get: function (r) { return r.name || r.email; }, uniqueValues: uniq(function (r) { return r.name || r.email; }) },
       { key: "status", get: statusGet, uniqueValues: uniq(statusGet) },
-      { key: "date", get: function (r) { return (r.created_at || "").slice(0, 10); }, filterable: false },
+      { key: "date", get: dateOf, sortValue: function (r) { return r.created_at || ""; }, uniqueValues: uniq(dateOf) },
     ];
     var theadRow = document.getElementById("ticketsBody").closest("table").querySelector("thead tr");
     _ticketsXh = installExcelHeader(theadRow, columns);
