@@ -695,13 +695,26 @@
       loadMatrix();
     });
   });
+  var _matrixCache = null;
   async function loadMatrix() {
     var qs = "?stage=" + matrixStage;
     if (matrixFocusEmail) qs += "&focus_email=" + encodeURIComponent(matrixFocusEmail);
-    var data = await api("/api/dashboard/matrix" + qs);
+    _matrixCache = await api("/api/dashboard/matrix" + qs);
+    _renderMatrix();
+  }
+  function _renderMatrix() {
+    var data = _matrixCache;
     var wrap = document.getElementById("matrixWrap");
-    if (!data.projects.length) {
+    if (!data || !data.projects.length) {
       wrap.innerHTML = '<div class="empty-state">No active ' + matrixStage + ' projects right now.</div>';
+      return;
+    }
+    var term = document.getElementById("matrixSearch").value.trim().toLowerCase();
+    var rows = !term ? data.rows : data.rows.filter(function (row) {
+      return (row.item_no + " " + row.short_name + " " + row.name).toLowerCase().indexOf(term) !== -1;
+    });
+    if (!rows.length) {
+      wrap.innerHTML = '<div class="empty-state">No deliverables match &#8220;' + term + '&#8221;.</div>';
       return;
     }
     var html = '<table class="matrix-table"><thead><tr><th>Deliverable</th>';
@@ -710,7 +723,7 @@
     });
     html += "</tr></thead><tbody>";
     var lastDept = null;
-    data.rows.forEach(function (row) {
+    rows.forEach(function (row) {
       if (row.department !== lastDept) {
         html += '<tr><td class="matrix-dept-row" colspan="' + (data.projects.length + 1) + '">' +
           deptLabel(row.department, row.department_number) + "</td></tr>";
@@ -1050,15 +1063,34 @@
 
   /* ================= L0 / L1 TABLES ================= */
   var lastListView = "l0";
+  var _projectsCache = { L0: [], L1: [] };
   async function loadProjectsTable(stage) {
     lastListView = stage.toLowerCase();
     var list = await api("/api/projects?stage=" + stage);
+    _projectsCache[stage] = list;
+    _renderProjectsTable(stage);
+  }
+  // Item 4: header-inline filter -- matches the same fields the table
+  // shows, so it's never surprising which rows a search term catches.
+  function _projectMatchesSearch(p, stage, term) {
+    if (!term) return true;
+    var fields = [p.est_no, p.name, p.bid_manager];
+    if (stage === "L0") fields.push(p.rfx_number, joinList(p.region), joinList(p.scope));
+    else fields.push(p.project_manager);
+    return fields.filter(Boolean).join(" ").toLowerCase().indexOf(term) !== -1;
+  }
+  function _renderProjectsTable(stage) {
+    var searchEl = document.getElementById(stage === "L0" ? "l0Search" : "l1Search");
+    var term = (searchEl ? searchEl.value : "").trim().toLowerCase();
+    var full = _projectsCache[stage] || [];
+    var list = full.filter(function (p) { return _projectMatchesSearch(p, stage, term); });
     var table = stage === "L0" ? "#l0Table" : "#l1Table";
     var tbody = document.querySelector(table + " tbody");
     tbody.innerHTML = "";
     if (!list.length) {
       var tr = el("tr");
-      tr.innerHTML = '<td colspan="8" style="text-align:center;color:var(--ink-500);padding:30px;">No ' + stage + ' projects yet.</td>';
+      var msg = term ? "No " + stage + " projects match &#8220;" + term + "&#8221;." : "No " + stage + " projects yet.";
+      tr.innerHTML = '<td colspan="8" style="text-align:center;color:var(--ink-500);padding:30px;">' + msg + '</td>';
       tbody.appendChild(tr);
       return;
     }
@@ -1089,6 +1121,8 @@
       }
     }
   }
+  document.getElementById("l0Search").addEventListener("input", function () { _renderProjectsTable("L0"); });
+  document.getElementById("l1Search").addEventListener("input", function () { _renderProjectsTable("L1"); });
   async function loadMiniStepper(projectId) {
     var ms = await api("/api/projects/" + projectId + "/milestones");
     var target = document.querySelector('.mini-stepper[data-pid="' + projectId + '"]');
@@ -4960,15 +4994,34 @@
       loadPerfTriage();
     });
   });
+  var _perfTriageCache = [];
   async function loadPerfTriage() {
     // [L0 International]: its own tab here (unlike the Overview above, which
     // now merges international into its counterpart's L0 score) -- an admin
     // still needs to toggle kpi_relevant per catalog independently.
     var stage = perfTriageStage === "L0intl" ? "L0" : perfTriageStage;
     var qs = "stage=" + stage + (perfTriageStage === "L0intl" ? "&international=true" : "");
-    var rows = await api("/api/departments/performance-triage?" + qs);
+    _perfTriageCache = await api("/api/departments/performance-triage?" + qs);
+    _renderPerfTriage();
+  }
+  // Item 4/9: header-inline filter -- same live-as-you-type convention,
+  // over the wrap-table treatment #perfTriagePane's .fp-table already has.
+  function _renderPerfTriage() {
+    var term = document.getElementById("perfTriageSearch").value.trim().toLowerCase();
+    var rows = _perfTriageCache.filter(function (r) {
+      if (!term) return true;
+      return (r.item_no + " " + r.name + " " + r.department).toLowerCase().indexOf(term) !== -1;
+    });
     var tbody = document.getElementById("perfTriageBody");
     tbody.innerHTML = "";
+    if (!rows.length) {
+      var tr0 = el("tr");
+      var td0 = el("td", "", "No items match &#8220;" + term + "&#8221;.");
+      td0.setAttribute("colspan", "4");
+      tr0.appendChild(td0);
+      tbody.appendChild(tr0);
+      return;
+    }
     rows.forEach(function (r) {
       var tr = el("tr");
       tr.appendChild(el("td", "num", r.item_no));
@@ -7815,19 +7868,29 @@
   var BM_TRIAGE_STATUS_META = {
     done: ["good", "Done"], reminded: ["warn", "Reminded"], pending: ["crit", "Pending"],
   };
+  var _bmTriageCache = [];
   async function loadBmTriageStatus() {
     // Item 110: a Bid Manager (not just Admin) can load this, but the
     // backend scopes the rows to just their own tenders when non-admin.
-    var rows = await api("/api/projects/bm-triage-status?actor_role=" + CURRENT_ROLE +
+    _bmTriageCache = await api("/api/projects/bm-triage-status?actor_role=" + CURRENT_ROLE +
       "&actor_email=" + encodeURIComponent(actingEmail()));
     document.getElementById("bmTriageSub").textContent = can("create")
       ? "Every active L0 tender's Bid Manager triage progress — pending, reminded, or done."
       : "Your own active L0 tenders' triage progress — pending, reminded, or done.";
+    _renderBmTriageStatus();
+  }
+  // Item 4: header-inline filter, same live-as-you-type convention as L0/L1.
+  function _renderBmTriageStatus() {
+    var term = document.getElementById("bmTriageSearch").value.trim().toLowerCase();
+    var rows = _bmTriageCache.filter(function (r) {
+      if (!term) return true;
+      return [r.est_no, r.name, r.bid_manager].filter(Boolean).join(" ").toLowerCase().indexOf(term) !== -1;
+    });
     var tbody = document.getElementById("bmTriageBody");
     tbody.innerHTML = "";
     if (!rows.length) {
       var tr = el("tr");
-      var td = el("td", "", "No active L0 tenders right now.");
+      var td = el("td", "", term ? "No tenders match &#8220;" + term + "&#8221;." : "No active L0 tenders right now.");
       td.setAttribute("colspan", "6");
       tr.appendChild(td);
       tbody.appendChild(tr);
@@ -7860,6 +7923,10 @@
       tbody.appendChild(tr);
     });
   }
+
+  document.getElementById("bmTriageSearch").addEventListener("input", _renderBmTriageStatus);
+  document.getElementById("perfTriageSearch").addEventListener("input", _renderPerfTriage);
+  document.getElementById("matrixSearch").addEventListener("input", _renderMatrix);
 
   /* ================= ASK THE TEAM ================= */
   // Item 146: read-only identity lookup -- acting-email field, else the

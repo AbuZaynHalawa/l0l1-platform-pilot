@@ -1252,6 +1252,15 @@
      global select/date-input base rule above now covers them, this just
      matches their min-width to the select beside them. */
   .gantt-filter-row input[type="date"] { min-width: 140px; }
+  /* Item 4: the From/To date pair styled as one connected range control
+     (still two native date inputs underneath -- no browser supports a
+     real range-picker input type -- just visually joined so it reads as
+     one control, not two coincidentally-adjacent boxes). Filtering is
+     still live as either end changes, same as before. */
+  .date-range { display: flex; align-items: center; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-sunken); }
+  .date-range input[type="date"] { border: none; background: transparent; padding: 8px 10px; min-width: 128px; }
+  .date-range input[type="date"]:focus { outline: none; background: var(--surface); border-radius: var(--radius-sm); }
+  .date-range-sep { color: var(--ink-500); font-size: 12px; padding: 0 4px; flex-shrink: 0; }
   /* Item 113: the Timeline tab's own filter row keeps its 3 selects on one
      line by sharing the row instead of each sizing to its own content --
      #ganttScope's project-name options are long enough to otherwise push
