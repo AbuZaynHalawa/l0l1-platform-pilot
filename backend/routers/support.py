@@ -80,7 +80,8 @@ def list_kb_entries(db: Session = Depends(get_db)):
     )
     return [
         {"id": r.id, "category": r.category, "question": r.question, "answer": r.answer,
-         "created_at": r.created_at, "source_request_id": r.source_request_id}
+         "created_at": r.created_at, "source_request_id": r.source_request_id,
+         "est_no": r.est_no, "deliverable": r.deliverable}
         for r in rows
     ]
 
@@ -180,6 +181,10 @@ def resolve_support_request(request_id: int, actor_role: str = "Viewer", db: Ses
             db.add(models.KnowledgeBaseEntry(
                 category=req.stage or "General", question=req.message,
                 answer=last_reply.body, source_request_id=req.id,
+                # Item 21: copied straight from the request so the KB table
+                # can show real "related project"/"related deliverable"
+                # columns -- both already optional on SupportRequest itself.
+                est_no=req.est_no, deliverable=req.deliverable,
             ))
     db.commit()
     return {"status": "ok"}

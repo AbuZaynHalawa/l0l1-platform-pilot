@@ -8295,39 +8295,57 @@
   function _kbMatches(entry, term, category) {
     if (category && entry.category !== category) return false;
     if (!term) return true;
-    var haystack = (entry.question + " " + entry.answer).toLowerCase();
+    var haystack = (entry.question + " " + entry.answer + " " + (entry.est_no || "") + " " + (entry.deliverable || "")).toLowerCase();
     return haystack.indexOf(term) !== -1;
   }
+  // Item 21: a real table -- numbered rows, Stage/Related Project/Related
+  // Deliverable columns, high-level only, click a row for the full
+  // question+answer (previously grouped-by-category divs with the full
+  // answer always shown inline).
   function _renderKbList() {
     var term = document.getElementById("kbSearch").value.trim().toLowerCase();
     var category = document.getElementById("kbCategoryFilter").value;
-    var wrap = document.getElementById("kbList");
-    wrap.innerHTML = "";
     var filtered = kbCache.filter(function (e) { return _kbMatches(e, term, category); });
+    var tbody = document.getElementById("kbBody");
+    var pager = document.getElementById("kbPager");
     if (!filtered.length) {
-      wrap.appendChild(el("div", "empty-state", kbCache.length ? "No matching questions." : "No answered questions yet."));
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--ink-500);padding:30px;">' +
+        (kbCache.length ? "No matching questions." : "No answered questions yet.") + "</td></tr>";
+      pager.innerHTML = "";
       return;
     }
-    var groups = {}, groupOrder = [];
-    filtered.forEach(function (e) {
-      if (!groups[e.category]) { groups[e.category] = []; groupOrder.push(e.category); }
-      groups[e.category].push(e);
-    });
-    groupOrder.sort();
-    var card = el("div", "card table-card");
-    groupOrder.forEach(function (cat) {
-      card.appendChild(el("div", "deliv-subheader", cat));
-      groups[cat].forEach(function (e) {
-        var row = el("div", "aq-row");
-        var main = el("div", "aq-main");
-        main.appendChild(el("div", "aq-title", "#" + e.id + " &middot; " + e.question));
-        main.appendChild(el("div", "deliv-comment", e.answer));
-        row.appendChild(main);
-        card.appendChild(row);
+    renderPager(pager, filtered, 10, function (pageItems) {
+      tbody.innerHTML = "";
+      pageItems.forEach(function (e) {
+        var tr = el("tr");
+        tr.style.cursor = "pointer";
+        tr.appendChild(el("td", "num", "#" + e.id));
+        var snippet = e.question.length > 70 ? e.question.slice(0, 70) + "&#8230;" : e.question;
+        tr.appendChild(el("td", "", snippet));
+        tr.appendChild(el("td", "", e.category === "L0" || e.category === "L1" ? e.category : "&#8213;"));
+        tr.appendChild(el("td", "", e.est_no || "&#8213;"));
+        tr.appendChild(el("td", "", e.deliverable || "&#8213;"));
+        tr.addEventListener("click", function () { _openKbDetail(e); });
+        tbody.appendChild(tr);
       });
     });
-    wrap.appendChild(card);
   }
+  function _openKbDetail(e) {
+    document.getElementById("kbDetailTitle").textContent = "#" + e.id;
+    var body = document.getElementById("kbDetailBody");
+    body.innerHTML = "";
+    body.appendChild(el("div", "aq-title", e.question));
+    var context = [e.category === "L0" || e.category === "L1" ? e.category : "", e.est_no, e.deliverable].filter(Boolean).join(" &middot; ");
+    if (context) body.appendChild(el("div", "aq-sub", context));
+    body.appendChild(el("div", "deliv-comment", e.answer));
+    document.getElementById("kbDetailOverlay").hidden = false;
+  }
+  document.getElementById("kbDetailClose").addEventListener("click", function () {
+    document.getElementById("kbDetailOverlay").hidden = true;
+  });
+  document.getElementById("kbDetailOverlay").addEventListener("click", function (e) {
+    if (e.target === this) this.hidden = true;
+  });
   document.getElementById("kbSearch").addEventListener("input", _renderKbList);
   document.getElementById("kbCategoryFilter").addEventListener("change", _renderKbList);
   async function loadKb() {
@@ -8517,23 +8535,70 @@
   // Item 151: every Ask the Team thread, admin-only, in its own dedicated
   // view -- same reply/resolve/reference-KB behavior that used to live
   // inline inside "Q/A - Ask the Team" as an "Inbox" card.
+  var _ticketsCache = [], _ticketsKbEntries = [];
   async function loadTickets() {
-    var reqs = await api("/api/support?actor_role=" + CURRENT_ROLE);
+    _ticketsCache = await api("/api/support?actor_role=" + CURRENT_ROLE);
     // Item 150: admins get the option to reference an existing KB entry
     // instead of writing a fresh answer, so the picker needs the full list.
-    var kbEntries = await api("/api/support/kb");
-    var wrap = document.getElementById("ticketsList");
-    wrap.innerHTML = "";
-    if (!reqs.length) { wrap.appendChild(el("div", "empty-state", "No requests yet.")); return; }
-    reqs.forEach(function (r) {
-      var holder = el("div");
-      _renderSupportThread(holder, r, {
-        canReply: true, canResolve: true, replyEndpoint: "reply", replyPlaceholder: "Reply to the asker…",
-        onReplied: loadTickets, kbEntries: kbEntries,
+    _ticketsKbEntries = await api("/api/support/kb");
+    _renderTicketsList();
+  }
+  // Item 20: a real table -- numbered rows (Q1, Q2...), high-level info
+  // only (question snippet, asker, status, date), click a row for the
+  // full conversation in its own modal instead of every question's whole
+  // thread rendering inline. Header-inline filter (item 4) + pager.
+  function _renderTicketsList() {
+    var term = document.getElementById("ticketsSearch").value.trim().toLowerCase();
+    var filtered = _ticketsCache.filter(function (r) {
+      if (!term) return true;
+      return ((r.name || "") + " " + r.email + " " + r.message + " " + (r.est_no || "")).toLowerCase().indexOf(term) !== -1;
+    });
+    var tbody = document.getElementById("ticketsBody");
+    var pager = document.getElementById("ticketsPager");
+    if (!filtered.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--ink-500);padding:30px;">' +
+        (term ? "No questions match &#8220;" + term + "&#8221;." : "No requests yet.") + "</td></tr>";
+      pager.innerHTML = "";
+      return;
+    }
+    renderPager(pager, filtered, 10, function (pageItems) {
+      tbody.innerHTML = "";
+      pageItems.forEach(function (r) {
+        // Item 20b: numbered against the full filtered set, not just the
+        // current page, so Q1/Q2/... stays stable as you page through.
+        var qNum = filtered.indexOf(r) + 1;
+        var tr = el("tr");
+        tr.style.cursor = "pointer";
+        tr.appendChild(el("td", "num", "Q" + qNum));
+        var snippet = r.message.length > 70 ? r.message.slice(0, 70) + "&#8230;" : r.message;
+        tr.appendChild(el("td", "", snippet));
+        tr.appendChild(el("td", "", r.name || r.email));
+        tr.appendChild(el("td", "", r.status === "resolved"
+          ? '<span class="pill good"><span class="dot"></span>Resolved</span>'
+          : '<span class="pill warn"><span class="dot"></span>Open</span>'));
+        tr.appendChild(el("td", "", fmtDate((r.created_at || "").slice(0, 10))));
+        tr.addEventListener("click", function () { _openTicketDetail(r); });
+        tbody.appendChild(tr);
       });
-      wrap.appendChild(holder);
     });
   }
+  document.getElementById("ticketsSearch").addEventListener("input", _renderTicketsList);
+  function _openTicketDetail(r) {
+    document.getElementById("ticketDetailTitle").textContent = r.name || r.email;
+    var body = document.getElementById("ticketDetailBody");
+    _renderSupportThread(body, r, {
+      canReply: true, canResolve: true, replyEndpoint: "reply", replyPlaceholder: "Reply to the asker…",
+      kbEntries: _ticketsKbEntries,
+      onReplied: async function () { await loadTickets(); document.getElementById("ticketDetailOverlay").hidden = true; },
+    });
+    document.getElementById("ticketDetailOverlay").hidden = false;
+  }
+  document.getElementById("ticketDetailClose").addEventListener("click", function () {
+    document.getElementById("ticketDetailOverlay").hidden = true;
+  });
+  document.getElementById("ticketDetailOverlay").addEventListener("click", function (e) {
+    if (e.target === this) this.hidden = true;
+  });
 
   /* ================= ANNOUNCEMENTS ================= */
   var announcementsAll = [];

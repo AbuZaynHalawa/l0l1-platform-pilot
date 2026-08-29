@@ -472,15 +472,24 @@
         </div>
       </div>
 
-      <!-- Item 150: shared knowledge base of every admin-answered question,
-           numbered and grouped by category (auto-set from the original
-           request's stage), with a search box and category filter. -->
+      <!-- Item 21/150: shared knowledge base of every admin-answered
+           question, numbered, a real table -- Stage/Related Project/
+           Related Deliverable columns, high-level only, click a row for
+           the full question+answer. Item 4: filters live inline here
+           (no dedicated box) instead of in a bordered card above. -->
       <div id="supKbPane" hidden>
-        <div class="card-pad card" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:14px;">
+        <div class="fp-add-row" style="border-top:none;padding:0 0 14px;">
           <input type="text" id="kbSearch" placeholder="Search questions and answers&#8230;" style="flex:1;min-width:220px;">
           <select id="kbCategoryFilter"><option value="">All categories</option></select>
         </div>
-        <div id="kbList"></div>
+        <div class="card table-card">
+          <table class="fp-table">
+            <thead><tr><th style="width:50px;">#</th><th>Question</th><th style="width:90px;">Stage</th>
+              <th style="width:130px;">Related Project</th><th>Related Deliverable</th></tr></thead>
+            <tbody id="kbBody"></tbody>
+          </table>
+          <div class="pager" id="kbPager"></div>
+        </div>
       </div>
     </section>
 
@@ -836,9 +845,21 @@
           <h1>Open Questions</h1>
           <p class="sub">Every question sent through Ask the Team, open and resolved.</p>
         </div>
+        <!-- Item 4/20: header-inline filter, live as you type. -->
+        <div class="search-wrap">
+          <span class="sic">&#128269;</span>
+          <input id="ticketsSearch" type="text" placeholder="Filter by question, asker, project&#8230;" />
+        </div>
       </div>
+      <!-- Item 20: a real table -- numbered rows (Q1, Q2...), high-level
+           info only, click a row for the full conversation. -->
       <div class="card table-card">
-        <div id="ticketsList"></div>
+        <table class="fp-table">
+          <thead><tr><th style="width:50px;">#</th><th>Question</th><th style="width:170px;">Asked By</th>
+            <th style="width:140px;">Status</th><th style="width:110px;">Date</th></tr></thead>
+          <tbody id="ticketsBody"></tbody>
+        </table>
+        <div class="pager" id="ticketsPager"></div>
       </div>
     </section>
 
@@ -1840,6 +1861,29 @@
       <button class="modal-close" id="myQAClose">&#10005;</button>
     </div>
     <div class="modal-body" id="myQABody"></div>
+  </div>
+</div>
+
+<!-- Item 20: Open Questions' full thread (reply/resolve/reference-KB)
+     opens here on click, instead of every question rendering inline. -->
+<div class="modal-overlay" id="ticketDetailOverlay" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <div><h2 id="ticketDetailTitle">Question</h2></div>
+      <button class="modal-close" id="ticketDetailClose">&#10005;</button>
+    </div>
+    <div class="modal-body" id="ticketDetailBody"></div>
+  </div>
+</div>
+
+<!-- Item 21: Knowledge Base's full question+answer opens here on click. -->
+<div class="modal-overlay" id="kbDetailOverlay" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <div><h2 id="kbDetailTitle">Question</h2></div>
+      <button class="modal-close" id="kbDetailClose">&#10005;</button>
+    </div>
+    <div class="modal-body" id="kbDetailBody"></div>
   </div>
 </div>
 

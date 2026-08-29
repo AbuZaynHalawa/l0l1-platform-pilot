@@ -827,6 +827,13 @@ class KnowledgeBaseEntry(Base):
     answer = Column(Text, nullable=False)
     source_request_id = Column(Integer, ForeignKey("support_requests.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    # Item 21: copied from the source SupportRequest at resolve-time (both
+    # already optional there -- a question isn't always about one specific
+    # tender/project or deliverable) so the Knowledge Base table can show
+    # real "related project"/"related deliverable" columns instead of just
+    # category/question/answer.
+    est_no = Column(String, nullable=True)
+    deliverable = Column(String, nullable=True)
 
 
 class BmTriagePreference(Base):
