@@ -821,12 +821,24 @@
      the small round badge -- its own purple gradient background doubles
      as the block's accent, so the text half sits on a plain soft surface
      rather than fighting it with a second background. */
-  .gahiz-intro { display: flex; align-items: stretch; border-radius: 16px; overflow: hidden; margin-bottom: 16px; box-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 30%, transparent); }
-  .gahiz-intro-hero { width: 150px; height: auto; object-fit: cover; flex-shrink: 0; display: block; }
-  .gahiz-intro-text { background: var(--accent-soft); padding: 20px 24px; display: flex; flex-direction: column; justify-content: center; gap: 8px; font-size: 13.5px; color: var(--ink-700); line-height: 1.6; }
-  .gahiz-intro-name { font-size: 22px; font-weight: 800; color: var(--purple-1); }
+  /* Redlined: GAHIZ himself moved out of this box entirely -- he now
+     floats outside the slide (.tour-gahiz-float, a sibling of the card,
+     see index.html/.tour-stage below) instead of being boxed inside it.
+     What's left is just the name + one-line intro, still its own
+     highlighted callout. */
+  .gahiz-intro { border-radius: 16px; margin-bottom: 16px; padding: 20px 24px; background: var(--accent-soft); font-size: 13.5px; color: var(--ink-700); line-height: 1.6; }
+  .gahiz-intro-name { font-size: 22px; font-weight: 800; color: var(--purple-1); margin-bottom: 6px; }
   .gahiz-intro b { color: var(--purple-1); }
-  @media (max-width: 560px) { .gahiz-intro { flex-direction: column; } .gahiz-intro-hero { width: 100%; max-height: 220px; } }
+  /* The stage that hosts the tour card -- shrink-wrapped around it (not
+     full-bleed) so the floating image can position itself relative to the
+     card's actual edge, on every viewport, without a JS-computed offset. */
+  .tour-stage { position: relative; display: inline-flex; max-width: 100%; }
+  .tour-gahiz-float {
+    position: absolute; left: 0; bottom: 0; transform: translateX(-76%);
+    width: clamp(130px, 20vw, 250px); pointer-events: none; z-index: 1;
+    filter: drop-shadow(0 20px 28px rgba(0,0,0,.32));
+  }
+  @media (max-width: 860px) { .tour-gahiz-float { display: none; } }
   .tour-list { margin: 0 0 14px; padding-left: 18px; font-size: 12.5px; color: var(--ink-700); line-height: 1.9; }
   .tour-list b { color: var(--ink-900); }
   .tour-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 22px; border-top: 1px solid var(--line); }

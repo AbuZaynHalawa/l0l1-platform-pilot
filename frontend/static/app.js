@@ -2207,12 +2207,11 @@
     {
       eyebrow: "Around the Portal",
       title: "Meet GAHIZ!",
+      gahiz: true, // toggles #tourGahizFloat -- see renderTourStep()
       body:
-        '<div class="gahiz-intro">' +
-        '<img src="/static/img/gahiz-hero.png" alt="GAHIZ, Al Gihaz Contracting\'s AI Agent" class="gahiz-intro-hero" />' +
-        '<div class="gahiz-intro-text"><div class="gahiz-intro-name">Meet GAHIZ!</div>' +
+        '<div class="gahiz-intro"><div class="gahiz-intro-name">Meet GAHIZ!</div>' +
         "<b>GAHIZ</b> is Al Gihaz Contracting's AI Agent &#8212; your AI Support Agent right inside " +
-        "the portal.</div></div>" +
+        "the portal.</div>" +
         '<p class="tour-step-text">His bubble sits in the bottom-right corner of every page &#8212; ' +
         "click it any time for a faster first stop than Ask the Team, for the kind of question that " +
         "doesn't need a person: how the platform works, or what's on your own plate right now:</p>" +
@@ -2385,6 +2384,8 @@
     document.getElementById("tourPrev").disabled = tourStep === 0;
     document.getElementById("tourNext").textContent = tourStep === TOUR_STEPS.length - 1 ? "Done" : "Next →";
     document.getElementById("tourBody").scrollTop = 0;
+    // Redlined: GAHIZ floats outside the slide, only on his own step.
+    document.getElementById("tourGahizFloat").hidden = !s.gahiz;
   }
   // Item 41: a brand-new user (no completed-walkthrough flag yet) gets this
   // forced open on their very first load and can't back out of it -- no

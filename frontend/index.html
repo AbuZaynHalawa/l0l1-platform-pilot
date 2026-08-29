@@ -1802,20 +1802,28 @@
 
 <!-- Item 131: interactive System Introduction walkthrough -->
 <div class="modal-overlay" id="tourOverlay" hidden>
-  <div class="modal-card tour-card">
-    <div class="modal-head">
-      <div>
-        <div class="eyebrow" id="tourEyebrow"></div>
-        <h2 id="tourTitle"></h2>
+  <div class="tour-stage">
+    <!-- Redlined: GAHIZ floats outside the slide itself, breaking past its
+         left edge, instead of being boxed inside it -- a sibling of the
+         card (not a descendant), so the card's own overflow:hidden (for
+         its rounded corners) never clips him. Shown only on his own step,
+         toggled in renderTourStep(). -->
+    <img id="tourGahizFloat" class="tour-gahiz-float" src="/static/img/gahiz-float.png" alt="GAHIZ" hidden>
+    <div class="modal-card tour-card">
+      <div class="modal-head">
+        <div>
+          <div class="eyebrow" id="tourEyebrow"></div>
+          <h2 id="tourTitle"></h2>
+        </div>
+        <button class="modal-close" id="tourClose">&#10005;</button>
       </div>
-      <button class="modal-close" id="tourClose">&#10005;</button>
-    </div>
-    <div class="modal-body tour-body" id="tourBody"></div>
-    <div class="tour-foot">
-      <div class="tour-dots" id="tourDots"></div>
-      <div class="tour-nav">
-        <button class="btn" id="tourPrev">&#8592; Back</button>
-        <button class="btn primary" id="tourNext">Next &#8594;</button>
+      <div class="modal-body tour-body" id="tourBody"></div>
+      <div class="tour-foot">
+        <div class="tour-dots" id="tourDots"></div>
+        <div class="tour-nav">
+          <button class="btn" id="tourPrev">&#8592; Back</button>
+          <button class="btn primary" id="tourNext">Next &#8594;</button>
+        </div>
       </div>
     </div>
   </div>
