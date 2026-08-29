@@ -795,7 +795,16 @@
   .stage-badge { font-size: 12px; font-weight: 800; padding: 5px 14px; border-radius: 999px; letter-spacing: .04em; }
   .stage-badge.l0 { background: #fbe6d3; color: var(--l0-1); }
   .stage-badge.l1 { background: var(--good-bg); color: var(--good); }
-  .detail-meta-row { display: flex; gap: 22px; flex-wrap: wrap; margin: 16px 0 22px; }
+  /* [queued]: same card chrome as the milestone timeline right below it
+     (.full-stepper) -- background/border/radius/shadow copied straight
+     from .card, was sitting directly on the page background with none of
+     that. Applies to both L0 and L1 (same #dMeta container/class either
+     way, only the metaItems array's fields differ per stage). */
+  .detail-meta-row {
+    display: flex; gap: 22px; flex-wrap: wrap; margin: 16px 0 22px;
+    background: var(--surface); border: 1.5px solid var(--card-border); border-radius: var(--radius);
+    box-shadow: var(--shadow-1); padding: 20px 26px;
+  }
   .terminal-banner { background: var(--surface-sunken); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; margin: -8px 0 22px; font-size: 13px; color: var(--ink-700); font-weight: 600; }
   /* Item 112: was an inline style="display:flex" on the element itself,
      which always outranks the [hidden] attribute's display:none in the
