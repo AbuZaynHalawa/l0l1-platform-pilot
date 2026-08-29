@@ -439,13 +439,13 @@
      panel's own color instead of a flat sticker. */
   .dash-project-card.l0 .dpc-head {
     background-color: var(--l0-1);
-    background-image: linear-gradient(135deg, color-mix(in srgb, var(--l0-2) 85%, transparent) 0%, color-mix(in srgb, var(--l0-1) 75%, transparent) 100%), url("/static/img/ohtl-orange.png");
+    background-image: linear-gradient(135deg, color-mix(in srgb, var(--l0-2) 60%, transparent) 0%, color-mix(in srgb, var(--l0-1) 45%, transparent) 100%), url("/static/img/ohtl-orange.png");
     background-position: center, right center; background-size: auto, 190px auto; background-repeat: no-repeat, no-repeat;
     position: relative; overflow: hidden;
   }
   .dash-project-card.l1 .dpc-head {
     background-color: var(--l1-1);
-    background-image: linear-gradient(135deg, color-mix(in srgb, var(--l1-2) 85%, transparent) 0%, color-mix(in srgb, var(--l1-1) 75%, transparent) 100%), url("/static/img/ohtl-green.png");
+    background-image: linear-gradient(135deg, color-mix(in srgb, var(--l1-2) 60%, transparent) 0%, color-mix(in srgb, var(--l1-1) 45%, transparent) 100%), url("/static/img/ohtl-green.png");
     background-position: center, right center; background-size: auto, 190px auto; background-repeat: no-repeat, no-repeat;
     position: relative; overflow: hidden;
   }
@@ -484,13 +484,20 @@
     min-height: 108px; transition: transform .16s, box-shadow .16s;
   }
   .dash-kpi-card:hover { transform: translateY(-1px); box-shadow: var(--shadow-2); }
-  .dash-kpi-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-  .dash-kpi-icon svg { width: 20px; height: 20px; }
-  .dash-kpi-icon.red { background: var(--algihaz-red-light); color: var(--algihaz-red); }
-  .dash-kpi-icon.green { background: var(--good-bg); color: var(--l1-2); }
-  .dash-kpi-icon.ai { background: var(--ai-accent-light); color: var(--ai-accent); }
-  .dash-kpi-icon.amber { background: var(--warn-bg); color: #c87900; }
-  .dash-kpi-icon.success { background: var(--good-bg); color: var(--good); }
+  /* Item [queued]: bigger, solid-color icon badges (Yasser's reference --
+     "more colors and larger and more visually appealing") -- was a pale
+     tinted square with a thin colored stroke, now a saturated gradient
+     chip with a bold white glyph. */
+  .dash-kpi-icon {
+    width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; color: #fff; box-shadow: 0 4px 10px -3px color-mix(in srgb, var(--kpi-ic-c, var(--accent)) 55%, transparent);
+  }
+  .dash-kpi-icon svg { width: 24px; height: 24px; }
+  .dash-kpi-icon.red { --kpi-ic-c: var(--algihaz-red); background: linear-gradient(135deg, var(--algihaz-red) 0%, var(--l0-2) 100%); }
+  .dash-kpi-icon.green { --kpi-ic-c: var(--l1-1); background: linear-gradient(135deg, var(--l1-1) 0%, var(--l1-2) 100%); }
+  .dash-kpi-icon.ai { --kpi-ic-c: var(--ai-accent); background: linear-gradient(135deg, var(--ai-accent) 0%, color-mix(in srgb, var(--ai-accent) 65%, #4338ca) 100%); }
+  .dash-kpi-icon.amber { --kpi-ic-c: #c87900; background: linear-gradient(135deg, #e8940e 0%, #c87900 100%); }
+  .dash-kpi-icon.success { --kpi-ic-c: var(--good); background: linear-gradient(135deg, var(--good) 0%, var(--l1-2) 100%); }
   .dash-kpi-body { min-width: 0; }
   .dash-kpi-value { font-size: 26px; font-weight: 800; color: var(--ink-900); line-height: 1.1; font-variant-numeric: tabular-nums; }
   .dash-kpi-value small { font-size: 15px; font-weight: 700; }
