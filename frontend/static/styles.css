@@ -383,13 +383,19 @@
   .dash-status-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 22px; margin-bottom: 22px; }
   .dash-status-row > * { min-width: 0; }
   .dash-status-card { padding: 22px 24px 24px; }
-  .dash-status-card .dsc-head { font-size: 12.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-500); margin-bottom: 12px; }
+  .dash-status-card .dsc-head { font-size: 12.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 12px; }
   /* Item 32: each duplicated L0/L1 card gets a thin top border in that
      stage's own identity color, same orange/green used everywhere else,
      so the pair still reads as a matched set (like Active Tenders above)
-     rather than two generic cards. */
+     rather than two generic cards. Redlined further: the title itself
+     (was flat grey) and each row's icon/label now carry that same color
+     too, so the identity reads immediately, not just as a border sliver. */
   .dash-status-card.l0 { border-top: 3px solid var(--l0-1); }
   .dash-status-card.l1 { border-top: 3px solid #1f9d5c; }
+  .dash-status-card.l0 .dsc-head { color: var(--l0-1); }
+  .dash-status-card.l1 .dsc-head { color: #1f9d5c; }
+  .dash-status-card.l0 .dsc-row-label { color: var(--l0-1); }
+  .dash-status-card.l1 .dsc-row-label { color: #1f9d5c; }
   /* Redlined: Deadline and Progress used to be two separate titled cards
      per stage -- now one row each inside a single card, DEADLINE/PROGRESS
      as a label to the left of the row instead of its own card header. */
@@ -1295,19 +1301,19 @@
      index.html) so it's reachable from any page. z-index 70: above normal
      page content, below .modal-overlay's 80 so an open modal still takes
      priority over it. */
+  /* Redlined: the whole standing figure now, not a headshot boxed inside a
+     circular badge -- no background/border at all, just GAHIZ himself
+     floating in the corner with a real drop shadow for depth (same "3D
+     object" treatment as .tour-gahiz-float), on his own transparent art. */
   .ai-chat-bubble {
-    position: fixed; right: 24px; bottom: 24px; z-index: 70;
-    width: 56px; height: 56px; border-radius: 50%; border: none;
-    background: var(--accent); color: #fff; font-size: 26px; line-height: 1;
-    display: flex; align-items: center; justify-content: center; cursor: pointer;
-    box-shadow: 0 6px 20px color-mix(in srgb, var(--accent) 45%, transparent);
-    transition: transform .15s, box-shadow .15s;
+    position: fixed; right: 24px; bottom: 16px; z-index: 70;
+    width: 68px; height: 122px; border: none; background: transparent; padding: 0;
+    display: flex; align-items: flex-end; justify-content: center; cursor: pointer;
+    transition: transform .15s;
   }
-  .ai-chat-bubble:hover { transform: translateY(-2px) scale(1.04); box-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 55%, transparent); }
+  .ai-chat-bubble:hover { transform: translateY(-4px) scale(1.05); }
   .ai-chat-bubble[hidden] { display: none; }
-  /* Item 33: GAHIZ's badge fills the bubble -- object-fit:cover so it
-     stays a clean circle regardless of the source image's own crop. */
-  .ai-chat-bubble img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+  .ai-chat-bubble img { width: 100%; height: 100%; object-fit: contain; object-position: bottom; filter: drop-shadow(0 10px 14px rgba(0,0,0,.35)); }
   .ai-chat-panel {
     position: fixed; right: 24px; bottom: 94px; z-index: 70;
     width: 380px; max-width: calc(100vw - 32px);
