@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -937,3 +937,71 @@ def get_performance_breakdown(department: str, stage: str, db: Session = Depends
         result["overall_pct"] = round(min((total_points / len(items)) * 100, 100.0), 1) if items else None
         result["aggregation"] = "pooled"
     return result
+
+
+# [Red Dark Design] the new top KPI row's own metrics -- lifetime totals,
+# L0->L1 conversion, average time-to-contract, and this week's completed
+# deliverables. Deliberately its own endpoint rather than added fields on
+# get_dashboard() above: those stats read as pooled/active-only tiles by
+# every existing caller, and this row is explicitly the opposite axis
+# (lifetime/performance, not current/active) -- keeping it separate means
+# zero risk of changing get_dashboard()'s existing shape or behavior.
+@router.get("/lifetime-kpis")
+def get_lifetime_kpis(db: Session = Depends(get_db)):
+    l0_lifetime = db.query(models.Project).filter(models.Project.stage == models.Stage.L0).count()
+    l1_projects = db.query(models.Project).filter(models.Project.stage == models.Stage.L1).all()
+    l1_lifetime = len(l1_projects)
+    conversion_rate = round((l1_lifetime / l0_lifetime) * 100, 1) if l0_lifetime else None
+
+    # Avg Time to Contract: days between an L0 tender's own announcement
+    # (M1 anchor) and the L1 project it became, for every L1 that actually
+    # traces back to one (l0_source_id) -- not every L1 necessarily has an
+    # L0 source (a project can be created straight into L1) or an
+    # announcement_date on both ends, so those pairs are skipped rather
+    # than guessed at.
+    l0_by_id = {
+        p.id: p for p in db.query(models.Project).filter(models.Project.stage == models.Stage.L0).all()
+    }
+    day_spans = []
+    for l1 in l1_projects:
+        if not l1.l0_source_id or not l1.announcement_date:
+            continue
+        l0 = l0_by_id.get(l1.l0_source_id)
+        if not l0 or not l0.announcement_date:
+            continue
+        span = (l1.announcement_date - l0.announcement_date).days
+        if span >= 0:
+            day_spans.append(span)
+    avg_time_to_contract_days = round(sum(day_spans) / len(day_spans)) if day_spans else None
+
+    # Deliverables Completed: this week vs the week before, both anchored
+    # to reviewed_at (the same "when it actually resolved" timestamp
+    # rules.deadline_status already uses) so the trend line means the same
+    # thing it does everywhere else completion dates show up.
+    now = datetime.utcnow()
+    week_start = now - timedelta(days=7)
+    prev_week_start = now - timedelta(days=14)
+    completed_this_week = db.query(models.DeliverableSubmission).filter(
+        models.DeliverableSubmission.status == models.SubmissionStatus.APPROVED,
+        models.DeliverableSubmission.reviewed_at >= week_start,
+        models.DeliverableSubmission.reviewed_at <= now,
+    ).count()
+    completed_prev_week = db.query(models.DeliverableSubmission).filter(
+        models.DeliverableSubmission.status == models.SubmissionStatus.APPROVED,
+        models.DeliverableSubmission.reviewed_at >= prev_week_start,
+        models.DeliverableSubmission.reviewed_at < week_start,
+    ).count()
+    if completed_prev_week:
+        wow_change_pct = round(((completed_this_week - completed_prev_week) / completed_prev_week) * 100)
+    else:
+        wow_change_pct = None
+
+    return {
+        "l0_lifetime": l0_lifetime,
+        "l1_lifetime": l1_lifetime,
+        "conversion_rate": conversion_rate,
+        "avg_time_to_contract_days": avg_time_to_contract_days,
+        "completed_this_week": completed_this_week,
+        "completed_prev_week": completed_prev_week,
+        "completed_wow_change_pct": wow_change_pct,
+    }

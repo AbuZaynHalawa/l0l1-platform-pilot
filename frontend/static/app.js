@@ -698,10 +698,66 @@
     });
   });
 
+  // [Red Dark Design] the new top KPI row -- lifetime/performance metrics,
+  // a genuinely different axis from the active-tenders panels below it
+  // (see /api/dashboard/lifetime-kpis, a separate additive endpoint so
+  // this never touches get_dashboard()'s existing shape). Inline SVGs
+  // standing in for the spec's Lucide icon set -- this app has no build
+  // step to pull the actual npm package through.
+  var DASH_KPI_ICONS = {
+    briefcase: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="19" height="13" rx="2"/><path d="M8 7V5.5A1.5 1.5 0 0 1 9.5 4h5A1.5 1.5 0 0 1 16 5.5V7"/><path d="M2.5 13h19"/></svg>',
+    folder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4.5l2 2.5h8A1.5 1.5 0 0 1 20.5 9v9A1.5 1.5 0 0 1 19 19.5H4.5A1.5 1.5 0 0 1 3 18z"/><path d="M8 13.5h3M8 16h5.5"/></svg>',
+    funnel: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4h17L14 12.5V19l-4 2v-8.5z"/></svg>',
+    clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.2 2"/></svg>',
+    checkCircle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5 5.5-5.5"/></svg>',
+  };
+  // A faint transmission-tower + line motif for the L0/L1 header's own
+  // decorative corner (spec: "engineering visual language", 10-25% white
+  // stroke opacity, never interfering with the header's real text).
+  function _powerGridArtSvg() {
+    return '<svg class="dpc-grid-art" viewBox="0 0 200 100" preserveAspectRatio="xMaxYMax meet" xmlns="http://www.w3.org/2000/svg">' +
+      '<g stroke="rgba(255,255,255,.22)" stroke-width="1.4" fill="none">' +
+      '<path d="M40 100 L50 30 L60 100"/><path d="M30 45 L70 45"/><path d="M25 60 L75 60"/><path d="M20 75 L80 75"/>' +
+      '<path d="M150 100 L160 15 L170 100"/><path d="M138 35 L182 35"/><path d="M133 52 L187 52"/><path d="M128 70 L192 70"/>' +
+      '<path d="M60 55 Q105 10 150 55" stroke-dasharray="2 4"/>' +
+      '<circle cx="50" cy="30" r="2.5" fill="rgba(255,255,255,.22)"/><circle cx="160" cy="15" r="2.5" fill="rgba(255,255,255,.22)"/>' +
+      "</g></svg>";
+  }
+  async function loadLifetimeKpis() {
+    var k;
+    try { k = await api("/api/dashboard/lifetime-kpis"); } catch (e) { return; }
+    var row = document.getElementById("dashKpiRow");
+    if (!row) return;
+    row.innerHTML = "";
+    var conversionSub = k.conversion_rate != null ? k.l1_lifetime + " of " + k.l0_lifetime + " tenders" : "&#8213;";
+    var timeSub = k.avg_time_to_contract_days != null ? "Target: 90 days" : "Not enough data yet";
+    var completedTrend = k.completed_wow_change_pct == null ? "" :
+      '<span class="dash-kpi-sub ' + (k.completed_wow_change_pct >= 0 ? "up" : "down") + '"> &middot; ' +
+      (k.completed_wow_change_pct >= 0 ? "&#8593; " : "&#8595; ") + Math.abs(k.completed_wow_change_pct) + "% vs last week</span>";
+    var cards = [
+      { icon: "briefcase", cls: "red", value: k.l0_lifetime, label: "L0 Tenders – Lifetime", sub: "Total Tenders" },
+      { icon: "folder", cls: "green", value: k.l1_lifetime, label: "L1 Projects – Lifetime", sub: "Total Projects" },
+      { icon: "funnel", cls: "ai", value: (k.conversion_rate != null ? k.conversion_rate + "%" : "&#8213;"), label: "L0 → L1 Conversion", sub: conversionSub },
+      { icon: "clock", cls: "amber", value: (k.avg_time_to_contract_days != null ? k.avg_time_to_contract_days : "&#8213;"), valueSuffix: k.avg_time_to_contract_days != null ? " Days" : "", label: "Avg. Time to Contract", sub: timeSub },
+      { icon: "checkCircle", cls: "success", value: k.completed_this_week, label: "Deliverables Completed", sub: "This Week" + "<SUBTREND>" },
+    ];
+    cards.forEach(function (c) {
+      var card = el("div", "dash-kpi-card");
+      var subHtml = c.sub.indexOf("<SUBTREND>") !== -1 ? c.sub.replace("<SUBTREND>", "") : c.sub;
+      card.innerHTML =
+        '<div class="dash-kpi-icon ' + c.cls + '">' + DASH_KPI_ICONS[c.icon] + "</div>" +
+        '<div class="dash-kpi-body"><div class="dash-kpi-value">' + c.value + (c.valueSuffix ? "<small>" + c.valueSuffix + "</small>" : "") + "</div>" +
+        '<div class="dash-kpi-label">' + c.label + "</div>" +
+        '<div class="dash-kpi-sub">' + subHtml + "</div></div>";
+      if (c.sub.indexOf("<SUBTREND>") !== -1) card.querySelector(".dash-kpi-body").insertAdjacentHTML("beforeend", completedTrend);
+      row.appendChild(card);
+    });
+  }
   async function loadDashboard() {
     var focusEmail = dashFocus === "mine" ? myIdentity() : "";
     var qs = focusEmail ? "?focus_email=" + encodeURIComponent(focusEmail) : "";
     var d = await api("/api/dashboard" + qs);
+    loadLifetimeKpis();
 
     // Item [dashboard stage split]: Concerns is now one card per stage,
     // living in that stage's own column further down. Item [empty concerns]:
@@ -748,7 +804,7 @@
       .forEach(function (s) {
         var card = el("div", "card dash-project-card " + s[0].toLowerCase());
         var head = el("div", "dpc-head");
-        head.innerHTML = '<div class="dpc-tag">' + s[0] + '</div><div><div class="dpc-value">' + s[2] +
+        head.innerHTML = _powerGridArtSvg() + '<div class="dpc-tag">' + s[0] + '</div><div><div class="dpc-value">' + s[2] +
           '</div><div class="dpc-label">' + s[1] + "</div></div>";
         card.appendChild(head);
         var body = el("div", "dpc-body");

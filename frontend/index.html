@@ -4,6 +4,10 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Project Readiness (L0/L1) Platform — Pilot</title>
+<!-- [Red Dark Design] Inter, per the reskin spec's typography section. -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/static/styles.css" />
 </head>
 <body>
@@ -134,6 +138,11 @@
            exception (its scores pool both stages), so it stays a single
            shared row, right before the matrix. Every 2-column row shares
            the same .dash-row grid so card edges line up down the page. -->
+      <!-- [Red Dark Design] the only new section on this branch: lifetime/
+           performance KPIs, sitting above the existing active-tenders
+           panels below. Everything else on this page is unchanged. -->
+      <div class="dash-kpi-row" id="dashKpiRow"></div>
+
       <div class="stat-row" id="statRow"></div>
 
       <div class="dash-row dash-stage-split">

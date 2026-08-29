@@ -9,9 +9,40 @@
      the 4.5 bar; this lands at 5.13:1. Hover states added below sit on
      exactly those elements, so they need to be legible.
      ============================================================ */
+  /* ============================================================
+     [Red Dark Design branch] Premium enterprise reskin -- ALGIHAZ red +
+     navy identity, replacing the indigo/purple brand accent everywhere
+     EXCEPT the AI-only surfaces (chat bubble/panel, AI Copilot button),
+     which get their own dedicated --ai-* tokens instead so "AI" stays a
+     distinct, reserved color per the spec rather than colliding with the
+     new general accent. Section/page structure is untouched -- this is a
+     token + component-style pass only.
+     ============================================================ */
   :root {
-    --purple-1: #5265cc;
-    --purple-2: #764ba2;
+    --algihaz-red: #d71920;
+    --algihaz-red-dark: #b51218;
+    --algihaz-red-light: #fdebec;
+    --navy: #10243e;
+    --navy-dark: #071b33;
+    --navy-light: #eaf0f6;
+    --sidebar-bg: #061a31;
+    --sidebar-bg-2: #0d2948;
+    --sidebar-hover: #123456;
+    --sidebar-text: #afc0d4;
+    --sidebar-icon: #b7c7d8;
+    --ai-accent: #5636c9;
+    --ai-accent-dark: #4022a8;
+    --ai-accent-light: #f0ecff;
+    --ai-accent-border: #d8ceff;
+    --l1-1: #0e9250;
+    --l1-2: #08743e;
+    --info-blue: #2563eb;
+    --info-blue-light: #eaf1ff;
+    --info-blue-dark: #173f73;
+  }
+  :root {
+    --purple-1: var(--algihaz-red);
+    --purple-2: var(--algihaz-red-dark);
     /* A tiny pop of playful colour, used ONLY for micro-details: count
        badges and the dot inside a status pill. Full strength as a fill
        or dot; on white they measure 2.78:1 and 2.54:1, so anything
@@ -28,74 +59,83 @@
        glance (e.g. an L0 Est number next to a red "Late" pill); the
        lower saturation and darker value keep it reading as clearly its
        own color instead of a shade of red. */
-    --l0-1: #cc6a1e;
-    --l0-2: #9c4a0a;
-    --good: #27ae60;      --good-bg: #d4edda;      --good-2: #1e8449;
-    --crit: #e74c3c;      --crit-bg: #f8d7da;
-    --warn: #f39c12;      --warn-bg: #fff3cd;
-    --neutral: #95a5a6;   --neutral-bg: #eef0f5;
-    --ink-900: #2c3e50;
-    --ink-700: #4a5578;
-    --ink-500: #65718c;
-    --ink-300: #9aa4bb;
-    --page-bg-1: #eef1f8;
-    --page-bg-2: #e3e8f5;
+    --l0-1: #d86b08;
+    --l0-2: #b95a08;
+    --good: #159447;      --good-bg: #e8f6ed;      --good-2: #08763a;
+    --crit: #d92d20;      --crit-bg: #fdecec;
+    --warn: #f59e0b;      --warn-bg: #fff4d6;
+    --neutral: #7a8aa0;   --neutral-bg: #eef2f7;
+    --ink-900: #10243e;
+    --ink-700: #52647d;
+    --ink-500: #7a8aa0;
+    --ink-300: #a7b1bf;
+    --page-bg-1: #f3f6fa;
+    --page-bg-2: #eef2f7;
     --surface: #ffffff;
-    --surface-sunken: #f5f7fb;
-    --line: #e2e5ee;
-    --card-border: rgba(44,62,80,0.12);
-    --concern-bg: #fdecea; --concern-border: #f5b7b1; --concern-text: #8b291c;
+    --surface-sunken: #f7f9fc;
+    --line: #dfe5ed;
+    --card-border: #dfe5ed;
+    --concern-bg: #fdebec; --concern-border: #f3c79e; --concern-text: #b51218;
     --accent: var(--purple-1);
-    --accent-soft: #eef0fb;
-    --accent-line: #d7dcf5;
-    --shadow-1: 0 4px 15px rgba(44,62,80,0.07);
-    --shadow-2: 0 8px 22px rgba(44,62,80,0.12);
-    --radius: 14px;      /* cards, modals */
-    --radius-sm: 12px;   /* inputs, chips, buttons, nav */
-    --font: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    --accent-soft: var(--algihaz-red-light);
+    --accent-line: #f3c7c9;
+    --shadow-1: 0 2px 8px rgba(16,36,62,0.05);
+    --shadow-2: 0 6px 18px rgba(16,36,62,0.08);
+    --radius: 12px;      /* cards, modals */
+    --radius-sm: 8px;    /* inputs, chips, buttons, nav */
+    --font: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   }
+  /* [Red Dark Design] spec section 24 -- a deliberate re-tune, not a
+     mechanical inversion of the light palette. Red/Green/Amber/AI keep
+     their brand hex from the spec directly; --crit specifically stays the
+     brighter red already tuned for this app's dark background (small
+     status text at the spec's literal #D71920 reads too dim at that
+     size/weight against #071525 -- the button/accent uses still get the
+     literal brand red via --purple-1). */
   @media (prefers-color-scheme: dark) {
     :root {
-      --ink-900: #eef0f5; --ink-700: #c7cee0; --ink-500: #9aa4bb; --ink-300: #65718c;
-      --page-bg-1: #16213c; --page-bg-2: #1a2540;
-      --surface: #1e2a4a; --surface-sunken: #192442; --line: #33406b;
-      --card-border: rgba(255,255,255,0.14);
-      --concern-bg: #3a1f22; --concern-border: #7a3630; --concern-text: #f1a69f;
-      --accent-soft: #262f52; --accent-line: #3b4a8f;
-      /* Dark keeps a LIGHTER indigo -- the deepened #5265cc is correct on
-         white but drops to 3.11:1 against the dark ground. */
-      --purple-1: #8fa2f5; --on-accent: #16213c;
+      --ink-900: #f1f5f9; --ink-700: #a9b8c9; --ink-500: #7e8ea3; --ink-300: #56657a;
+      --page-bg-1: #071525; --page-bg-2: #0a1c2e;
+      --surface: #102a43; --surface-sunken: #0d2138; --line: #1d3a55;
+      --card-border: #1d3a55;
+      --concern-bg: #3a1f22; --concern-border: #7a3630; --concern-text: #ff8787;
+      --accent-soft: #2a1418; --accent-line: #5a2226;
+      --purple-1: #d71920; --purple-2: #b51218; --on-accent: #ffffff;
       --pop-coral: #ff8787; --pop-coral-ink: #ff8787; --pop-mint: #34d399; --pop-mint-ink: #34d399;
-      --good: #2ecc71; --good-bg: #163a27; --good-2: #1e7e42; --crit: #ec7063; --crit-bg: #3a1f22; --warn: #f5b041; --warn-bg: #3a2c14;
-      --neutral: #8b96ad; --neutral-bg: #232d4d;
+      --good: #159447; --good-bg: #0f2e1e; --good-2: #1e7e42; --crit: #ec7063; --crit-bg: #3a1f22; --warn: #f59e0b; --warn-bg: #3a2c14;
+      --neutral: #7e8ea3; --neutral-bg: #16283f;
+      --l0-1: #d86b08; --l1-1: #159447;
+      --ai-accent: #7656e8; --ai-accent-light: #201a3d; --ai-accent-border: #3d3268;
       --shadow-1: 0 4px 15px rgba(0,0,0,0.35); --shadow-2: 0 10px 26px rgba(0,0,0,0.45);
     }
   }
   :root[data-theme="dark"] {
-    --ink-900: #eef0f5; --ink-700: #c7cee0; --ink-500: #9aa4bb; --ink-300: #65718c;
-    --page-bg-1: #16213c; --page-bg-2: #1a2540;
-    --surface: #1e2a4a; --surface-sunken: #192442; --line: #33406b;
-    --card-border: rgba(255,255,255,0.14);
-    --concern-bg: #3a1f22; --concern-border: #7a3630; --concern-text: #f1a69f;
-    --accent-soft: #262f52; --accent-line: #3b4a8f;
-    --purple-1: #8fa2f5; --on-accent: #16213c;
+    --ink-900: #f1f5f9; --ink-700: #a9b8c9; --ink-500: #7e8ea3; --ink-300: #56657a;
+    --page-bg-1: #071525; --page-bg-2: #0a1c2e;
+    --surface: #102a43; --surface-sunken: #0d2138; --line: #1d3a55;
+    --card-border: #1d3a55;
+    --concern-bg: #3a1f22; --concern-border: #7a3630; --concern-text: #ff8787;
+    --accent-soft: #2a1418; --accent-line: #5a2226;
+    --purple-1: #d71920; --purple-2: #b51218; --on-accent: #ffffff;
     --pop-coral: #ff8787; --pop-coral-ink: #ff8787; --pop-mint: #34d399; --pop-mint-ink: #34d399;
-    --good: #2ecc71; --good-bg: #163a27; --good-2: #1e7e42; --crit: #ec7063; --crit-bg: #3a1f22; --warn: #f5b041; --warn-bg: #3a2c14;
-    --neutral: #8b96ad; --neutral-bg: #232d4d;
+    --good: #159447; --good-bg: #0f2e1e; --good-2: #1e7e42; --crit: #ec7063; --crit-bg: #3a1f22; --warn: #f59e0b; --warn-bg: #3a2c14;
+    --neutral: #7e8ea3; --neutral-bg: #16283f;
+    --l0-1: #d86b08; --l1-1: #159447;
+    --ai-accent: #7656e8; --ai-accent-light: #201a3d; --ai-accent-border: #3d3268;
     --shadow-1: 0 4px 15px rgba(0,0,0,0.35); --shadow-2: 0 10px 26px rgba(0,0,0,0.45);
   }
   :root[data-theme="light"] {
-    --ink-900: #2c3e50; --ink-700: #4a5578; --ink-500: #65718c; --ink-300: #9aa4bb;
-    --page-bg-1: #eef1f8; --page-bg-2: #e3e8f5;
-    --surface: #ffffff; --surface-sunken: #f5f7fb; --line: #e2e5ee;
-    --card-border: rgba(44,62,80,0.12);
-    --concern-bg: #fdecea; --concern-border: #f5b7b1; --concern-text: #8b291c;
-    --accent-soft: #eef0fb; --accent-line: #d7dcf5;
-    --purple-1: #5265cc; --on-accent: #ffffff;
+    --ink-900: #10243e; --ink-700: #52647d; --ink-500: #7a8aa0; --ink-300: #a7b1bf;
+    --page-bg-1: #f3f6fa; --page-bg-2: #eef2f7;
+    --surface: #ffffff; --surface-sunken: #f7f9fc; --line: #dfe5ed;
+    --card-border: #dfe5ed;
+    --concern-bg: #fdebec; --concern-border: #f3c79e; --concern-text: #b51218;
+    --accent-soft: var(--algihaz-red-light); --accent-line: #f3c7c9;
+    --purple-1: var(--algihaz-red); --on-accent: #ffffff;
     --pop-coral: #ff6b6b; --pop-coral-ink: #c92f2f; --pop-mint: #10b981; --pop-mint-ink: #087f5b;
-    --good: #27ae60; --good-bg: #d4edda; --good-2: #1e8449; --crit: #e74c3c; --crit-bg: #f8d7da; --warn: #f39c12; --warn-bg: #fff3cd;
-    --neutral: #95a5a6; --neutral-bg: #eef0f5;
-    --shadow-1: 0 4px 15px rgba(44,62,80,0.07); --shadow-2: 0 8px 22px rgba(44,62,80,0.12);
+    --good: #159447; --good-bg: #e8f6ed; --good-2: #08763a; --crit: #d92d20; --crit-bg: #fdecec; --warn: #f59e0b; --warn-bg: #fff4d6;
+    --neutral: #7a8aa0; --neutral-bg: #eef2f7;
+    --shadow-1: 0 2px 8px rgba(16,36,62,0.05); --shadow-2: 0 6px 18px rgba(16,36,62,0.08);
   }
 
   * { box-sizing: border-box; }
@@ -183,8 +223,9 @@
   /* ---------- shell ---------- */
   /* dvh (with a vh fallback for older engines) so mobile browser chrome
      collapsing/expanding doesn't leave a dead strip under the layout. */
-  .shell { display: grid; grid-template-columns: 264px 1fr; min-height: 100vh; min-height: 100dvh; }
-  .rail { background: var(--surface); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 20px 14px; gap: 18px; }
+  .shell { display: grid; grid-template-columns: 236px 1fr; min-height: 100vh; min-height: 100dvh; }
+  /* [Red Dark Design] navy sidebar, spec section 5. */
+  .rail { background: var(--sidebar-bg); border-right: 1px solid var(--navy-dark); display: flex; flex-direction: column; padding: 20px 14px; gap: 18px; }
   /* Item 154: hamburger toggle + backdrop, both display:none until the
      mobile breakpoint below turns the rail into an off-canvas drawer. */
   /* z-index sits BELOW .rail-backdrop (39) and .rail (40) on purpose: the
@@ -199,19 +240,24 @@
     font-size: 18px; align-items: center; justify-content: center; box-shadow: var(--shadow-1); cursor: pointer;
   }
   .rail-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 39; }
-  .brand { display: flex; flex-direction: column; gap: 10px; padding: 2px 4px 4px; }
-  .brand-badge { background: #ffffff; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; box-shadow: var(--shadow-1); }
+  /* [Red Dark Design] logo sits directly on the navy sidebar, no white
+     floating card (spec section 29) -- the real ALGIHAZ asset already
+     carries its own correct red/white treatment, so this is purely a
+     container change, not a redraw. */
+  .brand { display: flex; flex-direction: column; gap: 10px; padding: 12px 6px 8px; min-height: 105px; justify-content: center; }
+  .brand-badge { background: transparent; border: none; border-radius: 0; padding: 0; box-shadow: none; }
   .brand-badge img { display: block; width: 100%; height: auto; }
   .brand-text { display: flex; flex-direction: column; line-height: 1.2; padding: 0 2px; }
-  .brand-text b { font-size: 12.5px; letter-spacing: .03em; color: var(--ink-700); }
-  .brand-text span { font-size: 10.5px; color: var(--ink-500); text-transform: uppercase; letter-spacing: .07em; }
+  .brand-text b { font-size: 12.5px; letter-spacing: .03em; color: var(--sidebar-text); }
+  .brand-text span { font-size: 10.5px; color: var(--sidebar-icon); text-transform: uppercase; letter-spacing: .07em; }
 
-  .nav-group-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-300); font-weight: 700; padding: 8px 10px 2px; }
+  .nav-group-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--sidebar-icon); font-weight: 700; padding: 8px 10px 2px; opacity: .65; }
   .nav { display: flex; flex-direction: column; gap: 2px; }
   .nav-item {
-    display: flex; align-items: center; gap: 10px; padding: 11px 12px; border-radius: var(--radius-sm);
-    color: var(--ink-700); font-size: 13.5px; font-weight: 600; cursor: pointer; border: none; background: none;
-    text-align: left; width: 100%; white-space: nowrap;
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 7px;
+    color: var(--sidebar-text); font-size: 13.5px; font-weight: 600; cursor: pointer; border: none; background: none;
+    text-align: left; width: 100%; white-space: nowrap; min-height: 40px; box-sizing: border-box;
+    border-left: 3px solid transparent; transition: background .12s, color .12s;
   }
   /* Same gotcha as .terminal-banner.triage-banner below: the class's own
      display:flex outranks the [hidden] attribute's display:none in the
@@ -219,22 +265,28 @@
      BM Triage Status for a role that shouldn't see them) did nothing
      visually without this explicit override. */
   .nav-item[hidden] { display: none; }
-  .nav-item .ic { width: 17px; text-align: center; opacity: .85; }
-  .nav-item:hover { background: var(--surface-sunken); color: var(--ink-900); }
+  .nav-item .ic { width: 17px; text-align: center; opacity: .85; color: var(--sidebar-icon); }
+  .nav-item:hover { background: var(--sidebar-hover); color: #ffffff; }
+  .nav-item:hover .ic { color: #ffffff; }
   .nav-item.active {
-    background: linear-gradient(135deg, var(--purple-1) 0%, var(--purple-2) 100%);
-    color: var(--on-accent); box-shadow: var(--shadow-1);
+    background: var(--sidebar-hover); color: #ffffff; border-left-color: var(--algihaz-red);
+    box-shadow: none;
   }
+  .nav-item.active .ic { color: var(--algihaz-red); }
   /* Left exactly as it has always been: red count on a soft pink ground.
      The pop coral is deliberately NOT used here -- this badge already
      worked, and it stays untouched by the polish pass. */
   .nav-badge { margin-left: auto; background: var(--crit-bg); color: var(--crit); font-size: 10.5px; font-weight: 800; padding: 1px 6px; border-radius: 20px; }
-  .nav-item.active .nav-badge { background: rgba(255,255,255,.25); color: #fff; }
+  .nav-item.active .nav-badge { background: rgba(255,255,255,.2); color: #fff; }
 
-  .rail-foot { margin-top: auto; padding: 12px 8px 2px; border-top: 1px solid var(--line); }
-  .concept-tag { display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--purple-2); background: var(--accent-soft); border: 1px solid var(--accent-line); padding: 4px 8px; border-radius: 20px; }
-  .concept-tag .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--crit); }
-  .rail-note { font-size: 11.5px; color: var(--ink-500); margin-top: 8px; line-height: 1.45; }
+  .rail-foot { margin-top: auto; padding: 12px 8px 2px; border-top: 1px solid var(--navy-dark); }
+  /* Sidebar background is always navy regardless of the page's own light/
+     dark theme -- these two use the dedicated --sidebar-* tokens instead
+     of the theme-swapping --ink-*/--accent-* ones, which would otherwise
+     go near-illegible (light-mode --ink-500 is itself a mid navy-grey). */
+  .concept-tag { display: inline-flex; align-items: center; gap: 6px; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #ffb3b6; background: rgba(215,25,32,.16); border: 1px solid rgba(215,25,32,.35); padding: 4px 8px; border-radius: 20px; }
+  .concept-tag .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--algihaz-red); }
+  .rail-note { font-size: 11.5px; color: var(--sidebar-icon); margin-top: 8px; line-height: 1.45; opacity: .75; }
 
   .main { display: flex; flex-direction: column; min-width: 0; }
   /* flex-wrap is unconditional rather than breakpoint-gated: the bar's
@@ -326,7 +378,11 @@
      cards) is hidden only inside .view-head, and h1 takes over its color
      and a touch more size/weight to read as the page's real title. */
   .view-head .eyebrow { display: none; }
-  .view-head h1 { font-size: 25px; color: var(--purple-1); }
+  /* [Red Dark Design] spec sections 3/8/28, explicit: page titles are navy,
+     not the brand red -- red is reserved for the platform title in the top
+     header and a short accent rule under each page title instead. */
+  .view-head h1 { font-size: 25px; color: var(--ink-900); position: relative; display: inline-block; padding-bottom: 10px; }
+  .view-head h1::after { content: ""; position: absolute; left: 1px; bottom: 0; width: 36px; height: 3px; border-radius: 2px; background: var(--algihaz-red); }
   .view-head p.sub { color: var(--ink-500); font-size: 13.5px; margin-top: 3px; }
   .eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--purple-1); font-weight: 700; margin-bottom: 6px; }
 
@@ -359,8 +415,12 @@
   .dash-project-row > * { min-width: 0; }
   .dash-project-card { padding: 0; border: none; overflow: hidden; display: flex; flex-direction: column; }
   .dash-project-card .dpc-head { padding: 20px 24px; display: flex; align-items: center; gap: 14px; }
-  .dash-project-card.l0 .dpc-head { background: linear-gradient(135deg, var(--l0-1) 0%, var(--l0-2) 100%); }
-  .dash-project-card.l1 .dpc-head { background: linear-gradient(135deg, #1f9d5c 0%, #146c3e 100%); }
+  .dash-project-card.l0 .dpc-head { background: linear-gradient(135deg, var(--l0-2) 0%, var(--l0-1) 100%); position: relative; overflow: hidden; }
+  .dash-project-card.l1 .dpc-head { background: linear-gradient(135deg, var(--l1-2) 0%, var(--l1-1) 100%); position: relative; overflow: hidden; }
+  /* [Red Dark Design] subtle OHTL/power-grid motif, spec section 10/11 --
+     decorative only, sits behind the header's own text (z-index below it). */
+  .dpc-head .dpc-grid-art { position: absolute; right: 0; bottom: 0; width: 42%; height: 100%; opacity: .7; pointer-events: none; z-index: 0; }
+  .dpc-head .dpc-tag, .dpc-head > div:last-child { position: relative; z-index: 1; }
   .dash-project-card .dpc-tag {
     width: 44px; height: 44px; border-radius: 11px; display: flex; align-items: center; justify-content: center;
     font-size: 22px; font-weight: 800; flex-shrink: 0; background: rgba(255,255,255,.22); color: #fff;
@@ -375,7 +435,33 @@
   .dpc-recent-row:hover { background: var(--surface-sunken); }
   .dpc-recent-est { font-weight: 800; font-size: 12.5px; flex-shrink: 0; }
   .dash-project-card.l0 .dpc-recent-est { color: var(--l0-1); }
-  .dash-project-card.l1 .dpc-recent-est { color: #1f9d5c; }
+  .dash-project-card.l1 .dpc-recent-est { color: var(--l1-1); }
+  /* [Red Dark Design] the new lifetime/performance KPI row -- spec
+     section 9, sits above the L0/L1 active panels. Fixed 5 columns
+     (always exactly 5 cards), not auto-fit, so it never silently wraps. */
+  .dash-kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 22px; }
+  .dash-kpi-card {
+    background: var(--surface); border: 1px solid var(--card-border); border-radius: var(--radius);
+    box-shadow: var(--shadow-1); padding: 16px 18px; display: flex; align-items: flex-start; gap: 12px;
+    min-height: 108px; transition: transform .16s, box-shadow .16s;
+  }
+  .dash-kpi-card:hover { transform: translateY(-1px); box-shadow: var(--shadow-2); }
+  .dash-kpi-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .dash-kpi-icon svg { width: 20px; height: 20px; }
+  .dash-kpi-icon.red { background: var(--algihaz-red-light); color: var(--algihaz-red); }
+  .dash-kpi-icon.green { background: var(--good-bg); color: var(--l1-2); }
+  .dash-kpi-icon.ai { background: var(--ai-accent-light); color: var(--ai-accent); }
+  .dash-kpi-icon.amber { background: var(--warn-bg); color: #c87900; }
+  .dash-kpi-icon.success { background: var(--good-bg); color: var(--good); }
+  .dash-kpi-body { min-width: 0; }
+  .dash-kpi-value { font-size: 26px; font-weight: 800; color: var(--ink-900); line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .dash-kpi-value small { font-size: 15px; font-weight: 700; }
+  .dash-kpi-label { font-size: 12px; font-weight: 700; color: var(--ink-700); margin-top: 5px; white-space: nowrap; }
+  .dash-kpi-sub { font-size: 11px; color: var(--ink-500); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dash-kpi-sub.up { color: var(--good); font-weight: 700; }
+  .dash-kpi-sub.down { color: var(--crit); font-weight: 700; }
+  @media (max-width: 1180px) { .dash-kpi-row { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 700px) { .dash-kpi-row { grid-template-columns: repeat(2, 1fr); } }
   .dpc-recent-name { font-size: 12.5px; color: var(--ink-700); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; }
   .dpc-recent-date { font-size: 11px; color: var(--ink-500); flex-shrink: 0; white-space: nowrap; }
   .dpc-empty { padding: 10px 12px; font-size: 12px; color: var(--ink-500); }
