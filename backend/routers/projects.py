@@ -220,7 +220,36 @@ def list_projects(stage: str | None = None, status: str | None = None, archived:
         q = q.filter(models.Project.archived.is_not(True))
     else:
         q = q.filter(models.Project.archived.is_(archived))
-    return q.order_by(models.Project.created_at.desc()).all()
+    projects = q.order_by(models.Project.created_at.desc()).all()
+
+    # [queued: L1 Projects milestone filter] one batched query for every
+    # L1 project's highest-reached milestone, instead of the N+1 the
+    # frontend's own per-row /milestones fetch already does for the mini-
+    # stepper -- attached as a transient attribute (not a real column),
+    # picked up by ProjectOut's from_attributes the same as any other
+    # field. L0 projects are untouched (current_milestone stays None).
+    l1_ids = [p.id for p in projects if p.stage == models.Stage.L1]
+    if l1_ids:
+        reached = (
+            db.query(models.DeliverableSubmission.project_id, models.DeliverableDefinition.milestone_code)
+            .join(models.DeliverableDefinition)
+            .filter(
+                models.DeliverableSubmission.project_id.in_(l1_ids),
+                models.DeliverableDefinition.is_milestone == True,  # noqa: E712
+                models.DeliverableSubmission.status == models.SubmissionStatus.APPROVED,
+            )
+            .all()
+        )
+        highest_by_project = {}
+        for project_id, code in reached:
+            if not code:
+                continue
+            if project_id not in highest_by_project or code > highest_by_project[project_id]:
+                highest_by_project[project_id] = code
+        for p in projects:
+            if p.stage == models.Stage.L1:
+                p.current_milestone = highest_by_project.get(p.id)
+    return projects
 
 
 def _active_bid_manager_emails(db: Session) -> set[str]:

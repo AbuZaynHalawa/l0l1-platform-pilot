@@ -113,6 +113,11 @@ class ProjectOut(BaseModel):
     is_international: bool = False  # [L0 International]
     country: str | None = None
     archived: bool = False  # [Archive]
+    # [queued: L1 Projects milestone filter] highest-reached milestone code
+    # (e.g. "M3"), or None if none reached yet -- L1 only, computed and
+    # attached in list_projects, not a real column. Frontend maps the code
+    # to its label via L1_MILESTONE_LABELS (app.js).
+    current_milestone: str | None = None
 
     class Config:
         from_attributes = True

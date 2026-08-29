@@ -1496,10 +1496,23 @@
         { key: "status", get: function (p) { return p.status; }, uniqueValues: uniq(function (p) { return p.status; }) },
       ];
     } else {
+      // [queued: milestones filterable] p.current_milestone is the highest-
+      // reached milestone code ("M3"), batched into the /api/projects list
+      // response itself (see list_projects) so this needs no per-row
+      // fetch -- the mini-stepper cell still does its own per-row
+      // /milestones call for the dot-by-dot detail, this column is just
+      // "where is it overall" as one filterable/sortable value.
+      var milestoneLabelOf = function (p) {
+        return p.current_milestone && L1_MILESTONE_LABELS[p.current_milestone]
+          ? p.current_milestone + " – " + L1_MILESTONE_LABELS[p.current_milestone] : "Not Started";
+      };
+      var milestoneRankOf = function (p) {
+        return p.current_milestone ? Number(p.current_milestone.slice(1)) || 0 : 0;
+      };
       columns = [
         { key: "est_no", get: function (p) { return p.est_no; }, uniqueValues: uniq(function (p) { return p.est_no; }) },
         { key: "name", get: function (p) { return p.name; }, uniqueValues: uniq(function (p) { return p.name; }) },
-        null, // milestones mini-stepper -- not a plain sortable/filterable value
+        { key: "milestone", get: milestoneLabelOf, sortValue: milestoneRankOf, uniqueValues: uniq(milestoneLabelOf) },
         { key: "bm", get: function (p) { return p.bid_manager || ""; }, uniqueValues: uniq(function (p) { return p.bid_manager || ""; }) },
         { key: "pm", get: function (p) { return p.project_manager || ""; }, uniqueValues: uniq(function (p) { return p.project_manager || ""; }) },
         { key: "status", get: function (p) { return p.status; }, uniqueValues: uniq(function (p) { return p.status; }) },
