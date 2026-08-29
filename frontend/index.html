@@ -1246,40 +1246,14 @@
         </div>
         <div class="card-grid-heading">PO Categories</div>
         <div class="rep-po-grid" id="repMasterPoCatGrid" style="margin-bottom:22px;"></div>
+        <!-- Items 4/36 (redlined): the old dropdown filter row (Project/
+             Category/PO Status/Project Status/Department + a separate
+             Clear-all link) is gone -- every one of those is now a column
+             header filter on the table itself, same as everywhere else.
+             Just the free-text search stays, same convention as Custom
+             Report keeping its own search box alongside its Excel header. -->
         <div class="rep-po-filter-bar" id="repMasterPoFilterRow">
           <input type="text" class="rep-po-search" id="repMasterPoSearch" placeholder="Search project, deliverable, category&#8230;" />
-          <div class="rep-po-dropdown-row">
-            <div class="rep-po-dropdown-group">
-              <label for="repMasterPoProjectFilter">Project</label>
-              <select id="repMasterPoProjectFilter"><option value="">All Projects</option></select>
-            </div>
-            <div class="rep-po-dropdown-group">
-              <label for="repMasterPoCategoryFilter">PO Category</label>
-              <select id="repMasterPoCategoryFilter"><option value="">All</option></select>
-            </div>
-            <div class="rep-po-dropdown-group">
-              <label for="repMasterPoStatusFilter">PO Status</label>
-              <select id="repMasterPoStatusFilter">
-                <option value="">All</option>
-                <option value="signed">Signed by both parties</option>
-                <option value="not-due">Not Due</option>
-                <option value="pending-due">Pending (Due)</option>
-              </select>
-            </div>
-            <div class="rep-po-dropdown-group">
-              <label for="repMasterPoProjectStatusFilter">Project Status</label>
-              <select id="repMasterPoProjectStatusFilter">
-                <option value="">All</option>
-                <option value="Signed">Signed</option>
-                <option value="Not Signed">Not Signed</option>
-              </select>
-            </div>
-            <div class="rep-po-dropdown-group highlight">
-              <label for="repMasterPoDeptFilter">&#127919; Department</label>
-              <select id="repMasterPoDeptFilter"><option value="">All</option></select>
-            </div>
-            <span class="rep-po-clear-filters" id="repMasterPoClearFilters">&#10006; Clear all filters</span>
-          </div>
         </div>
         <div class="rep-po-count-line" id="repMasterPoCount"></div>
         <div class="rep-po-table-wrap">
@@ -1921,7 +1895,7 @@
 
 <!-- Item 21: Knowledge Base's full question+answer opens here on click. -->
 <div class="modal-overlay" id="kbDetailOverlay" hidden>
-  <div class="modal-card">
+  <div class="modal-card wide">
     <div class="modal-head">
       <div><h2 id="kbDetailTitle">Question</h2></div>
       <button class="modal-close" id="kbDetailClose">&#10005;</button>

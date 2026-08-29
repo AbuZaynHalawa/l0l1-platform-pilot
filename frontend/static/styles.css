@@ -543,6 +543,12 @@
   .pill.crit .dot { background: var(--pop-coral); }
   .pill.neutral { background: var(--neutral-bg); color: var(--ink-700); }
   .pill.neutral .dot { background: var(--neutral); }
+  /* Item 21: Knowledge Base's Stage pill -- same L0-orange/L1-green
+     identity used everywhere else in the platform. */
+  .pill.l0-tag { background: color-mix(in srgb, var(--l0-1) 15%, transparent); color: var(--l0-1); }
+  .pill.l0-tag .dot { background: var(--l0-1); }
+  .pill.l1-tag { background: color-mix(in srgb, #1f9d5c 15%, transparent); color: #1f9d5c; }
+  .pill.l1-tag .dot { background: #1f9d5c; }
 
   /* overflow-x needs an explicit value, not just omission -- per spec, an
      unset overflow-x paired with a non-visible overflow-y silently computes
@@ -566,9 +572,15 @@
      click its funnel icon for a multi-select filter dropdown. Works inside
      both table.data (L0/L1) and .fp-table (everywhere else) headers. */
   th.xh-th { padding: 0 !important; }
+  /* Sort button no longer stretches (flex:1) -- the funnel icon now sits
+     right next to the label/sort-arrow instead of pinned to the far right
+     edge of a wide column, with the rest of the cell left empty. */
   .xh-th-wrap { display: flex; align-items: center; gap: 4px; padding: 11px 10px 11px 16px; }
-  .xh-sort-btn { display: flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; flex: 1; min-width: 0; }
-  .xh-label { overflow: hidden; text-overflow: ellipsis; }
+  .xh-sort-btn { display: flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; flex: 0 1 auto; min-width: 0; max-width: 100%; }
+  /* Item 9: never clip header text -- wrap onto a second line inside
+     narrow fixed-width columns (e.g. "Counts in Performance" in Manage
+     Tracking) instead of an ellipsis or a hard cutoff. */
+  .xh-label { white-space: normal; line-height: 1.25; }
   .xh-sort-svg { flex-shrink: 0; opacity: .35; }
   .xh-sort-svg .xh-sort-up, .xh-sort-svg .xh-sort-down { opacity: .45; }
   th.xh-sort-asc .xh-sort-svg, th.xh-sort-desc .xh-sort-svg { opacity: 1; }
@@ -578,7 +590,19 @@
   th.xh-sort-desc .xh-sort-svg .xh-sort-down { fill: var(--purple-1); }
   .xh-filter-btn { border: none; background: transparent; color: var(--ink-500); cursor: pointer; padding: 4px; border-radius: 5px; flex-shrink: 0; display: flex; }
   .xh-filter-btn:hover { background: var(--surface-sunken); color: var(--purple-1); }
-  th[data-xh-filtered="1"] .xh-filter-btn { color: var(--purple-1); }
+  /* A filtered column needs to read as "active" at a glance, not just a
+     recolored icon -- tint the whole header cell and give the funnel a
+     filled pill background. */
+  th.xh-th[data-xh-filtered="1"] { background: var(--accent-soft); }
+  th[data-xh-filtered="1"] .xh-filter-btn { color: #fff; background: var(--purple-1); }
+  th[data-xh-filtered="1"] .xh-filter-btn:hover { background: var(--purple-2); color: #fff; }
+  th[data-xh-filtered="1"] .xh-label { color: var(--purple-1); font-weight: 800; }
+  /* "Clear filters" bar -- auto-inserted above the table, right-aligned,
+     only visible once at least one column filter is active. */
+  .xh-clearbar { display: flex; justify-content: flex-end; padding: 10px 18px 0; }
+  .xh-clearbar[hidden] { display: none; }
+  .xh-clearbar-btn { border: none; background: transparent; color: var(--purple-1); font-size: 12px; font-weight: 700; cursor: pointer; padding: 4px 2px; }
+  .xh-clearbar-btn:hover { text-decoration: underline; }
   .xh-panel { position: absolute; z-index: 500; width: 230px; max-height: 320px; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow-2); padding: 10px; }
   .xh-panel-search { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 7px 9px; font-size: 12px; font-family: inherit; color: var(--ink-900); background: var(--surface-sunken); margin-bottom: 8px; }
   .xh-panel-list { overflow-y: auto; flex: 1; min-height: 30px; max-height: 220px; display: flex; flex-direction: column; }
@@ -1074,6 +1098,18 @@
   .qa-reply-box { width: 100%; min-height: 84px; resize: vertical; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 13px; font-family: inherit; color: var(--ink-900); background: var(--surface); }
   .qa-reply-box:focus { outline: none; border-color: var(--accent-line); }
   .qa-thread-actions { display: flex; gap: 8px; justify-content: flex-end; }
+  /* Item 21 (redlined): Knowledge Base's detail window -- the #N sits
+     right next to the title text instead of its own row, and Question/
+     Answer each get their own clearly labeled panel instead of one flat
+     italic line. */
+  #kbDetailTitle { display: flex; align-items: baseline; gap: 8px; }
+  .kb-detail-num { flex-shrink: 0; font-size: 12px; font-weight: 800; color: var(--ink-500); }
+  .kb-detail-panel { border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
+  .kb-detail-panel.question { background: var(--surface-sunken); }
+  .kb-detail-panel.answer { background: var(--accent-soft); }
+  .kb-detail-panel-label { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-500); margin-bottom: 6px; }
+  .kb-detail-panel.answer .kb-detail-panel-label { color: var(--purple-1); }
+  .kb-detail-panel-body { font-size: 13.5px; color: var(--ink-900); line-height: 1.6; white-space: pre-wrap; }
   .btn { border: 1px solid var(--line); background: var(--surface); color: var(--ink-700); border-radius: var(--radius-sm); padding: 9px 16px; font-size: 12px; font-weight: 700; cursor: pointer; }
   .btn:hover { border-color: var(--accent-line); color: var(--purple-1); }
   .btn.primary { background: linear-gradient(135deg, var(--purple-1), var(--purple-2)); border-color: transparent; color: #fff; }
@@ -1366,8 +1402,13 @@
   #ganttFilterRow { flex-wrap: nowrap; }
   #ganttFilterRow select { flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #ganttFilterRow #ganttScope { flex: 1.3 1 0; }
-  .gantt-dept-legend { margin-bottom: 14px; gap: 18px; }
-  .gantt-dept-legend .sw { width: 13px; height: 13px; border-radius: 4px; }
+  /* Regression fix: this used to borrow "ann-type-key" for its base layout
+     (flex row of swatch+label chips); item 5 deleted that class along with
+     the Announcements legend it belonged to, which silently left this
+     legend with no layout at all. Now fully self-contained. */
+  .gantt-dept-legend { display: flex; flex-wrap: wrap; align-items: center; margin-bottom: 14px; gap: 18px; }
+  .gantt-dept-legend .lg { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--ink-700); }
+  .gantt-dept-legend .sw { width: 13px; height: 13px; border-radius: 4px; flex-shrink: 0; }
   .gantt-est-tag { display: inline-block; margin-left: 6px; font-size: 10.5px; font-weight: 700; color: var(--ink-500); background: var(--surface-sunken); border-radius: 6px; padding: 1px 6px; }
   .gantt-bu-note { font-size: 10.5px; font-weight: 700; color: var(--purple-2); }
   .gantt-col-header {
@@ -1468,6 +1509,13 @@
      in the app (Focal Points, Bid Managers, etc.), which stays nowrap. */
   #perfTriagePane .fp-table { table-layout: fixed; }
   #perfTriagePane .fp-table td { white-space: normal; word-break: break-word; }
+  /* Item 9 (still red-flagged): "Counts in Performance" was clipped inside
+     its 140px column -- that header isn't sortable/filterable so it never
+     went through the Excel header's own wrap fix, wrap it here instead.
+     No word-break: break-word here -- it would inherit into the narrower
+     Excel-header columns in this same table (e.g. 60px "Item") and tear
+     words mid-character instead of just wrapping at the space. */
+  #perfTriagePane .fp-table th { white-space: normal; }
   /* Item 9: BM Triage Status had the same nowrap-forces-horizontal-scroll
      issue (Tender name + Bid Manager email are long, unbroken content) --
      same fix as Manage Tracking above. */
@@ -1674,8 +1722,11 @@
   .rc-step-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-500); margin-bottom: 10px; }
   .rc-field-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px 16px; }
   .rc-field-check { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-700); cursor: pointer; }
-  #rcTable th { cursor: pointer; user-select: none; }
-  #rcTable th:hover { color: var(--purple-1); }
+  /* Stale rules from before the Excel header (items 4/36/11) removed here:
+     "#rcTable th:hover { color: var(--purple-1) }" turned header text the
+     same purple as the header's own background, making it vanish on
+     hover. Every #rcTable th now goes through installExcelHeader, which
+     owns its own cursor/hover treatment on the sort/filter controls. */
   .report-category-box {
     display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
     background: var(--surface); border: 1.5px solid var(--line); border-radius: 14px;
@@ -1815,6 +1866,12 @@
   .rep-po-table thead th .xh-filter-btn { color: rgba(255,255,255,.75); }
   .rep-po-table thead th .xh-filter-btn:hover { background: rgba(255,255,255,.15); color: #fff; }
   .rep-po-table thead th[data-xh-filtered="1"] .xh-filter-btn { color: #fff; background: rgba(255,255,255,.2); }
+  /* Override the general (light) filtered-column tint -- this header is
+     already solid purple, so "more highlighted" here means a deeper shade
+     of the same purple plus a keep-white label, not the light accent tint
+     that reads fine on a plain white header. */
+  .rep-po-table thead th.xh-th[data-xh-filtered="1"] { background: color-mix(in srgb, var(--accent), #000 18%); }
+  .rep-po-table thead th[data-xh-filtered="1"] .xh-label { color: #fff; font-weight: 700; }
   .rep-po-table thead th.xh-sort-asc .xh-sort-svg .xh-sort-up, .rep-po-table thead th.xh-sort-desc .xh-sort-svg .xh-sort-down { fill: #fff; }
   .rep-po-table tbody td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; white-space: normal; word-break: break-word; }
   .rep-po-table tbody tr:hover { background: var(--surface-sunken); }
@@ -1984,6 +2041,12 @@
   .modal-card.wide { max-width: 960px; }
   .pcmp-section-head { font-size: 13px; font-weight: 800; color: var(--purple-2); background: var(--accent-soft); padding: 8px 14px; border-radius: 8px; margin: 18px 0 10px; }
   .pcmp-section-head:first-child { margin-top: 0; }
+  /* Item 7 (still red-flagged): these section heads read as the same
+     purple for both levels -- same L0-orange/L1-green identity used
+     everywhere else (renderPerfCol, the breakdown modal title, the trend
+     line itself right below this very header). */
+  .pcmp-section-head.l0 { color: var(--l0-1); background: color-mix(in srgb, var(--l0-1) 12%, transparent); }
+  .pcmp-section-head.l1 { color: #1f9d5c; background: color-mix(in srgb, #1f9d5c 12%, transparent); }
   .pmonth-picker { margin-bottom: 6px; }
   .pmonth-label { font-size: 11px; font-weight: 700; color: var(--ink-500); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
   .pmonth-pills { display: flex; flex-wrap: wrap; gap: 8px; }

@@ -87,10 +87,21 @@
   function installExcelHeader(theadRowEl, columns) {
     var state = { sortKey: null, sortDir: "asc", filters: {} }; // filters[key] = Set of allowed values, absent = no filter
     var changeCb = null;
+    var clearBar = _xhInstallClearBar(theadRowEl, function () {
+      Array.prototype.slice.call(theadRowEl.children).forEach(function (th) { th.removeAttribute("data-xh-filtered"); });
+      state.filters = {};
+      notify();
+    });
+    function notify() {
+      _xhUpdateClearBar(clearBar, state);
+      if (changeCb) changeCb();
+    }
+    var thByKey = {};
     var ths = Array.prototype.slice.call(theadRowEl.children);
     ths.forEach(function (th, i) {
       var col = columns[i];
       if (!col) return;
+      thByKey[col.key] = th;
       var label = th.textContent.trim();
       th.innerHTML = "";
       th.classList.add("xh-th");
@@ -101,7 +112,7 @@
           if (state.sortKey === col.key) state.sortDir = state.sortDir === "asc" ? "desc" : "asc";
           else { state.sortKey = col.key; state.sortDir = "asc"; }
           _xhUpdateSortIndicators(theadRowEl, columns, state);
-          if (changeCb) changeCb();
+          notify();
         });
         wrap.appendChild(sortBtn);
       } else {
@@ -113,15 +124,27 @@
         filterBtn.addEventListener("click", function (e) {
           e.stopPropagation();
           if (_xhOpenPanel && _xhOpenPanel.dataset.forKey === col.key && _xhOpenPanel.dataset.forTh === String(i)) { _xhClosePanel(); return; }
-          _xhOpenFilterPanel(filterBtn, col, state, th, function () { if (changeCb) changeCb(); }, i);
+          _xhOpenFilterPanel(filterBtn, col, state, th, notify, i);
         });
         wrap.appendChild(filterBtn);
       }
       th.appendChild(wrap);
     });
+    _xhUpdateClearBar(clearBar, state);
     return {
       onChange: function (cb) { changeCb = cb; },
       state: state,
+      // Lets an external control (e.g. a summary card acting as a
+      // shortcut filter) drive a column filter the same way picking it
+      // from that column's own dropdown would -- values: array of allowed
+      // strings, or null/undefined to clear that column's filter.
+      setFilter: function (key, values) {
+        if (values && values.length) state.filters[key] = new Set(values);
+        else delete state.filters[key];
+        var th = thByKey[key];
+        if (th) { if (values && values.length) th.setAttribute("data-xh-filtered", "1"); else th.removeAttribute("data-xh-filtered"); }
+        notify();
+      },
       process: function (list) {
         var out = list;
         Object.keys(state.filters).forEach(function (key) {
@@ -147,6 +170,28 @@
         return out;
       },
     };
+  }
+  // A "Clear filters" bar sits above the table, right-aligned, and only
+  // shows once at least one column filter is active -- one per table,
+  // inserted as the table's previous sibling so it never needs its own
+  // spot carved out of each view's markup.
+  function _xhInstallClearBar(theadRowEl, onClear) {
+    var table = theadRowEl.closest("table");
+    if (!table || !table.parentNode) return null;
+    var bar = el("div", "xh-clearbar");
+    var btn = el("button", "xh-clearbar-btn", "&#10005; Clear filters");
+    btn.type = "button";
+    btn.addEventListener("click", onClear);
+    bar.appendChild(btn);
+    bar.hidden = true;
+    table.parentNode.insertBefore(bar, table);
+    return bar;
+  }
+  function _xhUpdateClearBar(bar, state) {
+    if (!bar) return;
+    var count = Object.keys(state.filters).length;
+    bar.hidden = count === 0;
+    bar.querySelector(".xh-clearbar-btn").innerHTML = "&#10005; Clear " + count + " filter" + (count === 1 ? "" : "s");
   }
   function _xhUpdateSortIndicators(theadRowEl, columns, state) {
     Array.prototype.slice.call(theadRowEl.children).forEach(function (th, i) {
@@ -4582,7 +4627,12 @@
         legend.appendChild(lg);
       });
     }
-    legend.className = "ann-type-key gantt-dept-legend";
+    // Regression fix: this used to also carry "ann-type-key" for its base
+    // flex/chip layout, borrowed from the Announcements legend -- item 5
+    // deleted that legend (and its CSS) entirely, which silently broke this
+    // one too (fell back to unstyled inline spans, reading as one run-on
+    // wall of text). .gantt-dept-legend now owns its own complete layout.
+    legend.className = "gantt-dept-legend";
     legend.style.display = "";
 
     applyGanttFilters();
@@ -5046,7 +5096,7 @@
         // uses on the summary cards (green L1 / orange L0), instead of two
         // near-identical purples that made both levels look the same here.
         var seriesList = [{ label: d.name, color: levelKey === "l1" ? "#1f9d5c" : "#cc6a1e", points: periods }];
-        return '<div class="pcmp-section-head">' + levelLabel + "</div>" +
+        return '<div class="pcmp-section-head ' + levelKey + '">' + levelLabel + "</div>" +
           '<div class="pcmp-table-wrap"><table class="pcmp-table pcmp-align-table"><tbody>' + rows + "</tbody></table></div>" +
           buildTrendChartHtml(seriesList, 170, true);
       }).join("");
@@ -5102,7 +5152,7 @@
       var seriesList = depts.map(function (d, i) {
         return { label: d.name, color: PERF_COLORS[i % PERF_COLORS.length], points: d[levelKey].history };
       });
-      return '<div class="pcmp-section-head">' + levelLabel + "</div>" +
+      return '<div class="pcmp-section-head ' + levelKey + '">' + levelLabel + "</div>" +
         '<div class="pcmp-table-wrap"><table class="pcmp-table pcmp-align-table"><tbody>' + rows + "</tbody></table></div>" +
         buildTrendChartHtml(seriesList, 170, true);
     }).join("");
@@ -5450,19 +5500,34 @@
   // here unconditionally, same pattern as loadPerformance/perfOverviewCore,
   // so navigating to the Reports page's Master PO Report always shows it
   // in its normal place regardless of whichever view last relocated it.
-  // Item 36: sort-only Excel header for the Master PO table (see renderTable
-  // below) -- built once and reused across every loadReportMasterPo() call
-  // so re-visiting the tab doesn't double-wrap the header cells.
-  var _masterPoXhController = null;
+  // Items 4/36 (redlined: replace the old dropdown filter row with the
+  // Excel header, same as everywhere else): full sort+filter on every
+  // categorical column -- built once and reused across every
+  // loadReportMasterPo() call so re-visiting the tab doesn't double-wrap
+  // the header cells.
+  var _masterPoXhController = null, _masterPoAllRows = [];
   function _masterPoXh() {
     if (_masterPoXhController) return _masterPoXhController;
+    function uniq(getter) {
+      return function () {
+        var seen = {}, out = [];
+        (_masterPoAllRows || []).forEach(function (r) {
+          var v = getter(r); v = v == null ? "" : String(v);
+          if (!seen[v]) { seen[v] = true; out.push(v); }
+        });
+        return out.sort(function (a, b) { return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }); });
+      };
+    }
+    var projectOf = function (r) { return r.est_no + " " + r.project_name; };
+    var categoryOf = function (r) { return r.category.replace(/_/g, " "); };
+    var poStatusOf = function (r) { return _PO_STATUS_LABEL2[r.po_status] || r.po_status; };
     var columns = [
-      { key: "contract_status", get: function (r) { return r.contract_status || ""; }, filterable: false },
-      { key: "project", get: function (r) { return r.est_no + " " + r.project_name; }, filterable: false },
+      { key: "contract_status", get: function (r) { return r.contract_status || ""; }, uniqueValues: uniq(function (r) { return r.contract_status || ""; }) },
+      { key: "project", get: projectOf, uniqueValues: uniq(projectOf) },
       { key: "item", get: function (r) { return r.current_item_no || ""; }, filterable: false },
       { key: "name", get: function (r) { return r.name; }, filterable: false },
-      { key: "category", get: function (r) { return r.category; }, filterable: false },
-      { key: "po_status", get: function (r) { return _PO_STATUS_LABEL2[r.po_status] || r.po_status; }, filterable: false },
+      { key: "category", get: categoryOf, uniqueValues: uniq(categoryOf) },
+      { key: "po_status", get: poStatusOf, uniqueValues: uniq(poStatusOf) },
       { key: "final_due", get: function (r) { return fmtDate(r.final_due_date); }, sortValue: function (r) { return r.final_due_date || ""; }, filterable: false },
       { key: "actual_signed", get: function (r) { return r.actual_or_signed ? fmtDate(r.actual_or_signed) : ""; }, sortValue: function (r) { return r.actual_or_signed || ""; }, filterable: false },
       { key: "delay", get: function (r) { return r.delay_label; }, filterable: false },
@@ -5474,47 +5539,51 @@
     _masterPoXhController = installExcelHeader(theadRow, columns);
     return _masterPoXhController;
   }
+  // Card counts need to reproduce the same value each filterable column's
+  // get() produces (see _masterPoXh) so "everything except this column's
+  // own filter" stays in sync with what the header's own filter actually
+  // matches against.
+  var _MASTER_PO_COL_GET = {
+    contract_status: function (r) { return r.contract_status || ""; },
+    project: function (r) { return r.est_no + " " + r.project_name; },
+    category: function (r) { return r.category.replace(/_/g, " "); },
+    po_status: function (r) { return _PO_STATUS_LABEL2[r.po_status] || r.po_status; },
+  };
   async function loadReportMasterPo() {
     document.getElementById("view-report-masterpo").appendChild(document.getElementById("masterPoCore"));
     document.getElementById("masterPoTitle").textContent = "Master PO Report";
     var rows = await api("/api/reports/master-po?actor_role=" + encodeURIComponent(CURRENT_ROLE));
-    var projSel = document.getElementById("repMasterPoProjectFilter");
-    var catSel = document.getElementById("repMasterPoCategoryFilter");
-    var deptSel = document.getElementById("repMasterPoDeptFilter");
+    _masterPoAllRows = rows;
     var search = document.getElementById("repMasterPoSearch");
-    var seenProj = {}, seenCat = {}, seenDept = {};
-    rows.forEach(function (r) { seenProj[r.est_no] = r.project_name; seenCat[r.category] = true; if (r.department) seenDept[r.department] = true; });
-    projSel.innerHTML = '<option value="">All Projects</option>';
-    Object.keys(seenProj).sort().forEach(function (est) { var o = el("option", "", est + " &middot; " + seenProj[est]); o.value = est; projSel.appendChild(o); });
-    catSel.innerHTML = '<option value="">All</option>';
-    Object.keys(seenCat).sort().forEach(function (c) { var o = el("option", "", c.replace(/_/g, " ")); o.value = c; catSel.appendChild(o); });
-    deptSel.innerHTML = '<option value="">All</option>';
-    Object.keys(seenDept).sort().forEach(function (d) { var o = el("option", "", d); o.value = d; deptSel.appendChild(o); });
+    var masterPoXh = _masterPoXh();
 
-    function filteredRows(excludeCategory) {
-      var projF = projSel.value, catF = excludeCategory ? "" : catSel.value,
-          statusF = document.getElementById("repMasterPoStatusFilter").value,
-          projStatusF = document.getElementById("repMasterPoProjectStatusFilter").value,
-          deptF = deptSel.value, searchTerm = search.value.trim().toLowerCase();
-      return rows.filter(function (r) {
-        if (projF && r.est_no !== projF) return false;
-        if (catF && r.category !== catF) return false;
-        if (statusF && r.po_status !== statusF) return false;
-        if (projStatusF && r.contract_status !== projStatusF) return false;
-        if (deptF && r.department !== deptF) return false;
-        if (searchTerm && (r.project_name + " " + r.name + " " + r.category).toLowerCase().indexOf(searchTerm) === -1) return false;
-        return true;
+    function searchFiltered() {
+      var term = search.value.trim().toLowerCase();
+      if (!term) return rows;
+      return rows.filter(function (r) { return (r.project_name + " " + r.name + " " + r.category).toLowerCase().indexOf(term) !== -1; });
+    }
+    // Items 4/36 (redlined): the old dropdown filter row is gone -- every
+    // column filter now lives in its own header, same convention as every
+    // other table. filteredExcluding still backs the category cards, which
+    // (same "must exclude the filter dimension it represents" rule as
+    // before) ignore the Category column's own filter but react to every
+    // other active filter plus the search box.
+    function filteredExcluding(excludeKey) {
+      var out = searchFiltered();
+      var filters = masterPoXh.state.filters;
+      Object.keys(filters).forEach(function (key) {
+        if (key === excludeKey) return;
+        var allowed = filters[key], getter = _MASTER_PO_COL_GET[key];
+        if (!allowed || !getter) return;
+        out = out.filter(function (r) { return allowed.has(String(getter(r))); });
       });
+      return out;
     }
     var CAT_TITLES = { long_lead: "Long Lead Items POs", early_activity: "Early Activities POs", mep: "MEP POs", consultancy: "Consultancy POs", sc: "S/C POs" };
     function renderCategoryCards() {
       var byCat = {};
-      // Category cards ignore the page's own Category filter (so clicking
-      // one card's own stat doesn't collapse every other card to zero --
-      // same "must exclude the filter dimension it represents" rule the
-      // design reference itself documents) but still react to every other
-      // active filter (project, status, department, search).
-      filteredRows(true).forEach(function (r) { (byCat[r.category] = byCat[r.category] || []).push(r); });
+      filteredExcluding("category").forEach(function (r) { (byCat[r.category] = byCat[r.category] || []).push(r); });
+      var activeCatFilter = masterPoXh.state.filters.category;
       var grid = document.getElementById("repMasterPoCatGrid");
       grid.innerHTML = "";
       Object.keys(byCat).sort().forEach(function (cat) {
@@ -5524,7 +5593,8 @@
         var delays = catRows.filter(function (r) { return r.po_status === "signed"; })
           .map(function (r) { return /(-?\d+)d/.exec(r.delay_label); }).filter(Boolean).map(function (m) { return parseInt(m[1], 10); });
         var avgDelay = delays.length ? (delays.reduce(function (a, b) { return a + b; }, 0) / delays.length).toFixed(1) : null;
-        var card = el("div", "rep-po-card" + (catSel.value === cat ? " active-filter" : ""));
+        var isActive = activeCatFilter && activeCatFilter.has(cat.replace(/_/g, " "));
+        var card = el("div", "rep-po-card" + (isActive ? " active-filter" : ""));
         card.style.cursor = "pointer";
         var head = el("div", "rep-po-card-head");
         head.appendChild(el("div", "rep-po-card-title", CAT_TITLES[cat] || cat));
@@ -5546,23 +5616,15 @@
         statRow.appendChild(avgCell);
         card.appendChild(statRow);
         card.addEventListener("click", function () {
-          catSel.value = (catSel.value === cat) ? "" : cat;
-          renderAll();
+          masterPoXh.setFilter("category", isActive ? null : [cat.replace(/_/g, " ")]);
         });
         grid.appendChild(card);
       });
     }
-    // Item 36: click-to-sort headers on the Master PO table -- this table
-    // already has its own rich multi-dimension filter row (project,
-    // category, status, department, search), so only the sort half of the
-    // shared component is wired here rather than layering a second,
-    // redundant filter mechanism on top.
-    var masterPoXh = _masterPoXh();
-    masterPoXh.onChange(function () { renderTable(); });
+    masterPoXh.onChange(renderAll);
     function renderTable() {
-      var filtered = filteredRows(false);
+      var filtered = masterPoXh.process(searchFiltered());
       document.getElementById("repMasterPoCount").textContent = "Showing " + filtered.length + " of " + rows.length + " PO/deliverable items";
-      filtered = masterPoXh.process(filtered);
       var body = document.getElementById("repMasterPoBody");
       body.innerHTML = "";
       if (!filtered.length) { body.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--ink-500);padding:30px;">No matching PO/deliverable items.</td></tr>'; return; }
@@ -5581,16 +5643,7 @@
       });
     }
     function renderAll() { renderCategoryCards(); renderTable(); }
-    [projSel, catSel, deptSel, document.getElementById("repMasterPoStatusFilter"), document.getElementById("repMasterPoProjectStatusFilter")]
-      .forEach(function (s) { s.onchange = renderAll; });
     search.oninput = renderAll;
-    document.getElementById("repMasterPoClearFilters").onclick = function () {
-      projSel.value = ""; catSel.value = ""; deptSel.value = "";
-      document.getElementById("repMasterPoStatusFilter").value = "";
-      document.getElementById("repMasterPoProjectStatusFilter").value = "";
-      search.value = "";
-      renderAll();
-    };
     renderAll();
   }
   // Item 12: the standalone "Master PO" nav tab -- runs the exact same
@@ -7859,6 +7912,36 @@
   });
   document.getElementById("dfFilter").addEventListener("input", renderDfItems);
   document.getElementById("dfDeptFilter").addEventListener("change", renderDfItems);
+  // Items 4/36: Excel header sort+filter on Item No/Department/Name/Weight,
+  // on top of the existing text/department filters above the table.
+  var _dfXh = null;
+  function _getDfXh() {
+    if (_dfXh) return _dfXh;
+    function uniq(getter) {
+      return function () {
+        var seen = {}, out = [];
+        dfItems.forEach(function (d) {
+          var v = getter(d); v = v == null ? "" : String(v);
+          if (!seen[v]) { seen[v] = true; out.push(v); }
+        });
+        return out.sort(function (a, b) { return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }); });
+      };
+    }
+    var deptOf = function (d) { return deptLabel(d.department, d.department_number); };
+    var weightOf = function (d) { return d.kpi_weight_pct != null ? "≈ " + d.kpi_weight_pct + "%" : "—"; };
+    var columns = [
+      { key: "item_no", get: function (d) { return d.item_no; }, uniqueValues: uniq(function (d) { return d.item_no; }) },
+      { key: "dept", get: deptOf, uniqueValues: uniq(deptOf) },
+      { key: "name", get: function (d) { return d.name; }, uniqueValues: uniq(function (d) { return d.name; }) },
+      null, // Formula -- free text, not a meaningful sort/filter dimension
+      { key: "weight", get: weightOf, sortValue: function (d) { return d.kpi_weight_pct == null ? -1 : d.kpi_weight_pct; }, uniqueValues: uniq(weightOf) },
+      null,
+    ];
+    var theadRow = document.getElementById("dfItemList").closest("table").querySelector("thead tr");
+    _dfXh = installExcelHeader(theadRow, columns);
+    _dfXh.onChange(function () { renderDfItems(); });
+    return _dfXh;
+  }
   function renderDfItems() {
     var filterText = document.getElementById("dfFilter").value.trim().toLowerCase();
     var deptFilter = document.getElementById("dfDeptFilter").value;
@@ -7868,15 +7951,23 @@
       if (deptFilter && String(d.department_id) !== deptFilter) return false;
       return !filterText || (d.item_no + " " + d.name).toLowerCase().indexOf(filterText) !== -1;
     });
+    // Excel-header filters always apply; its sort only overrides the
+    // natural department/item_no order once a column header is actually
+    // clicked -- process() itself only sorts when a sortKey is set, so the
+    // default order just needs re-asserting afterward when it isn't.
+    var xh = _getDfXh();
+    filtered = xh.process(filtered);
+    if (!xh.state.sortKey) {
+      filtered = filtered.slice().sort(function (a, b) {
+        if (a.department_number !== b.department_number) return (a.department_number || 0) - (b.department_number || 0);
+        if (a.department !== b.department) return a.department < b.department ? -1 : 1;
+        return _itemSortKey(a.item_no) < _itemSortKey(b.item_no) ? -1 : 1;
+      });
+    }
     if (!filtered.length) {
-      wrap.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--ink-500);padding:24px;">No matching items.</td></tr>';
+      wrap.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--ink-500);padding:24px;">No items match the current filters.</td></tr>';
       return;
     }
-    filtered = filtered.slice().sort(function (a, b) {
-      if (a.department_number !== b.department_number) return (a.department_number || 0) - (b.department_number || 0);
-      if (a.department !== b.department) return a.department < b.department ? -1 : 1;
-      return _itemSortKey(a.item_no) < _itemSortKey(b.item_no) ? -1 : 1;
-    });
     filtered.forEach(function (d) {
       var tr = document.createElement("tr");
       tr.innerHTML =
@@ -8073,6 +8164,37 @@
       renderDcHistory(merged);
     }
   }
+  // Items 4/36: same Excel header treatment as Deliverables Catalog's
+  // near-identical table (_getDfXh), separate instance since it's a
+  // different dataset (dcItems includes inactive definitions too).
+  var _dcXh = null;
+  function _getDcXh() {
+    if (_dcXh) return _dcXh;
+    function uniq(getter) {
+      return function () {
+        var seen = {}, out = [];
+        dcItems.forEach(function (d) {
+          var v = getter(d); v = v == null ? "" : String(v);
+          if (!seen[v]) { seen[v] = true; out.push(v); }
+        });
+        return out.sort(function (a, b) { return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }); });
+      };
+    }
+    var deptOf = function (d) { return deptLabel(d.department, d.department_number); };
+    var weightOf = function (d) { return d.kpi_weight_pct != null ? "≈ " + d.kpi_weight_pct + "%" : "—"; };
+    var columns = [
+      { key: "item_no", get: function (d) { return d.item_no; }, uniqueValues: uniq(function (d) { return d.item_no; }) },
+      { key: "dept", get: deptOf, uniqueValues: uniq(deptOf) },
+      { key: "name", get: function (d) { return d.name; }, uniqueValues: uniq(function (d) { return d.name; }) },
+      null,
+      { key: "weight", get: weightOf, sortValue: function (d) { return d.kpi_weight_pct == null ? -1 : d.kpi_weight_pct; }, uniqueValues: uniq(weightOf) },
+      null,
+    ];
+    var theadRow = document.getElementById("dcFormulasBody").closest("table").querySelector("thead tr");
+    _dcXh = installExcelHeader(theadRow, columns);
+    _dcXh.onChange(function () { renderDcFormulas(); });
+    return _dcXh;
+  }
   function renderDcFormulas() {
     var filterText = document.getElementById("dcFilter").value.trim().toLowerCase();
     var deptFilter = document.getElementById("dcDeptFilter").value;
@@ -8082,15 +8204,19 @@
       if (deptFilter && String(d.department_id) !== deptFilter) return false;
       return !filterText || (d.item_no + " " + d.name).toLowerCase().indexOf(filterText) !== -1;
     });
+    var xh = _getDcXh();
+    filtered = xh.process(filtered);
+    if (!xh.state.sortKey) {
+      filtered = filtered.slice().sort(function (a, b) {
+        if (a.department_number !== b.department_number) return (a.department_number || 0) - (b.department_number || 0);
+        if (a.department !== b.department) return a.department < b.department ? -1 : 1;
+        return _itemSortKey(a.item_no) < _itemSortKey(b.item_no) ? -1 : 1;
+      });
+    }
     if (!filtered.length) {
-      wrap.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--ink-500);padding:24px;">No matching items.</td></tr>';
+      wrap.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--ink-500);padding:24px;">No items match the current filters.</td></tr>';
       return;
     }
-    filtered = filtered.slice().sort(function (a, b) {
-      if (a.department_number !== b.department_number) return (a.department_number || 0) - (b.department_number || 0);
-      if (a.department !== b.department) return a.department < b.department ? -1 : 1;
-      return _itemSortKey(a.item_no) < _itemSortKey(b.item_no) ? -1 : 1;
-    });
     filtered.forEach(function (d) {
       var tr = document.createElement("tr");
       if (!d.active) tr.style.opacity = "0.55";
@@ -8990,14 +9116,47 @@
       });
     });
   }
+  // Item 21 (redlined): bigger, richer detail window -- the number sits
+  // right next to the question in the title instead of its own line, a
+  // Stage pill carries the same L0-orange/L1-green identity used
+  // everywhere else, and Question/Answer render as their own distinct
+  // panels instead of one flat italic line.
   function _openKbDetail(e) {
-    document.getElementById("kbDetailTitle").textContent = "#" + e.id;
+    var isStage = e.category === "L0" || e.category === "L1";
+    document.getElementById("kbDetailTitle").innerHTML =
+      '<span class="kb-detail-num">#' + e.id + "</span> " + e.question;
     var body = document.getElementById("kbDetailBody");
     body.innerHTML = "";
-    body.appendChild(el("div", "aq-title", e.question));
-    var context = [e.category === "L0" || e.category === "L1" ? e.category : "", e.est_no, e.deliverable].filter(Boolean).join(" &middot; ");
-    if (context) body.appendChild(el("div", "aq-sub", context));
-    body.appendChild(el("div", "deliv-comment", e.answer));
+    if (isStage || e.est_no || e.deliverable) {
+      var meta = el("div", "modal-meta-grid");
+      if (isStage) {
+        var mi = el("div");
+        mi.appendChild(el("div", "mk", "Stage"));
+        mi.appendChild(el("div", "mv", '<span class="pill ' + (e.category === "L0" ? "l0-tag" : "l1-tag") + '"><span class="dot"></span>' + e.category + "</span>"));
+        meta.appendChild(mi);
+      }
+      if (e.est_no) {
+        var mi2 = el("div");
+        mi2.appendChild(el("div", "mk", "Related Project"));
+        mi2.appendChild(el("div", "mv", e.est_no));
+        meta.appendChild(mi2);
+      }
+      if (e.deliverable) {
+        var mi3 = el("div");
+        mi3.appendChild(el("div", "mk", "Related Deliverable"));
+        mi3.appendChild(el("div", "mv", e.deliverable));
+        meta.appendChild(mi3);
+      }
+      body.appendChild(meta);
+    }
+    var qBlock = el("div", "kb-detail-panel question");
+    qBlock.appendChild(el("div", "kb-detail-panel-label", "Question"));
+    qBlock.appendChild(el("div", "kb-detail-panel-body", e.question));
+    body.appendChild(qBlock);
+    var aBlock = el("div", "kb-detail-panel answer");
+    aBlock.appendChild(el("div", "kb-detail-panel-label", "Answer"));
+    aBlock.appendChild(el("div", "kb-detail-panel-body", e.answer));
+    body.appendChild(aBlock);
     document.getElementById("kbDetailOverlay").hidden = false;
   }
   document.getElementById("kbDetailClose").addEventListener("click", function () {
