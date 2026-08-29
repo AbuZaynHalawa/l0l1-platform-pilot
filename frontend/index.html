@@ -1436,9 +1436,14 @@
   </div>
 </div>
 
+<!-- Item 16: GAHIZ, ringed by the loading spinner, instead of a generic
+     spinner + "Loading…" text. -->
 <div class="global-loading-overlay" id="globalLoadingOverlay" hidden>
   <div class="global-loading-box">
-    <div class="global-loading-spinner"></div>
+    <div class="global-loading-mascot">
+      <img src="/static/img/gahiz-badge.png" alt="GAHIZ" />
+      <div class="global-loading-ring"></div>
+    </div>
     <span>Loading&#8230;</span>
   </div>
 </div>
@@ -1886,10 +1891,11 @@
      stateless on the backend (see ai_support.py), the message array lives
      in aiChatHistory (app.js) and is resent each turn. Always keeps a
      permanent "Ask the Team" escape hatch alongside the chat. -->
-<button id="aiChatBubble" class="ai-chat-bubble" aria-label="AI Support" title="AI Support">&#129302;</button>
+<!-- Item 33: GAHIZ, Al Gihaz's AI Agent, replaces the generic robot emoji. -->
+<button id="aiChatBubble" class="ai-chat-bubble" aria-label="GAHIZ &#8211; AI Support" title="GAHIZ &#8211; AI Support"><img src="/static/img/gahiz-badge.png" alt="GAHIZ" /></button>
 <div id="aiChatPanel" class="ai-chat-panel" hidden>
   <div class="ai-chat-panel-head">
-    <span><span class="ai-chat-panel-ic">&#129302;</span> AI Support</span>
+    <span><span class="ai-chat-panel-ic"><img src="/static/img/gahiz-badge.png" alt="GAHIZ" /></span> GAHIZ</span>
     <span style="display:flex;align-items:center;gap:8px;">
       <span id="aiChatUsage" class="ai-chat-usage" title="Messages left today"></span>
       <button class="modal-close" id="aiChatPanelClose">&#10005;</button>

@@ -165,12 +165,13 @@
   // Item 91: a centered loading popup for every in-flight API call, so a
   // slow reminder/creation/etc. reads as "working" instead of "stuck".
   // Delayed briefly so a normal fast request never even flickers it.
-  var _loadingCount = 0, _loadingShowTimer = null;
+  var _loadingCount = 0, _loadingShowTimer = null, _loadingHideTimer = null;
   function _loadingStart() {
     _loadingCount++;
+    clearTimeout(_loadingHideTimer);
     if (_loadingCount === 1) {
       _loadingShowTimer = setTimeout(function () {
-        document.getElementById("globalLoadingOverlay").hidden = false;
+        if (_loadingCount > 0) document.getElementById("globalLoadingOverlay").hidden = false;
       }, 200);
     }
   }
@@ -178,7 +179,15 @@
     _loadingCount = Math.max(0, _loadingCount - 1);
     if (_loadingCount === 0) {
       clearTimeout(_loadingShowTimer);
-      document.getElementById("globalLoadingOverlay").hidden = true;
+      // Item 16: most load*() functions await several endpoints one after
+      // another (not all in parallel) -- ending, then immediately
+      // restarting, made the overlay flash on/off between each one. A
+      // short grace window absorbs that normal gap so a whole page load
+      // reads as one steady loading state instead of a strobe; cancelled
+      // above the instant another call starts within it.
+      _loadingHideTimer = setTimeout(function () {
+        if (_loadingCount === 0) document.getElementById("globalLoadingOverlay").hidden = true;
+      }, 150);
     }
   }
   async function api(path, opts) {
@@ -1923,22 +1932,25 @@
     },
     {
       eyebrow: "Around the Portal",
-      title: "AI Support",
+      title: "Meet GAHIZ!",
       body:
-        '<p class="tour-step-text">A little &#129302; bubble sits in the bottom-right corner of every page &#8212; ' +
+        '<div class="gahiz-intro">' +
+        '<img src="/static/img/gahiz-badge.png" alt="GAHIZ" class="gahiz-intro-badge" />' +
+        '<div><b>GAHIZ</b> is Al Gihaz Contracting\'s AI Agent &#8212; your AI Support Agent right inside ' +
+        "the portal.</div></div>" +
+        '<p class="tour-step-text">His bubble sits in the bottom-right corner of every page &#8212; ' +
         "click it any time for a faster first stop than Ask the Team, for the kind of question that " +
         "doesn't need a person: how the platform works, or what's on your own plate right now:</p>" +
         '<div class="mock-window" style="position:relative;">' +
         '<div class="mock-titlebar"><div class="mock-dot-3"></div><div class="mock-dot-3"></div>' +
         '<div class="mock-dot-3"></div><span>Any page in the app</span></div>' +
         '<div style="height:64px;"></div>' +
-        '<div style="position:absolute;right:14px;bottom:14px;width:42px;height:42px;border-radius:50%;' +
-        "background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;" +
-        'font-size:21px;box-shadow:0 5px 16px color-mix(in srgb, var(--accent) 45%, transparent);">&#129302;</div>' +
+        '<img src="/static/img/gahiz-badge.png" alt="GAHIZ" style="position:absolute;right:14px;bottom:14px;width:42px;height:42px;border-radius:50%;' +
+        'box-shadow:0 5px 16px color-mix(in srgb, var(--accent) 45%, transparent);" />' +
         "</div>" +
         '<div class="tour-callout" style="margin:10px 0;">&#128071; That bubble, on every page &#8212; click it and a chat panel opens:</div>' +
         '<div class="mock-window"><div class="mock-titlebar"><div class="mock-dot-3"></div>' +
-        '<div class="mock-dot-3"></div><div class="mock-dot-3"></div><span>&#129302; AI Support</span></div>' +
+        '<div class="mock-dot-3"></div><div class="mock-dot-3"></div><span>GAHIZ</span></div>' +
         '<div style="padding:14px;display:flex;flex-direction:column;gap:8px;">' +
         '<div style="align-self:flex-end;max-width:75%;background:var(--accent);color:#fff;border-radius:13px;border-bottom-right-radius:3px;padding:8px 12px;font-size:12.5px;">What\'s the difference between L0 and L1?</div>' +
         '<div style="align-self:flex-start;max-width:75%;background:var(--surface-sunken);border-radius:13px;border-bottom-left-radius:3px;padding:8px 12px;font-size:12.5px;">L0 is the tender/bidding stage; L1 is the project after it\'s won.</div>' +
@@ -1950,8 +1962,8 @@
         "<li>Won't make judgment calls that are really an Admin's decision, and won't invent facts about a " +
         "specific project it wasn't given</li>" +
         "</ul>" +
-        '<div class="tour-callout">&#129302; Not what you needed? A permanent <b>Ask the Team</b> button sits ' +
-        "right below the chat, and the assistant will point you there itself whenever it isn't confident.</div>",
+        '<div class="tour-callout">Not what you needed? A permanent <b>Ask the Team</b> button sits ' +
+        "right below the chat, and GAHIZ will point you there itself whenever he isn't confident.</div>",
     },
     {
       eyebrow: "Around the Portal",
@@ -1985,7 +1997,7 @@
         featureRowMock("&#128220;", "accent", "Deliverables Catalog", "Every due-date formula and scoring weight in plain English &#8212; suggest a formula change with your reasoning.") +
         featureRowMock("&#128228;", "accent", "My Requests", "Every request you've sent to an Admin &#8212; due-dates, reassignments, SME nominations, and more &#8212; and where each stands.") +
         featureRowMock("&#128172;", "accent", "Q/A &#8211; Ask the Team", "Raise a question, track your own requests.") +
-        featureRowMock("&#129302;", "accent", "AI Support", "Ask how something in the platform works, or about your own assigned work &#8212; falls back to Ask the Team for anything it can't answer.") +
+        featureRowMock('<img src="/static/img/gahiz-badge.png" alt="GAHIZ" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />', "accent", "GAHIZ", "Ask how something in the platform works, or about your own assigned work &#8212; falls back to Ask the Team for anything it can't answer.") +
         featureRowMock("&#128736;", "crit", "Admin Only", "Reports (4 filterable/printable report types), Top Achievers, Focal Points, Deliverables Configuration, Requests, Follow Up, Open Questions, Archived Projects.") +
         "</div>" +
         '<div class="tour-callout">&#127881; That\'s the full picture &#8212; close this and start ' +
@@ -5888,7 +5900,9 @@
   async function renderPoLifecycle(projectId, containerId) {
     var wrap = document.getElementById(containerId);
     if (!projectId) { wrap.innerHTML = ""; return; }
-    wrap.innerHTML = '<div class="empty-state">Loading&hellip;</div>';
+    // Item 16: the shared global-loading overlay (see api()) already
+    // covers this -- a second, local "Loading…" text underneath it was
+    // redundant and could itself flash before the fetch below resolves.
     var summary, allDelivs;
     try {
       summary = await api("/api/projects/" + projectId + "/po-line-items/po-cycle-summary");
