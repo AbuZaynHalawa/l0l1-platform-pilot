@@ -360,6 +360,12 @@
   .dsc-child.crit .dsc-child-val { color: var(--crit); }
   .dsc-child.warn .dsc-child-val { color: var(--warn); }
   .dsc-child.good .dsc-child-val { color: var(--good); }
+  /* Item 32: L0/L1 subtotals under each pooled child stat -- same
+     orange/green stage identity as .dash-project-card.l0/.l1 above. */
+  .dsc-child-sub { display: flex; justify-content: center; gap: 8px; margin-top: 6px; font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .dsc-child-sub span { border-radius: 20px; padding: 1px 7px; }
+  .dsc-child-sub .l0 { color: var(--l0-1); background: rgba(204, 106, 30, .1); }
+  .dsc-child-sub .l1 { color: #1f9d5c; background: rgba(31, 157, 92, .1); }
   @media (max-width: 980px) { .dash-project-row, .dash-status-row { grid-template-columns: 1fr; } }
 
   /* Item [dashboard stage alignment]: L0 and L1 must land in the same row
@@ -467,6 +473,12 @@
   .spark-wrap { margin-top: 10px; }
 
   .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 20px; font-size: 10.5px; font-weight: 700; letter-spacing: .02em; white-space: nowrap; }
+  /* Item 23: same [hidden]-vs-own-display gotcha as .nav-item/.terminal-
+     banner.triage-banner above -- .pill's own display:inline-flex outranks
+     the [hidden] attribute's display:none in the cascade, so JS toggling
+     .hidden on a pill (Archived/International badges, the triage pill) did
+     nothing visually -- they rendered regardless of the JS state. */
+  .pill[hidden] { display: none; }
   .pill .dot { width: 6px; height: 6px; border-radius: 50%; }
   .pill.good { background: var(--good-bg); color: var(--good); }
   .pill.good .dot { background: var(--pop-mint); }
@@ -966,7 +978,15 @@
   .digest-body a.flink { font-size: 12px; color: var(--purple-1); font-weight: 600; }
 
   .calc-panel { padding: 18px 20px; }
-  .calc-panel h3 { font-size: 13.5px; margin-bottom: 10px; }
+  /* Item 8: closed by default (see the <details> markup) -- the summary
+     doubles as the toggle, styled to read the same as the old always-open
+     h3 plus a chevron that flips when expanded. */
+  .calc-panel summary { font-size: 13.5px; font-weight: 700; color: var(--ink-900); cursor: pointer;
+    list-style: none; display: flex; align-items: center; gap: 8px; }
+  .calc-panel summary::-webkit-details-marker { display: none; }
+  .calc-panel summary::before { content: "\25B8"; font-size: 11px; color: var(--ink-500); transition: transform 0.15s ease; }
+  .calc-panel[open] summary::before { transform: rotate(90deg); }
+  .calc-panel[open] summary { margin-bottom: 10px; }
   .calc-tiers { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
   .tier-chip { font-size: 11px; padding: 4px 9px; border-radius: 20px; background: var(--surface-sunken); border: 1px solid var(--line); font-weight: 600; }
   .calc-panel p { font-size: 12.5px; color: var(--ink-700); margin: 0 0 4px; }
@@ -981,9 +1001,6 @@
   .footnote { color: var(--ink-500); font-size: 11.5px; margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--line); }
 
   /* ---------- announcements ---------- */
-  .ann-type-key { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; font-size: 12px; color: var(--ink-500); }
-  .ann-type-key .lg { display: flex; align-items: center; gap: 6px; }
-  .ann-type-key .sw { width: 9px; height: 9px; border-radius: 50%; }
   .ann-row { display: flex; gap: 14px; padding: 15px 18px; border-bottom: 1px solid var(--line); }
   .ann-row:last-child { border-bottom: none; }
   .ann-row.flash { animation: annFlash 1.8s ease; }

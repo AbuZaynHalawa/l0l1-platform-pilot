@@ -305,11 +305,8 @@
     var visible = ANN_TYPE_META.filter(function (t) {
       return CURRENT_ROLE === "Admin" || t.audience === "all" || t.audience.indexOf(CURRENT_ROLE) !== -1;
     });
-    var key = document.getElementById("annTypeKey");
-    key.innerHTML = "";
-    visible.forEach(function (t) {
-      key.appendChild(el("span", "lg", '<span class="sw" style="background:' + t.sw + '"></span> ' + t.label));
-    });
+    // Item 5: the color-swatch legend that used to render here was removed --
+    // the Type dropdown below covers the same ground without the extra box.
     var select = document.getElementById("annTypeFilter");
     var current = select.value;
     select.innerHTML = '<option value="">All Types</option>';
@@ -515,10 +512,19 @@
       var kids = el("div", "dsc-children");
       children.forEach(function (c) {
         var child = el("div", "dsc-child" + (c[3] ? " " + c[3] : ""));
-        child.innerHTML = '<div class="dsc-child-val">' + c[1] + '</div><div class="dsc-child-label">' + c[0] + "</div>";
+        // Item 32: L0/L1 subtotals (c[4]/c[5]) under the pooled number,
+        // same orange/green stage identity used everywhere else. The child
+        // box keeps its original whole-box click (pooled, both stages);
+        // each subtotal span is its own smaller click target on top of
+        // that, pre-filtering to just that one stage too.
+        child.innerHTML = '<div class="dsc-child-val">' + c[1] + '</div><div class="dsc-child-label">' + c[0] + '</div>' +
+          '<div class="dsc-child-sub"><span class="l0">L0 ' + c[4] + '</span><span class="l1">L1 ' + c[5] + "</span></div>";
         if (c[2]) {
           child.style.cursor = "pointer";
           child.addEventListener("click", function () { goToAssignedFilter(c[2][0], c[2][1]); });
+          var subEls = child.querySelectorAll(".dsc-child-sub span");
+          subEls[0].addEventListener("click", function (e) { e.stopPropagation(); goToAssignedFilter(c[2][0], c[2][1], "L0"); });
+          subEls[1].addEventListener("click", function (e) { e.stopPropagation(); goToAssignedFilter(c[2][0], c[2][1], "L1"); });
         }
         kids.appendChild(child);
       });
@@ -527,18 +533,18 @@
     }
     var statusRow = el("div", "dash-status-row");
     statusRow.appendChild(statusCard("Deliverables Deadline Status", [
-      [mine ? "My Not Due" : "Not Due", d.not_due, ["deadline", "not_due"], ""],
-      [mine ? "My Due" : "Due", d.overdue, ["deadline", "due"], "crit"],
-      ["Early", d.early, ["deadline", "early"], "good"],
-      ["On Time", d.on_time, ["deadline", "on_time"], "good"],
-      ["Late", d.late, ["deadline", "late"], "crit"],
+      [mine ? "My Not Due" : "Not Due", d.not_due, ["deadline", "not_due"], "", d.not_due_l0, d.not_due_l1],
+      [mine ? "My Due" : "Due", d.overdue, ["deadline", "due"], "crit", d.overdue_l0, d.overdue_l1],
+      ["Early", d.early, ["deadline", "early"], "good", d.early_l0, d.early_l1],
+      ["On Time", d.on_time, ["deadline", "on_time"], "good", d.on_time_l0, d.on_time_l1],
+      ["Late", d.late, ["deadline", "late"], "crit", d.late_l0, d.late_l1],
     ]));
     statusRow.appendChild(statusCard("Deliverables Progress Status", [
-      ["No Progress Yet", d.no_progress, ["progress", "no_progress"], ""],
-      ["In Progress", d.in_progress, ["progress", "in_progress"], "warn"],
-      [mine ? "My Pending SME Review" : "Pending SME Review", d.pending_review, ["progress", "pending_review"], "warn"],
-      ["Completed", d.approved, ["progress", "approved"], "good"],
-      ["Rejected", d.rejected, ["progress", "rejected"], "crit"],
+      ["No Progress Yet", d.no_progress, ["progress", "no_progress"], "", d.no_progress_l0, d.no_progress_l1],
+      ["In Progress", d.in_progress, ["progress", "in_progress"], "warn", d.in_progress_l0, d.in_progress_l1],
+      [mine ? "My Pending SME Review" : "Pending SME Review", d.pending_review, ["progress", "pending_review"], "warn", d.pending_review_l0, d.pending_review_l1],
+      ["Completed", d.approved, ["progress", "approved"], "good", d.approved_l0, d.approved_l1],
+      ["Rejected", d.rejected, ["progress", "rejected"], "crit", d.rejected_l0, d.rejected_l1],
     ]));
     stats.appendChild(statusRow);
 
@@ -798,12 +804,14 @@
   // stat card. axis is "deadline" or "progress" -- resets the OTHER axis
   // and the L0/L1 stage toggle back to "All" since the card being clicked
   // is single-dimension and stage-agnostic.
-  function goToAssignedFilter(axis, value) {
+  function goToAssignedFilter(axis, value, stage) {
     assignedDeadlineFilter = axis === "deadline" ? value : "";
     assignedProgressFilter = axis === "progress" ? value : "";
     assignedEstFilter = "";
-    assignedStage = "";
-    document.querySelectorAll("#assignedStageToggle .chip").forEach(function (b) { b.classList.toggle("active", b.dataset.stage === ""); });
+    // Item 32: an L0/L1 subtotal click on the Dashboard pre-filters to that
+    // one stage too, not just the deadline/progress axis.
+    assignedStage = stage || "";
+    document.querySelectorAll("#assignedStageToggle .chip").forEach(function (b) { b.classList.toggle("active", b.dataset.stage === assignedStage); });
     switchView("assigned");
   }
   document.querySelectorAll("#assignedStageToggle .chip").forEach(function (btn) {
@@ -2006,12 +2014,11 @@
   }
   function closeTour() {
     document.getElementById("tourOverlay").hidden = true;
-    // The "L0/L1 History" nav item has no real page of its own -- it just
-    // opens this modal (see loadJourney) -- so closing it while that's the
-    // active view would otherwise strand the user on its bare fallback
-    // screen (an empty background with just a "reopen" button). Land back
-    // on the Dashboard instead, same as if they'd navigated there directly.
-    if (!document.getElementById("view-journey").hidden) switchView("dashboard");
+    // Item 1: whenever the walkthrough ends -- whether opened from the
+    // "L0/L1 Walkthrough" nav item (which has no real page of its own, see
+    // loadJourney) or forced open on first login on top of some other view
+    // -- land the user on the Dashboard, not wherever they happened to be.
+    switchView("dashboard");
   }
   document.getElementById("tourStartBtn").addEventListener("click", function () { openTour(false); });
   document.getElementById("tourClose").addEventListener("click", closeTour);
@@ -4658,7 +4665,10 @@
           return '<td><span class="pc2-ytd-delta ' + cls + '">' + sign + delta.toFixed(2) + '%</span>' +
             '<div class="pc2-ytd-sub">vs ' + prev.month + "</div></td>";
         }).join("") + "</tr>";
-        var seriesList = [{ label: d.name, color: levelKey === "l1" ? "#667eea" : "#764ba2", points: periods }];
+        // Item 7: match the real L0/L1 identity colors renderPerfCol() already
+        // uses on the summary cards (green L1 / orange L0), instead of two
+        // near-identical purples that made both levels look the same here.
+        var seriesList = [{ label: d.name, color: levelKey === "l1" ? "#1f9d5c" : "#cc6a1e", points: periods }];
         return '<div class="pcmp-section-head">' + levelLabel + "</div>" +
           '<div class="pcmp-table-wrap"><table class="pcmp-table pcmp-align-table"><tbody>' + rows + "</tbody></table></div>" +
           buildTrendChartHtml(seriesList, 170, true);
@@ -5702,7 +5712,7 @@
       // passed" count itself already signals per-item tracking, so no
       // separate "per item" label is needed alongside it.
       if (!fixedCount) {
-        prog = ctx.counts.total ? '<span class="chip" style="color:var(--ink-900);font-weight:500;">' + ctx.counts.passed + "/" + ctx.counts.total + " completed</span>" : "";
+        prog = ctx.counts.total ? '<span class="chip" style="color:var(--good);font-weight:500;">' + ctx.counts.passed + "/" + ctx.counts.total + " completed</span>" : "";
         if (ctx.counts.in_progress) prog += '<span class="chip" style="color:var(--warn);font-weight:500;">' + ctx.counts.in_progress + " in progress</span>";
         if (ctx.counts.no_progress) prog += '<span class="chip" style="color:var(--ink-500);">' + ctx.counts.no_progress + " no progress</span>";
         if (ctx.counts.score !== null && ctx.counts.score !== undefined) {
@@ -5785,7 +5795,7 @@
         col.insertAdjacentHTML("beforeend",
           '<div class="mini-stats">'
           + '<div class="mini-stat"><div class="label">Total POs</div><div class="val">' + allItems.length + "</div></div>"
-          + '<div class="mini-stat"><div class="label">Complete</div><div class="val">' + statsTotal.complete + "</div></div>"
+          + '<div class="mini-stat"><div class="label">Complete</div><div class="val" style="color:var(--good);">' + statsTotal.complete + "</div></div>"
           + '<div class="mini-stat"><div class="label">In progress</div><div class="val" style="color:var(--warn);">' + statsTotal.in_progress + "</div></div>"
           + '<div class="mini-stat"><div class="label">Blocked</div><div class="val" style="color:var(--crit);">' + statsTotal.blocked + "</div></div>"
           + "</div>");
@@ -8276,9 +8286,25 @@
     var when = new Date(a.created_at).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
     var intlTag = a.project_international ? ' <span class="pill neutral" style="padding:1px 7px;"><span class="dot"></span>Intl</span>' : "";
     main.appendChild(el("div", "ann-top", '<span class="ann-title">' + a.title + intlTag + '</span><span class="ann-time">' + when + '</span>'));
-    main.appendChild(el("div", "ann-body", a.body));
+    var bodyEl = el("div", "ann-body", a.body);
+    main.appendChild(bodyEl);
     main.appendChild(el("div", "ann-meta", "To: <b>" + annAudienceTag(a, _emailRoleMap) + "</b> &middot; " + a.email_status));
     row.appendChild(main);
+    // Item 6: a multi-deliverable batch reminder (deadline_reminders_batch)
+    // has no single submission_id on the row itself -- each item gets its
+    // own inline link baked into the body instead, marked with
+    // data-submission-id rather than a real href, so it opens the deliverable
+    // in-app the same way the row-level click-through does everywhere else,
+    // instead of navigating to a raw #deliverable= URL fragment nothing
+    // listens for.
+    bodyEl.querySelectorAll("a[data-submission-id]").forEach(function (link) {
+      link.addEventListener("click", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var sid = parseInt(link.dataset.submissionId, 10);
+        if (sid) openDelivModal(sid);
+      });
+    });
     if (a.submission_id || a.project_id) {
       row.style.cursor = "pointer";
       row.addEventListener("click", function () {

@@ -63,7 +63,8 @@ def _signature_html() -> str:
 def _create(db: Session, *, type: models.AnnouncementType, title: str, body: str,
             recipients: list[str], project: models.Project | None = None,
             submission_id: int | None = None, greeting: str = "Team",
-            link_html: str | None = None, attachments: list | None = None) -> models.Announcement:
+            link_html: str | None = None, attachments: list | None = None,
+            email_body: str | None = None) -> models.Announcement:
     """`greeting` names the role this message is actually addressed to (SME,
     Owner, Bid Manager...), not a per-recipient lookup -- a single call can
     still go to a mixed list (e.g. SME(s) + the requesting Owner together),
@@ -76,12 +77,24 @@ def _create(db: Session, *, type: models.AnnouncementType, title: str, body: str
     the right place, so repeating "Open in the platform" there is dead
     weight -- it's appended only to what actually gets mailed, same
     reasoning as the logo/sign-off below.
+
+    `email_body`, item 6: normally the *same* copy is shown in-app and
+    mailed out, just with the sign-off/link appended for email -- but a
+    caller whose in-app body embeds its own per-item deliverable links
+    (deadline_reminders_batch, which has several items and no single
+    submission_id to hang a row-level click-through off of) needs those
+    in-app links to stay relative/JS-driven (there's no #hash listener once
+    the SPA has already loaded) while the *emailed* copy needs real
+    absolute URLs, since an email client has no app to route within. Pass
+    an already-fully-built alternate body here to email that instead of
+    `body`; `body` is always what's stored and shown in-app either way.
     """
     # Item [in-app vs email]: display_body is what's stored and shown
     # in-app; the link and the logo/sign-off are appended only to what
     # actually gets mailed.
     display_body = f'<p style="margin:0 0 14px;">Dear {greeting},</p>' + body
-    email_body = display_body + (f"<br><br>{link_html}" if link_html else "") + _signature_html()
+    email_source = f'<p style="margin:0 0 14px;">Dear {greeting},</p>' + email_body if email_body is not None else display_body
+    email_body = email_source + (f"<br><br>{link_html}" if link_html else "") + _signature_html()
     status = _mail.send_mail(recipients, title, email_body, attachments=attachments) if recipients else "simulated"
     ann = models.Announcement(
         type=type, title=title, body=display_body,
@@ -265,14 +278,26 @@ def deadline_reminders_batch(db: Session, owner_email: str, offset: int,
         lead = f"The following deliverable(s) are now {_hl(f'{offset} {day_word} overdue', 'crit')}:"
     if len(items) > 1:
         title += f" &#8211; {len(items)} Deliverables"
+    # Item 6: the in-app copy (`body`) links each item via a data attribute
+    # the frontend intercepts and opens in-app (openDelivModal) -- a raw
+    # href here either points at the wrong host in local/dev or, even in
+    # production, a same-page hash change nothing listens for. The mailed
+    # copy (`email_html`) still needs a real absolute URL since there's no
+    # app for an email client to route within.
     lines = "".join(
+        f'&#8226; <a href="#" data-submission-id="{it["submission_id"]}">{_b(it["item_no"])} {it["name"]}</a> '
+        f'({it["est_no"]})<br>'
+        for it in items
+    )
+    lines_email = "".join(
         f'&#8226; <a href="{APP_BASE_URL}/#deliverable={it["submission_id"]}">{_b(it["item_no"])} {it["name"]}</a> '
         f'({it["est_no"]})<br>'
         for it in items
     )
     body = f"{lead}<br>{lines}"
+    email_html = f"{lead}<br>{lines_email}"
     return _create(db, type=models.AnnouncementType.DEADLINE, title=title, body=body, recipients=[owner_email],
-                    greeting="Owner")
+                    greeting="Owner", email_body=email_html)
 
 
 def cross_department_unlock(db: Session, project: models.Project, newly_active_owner_emails: list[str],

@@ -83,6 +83,44 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
     approved = sum(1 for s in stat_subs if s.status == models.SubmissionStatus.APPROVED)
     rejected = sum(1 for s in stat_subs if s.status == models.SubmissionStatus.REJECTED)
 
+    # Item 32: L0/L1 subtotals for the Deadline/Progress Status cards -- the
+    # pooled counts above stay exactly as they were for every existing
+    # consumer, these are purely additive. One extra pass bucketing by
+    # stage (reusing _deadline_keys already computed above, not re-calling
+    # rules.deadline_status per row) rather than ten separate re-scans of
+    # stat_subs -- same N+1-averse discipline as list_all_deliverables.
+    _stage_bucket_keys = ["overdue", "not_due", "early", "on_time", "late",
+                           "pending_review", "no_progress", "in_progress", "approved", "rejected"]
+    _stage_buckets = {models.Stage.L0: dict.fromkeys(_stage_bucket_keys, 0),
+                       models.Stage.L1: dict.fromkeys(_stage_bucket_keys, 0)}
+    _deadline_bucket_key = {"due": "overdue", "not_due": "not_due", "early": "early", "on_time": "on_time", "late": "late"}
+    _status_bucket_key = {models.SubmissionStatus.PENDING_REVIEW: "pending_review",
+                           models.SubmissionStatus.NO_PROGRESS: "no_progress",
+                           models.SubmissionStatus.IN_PROGRESS: "in_progress",
+                           models.SubmissionStatus.APPROVED: "approved",
+                           models.SubmissionStatus.REJECTED: "rejected"}
+    for s, dkey_raw in zip(stat_subs, _deadline_keys):
+        bucket = _stage_buckets.get(s.definition.stage)
+        if bucket is None:
+            continue
+        dkey = _deadline_bucket_key.get(dkey_raw)
+        if dkey:
+            bucket[dkey] += 1
+        skey = _status_bucket_key.get(s.status)
+        if skey:
+            bucket[skey] += 1
+    overdue_l0, overdue_l1 = _stage_buckets[models.Stage.L0]["overdue"], _stage_buckets[models.Stage.L1]["overdue"]
+    not_due_l0, not_due_l1 = _stage_buckets[models.Stage.L0]["not_due"], _stage_buckets[models.Stage.L1]["not_due"]
+    early_l0, early_l1 = _stage_buckets[models.Stage.L0]["early"], _stage_buckets[models.Stage.L1]["early"]
+    on_time_l0, on_time_l1 = _stage_buckets[models.Stage.L0]["on_time"], _stage_buckets[models.Stage.L1]["on_time"]
+    late_l0, late_l1 = _stage_buckets[models.Stage.L0]["late"], _stage_buckets[models.Stage.L1]["late"]
+    pending_review_l0 = _stage_buckets[models.Stage.L0]["pending_review"]
+    pending_review_l1 = _stage_buckets[models.Stage.L1]["pending_review"]
+    no_progress_l0, no_progress_l1 = _stage_buckets[models.Stage.L0]["no_progress"], _stage_buckets[models.Stage.L1]["no_progress"]
+    in_progress_l0, in_progress_l1 = _stage_buckets[models.Stage.L0]["in_progress"], _stage_buckets[models.Stage.L1]["in_progress"]
+    approved_l0, approved_l1 = _stage_buckets[models.Stage.L0]["approved"], _stage_buckets[models.Stage.L1]["approved"]
+    rejected_l0, rejected_l1 = _stage_buckets[models.Stage.L0]["rejected"], _stage_buckets[models.Stage.L1]["rejected"]
+
     dept_rows = []
     for dept in db.query(models.Department).order_by(models.Department.number).all():
         # Items 115/116: auto-completed items were never real tracked work,
@@ -134,8 +172,8 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
     # as before, since "my concerns" is meant to narrow to the focus
     # person's own cohort.
     org_subs = [s for s in all_subs if not s.auto_completed]
-    overdue_l0 = sum(1 for s in stat_subs if s.definition.stage == models.Stage.L0 and rules.deadline_status(s)[0] == "due")
-    overdue_l1 = sum(1 for s in stat_subs if s.definition.stage == models.Stage.L1 and rules.deadline_status(s)[0] == "due")
+    # overdue_l0/overdue_l1 (used in the Concerns copy below) now come from
+    # the item-32 stage-bucket pass above -- same values, one fewer scan.
     top_depts_l0, top_depts_l1 = [], []
     concerns_l0, concerns_l1 = [], []
     for dept in db.query(models.Department).order_by(models.Department.number).all():
@@ -222,6 +260,18 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
         "overdue": overdue, "pending_review": pending_review, "not_due": not_due,
         "early": early, "on_time": on_time, "late": late,
         "no_progress": no_progress, "in_progress": in_progress, "approved": approved, "rejected": rejected,
+        # Item 32: same ten counters, split by stage -- additive, the pooled
+        # keys above are unchanged for every existing consumer.
+        "overdue_l0": overdue_l0, "overdue_l1": overdue_l1,
+        "pending_review_l0": pending_review_l0, "pending_review_l1": pending_review_l1,
+        "not_due_l0": not_due_l0, "not_due_l1": not_due_l1,
+        "early_l0": early_l0, "early_l1": early_l1,
+        "on_time_l0": on_time_l0, "on_time_l1": on_time_l1,
+        "late_l0": late_l0, "late_l1": late_l1,
+        "no_progress_l0": no_progress_l0, "no_progress_l1": no_progress_l1,
+        "in_progress_l0": in_progress_l0, "in_progress_l1": in_progress_l1,
+        "approved_l0": approved_l0, "approved_l1": approved_l1,
+        "rejected_l0": rejected_l0, "rejected_l1": rejected_l1,
         "recent_l0": recent_l0, "recent_l1": recent_l1,
         "recent_milestones_l0": recent_milestones_l0, "recent_milestones_l1": recent_milestones_l1,
         "top_depts_l0": top_depts_l0, "top_depts_l1": top_depts_l1,

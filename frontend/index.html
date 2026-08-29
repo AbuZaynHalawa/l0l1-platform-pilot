@@ -247,12 +247,12 @@
           <p class="sub">Every announcement and targeted notification the platform has sent, automatically, from a single event stream.</p>
         </div>
       </div>
-      <!-- Item 153/165: built dynamically by app.js (buildAnnouncementFilterUI)
-           from ANN_TYPE_META, scoped to the current acting role -- keeps this
-           legend and the Type filter below always in the same order and the
-           same set of options, and means a Viewer never sees Owner/SME-only
-           filter choices for announcement types they can never actually see. -->
-      <div class="ann-type-key" id="annTypeKey"></div>
+      <!-- Item 153/165: Type filter options are built dynamically by app.js
+           (buildAnnouncementFilterUI) from ANN_TYPE_META, scoped to the
+           current acting role -- a Viewer never sees Owner/SME-only
+           announcement types as filter choices they can never actually see.
+           (Item 5: the color-swatch legend that used to sit above this row
+           was removed -- the Type dropdown covers the same ground.) -->
       <div class="gantt-filter-row">
         <select id="annTypeFilter">
           <option value="">All Types</option>
@@ -561,7 +561,7 @@
         <button class="chip" data-dc="L1">L1 Formulas</button>
         <button class="chip" data-dc="L0intl">L0 International Formulas</button>
         <button class="chip" data-dc="departments">Departments</button>
-        <button class="chip" data-dc="history">Change History</button>
+        <button class="chip" data-dc="history">Audit History</button>
       </div>
       <div class="fp-add-row" id="dcFilterRow" style="margin-bottom:14px;">
         <button class="btn primary" id="dcAddDeliverableBtn">+ Add Deliverable</button>
@@ -857,8 +857,11 @@
         <button class="chip" data-pane="triage" id="perfTriageTabBtn" hidden>Manage Tracking</button>
       </div>
       <div id="perfOverviewPane">
-        <div class="card calc-panel" style="margin-bottom:20px;">
-          <h3>How the Performance % is calculated</h3>
+        <!-- Item 8: a <details> disclosure -- closed by default, no JS needed
+             -- instead of a permanently-open block eating space above the
+             summary cards every visit. -->
+        <details class="card calc-panel" style="margin-bottom:20px;">
+          <summary>How the Performance % is calculated</summary>
           <ol class="calc-list">
             <li>Submitted Deliverables (On Time) equals = <b>1 Point</b></li>
             <li>Submitted Deliverables (Early, before the Due Date) earn a 10% bonus = <b>1.1 Points</b></li>
@@ -884,7 +887,7 @@
               see the item's weight on <b>Deliverables Catalog</b>.</li>
             <li>A department's overall % is capped at <b>100%</b> &#8212; early-submission bonus points can offset lates within a department, but can't push the reported score past fully on track.</li>
           </ol>
-        </div>
+        </details>
         <!-- Item 42: real Performance Dashboard rebuild. Excellent/Acceptable/
              Needs Action classification and the trend sparkline/time-travel
              history UI are deliberately not here yet -- per Yasser's own
