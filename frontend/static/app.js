@@ -5847,7 +5847,24 @@
     allDelivs.forEach(function (d) { if (!singleByItemNo[d.item_no]) singleByItemNo[d.item_no] = d; });
 
     wrap.innerHTML = "";
-    var row = el("div", "po-columns");
+    // Item 15: split view -- PO categories on the left (mirroring Project
+    // Details' own Departments/Deliverables split), the selected
+    // category's full column on the right, instead of all 4 squeezed
+    // side by side. Every column below still builds exactly as it always
+    // did (same poCard/poRegistryBox/poItemTrack logic, untouched) -- this
+    // just changes where each finished .po-column lands and which one is
+    // visible at a time, purely a layout change.
+    var split = el("div", "split detail-split");
+    var leftCard = el("div", "card");
+    leftCard.appendChild(el("div", "section-title", "PO Categories"));
+    var leftList = el("div", "folder-list");
+    leftCard.appendChild(leftList);
+    var rightCard = el("div", "card");
+    var rightBody = el("div", "po-lifecycle-detail");
+    rightCard.appendChild(rightBody);
+    split.appendChild(leftCard);
+    split.appendChild(rightCard);
+    var categoryCols = []; // {title, col, count, blocked}
     var registrySource = {
       consultancy: "fixed — always required, added automatically",
       early_activity_mep: "early-activity rows from 4.1 · MEP rows from 1.2",
@@ -5904,9 +5921,23 @@
       col.querySelectorAll(".card[data-open-submission]").forEach(function (cardEl) {
         cardEl.addEventListener("click", function () { openDelivModal(parseInt(cardEl.dataset.openSubmission, 10)); });
       });
-      row.appendChild(col);
+      categoryCols.push({ title: meta.title, col: col, count: allItems.length, blocked: statsTotal.blocked, fixedCount: fixedCount });
     });
-    wrap.appendChild(row);
+    categoryCols.forEach(function (c, i) {
+      var frow = el("div", "folder-row" + (i === 0 ? " active" : ""));
+      var countLabel = c.fixedCount ? "1 item" : c.count + " item" + (c.count === 1 ? "" : "s");
+      frow.innerHTML = '<div class="folder-left"><span class="folder-ic">&#128193;</span><div class="folder-name">' + c.title + '</div></div>' +
+        '<div class="folder-right"><span class="folder-pct' + (c.blocked ? " crit" : "") + '">' + countLabel + '</span></div>';
+      frow.addEventListener("click", function () {
+        leftList.querySelectorAll(".folder-row").forEach(function (r) { r.classList.remove("active"); });
+        frow.classList.add("active");
+        rightBody.innerHTML = "";
+        rightBody.appendChild(c.col);
+      });
+      leftList.appendChild(frow);
+    });
+    rightBody.appendChild(categoryCols[0].col);
+    wrap.appendChild(split);
   }
 
   // Item 96: Activity Trail lives inside the project detail page itself now,
@@ -6741,6 +6772,17 @@
     }
     refreshNavBadges();
   }
+  // Item 24: split view -- wired once (not inside loadRequests, which
+  // reruns on every load/decision) since this is pure show/hide, the same
+  // 6 panels and their #xxxCount spans stay exactly where loadRequests()
+  // already knows to find them, nothing about that function changed.
+  document.querySelectorAll("#requestsCatList .folder-row").forEach(function (row) {
+    row.addEventListener("click", function () {
+      var cat = row.dataset.cat;
+      document.querySelectorAll("#requestsCatList .folder-row").forEach(function (r) { r.classList.toggle("active", r === row); });
+      document.querySelectorAll(".req-cat-panel").forEach(function (p) { p.hidden = p.dataset.cat !== cat; });
+    });
+  });
 
   async function loadFollowUp() {
     // Item [follow-up redesign]: was one flat, unsorted, ungrouped list --

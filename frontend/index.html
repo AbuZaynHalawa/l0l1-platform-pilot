@@ -675,59 +675,76 @@
         </div>
       </div>
 
-      <div class="fu-requests-grid">
-        <div class="card table-card fu-compact">
-          <div class="section-title">
-            <span>Due-Date Requests <span class="cnt" id="dueDateReqCount"></span></span>
-            <button class="btn" id="dueDateHistoryToggle" style="font-size:11px;padding:4px 10px;">Show History</button>
+      <!-- Item 24: split view -- request categories on the left (each
+           still updated by the exact same #xxxCount span loadRequests()
+           already fills in), the selected category's list + history on
+           the right, instead of 6 cards all shown at once. -->
+      <div class="split detail-split">
+        <div class="card">
+          <div class="section-title">Request Categories</div>
+          <div class="folder-list" id="requestsCatList">
+            <div class="folder-row active" data-cat="dueDate"><div class="folder-left"><span class="folder-ic">&#128203;</span><div class="folder-name">Due-Date Requests</div></div><div class="folder-right"><span class="folder-pct" id="dueDateReqCount"></span></div></div>
+            <div class="folder-row" data-cat="reassign"><div class="folder-left"><span class="folder-ic">&#128203;</span><div class="folder-name">Reassignment Requests</div></div><div class="folder-right"><span class="folder-pct" id="reassignCount"></span></div></div>
+            <div class="folder-row" data-cat="smeNom"><div class="folder-left"><span class="folder-ic">&#128203;</span><div class="folder-name">SME Nominations</div></div><div class="folder-right"><span class="folder-pct" id="smeNomCount"></span></div></div>
+            <div class="folder-row" data-cat="bidValue"><div class="folder-left"><span class="folder-ic">&#128203;</span><div class="folder-name">Bid Value Access Requests</div></div><div class="folder-right"><span class="folder-pct" id="bidValueReqCount"></span></div></div>
+            <div class="folder-row" data-cat="groupAdd"><div class="folder-left"><span class="folder-ic">&#128203;</span><div class="folder-name">Group Add Requests</div></div><div class="folder-right"><span class="folder-pct" id="groupAddReqCount"></span></div></div>
+            <div class="folder-row" data-cat="formula"><div class="folder-left"><span class="folder-ic">&#128203;</span><div class="folder-name">Formula Change Requests</div></div><div class="folder-right"><span class="folder-pct" id="formulaReqCount"></span></div></div>
           </div>
-          <div id="dueDateReqList"></div>
-          <div id="dueDateReqHistory" hidden></div>
         </div>
-
         <div class="card table-card fu-compact">
-          <div class="section-title">
-            <span>Reassignment Requests <span class="cnt" id="reassignCount"></span></span>
-            <button class="btn" id="reassignHistoryToggle" style="font-size:11px;padding:4px 10px;">Show History</button>
+          <div class="req-cat-panel" data-cat="dueDate">
+            <div class="section-title">
+              <span>Due-Date Requests</span>
+              <button class="btn" id="dueDateHistoryToggle" style="font-size:11px;padding:4px 10px;">Show History</button>
+            </div>
+            <div id="dueDateReqList"></div>
+            <div id="dueDateReqHistory" hidden></div>
           </div>
-          <div id="reassignList"></div>
-          <div id="reassignHistory" hidden></div>
-        </div>
 
-        <div class="card table-card fu-compact">
-          <div class="section-title">
-            <span>SME Nominations <span class="cnt" id="smeNomCount"></span></span>
-            <button class="btn" id="smeNomHistoryToggle" style="font-size:11px;padding:4px 10px;">Show History</button>
+          <div class="req-cat-panel" data-cat="reassign" hidden>
+            <div class="section-title">
+              <span>Reassignment Requests</span>
+              <button class="btn" id="reassignHistoryToggle" style="font-size:11px;padding:4px 10px;">Show History</button>
+            </div>
+            <div id="reassignList"></div>
+            <div id="reassignHistory" hidden></div>
           </div>
-          <div id="smeNomList"></div>
-          <div id="smeNomHistory" hidden></div>
-        </div>
 
-        <div class="card table-card fu-compact">
-          <div class="section-title">
-            <span>Bid Value Access Requests <span class="cnt" id="bidValueReqCount"></span></span>
-            <button class="btn" id="bidValueReqHistoryToggle" style="font-size:11px;padding:4px 10px;">Show History</button>
+          <div class="req-cat-panel" data-cat="smeNom" hidden>
+            <div class="section-title">
+              <span>SME Nominations</span>
+              <button class="btn" id="smeNomHistoryToggle" style="font-size:11px;padding:4px 10px;">Show History</button>
+            </div>
+            <div id="smeNomList"></div>
+            <div id="smeNomHistory" hidden></div>
           </div>
-          <div id="bidValueReqList"></div>
-          <div id="bidValueReqHistory" hidden></div>
-        </div>
 
-        <div class="card table-card fu-compact">
-          <div class="section-title">
-            <span>Group Add Requests <span class="cnt" id="groupAddReqCount"></span></span>
-            <button class="btn" id="groupAddReqHistoryToggle" style="font-size:11px;padding:4px 10px;">Show History</button>
+          <div class="req-cat-panel" data-cat="bidValue" hidden>
+            <div class="section-title">
+              <span>Bid Value Access Requests</span>
+              <button class="btn" id="bidValueReqHistoryToggle" style="font-size:11px;padding:4px 10px;">Show History</button>
+            </div>
+            <div id="bidValueReqList"></div>
+            <div id="bidValueReqHistory" hidden></div>
           </div>
-          <div id="groupAddReqList"></div>
-          <div id="groupAddReqHistory" hidden></div>
-        </div>
 
-        <div class="card table-card fu-compact">
-          <div class="section-title">
-            <span>Formula Change Requests <span class="cnt" id="formulaReqCount"></span></span>
-            <button class="btn" id="formulaReqHistoryToggle" style="font-size:11px;padding:4px 10px;">Show History</button>
+          <div class="req-cat-panel" data-cat="groupAdd" hidden>
+            <div class="section-title">
+              <span>Group Add Requests</span>
+              <button class="btn" id="groupAddReqHistoryToggle" style="font-size:11px;padding:4px 10px;">Show History</button>
+            </div>
+            <div id="groupAddReqList"></div>
+            <div id="groupAddReqHistory" hidden></div>
           </div>
-          <div id="formulaReqList"></div>
-          <div id="formulaReqHistory" hidden></div>
+
+          <div class="req-cat-panel" data-cat="formula" hidden>
+            <div class="section-title">
+              <span>Formula Change Requests</span>
+              <button class="btn" id="formulaReqHistoryToggle" style="font-size:11px;padding:4px 10px;">Show History</button>
+            </div>
+            <div id="formulaReqList"></div>
+            <div id="formulaReqHistory" hidden></div>
+          </div>
         </div>
       </div>
     </section>
