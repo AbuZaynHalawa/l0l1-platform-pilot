@@ -1279,14 +1279,18 @@
     }
     var deptOf = function (d) { return deptLabel(d.department, d.department_number); };
     var dueTs = function (d) { return d.due_date ? new Date(d.due_date).getTime() : null; };
+    var nameOf = function (d) { return d.name; };
+    var dueLabelOf = function (d) { return fmtDate(d.due_date); };
     var columns = [
       { key: "est_no", get: function (d) { return d.est_no; }, uniqueValues: uniq(function (d) { return d.est_no; }) },
-      { key: "name", get: function (d) { return d.name; }, filterable: false },
+      { key: "name", get: nameOf, uniqueValues: uniq(nameOf) },
       { key: "department", get: deptOf, uniqueValues: uniq(deptOf) },
       { key: "owner", get: function (d) { return d.owner || ""; }, uniqueValues: uniq(function (d) { return d.owner || ""; }) },
       { key: "deadline", get: ASSIGNED_DEADLINE_LABEL, uniqueValues: uniq(ASSIGNED_DEADLINE_LABEL) },
       { key: "progress", get: ASSIGNED_PROGRESS_LABEL, uniqueValues: uniq(ASSIGNED_PROGRESS_LABEL) },
-      { key: "due_date", get: function (d) { return fmtDate(d.due_date); }, sortValue: dueTs, filterable: false },
+      // Filter values match the displayed dd-Mon-yyyy label (same idiom as
+      // L0 Tenders' BSD column), sort still uses the real timestamp.
+      { key: "due_date", get: dueLabelOf, sortValue: dueTs, uniqueValues: uniq(dueLabelOf) },
       null, // Actions -- buttons, not a plain sortable/filterable value
     ];
     var theadRow = document.getElementById("assignedTableHead");
