@@ -273,18 +273,28 @@
         <div class="assigned-bar-label">Progress Status</div>
         <div class="assigned-filter-bar" id="assignedProgressBar"></div>
       </div>
-      <div class="filter-chips-row"><span class="filter-chips-label">Est No.</span><select id="assignedEstFilter"><option value="">All</option></select></div>
-      <div class="filter-chips-row"><span class="filter-chips-label">Sort By</span>
-        <select id="assignedSortBy">
-          <option value="newest">Newest Activity First</option>
-          <option value="oldest">Oldest Activity First</option>
-          <option value="due_soon">Due Date (Soonest)</option>
-          <option value="due_late">Due Date (Latest)</option>
-          <option value="est_no">Est No.</option>
-          <option value="name">Deliverable Name (A&#8211;Z)</option>
-        </select>
+      <!-- Items 4/36: Est No. filter + Sort By dropdown replaced with the
+           same Excel-style header sort/filter every other table in the app
+           uses (installExcelHeader on assignedTableHead, see loadAssigned
+           in app.js) -- click a column label to sort, its funnel icon for
+           a multi-select filter. The header row is static markup so the
+           controller (and its sort/filter state) survives every re-render;
+           only the body rows under it get rebuilt on each load. -->
+      <div class="card">
+        <div class="aqt" id="assignedTable">
+          <div class="aqt-row aqt-head" id="assignedTableHead">
+            <div class="aqt-cell">Est No.</div>
+            <div class="aqt-cell">Deliverable</div>
+            <div class="aqt-cell">Department</div>
+            <div class="aqt-cell aqt-focal">Focal Point</div>
+            <div class="aqt-cell">Deadline</div>
+            <div class="aqt-cell">Progress</div>
+            <div class="aqt-cell">Due Date</div>
+            <div class="aqt-cell">Actions</div>
+          </div>
+          <div id="assignedList"></div>
+        </div>
       </div>
-      <div class="card"><div id="assignedList"></div></div>
     </section>
 
     <!-- ANNOUNCEMENTS -->

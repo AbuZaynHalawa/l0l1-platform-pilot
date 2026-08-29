@@ -722,8 +722,11 @@
   table.data tbody tr:last-child td { border-bottom: none; }
   /* Items 4/36: the reusable "Excel header" -- click a column label to sort,
      click its funnel icon for a multi-select filter dropdown. Works inside
-     both table.data (L0/L1) and .fp-table (everywhere else) headers. */
-  th.xh-th { padding: 0 !important; }
+     both table.data (L0/L1) and .fp-table (everywhere else) headers, plus
+     the one div-based grid header (Assigned Deliverables' .aqt-head,
+     .aqt-cell.xh-th) -- selectors below match on the .xh-th/data-xh-*
+     classes alone, not a `th` tag, so they apply to both. */
+  .xh-th { padding: 0 !important; }
   /* Sort button no longer stretches (flex:1) -- the funnel icon now sits
      right next to the label/sort-arrow instead of pinned to the far right
      edge of a wide column, with the rest of the cell left empty. */
@@ -735,20 +738,20 @@
   .xh-label { white-space: normal; line-height: 1.25; }
   .xh-sort-svg { flex-shrink: 0; opacity: .35; }
   .xh-sort-svg .xh-sort-up, .xh-sort-svg .xh-sort-down { opacity: .45; }
-  th.xh-sort-asc .xh-sort-svg, th.xh-sort-desc .xh-sort-svg { opacity: 1; }
-  th.xh-sort-asc .xh-sort-svg .xh-sort-down { opacity: .2; }
-  th.xh-sort-asc .xh-sort-svg .xh-sort-up { fill: var(--purple-1); }
-  th.xh-sort-desc .xh-sort-svg .xh-sort-up { opacity: .2; }
-  th.xh-sort-desc .xh-sort-svg .xh-sort-down { fill: var(--purple-1); }
+  .xh-sort-asc .xh-sort-svg, .xh-sort-desc .xh-sort-svg { opacity: 1; }
+  .xh-sort-asc .xh-sort-svg .xh-sort-down { opacity: .2; }
+  .xh-sort-asc .xh-sort-svg .xh-sort-up { fill: var(--purple-1); }
+  .xh-sort-desc .xh-sort-svg .xh-sort-up { opacity: .2; }
+  .xh-sort-desc .xh-sort-svg .xh-sort-down { fill: var(--purple-1); }
   .xh-filter-btn { border: none; background: transparent; color: var(--ink-500); cursor: pointer; padding: 4px; border-radius: 5px; flex-shrink: 0; display: flex; }
   .xh-filter-btn:hover { background: var(--surface-sunken); color: var(--purple-1); }
   /* A filtered column needs to read as "active" at a glance, not just a
      recolored icon -- tint the whole header cell and give the funnel a
      filled pill background. */
-  th.xh-th[data-xh-filtered="1"] { background: var(--accent-soft); }
-  th[data-xh-filtered="1"] .xh-filter-btn { color: #fff; background: var(--purple-1); }
-  th[data-xh-filtered="1"] .xh-filter-btn:hover { background: var(--purple-2); color: #fff; }
-  th[data-xh-filtered="1"] .xh-label { color: var(--purple-1); font-weight: 800; }
+  .xh-th[data-xh-filtered="1"] { background: var(--accent-soft); }
+  [data-xh-filtered="1"] .xh-filter-btn { color: #fff; background: var(--purple-1); }
+  [data-xh-filtered="1"] .xh-filter-btn:hover { background: var(--purple-2); color: #fff; }
+  [data-xh-filtered="1"] .xh-label { color: var(--purple-1); font-weight: 800; }
   /* "Clear filters" bar -- auto-inserted above the table, right-aligned,
      only visible once at least one column filter is active. */
   .xh-clearbar { display: flex; justify-content: flex-end; padding: 10px 18px 0; }
@@ -1504,7 +1507,7 @@
   .aqt-cell.aqt-ellipsis { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .aqt-est { font-weight: 700; font-size: 12.5px; }
   .aqt-est.l0 { color: var(--l0-1); }
-  .aqt-est.l1 { color: #1f9d5c; }
+  .aqt-est.l1 { color: var(--l1-1); }
   .aqt-name { font-size: 13px; font-weight: 700; }
   .aqt-name .aqt-proj { font-weight: 500; color: var(--ink-500); }
   .aqt-dept, .aqt-focal, .aqt-due { font-size: 12.5px; color: var(--ink-700); }
