@@ -223,7 +223,13 @@
   /* ---------- shell ---------- */
   /* dvh (with a vh fallback for older engines) so mobile browser chrome
      collapsing/expanding doesn't leave a dead strip under the layout. */
-  .shell { display: grid; grid-template-columns: 236px 1fr; min-height: 100vh; min-height: 100dvh; }
+  /* Redlined: the spec's literal 236px was too narrow for this app's own
+     (longer) nav labels -- "Assigned Deliverables"/"BM Triage Status"/
+     "L0/L1 Walkthrough" wrapped/truncated, which also broke the badges'
+     flush-right alignment (margin-left:auto has nothing to push against
+     once the label itself overflows). Back to the original branch's
+     264px, wide enough for every real label at 13.5px. */
+  .shell { display: grid; grid-template-columns: 264px 1fr; min-height: 100vh; min-height: 100dvh; }
   /* [Red Dark Design] navy sidebar, spec section 5. */
   .rail { background: var(--sidebar-bg); border-right: 1px solid var(--navy-dark); display: flex; flex-direction: column; padding: 20px 14px; gap: 18px; }
   /* Item 154: hamburger toggle + backdrop, both display:none until the
@@ -282,6 +288,11 @@
      against a white sidebar. */
   .nav-badge { margin-left: auto; background: var(--algihaz-red); color: #fff; font-size: 10.5px; font-weight: 800; padding: 1px 7px; border-radius: 20px; }
   .nav-item.active .nav-badge { background: #ffffff; color: var(--algihaz-red); }
+  /* Bug found alongside the width fix: a zero-count badge is set to empty
+     text, not hidden -- the old pale-pink-on-white fill made an empty one
+     easy to miss, but solid red on navy turned it into a visible stray
+     dash/pill for every nav item with nothing pending. */
+  .nav-badge:empty { display: none; }
 
   .rail-foot { margin-top: auto; padding: 12px 8px 2px; border-top: 1px solid var(--navy-dark); }
   /* Sidebar background is always navy regardless of the page's own light/
