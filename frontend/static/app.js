@@ -1861,7 +1861,7 @@
         "management visibility. The system now also supports <b>International</b> L0 tenders — their " +
         "own catalog and departments, same workflow.</p>" +
         '<p class="tour-step-text">This walkthrough covers where the system came from, how the two stages ' +
-        "work, and how to actually use this portal day to day. Twenty-one short steps &#8212; use " +
+        "work, and how to actually use this portal day to day. Twenty-three short steps &#8212; use " +
         "Next/Back or the dots below.</p>",
     },
     {
@@ -2130,6 +2130,11 @@
         '<div class="mock-window"><div class="mock-titlebar"><div class="mock-dot-3"></div>' +
         '<div class="mock-dot-3"></div><div class="mock-dot-3"></div><span>Dashboard</span></div>' +
         '<div class="mock-body">' +
+        '<div class="mock-stat-row-label">Lifetime Snapshot</div>' +
+        '<div class="mock-stat-row">' +
+        statMock("L0 Lifetime", "343", "neutral") + statMock("L1 Lifetime", "45", "good") + statMock("Conversion", "13.1%", "accent") +
+        statMock("Avg. to Contract", "62d", "warn") + statMock("This Week", "9", "good") +
+        "</div>" +
         '<div class="mock-stat-row-label">Deliverables Deadline Status</div>' +
         '<div class="mock-stat-row">' +
         statMock("Not Due", "508", "neutral") + statMock("Due", "36", "warn") + statMock("Early", "6", "good") +
@@ -2142,8 +2147,13 @@
         "</div>" +
         "</div></div>" +
         '<ul class="tour-list">' +
+        "<li><b>Lifetime Snapshot</b> up top &#8212; L0/L1 lifetime totals, conversion rate from " +
+        "tender to award, average time to contract, and this week's completed deliverables against " +
+        "last week</li>" +
         "<li><b>Latest Announcements</b>, <b>Newest Milestones</b>, and &#9888; <b>Concerns</b> &#8212; " +
-        "each split into its own L0 feed and L1 feed, so tendering news never drowns out execution news</li>" +
+        "each split into its own L0 feed and L1 feed, so tendering news never drowns out execution " +
+        "news &#8212; each section header carries a <b>View all &#8594;</b> link straight to the full " +
+        "list</li>" +
         "<li><b>Top Departments</b> &#8212; who's carrying the most active work right now, per stage</li>" +
         "<li><b>Top Achievers</b> &#8212; the best-performing Owners and SMEs, right on the landing page</li>" +
         "<li><b>Deliverables Matrix</b> &#8212; every active project &times; every deliverable, live, " +
@@ -2333,11 +2343,15 @@
         '<div class="mock-window" style="position:relative;">' +
         '<div class="mock-titlebar"><div class="mock-dot-3"></div><div class="mock-dot-3"></div>' +
         '<div class="mock-dot-3"></div><span>Any page in the app</span></div>' +
-        '<div style="height:64px;"></div>' +
-        '<img src="/static/img/gahiz-icon.png" alt="GAHIZ" style="position:absolute;right:14px;bottom:14px;width:42px;height:42px;border-radius:50%;' +
-        'box-shadow:0 5px 16px color-mix(in srgb, var(--accent) 45%, transparent);" />' +
+        '<div style="height:70px;"></div>' +
+        '<span style="position:absolute;right:64px;bottom:44px;background:var(--surface);color:var(--ink-900);' +
+        'font-size:11.5px;font-weight:700;padding:6px 11px;border-radius:10px;white-space:nowrap;box-shadow:var(--shadow-2);' +
+        'border:1px solid var(--line);">Click for Support</span>' +
+        '<img src="/static/img/gahiz-bubble.png" alt="GAHIZ" style="position:absolute;right:14px;bottom:0;width:54px;height:82px;' +
+        'object-fit:contain;object-position:bottom;filter:drop-shadow(0 8px 12px rgba(0,0,0,.3));" />' +
         "</div>" +
-        '<div class="tour-callout" style="margin:10px 0;">&#128071; That bubble, on every page &#8212; click it and a chat panel opens:</div>' +
+        '<div class="tour-callout" style="margin:10px 0;">&#128071; That\'s GAHIZ himself, standing bottom-right on ' +
+        "every page &#8212; hover for the \"Click for Support\" nudge, click and a chat panel opens:</div>" +
         '<div class="mock-window"><div class="mock-titlebar"><div class="mock-dot-3"></div>' +
         '<div class="mock-dot-3"></div><div class="mock-dot-3"></div><span>GAHIZ</span></div>' +
         '<div style="padding:14px;display:flex;flex-direction:column;gap:8px;">' +
@@ -2363,10 +2377,17 @@
         "and track it in your own <b>My Requests</b> list.</p>" +
         '<div class="mock-window"><div class="mock-titlebar"><div class="mock-dot-3"></div>' +
         '<div class="mock-dot-3"></div><div class="mock-dot-3"></div><span>Open Questions</span></div>' +
-        '<div class="mock-deliv-list" style="margin:12px;">' +
-        deliverableMock("Est-1553", "Why is item 5.3 still showing as pending?", "warn", "Open") +
-        deliverableMock("Est-1620", "Can we get the KB link for the BSD extension rules?", "good", "Resolved") +
-        "</div></div>" +
+        '<div style="padding:10px 12px 4px;">' +
+        '<table class="tour-table"><thead><tr><th></th><th>Question</th><th>Asker</th><th>Status</th><th>Date</th></tr></thead><tbody>' +
+        '<tr><td><b>Q1</b></td><td>Why is item 5.3 still showing as pending?</td><td>A.Rahman</td>' +
+        '<td><span class="pill warn"><span class="dot"></span>Open</span></td><td>Aug 24</td></tr>' +
+        '<tr><td><b>Q2</b></td><td>Can we get the KB link for the BSD extension rules?</td><td>S.Alotaibi</td>' +
+        '<td><span class="pill good"><span class="dot"></span>Resolved</span></td><td>Aug 21</td></tr>' +
+        "</tbody></table></div></div>" +
+        '<p class="tour-step-text">Every question is a numbered row (Q1, Q2, &#8230;) with just the ' +
+        "essentials showing &#8212; click one for the full conversation instead of every thread " +
+        "rendering inline. Search it, or sort/filter any column straight from its header, same as " +
+        "L0 Tenders and L1 Projects.</p>" +
         '<p class="tour-step-text">Admins see every open thread in one place under <b>Open Questions</b>, ' +
         "reply (optionally pulling in a saved Knowledge Base answer instead of retyping the same " +
         "explanation), and mark it resolved &#8212; you get notified the moment they do.</p>",

@@ -1087,7 +1087,7 @@
   .tgc-box { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; }
   .tgc-box-label { fill: var(--ink-900); font-size: 13px; font-weight: 700; }
   .tgc-stage-band.l0 { fill: var(--l0-1); }
-  .tgc-stage-band.l1 { fill: #1f9d5c; }
+  .tgc-stage-band.l1 { fill: var(--l1-1); }
   .tgc-stage-text { fill: #fff; font-size: 11.5px; font-weight: 700; }
   .tgc-arrow { stroke: var(--ink-500); stroke-width: 2; fill: none; }
   .tgc-arrowhead { fill: var(--ink-500); }
