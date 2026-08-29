@@ -2341,8 +2341,8 @@
       gahiz: true, // toggles #tourGahizFloat -- see renderTourStep()
       body:
         '<div class="gahiz-intro"><div class="gahiz-intro-name">GAHIZ is always ready to support you!</div>' +
-        "<b>GAHIZ</b> is Al Gihaz Contracting's AI Agent &#8212; your AI Support Agent right inside " +
-        "the portal.</div>" +
+        "<b>GAHIZ</b> is Al Gihaz Contracting's AI Agent for the Project Readiness (L0/L1) " +
+        "Platform.</div>" +
         '<p class="tour-step-text">His bubble sits in the bottom-right corner of every page &#8212; ' +
         "click it any time for a faster first stop than Ask the Team, for the kind of question that " +
         "doesn't need a person: how the platform works, or what's on your own plate right now:</p>" +
