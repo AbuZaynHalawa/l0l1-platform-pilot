@@ -794,7 +794,11 @@
         '<div class="dash-kpi-body"><div class="dash-kpi-value">' + c.value + (c.valueSuffix ? "<small>" + c.valueSuffix + "</small>" : "") + "</div>" +
         '<div class="dash-kpi-label">' + c.label + "</div>" +
         '<div class="dash-kpi-sub">' + subHtml + "</div></div>";
-      if (c.sub.indexOf("<SUBTREND>") !== -1) card.querySelector(".dash-kpi-body").insertAdjacentHTML("beforeend", completedTrend);
+      // Appended inside .dash-kpi-sub itself (not as a sibling after it) so
+      // "This Week" and the trend share one line -- was landing on its own
+      // line below, making this the only 3-line card and taller than the
+      // other 4.
+      if (c.sub.indexOf("<SUBTREND>") !== -1) card.querySelector(".dash-kpi-sub").insertAdjacentHTML("beforeend", completedTrend);
       row.appendChild(card);
     });
   }
