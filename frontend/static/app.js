@@ -179,7 +179,10 @@
   // inserted as the table's previous sibling so it never needs its own
   // spot carved out of each view's markup.
   function _xhInstallClearBar(theadRowEl, onClear) {
-    var table = theadRowEl.closest("table");
+    // Every other table this installs on is a real <table>; Assigned
+    // Deliverables' .aqt is a div-based grid (see loadAssigned) with no
+    // <table> ancestor at all, so it falls back to that wrapper instead.
+    var table = theadRowEl.closest("table") || theadRowEl.closest(".aqt");
     if (!table || !table.parentNode) return null;
     var bar = el("div", "xh-clearbar");
     var btn = el("button", "xh-clearbar-btn", "&#10005; Clear filters");
@@ -772,7 +775,7 @@
     if (!row) return;
     row.innerHTML = "";
     var conversionSub = k.conversion_rate != null ? k.l1_lifetime + " of " + k.l0_lifetime + " tenders" : "&#8213;";
-    var timeSub = k.avg_time_to_contract_days != null ? "Target: 90 days" : "Not enough data yet";
+    var timeSub = k.avg_time_to_contract_days != null ? "" : "Not enough data yet";
     var completedTrend = k.completed_wow_change_pct == null ? "" :
       '<span class="dash-kpi-sub ' + (k.completed_wow_change_pct >= 0 ? "up" : "down") + '"> &middot; ' +
       (k.completed_wow_change_pct >= 0 ? "&#8593; " : "&#8595; ") + Math.abs(k.completed_wow_change_pct) + "% vs last week</span>";
@@ -1180,8 +1183,6 @@
   // now, each its own chip row, combined with AND logic.
   var assignedDeadlineFilter = "";
   var assignedProgressFilter = "";
-  var assignedEstFilter = "";
-  var assignedSortBy = "newest";
   var assignedStage = "";
   var DEADLINE_FILTERS = [
     ["", "All"], ["not_due", "Not Due"], ["due", "Due"],
@@ -1232,7 +1233,6 @@
   function deliverableMatchesFilters(d) {
     if (assignedDeadlineFilter && d.deadline_status !== assignedDeadlineFilter) return false;
     if (assignedProgressFilter && d.status !== assignedProgressFilter) return false;
-    if (assignedEstFilter && d.est_no !== assignedEstFilter) return false;
     return true;
   }
   // Item 121: jump to Assigned Deliverables pre-filtered, from a Dashboard
@@ -1242,7 +1242,6 @@
   function goToAssignedFilter(axis, value, stage) {
     assignedDeadlineFilter = axis === "deadline" ? value : "";
     assignedProgressFilter = axis === "progress" ? value : "";
-    assignedEstFilter = "";
     // Item 32: an L0/L1 subtotal click on the Dashboard pre-filters to that
     // one stage too, not just the deadline/progress axis.
     assignedStage = stage || "";
@@ -1257,47 +1256,55 @@
       loadAssigned();
     });
   });
-  // Sort options for Assigned Deliverables -- "newest" (last submit/review
-  // activity, most recent first) is the default, matching what this page
-  // always did before this was made selectable. Items missing the relevant
-  // field (no activity yet / no due date) always sink to the bottom
-  // regardless of direction, rather than clustering at whichever end the
-  // raw sort value (-1/Infinity) would otherwise put them.
-  function _assignedSortComparator(sortBy) {
-    function actionTs(d) { return d.last_action_at ? new Date(d.last_action_at).getTime() : null; }
-    function dueTs(d) { return d.due_date ? new Date(d.due_date).getTime() : null; }
-    function byNullableNumber(getter, ascending) {
-      return function (a, b) {
-        var av = getter(a), bv = getter(b);
-        if (av === null && bv === null) return 0;
-        if (av === null) return 1;
-        if (bv === null) return -1;
-        return ascending ? av - bv : bv - av;
+  // Items 4/36: Est No. filter + Sort By dropdown replaced with the same
+  // Excel-style header sort/filter as L0 Tenders/L1 Projects/Open
+  // Questions -- one controller, built once against the static header row
+  // (#assignedTableHead, index.html) and reused on every re-render.
+  var _assignedXh = null;
+  function _getAssignedXh() {
+    if (_assignedXh) return _assignedXh;
+    function uniq(getter) {
+      return function () {
+        var seen = {}, out = [];
+        _assignedAll.forEach(function (d) {
+          var v = getter(d); v = v == null || v === "" ? "" : String(v);
+          if (!seen[v]) { seen[v] = true; out.push(v); }
+        });
+        return out.sort(function (a, b) { return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }); });
       };
     }
-    // Most items on this page have no submit/review activity at all yet
-    // (still "No Progress Yet"), so a pure activity sort leaves every one
-    // of them tied at null -- a no-op that just falls back to whatever
-    // arbitrary order the backend query returned. Break that tie by due
-    // date (soonest first) so "Newest/Oldest Activity First" still yields
-    // a sensible, stable order even when nothing has happened on anything
-    // yet, instead of looking broken.
-    var dueSoonTiebreak = byNullableNumber(dueTs, true);
-    switch (sortBy) {
-      case "oldest": {
-        var cmpOldest = byNullableNumber(actionTs, true);
-        return function (a, b) { return cmpOldest(a, b) || dueSoonTiebreak(a, b); };
-      }
-      case "due_soon": return byNullableNumber(dueTs, true);
-      case "due_late": return byNullableNumber(dueTs, false);
-      case "est_no": return function (a, b) { return (a.est_no || "").localeCompare(b.est_no || ""); };
-      case "name": return function (a, b) { return (a.name || "").localeCompare(b.name || ""); };
-      case "newest": default: {
-        var cmpNewest = byNullableNumber(actionTs, false);
-        return function (a, b) { return cmpNewest(a, b) || dueSoonTiebreak(a, b); };
-      }
-    }
+    var deptOf = function (d) { return deptLabel(d.department, d.department_number); };
+    var dueTs = function (d) { return d.due_date ? new Date(d.due_date).getTime() : null; };
+    var columns = [
+      { key: "est_no", get: function (d) { return d.est_no; }, uniqueValues: uniq(function (d) { return d.est_no; }) },
+      { key: "name", get: function (d) { return d.name; }, filterable: false },
+      { key: "department", get: deptOf, uniqueValues: uniq(deptOf) },
+      { key: "owner", get: function (d) { return d.owner || ""; }, uniqueValues: uniq(function (d) { return d.owner || ""; }) },
+      { key: "deadline", get: ASSIGNED_DEADLINE_LABEL, uniqueValues: uniq(ASSIGNED_DEADLINE_LABEL) },
+      { key: "progress", get: ASSIGNED_PROGRESS_LABEL, uniqueValues: uniq(ASSIGNED_PROGRESS_LABEL) },
+      { key: "due_date", get: function (d) { return fmtDate(d.due_date); }, sortValue: dueTs, filterable: false },
+      null, // Actions -- buttons, not a plain sortable/filterable value
+    ];
+    var theadRow = document.getElementById("assignedTableHead");
+    _assignedXh = installExcelHeader(theadRow, columns);
+    _assignedXh.onChange(function () { _renderAssignedList(); });
+    return _assignedXh;
   }
+  function ASSIGNED_DEADLINE_LABEL(d) {
+    if (d.status === "not_required" || d.status === "pending_triage") return "–";
+    var meta = DEADLINE_META[d.deadline_status] || ["neutral", d.deadline_status];
+    return meta[1];
+  }
+  function ASSIGNED_PROGRESS_LABEL(d) {
+    if (d.status === "approved" && d.auto_completed) return "Auto-Completed";
+    var meta = STATUS_META[d.status] || ["neutral", d.status];
+    return meta[1];
+  }
+  // Populated by loadAssigned() on every fetch; read by _getAssignedXh()'s
+  // uniqueValues() closures and re-rendered (filter/sort only, no refetch)
+  // by _renderAssignedList() -- same split as every other Excel-header
+  // table (fetch once, re-render locally as sort/filter state changes).
+  var _assignedAll = [];
   async function loadAssigned() {
     // Item 166: a non-admin only sees their own assigned deliverables
     // (owner or SME on that item) -- previously every role saw the
@@ -1306,6 +1313,7 @@
     if (passiveIdentity()) qs += "&actor_email=" + encodeURIComponent(passiveIdentity());
     var everything = await api("/api/deliverables" + qs);
     var all = assignedStage ? everything.filter(function (d) { return d.stage === assignedStage; }) : everything;
+    _assignedAll = all;
     document.getElementById("assignedBadge").textContent = everything.filter(function (d) { return d.deadline_status === "due"; }).length || "";
 
     var deadlineBase = assignedProgressFilter ? all.filter(function (d) { return d.status === assignedProgressFilter; }) : all;
@@ -1326,20 +1334,11 @@
       { no_progress: "", in_progress: "warn", pending_review: "warn", approved: "good", rejected: "crit" },
       function (v) { assignedProgressFilter = v; loadAssigned(); });
 
-    var estSel = document.getElementById("assignedEstFilter");
-    var seenEsts = {};
-    all.forEach(function (d) { seenEsts[d.est_no] = true; });
-    estSel.innerHTML = '<option value="">All</option>';
-    Object.keys(seenEsts).sort().forEach(function (n) { var o = el("option", "", n); o.value = n; estSel.appendChild(o); });
-    estSel.value = assignedEstFilter;
-    estSel.onchange = function () { assignedEstFilter = estSel.value; loadAssigned(); };
-
-    var sortSel = document.getElementById("assignedSortBy");
-    sortSel.value = assignedSortBy;
-    sortSel.onchange = function () { assignedSortBy = sortSel.value; loadAssigned(); };
-
-    var items = all.filter(deliverableMatchesFilters);
-    items = items.slice().sort(_assignedSortComparator(assignedSortBy));
+    _renderAssignedList();
+  }
+  function _renderAssignedList() {
+    var items = _assignedAll.filter(deliverableMatchesFilters);
+    items = _getAssignedXh().process(items);
     var wrap = document.getElementById("assignedList");
     wrap.innerHTML = "";
     if (!items.length) { wrap.appendChild(el("div", "empty-state", "Nothing here right now.")); return; }
@@ -1347,14 +1346,9 @@
     // the side, no status pills. Grid-based (see .aqt-row in styles.css) so
     // it always fits the card width instead of ever needing horizontal
     // scroll -- text columns ellipsize under pressure rather than overflow.
-    var table = el("div", "aqt");
-    var head = el("div", "aqt-row aqt-head");
-    ["Est No.", "Deliverable", "Department", "Focal Point", "Deadline", "Progress", "Due Date", "Actions"].forEach(function (label, i) {
-      var cell = el("div", "aqt-cell", label);
-      if (i === 3) cell.classList.add("aqt-focal");
-      head.appendChild(cell);
-    });
-    table.appendChild(head);
+    // Header row is static markup (#assignedTableHead, index.html) so the
+    // Excel-header controller's state survives this rebuild -- only body
+    // rows get replaced here.
     items.forEach(function (d) {
       var row = el("div", "aqt-row aqt-body-row");
       row.dataset.sid = String(d.id);
@@ -1414,9 +1408,8 @@
         }
       }
       row.appendChild(actions);
-      table.appendChild(row);
+      wrap.appendChild(row);
     });
-    wrap.appendChild(table);
   }
   function followButton(d) {
     var btn = el("button", "btn" + (d.following ? " primary" : ""), d.following ? "&#9733; Following" : "&#9734; Follow");
