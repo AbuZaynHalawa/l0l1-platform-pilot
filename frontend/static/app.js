@@ -40,6 +40,13 @@
   // items into its own content container, not manage pagination itself.
   // A page count of 1 (or 0 items) hides the controls entirely rather
   // than showing a useless single "Page 1 of 1".
+  // Doc redline on item 2: the ‹/› text glyphs never sat centered inside
+  // the circle (font-metric-dependent, not something a CSS nudge fixes
+  // reliably) -- real SVG chevrons instead, same "build the icon as SVG"
+  // approach poIcon() already uses elsewhere, so centering is exact
+  // regardless of font/OS.
+  var PAGER_CHEVRON_LEFT = '<svg width="10" height="10" viewBox="0 0 16 16"><path d="M10 3L6 8L10 13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  var PAGER_CHEVRON_RIGHT = '<svg width="10" height="10" viewBox="0 0 16 16"><path d="M6 3L10 8L6 13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
   function renderPager(pagerEl, items, pageSize, render) {
     var page = 0;
     var totalPages = Math.max(1, Math.ceil(items.length / pageSize));
@@ -47,11 +54,11 @@
       render(items.slice(page * pageSize, page * pageSize + pageSize));
       pagerEl.innerHTML = "";
       if (totalPages <= 1) return;
-      var prev = el("button", "pager-btn", "&#8249;");
+      var prev = el("button", "pager-btn", PAGER_CHEVRON_LEFT);
       prev.type = "button";
       prev.disabled = page === 0;
       prev.addEventListener("click", function () { page--; draw(); });
-      var next = el("button", "pager-btn", "&#8250;");
+      var next = el("button", "pager-btn", PAGER_CHEVRON_RIGHT);
       next.type = "button";
       next.disabled = page === totalPages - 1;
       next.addEventListener("click", function () { page++; draw(); });
@@ -60,6 +67,165 @@
       pagerEl.appendChild(next);
     }
     draw();
+  }
+  // Items 4/36: a reusable "Excel header" -- click a column label to sort by
+  // it (cycles asc/desc), click its funnel icon for an Excel-style
+  // multi-select filter dropdown (checkbox list of every distinct value in
+  // that column, search-within-list, Select All/Clear). One controller per
+  // table; `process(list)` applies the current sort+filter state and
+  // returns the list to render -- callers just render whatever comes back,
+  // same "give it data, get back what to draw" shape as renderPager.
+  var XH_FILTER_ICON = '<svg width="10" height="10" viewBox="0 0 16 16"><path d="M1 2h14l-5.5 6.5v4.5l-3 2v-6.5z" fill="currentColor"/></svg>';
+  var XH_SORT_ICON = '<svg width="9" height="9" viewBox="0 0 16 16" class="xh-sort-svg"><path class="xh-sort-up" d="M8 3l4 5H4z" fill="currentColor"/><path class="xh-sort-down" d="M8 13l4-5H4z" fill="currentColor"/></svg>';
+  var _xhOpenPanel = null; // only one filter dropdown open at a time, across every table
+  function _xhClosePanel() {
+    if (_xhOpenPanel) { _xhOpenPanel.remove(); _xhOpenPanel = null; }
+  }
+  document.addEventListener("click", function (e) {
+    if (_xhOpenPanel && !_xhOpenPanel.contains(e.target) && !e.target.closest(".xh-filter-btn")) _xhClosePanel();
+  });
+  function installExcelHeader(theadRowEl, columns) {
+    var state = { sortKey: null, sortDir: "asc", filters: {} }; // filters[key] = Set of allowed values, absent = no filter
+    var changeCb = null;
+    var ths = Array.prototype.slice.call(theadRowEl.children);
+    ths.forEach(function (th, i) {
+      var col = columns[i];
+      if (!col) return;
+      var label = th.textContent.trim();
+      th.innerHTML = "";
+      th.classList.add("xh-th");
+      var wrap = el("div", "xh-th-wrap");
+      if (col.sortable !== false) {
+        var sortBtn = el("span", "xh-sort-btn", '<span class="xh-label">' + label + "</span>" + XH_SORT_ICON);
+        sortBtn.addEventListener("click", function () {
+          if (state.sortKey === col.key) state.sortDir = state.sortDir === "asc" ? "desc" : "asc";
+          else { state.sortKey = col.key; state.sortDir = "asc"; }
+          _xhUpdateSortIndicators(theadRowEl, columns, state);
+          if (changeCb) changeCb();
+        });
+        wrap.appendChild(sortBtn);
+      } else {
+        wrap.appendChild(el("span", "xh-label", label));
+      }
+      if (col.filterable !== false) {
+        var filterBtn = el("button", "xh-filter-btn", XH_FILTER_ICON);
+        filterBtn.type = "button";
+        filterBtn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          if (_xhOpenPanel && _xhOpenPanel.dataset.forKey === col.key && _xhOpenPanel.dataset.forTh === String(i)) { _xhClosePanel(); return; }
+          _xhOpenFilterPanel(filterBtn, col, state, th, function () { if (changeCb) changeCb(); }, i);
+        });
+        wrap.appendChild(filterBtn);
+      }
+      th.appendChild(wrap);
+    });
+    return {
+      onChange: function (cb) { changeCb = cb; },
+      state: state,
+      process: function (list) {
+        var out = list;
+        Object.keys(state.filters).forEach(function (key) {
+          var allowed = state.filters[key];
+          if (!allowed) return;
+          var col = columns.filter(function (c) { return c && c.key === key; })[0];
+          if (!col) return;
+          out = out.filter(function (row) { return allowed.has(String(col.get(row) == null ? "" : col.get(row))); });
+        });
+        if (state.sortKey) {
+          var col2 = columns.filter(function (c) { return c && c.key === state.sortKey; })[0];
+          if (col2) {
+            var getSort = col2.sortValue || col2.get;
+            out = out.slice().sort(function (a, b) {
+              var av = getSort(a), bv = getSort(b);
+              if (av == null) av = "";
+              if (bv == null) bv = "";
+              var cmp = (typeof av === "number" && typeof bv === "number") ? (av - bv) : String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: "base" });
+              return state.sortDir === "asc" ? cmp : -cmp;
+            });
+          }
+        }
+        return out;
+      },
+    };
+  }
+  function _xhUpdateSortIndicators(theadRowEl, columns, state) {
+    Array.prototype.slice.call(theadRowEl.children).forEach(function (th, i) {
+      var col = columns[i];
+      if (!col) return;
+      th.classList.remove("xh-sort-asc", "xh-sort-desc");
+      if (state.sortKey === col.key) th.classList.add(state.sortDir === "asc" ? "xh-sort-asc" : "xh-sort-desc");
+    });
+  }
+  function _xhOpenFilterPanel(anchorBtn, col, state, thEl, onApply, thIndex) {
+    _xhClosePanel();
+    var rect = anchorBtn.getBoundingClientRect();
+    var panel = el("div", "xh-panel");
+    panel.dataset.forKey = col.key;
+    panel.dataset.forTh = String(thIndex);
+    var searchInput = el("input", "xh-panel-search");
+    searchInput.type = "text";
+    searchInput.placeholder = "Search values&#8230;";
+    panel.appendChild(searchInput);
+    var listWrap = el("div", "xh-panel-list");
+    panel.appendChild(listWrap);
+    var allValues = col.uniqueValues();
+    var current = state.filters[col.key]; // Set or undefined (= all selected)
+    function drawList(term) {
+      listWrap.innerHTML = "";
+      var selectAllRow = el("label", "xh-panel-row xh-panel-selectall");
+      var selectAllCb = document.createElement("input");
+      selectAllCb.type = "checkbox";
+      selectAllCb.checked = !current;
+      selectAllRow.appendChild(selectAllCb);
+      selectAllRow.appendChild(el("span", "", "(Select All)"));
+      selectAllCb.addEventListener("change", function () {
+        checkboxes.forEach(function (c) { c.checked = selectAllCb.checked; });
+      });
+      listWrap.appendChild(selectAllRow);
+      var checkboxes = [];
+      allValues.filter(function (v) { return !term || v.toLowerCase().indexOf(term) !== -1; }).forEach(function (v) {
+        var row = el("label", "xh-panel-row");
+        var cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = !current || current.has(v);
+        cb.value = v;
+        checkboxes.push(cb);
+        row.appendChild(cb);
+        row.appendChild(el("span", "", v || "(blank)"));
+        listWrap.appendChild(row);
+      });
+      panel._checkboxes = checkboxes;
+    }
+    drawList("");
+    searchInput.addEventListener("input", function () { drawList(searchInput.value.trim().toLowerCase()); });
+    var actions = el("div", "xh-panel-actions");
+    var clearBtn = el("button", "btn", "Clear");
+    clearBtn.type = "button";
+    clearBtn.addEventListener("click", function () {
+      delete state.filters[col.key];
+      thEl.removeAttribute("data-xh-filtered");
+      _xhClosePanel();
+      onApply();
+    });
+    var applyBtn = el("button", "btn primary", "Apply");
+    applyBtn.type = "button";
+    applyBtn.addEventListener("click", function () {
+      var checked = panel._checkboxes.filter(function (c) { return c.checked; }).map(function (c) { return c.value; });
+      if (checked.length === allValues.length) { delete state.filters[col.key]; thEl.removeAttribute("data-xh-filtered"); }
+      else { state.filters[col.key] = new Set(checked); thEl.setAttribute("data-xh-filtered", "1"); }
+      _xhClosePanel();
+      onApply();
+    });
+    actions.appendChild(clearBtn);
+    actions.appendChild(applyBtn);
+    panel.appendChild(actions);
+    document.body.appendChild(panel);
+    var top = rect.bottom + window.scrollY + 4;
+    var left = rect.left + window.scrollX;
+    if (left + 220 > window.scrollX + document.documentElement.clientWidth) left = rect.right + window.scrollX - 220;
+    panel.style.top = top + "px";
+    panel.style.left = left + "px";
+    _xhOpenPanel = panel;
   }
   // Item 170: DD-Mon-YYYY everywhere a date renders (e.g. "16-Sep-2026")
   // -- toLocaleDateString has no hyphen-separator preset, and en-GB's own
@@ -423,6 +589,11 @@
     if (name === "reminders" && !canSeeReminders()) name = "dashboard";
     document.querySelectorAll(".view").forEach(function (v) { v.hidden = true; });
     document.getElementById("view-" + name).hidden = false;
+    // Item 35: every nav switch starts at the top of the new page --
+    // previously it kept whatever scroll position the last page was left
+    // at, so e.g. Reports could open already scrolled past its own
+    // sections if the user had scrolled down before navigating away.
+    window.scrollTo(0, 0);
     document.querySelectorAll(".nav-item").forEach(function (n) { n.classList.toggle("active", n.dataset.view === name); });
     // Item 99: a plain nav view is remembered in the URL so a refresh comes
     // back here instead of bouncing to the Dashboard. "detail" and "triage"
@@ -553,48 +724,55 @@
       });
     stats.appendChild(projectRow);
 
-    function statusCard(title, children) {
-      var card = el("div", "card dash-status-card");
-      var head = el("div", "dsc-head", title);
+    // Item 32 (doc redline): reverted the inline "L0 x / L1 y" sub-badges
+    // under each pooled number -- ugly per Yasser's call. Back to the
+    // original card design (plain label/value/click-filter children,
+    // no per-child stage split), just duplicated wholesale into an L0
+    // card and an L1 card, exactly like the Active Tenders pair above,
+    // instead of one pooled card trying to show both stages at once.
+    function statusCard(title, stage, children) {
+      var card = el("div", "card dash-status-card " + stage.toLowerCase());
+      var head = el("div", "dsc-head", stage + " " + title);
       card.appendChild(head);
       var kids = el("div", "dsc-children");
       children.forEach(function (c) {
         var child = el("div", "dsc-child" + (c[3] ? " " + c[3] : ""));
-        // Item 32: L0/L1 subtotals (c[4]/c[5]) under the pooled number,
-        // same orange/green stage identity used everywhere else. The child
-        // box keeps its original whole-box click (pooled, both stages);
-        // each subtotal span is its own smaller click target on top of
-        // that, pre-filtering to just that one stage too.
-        child.innerHTML = '<div class="dsc-child-val">' + c[1] + '</div><div class="dsc-child-label">' + c[0] + '</div>' +
-          '<div class="dsc-child-sub"><span class="l0">L0 ' + c[4] + '</span><span class="l1">L1 ' + c[5] + "</span></div>";
+        child.innerHTML = '<div class="dsc-child-val">' + c[1] + '</div><div class="dsc-child-label">' + c[0] + "</div>";
         if (c[2]) {
           child.style.cursor = "pointer";
-          child.addEventListener("click", function () { goToAssignedFilter(c[2][0], c[2][1]); });
-          var subEls = child.querySelectorAll(".dsc-child-sub span");
-          subEls[0].addEventListener("click", function (e) { e.stopPropagation(); goToAssignedFilter(c[2][0], c[2][1], "L0"); });
-          subEls[1].addEventListener("click", function (e) { e.stopPropagation(); goToAssignedFilter(c[2][0], c[2][1], "L1"); });
+          child.addEventListener("click", function () { goToAssignedFilter(c[2][0], c[2][1], stage); });
         }
         kids.appendChild(child);
       });
       card.appendChild(kids);
       return card;
     }
-    var statusRow = el("div", "dash-status-row");
-    statusRow.appendChild(statusCard("Deliverables Deadline Status", [
-      [mine ? "My Not Due" : "Not Due", d.not_due, ["deadline", "not_due"], "", d.not_due_l0, d.not_due_l1],
-      [mine ? "My Due" : "Due", d.overdue, ["deadline", "due"], "crit", d.overdue_l0, d.overdue_l1],
-      ["Early", d.early, ["deadline", "early"], "good", d.early_l0, d.early_l1],
-      ["On Time", d.on_time, ["deadline", "on_time"], "good", d.on_time_l0, d.on_time_l1],
-      ["Late", d.late, ["deadline", "late"], "crit", d.late_l0, d.late_l1],
-    ]));
-    statusRow.appendChild(statusCard("Deliverables Progress Status", [
-      ["No Progress Yet", d.no_progress, ["progress", "no_progress"], "", d.no_progress_l0, d.no_progress_l1],
-      ["In Progress", d.in_progress, ["progress", "in_progress"], "warn", d.in_progress_l0, d.in_progress_l1],
-      [mine ? "My Pending SME Review" : "Pending SME Review", d.pending_review, ["progress", "pending_review"], "warn", d.pending_review_l0, d.pending_review_l1],
-      ["Completed", d.approved, ["progress", "approved"], "good", d.approved_l0, d.approved_l1],
-      ["Rejected", d.rejected, ["progress", "rejected"], "crit", d.rejected_l0, d.rejected_l1],
-    ]));
-    stats.appendChild(statusRow);
+    var deadlineRow = el("div", "dash-status-row");
+    [["L0", d.not_due_l0, d.overdue_l0, d.early_l0, d.on_time_l0, d.late_l0],
+     ["L1", d.not_due_l1, d.overdue_l1, d.early_l1, d.on_time_l1, d.late_l1]]
+      .forEach(function (s) {
+        deadlineRow.appendChild(statusCard("Deliverables Deadline Status", s[0], [
+          [mine ? "My Not Due" : "Not Due", s[1], ["deadline", "not_due"], ""],
+          [mine ? "My Due" : "Due", s[2], ["deadline", "due"], "crit"],
+          ["Early", s[3], ["deadline", "early"], "good"],
+          ["On Time", s[4], ["deadline", "on_time"], "good"],
+          ["Late", s[5], ["deadline", "late"], "crit"],
+        ]));
+      });
+    stats.appendChild(deadlineRow);
+    var progressRow = el("div", "dash-status-row");
+    [["L0", d.no_progress_l0, d.in_progress_l0, d.pending_review_l0, d.approved_l0, d.rejected_l0],
+     ["L1", d.no_progress_l1, d.in_progress_l1, d.pending_review_l1, d.approved_l1, d.rejected_l1]]
+      .forEach(function (s) {
+        progressRow.appendChild(statusCard("Deliverables Progress Status", s[0], [
+          ["No Progress Yet", s[1], ["progress", "no_progress"], ""],
+          ["In Progress", s[2], ["progress", "in_progress"], "warn"],
+          [mine ? "My Pending SME Review" : "Pending SME Review", s[3], ["progress", "pending_review"], "warn"],
+          ["Completed", s[4], ["progress", "approved"], "good"],
+          ["Rejected", s[5], ["progress", "rejected"], "crit"],
+        ]));
+      });
+    stats.appendChild(progressRow);
 
     // Item [dashboard stage split]: Top Departments, Newest Milestones and
     // Latest Announcements each render twice now, once into L0's column
@@ -879,7 +1057,7 @@
       var dim = currentFilter && !active;
       var cls = classMap[f[0]] || "neutral";
       return '<span class="psc2-legend-item ' + cls + (active ? " active" : "") + (dim ? " dim" : "") + '" data-val="' + f[0] + '">' +
-        '<span class="dot"></span>' + f[1] + " " + counts[f[0]] + "</span>";
+        '<span class="dot"></span>' + f[1] + " (" + counts[f[0]] + ")</span>";
     }).join("");
     container.innerHTML = '<div class="psc2-bar">' + segsHtml + '</div><div class="psc2-legend">' + legendHtml + "</div>";
     container.querySelectorAll("[data-val]").forEach(function (item) {
@@ -1117,18 +1295,68 @@
     else fields.push(p.project_manager);
     return fields.filter(Boolean).join(" ").toLowerCase().indexOf(term) !== -1;
   }
+  // Items 4/36: Excel-style header sort + multi-select filter, built once
+  // per table and reused on every re-render -- its unique-value lists read
+  // straight from the live cache, so they stay current without rebuilding
+  // the controller.
+  var _xhProjects = {};
+  function _projectsXh(stage) {
+    if (_xhProjects[stage]) return _xhProjects[stage];
+    function uniq(getter) {
+      return function () {
+        var seen = {}, out = [];
+        (_projectsCache[stage] || []).forEach(function (p) {
+          var v = getter(p); v = v == null || v === "" ? "" : String(v);
+          if (!seen[v]) { seen[v] = true; out.push(v); }
+        });
+        return out.sort(function (a, b) { return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }); });
+      };
+    }
+    var columns;
+    if (stage === "L0") {
+      var regionOf = function (p) { return p.is_international ? (p.country || "International") : joinList(p.region); };
+      columns = [
+        { key: "est_no", get: function (p) { return p.est_no; }, uniqueValues: uniq(function (p) { return p.est_no; }) },
+        { key: "name", get: function (p) { return p.name; }, uniqueValues: uniq(function (p) { return p.name; }) },
+        { key: "rfx", get: function (p) { return p.rfx_number || ""; }, uniqueValues: uniq(function (p) { return p.rfx_number || ""; }) },
+        { key: "region", get: regionOf, uniqueValues: uniq(regionOf) },
+        { key: "scope", get: function (p) { return joinList(p.scope); }, uniqueValues: uniq(function (p) { return joinList(p.scope); }) },
+        { key: "bm", get: function (p) { return p.bid_manager || ""; }, uniqueValues: uniq(function (p) { return p.bid_manager || ""; }) },
+        { key: "bsd", get: function (p) { return fmtDate(p.bsd); }, sortValue: function (p) { return p.bsd || ""; }, uniqueValues: uniq(function (p) { return fmtDate(p.bsd); }) },
+        { key: "status", get: function (p) { return p.status; }, uniqueValues: uniq(function (p) { return p.status; }) },
+      ];
+    } else {
+      columns = [
+        { key: "est_no", get: function (p) { return p.est_no; }, uniqueValues: uniq(function (p) { return p.est_no; }) },
+        { key: "name", get: function (p) { return p.name; }, uniqueValues: uniq(function (p) { return p.name; }) },
+        null, // milestones mini-stepper -- not a plain sortable/filterable value
+        { key: "bm", get: function (p) { return p.bid_manager || ""; }, uniqueValues: uniq(function (p) { return p.bid_manager || ""; }) },
+        { key: "pm", get: function (p) { return p.project_manager || ""; }, uniqueValues: uniq(function (p) { return p.project_manager || ""; }) },
+        { key: "status", get: function (p) { return p.status; }, uniqueValues: uniq(function (p) { return p.status; }) },
+      ];
+    }
+    var theadRow = document.querySelector((stage === "L0" ? "#l0Table" : "#l1Table") + " thead tr");
+    var xh = installExcelHeader(theadRow, columns);
+    xh.onChange(function () { _renderProjectsTable(stage); });
+    _xhProjects[stage] = xh;
+    return xh;
+  }
   function _renderProjectsTable(stage) {
     var searchEl = document.getElementById(stage === "L0" ? "l0Search" : "l1Search");
     var term = (searchEl ? searchEl.value : "").trim().toLowerCase();
     var full = _projectsCache[stage] || [];
     var list = full.filter(function (p) { return _projectMatchesSearch(p, stage, term); });
+    list = _projectsXh(stage).process(list);
     var table = stage === "L0" ? "#l0Table" : "#l1Table";
     var tbody = document.querySelector(table + " tbody");
     tbody.innerHTML = "";
     if (!list.length) {
       var tr = el("tr");
-      var msg = term ? "No " + stage + " projects match &#8220;" + term + "&#8221;." : "No " + stage + " projects yet.";
-      tr.innerHTML = '<td colspan="8" style="text-align:center;color:var(--ink-500);padding:30px;">' + msg + '</td>';
+      var hasFilters = Object.keys(_projectsXh(stage).state.filters).length > 0;
+      var msg = term ? "No " + stage + " projects match &#8220;" + term + "&#8221;."
+        : hasFilters ? "No " + stage + " projects match the current column filters."
+        : "No " + stage + " projects yet.";
+      tr.innerHTML = '<td colspan="' + (stage === "L0" ? 8 : 6) + '" style="text-align:center;color:var(--ink-500);padding:30px;">' + msg + '</td>';
       tbody.appendChild(tr);
       return;
     }
@@ -1936,8 +2164,9 @@
       title: "Meet GAHIZ!",
       body:
         '<div class="gahiz-intro">' +
-        '<img src="/static/img/gahiz-badge.png" alt="GAHIZ" class="gahiz-intro-badge" />' +
-        '<div><b>GAHIZ</b> is Al Gihaz Contracting\'s AI Agent &#8212; your AI Support Agent right inside ' +
+        '<img src="/static/img/gahiz-hero.png" alt="GAHIZ, Al Gihaz Contracting\'s AI Agent" class="gahiz-intro-hero" />' +
+        '<div class="gahiz-intro-text"><div class="gahiz-intro-name">Meet GAHIZ!</div>' +
+        "<b>GAHIZ</b> is Al Gihaz Contracting's AI Agent &#8212; your AI Support Agent right inside " +
         "the portal.</div></div>" +
         '<p class="tour-step-text">His bubble sits in the bottom-right corner of every page &#8212; ' +
         "click it any time for a faster first stop than Ask the Team, for the kind of question that " +
@@ -4555,7 +4784,16 @@
   var perfChipSelected = {};  // department name -> true, independent multi-select
   var perfStatusFilter = null;  // { level: "l1"|"l0", status: "Excellent"|"Acceptable"|"Needs Action" } | null
   var PERF_MONTH_ORDER = ["Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Current"];
-  var PERF_COLORS = ["#667eea", "#764ba2", "#10b981", "#f59e0b", "#ef4444", "#06b6d4", "#8b5cf6", "#ec4899"];
+  // Item 7 (doc redline): department-compare colors, not a level color --
+  // each line is one selected department, the same color across both the
+  // L1 and L0 sections. But comparing exactly 2 departments (the common
+  // case) always landed on the old palette's first two entries, which were
+  // both purple/indigo shades -- reading as "L0 and L1 both purple" even
+  // though it's really "both departments happened to get similar colors."
+  // Reordered so the first two (and every adjacent pair) are maximally
+  // distinct -- also reuses the app's own L1-green/L0-orange identity
+  // colors as the top two picks.
+  var PERF_COLORS = ["#1f9d5c", "#cc6a1e", "#667eea", "#ef4444", "#06b6d4", "#f59e0b", "#8b5cf6", "#ec4899"];
   function perfStatusClass(status) {
     if (status === "Excellent") return "excellent";
     if (status === "Acceptable") return "acceptable";
@@ -4894,7 +5132,11 @@
       data = await api("/api/dashboard/performance/breakdown?department=" + encodeURIComponent(deptName) +
         "&stage=" + encodeURIComponent(levelKey.toUpperCase()));
     } catch (err) { showToast("Could not load breakdown &#8211; " + apiErrorDetail(err), true); return; }
-    document.getElementById("perfBreakdownTitle").innerHTML = deptName + " &#8211; " + levelKey.toUpperCase() + " Calculation Breakdown";
+    // Item 7 (doc redline): this modal had no L0/L1 color distinction at
+    // all before -- the level word in the title now carries the same
+    // identity color used everywhere else (green L1 / orange L0).
+    var levelColor = levelKey === "l1" ? "#1f9d5c" : "#cc6a1e";
+    document.getElementById("perfBreakdownTitle").innerHTML = deptName + " &#8211; <span style=\"color:" + levelColor + ";\">" + levelKey.toUpperCase() + "</span> Calculation Breakdown";
     var body = document.getElementById("perfBreakdownBody");
     var html = "";
     if (data.aggregation === "per_item_averaged") {
@@ -5071,14 +5313,40 @@
     _perfTriageCache = await api("/api/departments/performance-triage?" + qs);
     _renderPerfTriage();
   }
-  // Item 4/9: header-inline filter -- same live-as-you-type convention,
-  // over the wrap-table treatment #perfTriagePane's .fp-table already has.
+  // Items 4/9/36: header-inline filter -- same live-as-you-type convention,
+  // over the wrap-table treatment #perfTriagePane's .fp-table already has --
+  // plus Excel-style sort+filter on Item/Name/Department.
+  var _perfTriageXh = null;
+  function _getPerfTriageXh() {
+    if (_perfTriageXh) return _perfTriageXh;
+    function uniq(getter) {
+      return function () {
+        var seen = {}, out = [];
+        _perfTriageCache.forEach(function (r) {
+          var v = getter(r); v = v == null ? "" : String(v);
+          if (!seen[v]) { seen[v] = true; out.push(v); }
+        });
+        return out.sort(function (a, b) { return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }); });
+      };
+    }
+    var columns = [
+      { key: "item_no", get: function (r) { return r.item_no; }, uniqueValues: uniq(function (r) { return r.item_no; }) },
+      { key: "name", get: function (r) { return r.name; }, uniqueValues: uniq(function (r) { return r.name; }) },
+      { key: "department", get: function (r) { return r.department; }, uniqueValues: uniq(function (r) { return r.department; }) },
+      null,
+    ];
+    var theadRow = document.getElementById("perfTriageBody").closest("table").querySelector("thead tr");
+    _perfTriageXh = installExcelHeader(theadRow, columns);
+    _perfTriageXh.onChange(function () { _renderPerfTriage(); });
+    return _perfTriageXh;
+  }
   function _renderPerfTriage() {
     var term = document.getElementById("perfTriageSearch").value.trim().toLowerCase();
     var rows = _perfTriageCache.filter(function (r) {
       if (!term) return true;
       return (r.item_no + " " + r.name + " " + r.department).toLowerCase().indexOf(term) !== -1;
     });
+    rows = _getPerfTriageXh().process(rows);
     var tbody = document.getElementById("perfTriageBody");
     tbody.innerHTML = "";
     if (!rows.length) {
@@ -5182,6 +5450,30 @@
   // here unconditionally, same pattern as loadPerformance/perfOverviewCore,
   // so navigating to the Reports page's Master PO Report always shows it
   // in its normal place regardless of whichever view last relocated it.
+  // Item 36: sort-only Excel header for the Master PO table (see renderTable
+  // below) -- built once and reused across every loadReportMasterPo() call
+  // so re-visiting the tab doesn't double-wrap the header cells.
+  var _masterPoXhController = null;
+  function _masterPoXh() {
+    if (_masterPoXhController) return _masterPoXhController;
+    var columns = [
+      { key: "contract_status", get: function (r) { return r.contract_status || ""; }, filterable: false },
+      { key: "project", get: function (r) { return r.est_no + " " + r.project_name; }, filterable: false },
+      { key: "item", get: function (r) { return r.current_item_no || ""; }, filterable: false },
+      { key: "name", get: function (r) { return r.name; }, filterable: false },
+      { key: "category", get: function (r) { return r.category; }, filterable: false },
+      { key: "po_status", get: function (r) { return _PO_STATUS_LABEL2[r.po_status] || r.po_status; }, filterable: false },
+      { key: "final_due", get: function (r) { return fmtDate(r.final_due_date); }, sortValue: function (r) { return r.final_due_date || ""; }, filterable: false },
+      { key: "actual_signed", get: function (r) { return r.actual_or_signed ? fmtDate(r.actual_or_signed) : ""; }, sortValue: function (r) { return r.actual_or_signed || ""; }, filterable: false },
+      { key: "delay", get: function (r) { return r.delay_label; }, filterable: false },
+    ];
+    // Item 36: .rep-po-table is reused by the Custom Report table too (a
+    // second, empty instance elsewhere in the DOM) -- anchor off
+    // #repMasterPoBody itself so this always wires the right table's header.
+    var theadRow = document.getElementById("repMasterPoBody").closest("table").querySelector("thead tr");
+    _masterPoXhController = installExcelHeader(theadRow, columns);
+    return _masterPoXhController;
+  }
   async function loadReportMasterPo() {
     document.getElementById("view-report-masterpo").appendChild(document.getElementById("masterPoCore"));
     document.getElementById("masterPoTitle").textContent = "Master PO Report";
@@ -5260,9 +5552,17 @@
         grid.appendChild(card);
       });
     }
+    // Item 36: click-to-sort headers on the Master PO table -- this table
+    // already has its own rich multi-dimension filter row (project,
+    // category, status, department, search), so only the sort half of the
+    // shared component is wired here rather than layering a second,
+    // redundant filter mechanism on top.
+    var masterPoXh = _masterPoXh();
+    masterPoXh.onChange(function () { renderTable(); });
     function renderTable() {
       var filtered = filteredRows(false);
       document.getElementById("repMasterPoCount").textContent = "Showing " + filtered.length + " of " + rows.length + " PO/deliverable items";
+      filtered = masterPoXh.process(filtered);
       var body = document.getElementById("repMasterPoBody");
       body.innerHTML = "";
       if (!filtered.length) { body.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--ink-500);padding:30px;">No matching PO/deliverable items.</td></tr>'; return; }
@@ -5300,7 +5600,7 @@
   async function loadMasterPo() {
     await loadReportMasterPo();
     document.getElementById("masterPoMount").appendChild(document.getElementById("masterPoCore"));
-    document.getElementById("masterPoTitle").textContent = "Master PO";
+    document.getElementById("masterPoTitle").textContent = "Master POs List";
   }
 
   async function loadReportOverviewPo() {
@@ -5573,6 +5873,9 @@
         business_units: "Business Units", announcement_date: "Announced", bsd: "BSD",
         is_international: "International", archived: "Archived",
       },
+      // Item 11 (redlined): standard status pills/colors, same as used
+      // everywhere else in the platform, instead of plain text.
+      pillFields: { status: function (v) { return [PROJECT_STATUS_CLASS[v] || "neutral", v]; } },
       defaultFields: ["est_no", "name", "stage", "status", "bid_manager"],
       fetch: async function () {
         var rows = await api("/api/projects");
@@ -5594,6 +5897,10 @@
         name: "Name", status: "Progress", deadline_status: "Deadline", due_date: "Due Date", owner: "Owner",
         is_milestone: "Milestone", doc_total: "Docs", points_earned: "Points",
       },
+      pillFields: {
+        status: function (v) { var m = STATUS_META[v] || ["neutral", v]; return m; },
+        deadline_status: function (v) { var m = DEADLINE_META[v] || ["neutral", v]; return m; },
+      },
       defaultFields: ["est_no", "item_no", "name", "department", "status", "due_date"],
       fetch: async function () {
         var rows = await api("/api/deliverables?actor_role=Admin");
@@ -5610,6 +5917,11 @@
     performance: {
       label: "Performance (by department)",
       fields: { department: "Department", l0_pct: "L0 %", l0_status: "L0 Status", l1_pct: "L1 %", l1_status: "L1 Status" },
+      pillFields: {
+        l0_status: function (v) { return [perfStatusClass(v), v]; },
+        l1_status: function (v) { return [perfStatusClass(v), v]; },
+      },
+      pillClass: "rep-po-badge",
       defaultFields: ["department", "l0_pct", "l0_status", "l1_pct", "l1_status"],
       fetch: async function () {
         var data = await api("/api/dashboard/performance");
@@ -5629,13 +5941,17 @@
         name: "PO / Deliverable", po_status: "PO Status", final_due_date: "Final Due Date",
         actual_or_signed: "Actual / Signed", delay_label: "Delay",
       },
+      // po_status stays the raw key (e.g. "signed") here, not the display
+      // label, so the pill lookup below has something to key off of.
+      pillFields: { po_status: function (v) { return [_PO_STATUS_BADGE[v] || "neutral", _PO_STATUS_LABEL2[v] || v]; } },
+      pillClass: "rep-po-badge",
       defaultFields: ["est_no", "category", "name", "po_status", "delay_label"],
       fetch: async function () {
         var rows = await api("/api/reports/master-po?actor_role=Admin");
         return rows.map(function (r) {
           return {
             est_no: r.est_no, project_name: r.project_name, department: r.department || "",
-            category: r.category.replace(/_/g, " "), name: r.name, po_status: _PO_STATUS_LABEL2[r.po_status] || r.po_status,
+            category: r.category.replace(/_/g, " "), name: r.name, po_status: r.po_status,
             final_due_date: fmtDate(r.final_due_date), actual_or_signed: r.actual_or_signed ? fmtDate(r.actual_or_signed) : "",
             delay_label: r.delay_label,
           };
@@ -5645,6 +5961,7 @@
     requests: {
       label: "Requests (all types)",
       fields: { type: "Type", title: "Request", requested_by: "Requested By", status: "Status", requested_at: "Requested" },
+      pillFields: { status: function (v) { var m = { pending: ["warn", "Pending"], approved: ["good", "Approved"], rejected: ["crit", "Rejected"] }; return m[v] || ["neutral", v]; } },
       defaultFields: ["type", "title", "requested_by", "status", "requested_at"],
       fetch: async function () {
         var results = await Promise.all([
@@ -5666,7 +5983,8 @@
       },
     },
   };
-  var rcEntity = "projects", rcRows = [], rcFields = {}, rcSort = { key: null, dir: 1 };
+  var rcEntity = "projects", rcRows = [], rcFields = {};
+  var rcXh = null, rcXhColsKey = null; // Item 4/11/36: Excel header (sort+filter) over the dynamic column set
   async function loadReportCustom() {
     var toggle = document.getElementById("rcEntityToggle");
     toggle.innerHTML = "";
@@ -5686,7 +6004,7 @@
     var def = RC_ENTITIES[key];
     rcFields = {};
     def.defaultFields.forEach(function (f) { rcFields[f] = true; });
-    rcSort = { key: null, dir: 1 };
+    rcXh = null; rcXhColsKey = null; // Item 4/36: fresh Excel header for the new entity's fields
     document.getElementById("rcSearch").value = "";
     _rcRenderFieldGrid();
     rcRows = await def.fetch();
@@ -5706,6 +6024,12 @@
       grid.appendChild(label);
     });
   }
+  // Item 11 (redlined): "fix the same filter issue in item 4, filtering
+  // from headers" -- Custom Report's columns are user-picked and change on
+  // every checkbox toggle, so the Excel header only gets rebuilt (fresh
+  // sort/filter state) when the actual column *set* changes; typing in the
+  // free-text search box or re-paging keeps whatever header state is
+  // already active.
   function _rcRenderTable() {
     var def = RC_ENTITIES[rcEntity];
     var cols = Object.keys(def.fields).filter(function (k) { return rcFields[k]; });
@@ -5717,29 +6041,37 @@
     var filtered = !term ? rcRows : rcRows.filter(function (r) {
       return allKeys.some(function (c) { return String(r[c] == null ? "" : r[c]).toLowerCase().indexOf(term) !== -1; });
     });
-    if (rcSort.key) {
-      filtered = filtered.slice().sort(function (a, b) {
-        var av = a[rcSort.key], bv = b[rcSort.key];
-        if (av === bv) return 0;
-        return (av > bv ? 1 : -1) * rcSort.dir;
-      });
-    }
-    document.getElementById("rcCount").textContent = "Showing " + filtered.length + " of " + rcRows.length + " rows";
     var head = document.getElementById("rcTableHead");
-    head.innerHTML = "";
-    if (!cols.length) {
-      head.appendChild(el("th", "", "Pick at least one column above"));
-    } else {
-      cols.forEach(function (c) {
-        var th = el("th", "", def.fields[c] + (rcSort.key === c ? (rcSort.dir === 1 ? " &#9650;" : " &#9660;") : ""));
-        th.style.cursor = "pointer";
-        th.addEventListener("click", function () {
-          rcSort = { key: c, dir: rcSort.key === c ? -rcSort.dir : 1 };
-          _rcRenderTable();
+    var colsKey = cols.join("|");
+    if (colsKey !== rcXhColsKey) {
+      head.innerHTML = "";
+      rcXhColsKey = colsKey;
+      if (!cols.length) {
+        head.appendChild(el("th", "", "Pick at least one column above"));
+        rcXh = null;
+      } else {
+        cols.forEach(function (c) { head.appendChild(el("th", "", def.fields[c])); });
+        var xhColumns = cols.map(function (c) {
+          var pf = def.pillFields && def.pillFields[c];
+          var display = function (r) { return pf ? pf(r[c])[1] : r[c]; };
+          return {
+            key: c, get: display,
+            uniqueValues: function () {
+              var seen = {}, out = [];
+              rcRows.forEach(function (r) {
+                var v = display(r); v = v == null ? "" : String(v);
+                if (!seen[v]) { seen[v] = true; out.push(v); }
+              });
+              return out.sort(function (a, b) { return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }); });
+            },
+          };
         });
-        head.appendChild(th);
-      });
+        rcXh = installExcelHeader(head, xhColumns);
+        rcXh.onChange(function () { _rcRenderTable(); });
+      }
     }
+    if (rcXh) filtered = rcXh.process(filtered);
+    document.getElementById("rcCount").textContent = "Showing " + filtered.length + " of " + rcRows.length + " rows";
     var body = document.getElementById("rcTableBody");
     body.innerHTML = "";
     if (!cols.length || !filtered.length) {
@@ -5754,7 +6086,16 @@
       body.innerHTML = "";
       pageItems.forEach(function (r) {
         var tr = el("tr");
-        cols.forEach(function (c) { tr.appendChild(el("td", "", r[c] == null || r[c] === "" ? "&#8213;" : String(r[c]))); });
+        cols.forEach(function (c) {
+          var pf = def.pillFields && def.pillFields[c];
+          if (pf && r[c] != null && r[c] !== "") {
+            var meta = pf(r[c]);
+            tr.appendChild(el("td", "", '<span class="' + (def.pillClass || "pill") + " " + meta[0] + '">' +
+              (def.pillClass ? "" : '<span class="dot"></span>') + meta[1] + "</span>"));
+          } else {
+            tr.appendChild(el("td", "", r[c] == null || r[c] === "" ? "&#8213;" : String(r[c])));
+          }
+        });
         body.appendChild(tr);
       });
     });
@@ -7083,6 +7424,13 @@
     // Critical/15+-day threshold surfaces what actually needs attention
     // first. days_overdue itself now comes pre-computed from the backend.
     var FU_CRITICAL_DAYS = 15;
+    // Item 33 (doc redline): selection now lives on the rows themselves (a
+    // checkbox next to each Remind pill, right there in the split screen)
+    // instead of only appearing after Send Reminders... was already
+    // clicked -- checked by default, id -> false only once explicitly
+    // unchecked, persists across filtering/paging/department switches
+    // within this one visit to the page.
+    var fuSelected = {};
     var items = await api("/api/deliverables/follow-up");
     var estSel = document.getElementById("fuEstFilter");
     var focalSel = document.getElementById("fuFocalFilter");
@@ -7166,6 +7514,14 @@
 
       var wrap = document.getElementById("followUpList");
       var pager = document.getElementById("fuPager");
+      // Item 33: how many of the currently-filtered items (across every
+      // page, not just the one on screen) are still checked -- shown right
+      // on the button so it's clear before clicking exactly how many will
+      // actually go out.
+      function _fuUpdateRemindAllLabel() {
+        var n = deptFiltered.filter(function (d) { return fuSelected[d.id] !== false; }).length;
+        document.getElementById("fuRemindAll").textContent = "Send Reminders… (" + n + " selected)";
+      }
       function fuRowEl(d) {
         var sev = fuSeverity(d);
         var row = el("div", "fu-row");
@@ -7178,9 +7534,20 @@
           '<span>Due ' + fmtDate(d.due_date) + '</span>'));
         row.appendChild(main);
         var side = el("div", "fu-row-side");
+        var cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.className = "fu-row-check";
+        cb.title = "Include in Send Reminders…";
+        cb.checked = fuSelected[d.id] !== false;
+        cb.addEventListener("click", function (e) {
+          e.stopPropagation();
+          fuSelected[d.id] = cb.checked;
+          _fuUpdateRemindAllLabel();
+        });
+        side.appendChild(cb);
         side.appendChild(el("span", "fu-overdue-badge " + sev, d.days_overdue + " day" + (d.days_overdue === 1 ? "" : "s") + " overdue"));
         var remindBtn = el("button", "btn", "Remind");
-        remindBtn.addEventListener("click", function () { openRemindModal([d]); });
+        remindBtn.addEventListener("click", function (e) { e.stopPropagation(); openRemindModal([d]); });
         side.appendChild(remindBtn);
         row.appendChild(side);
         return row;
@@ -7195,10 +7562,12 @@
           pageItems.forEach(function (d) { wrap.appendChild(fuRowEl(d)); });
         });
       }
+      _fuUpdateRemindAllLabel();
 
       document.getElementById("fuRemindAll").onclick = function () {
-        if (!deptFiltered.length) { showToast("Nothing shown to remind", true); return; }
-        openRemindModal(deptFiltered);
+        var toSend = deptFiltered.filter(function (d) { return fuSelected[d.id] !== false; });
+        if (!toSend.length) { showToast("Nothing selected to remind", true); return; }
+        openRemindModal(toSend);
       };
     }
     estSel.onchange = renderFollowUpList;
@@ -8210,13 +8579,42 @@
       : "Your own active L0 tenders' triage progress — pending, reminded, or done.";
     _renderBmTriageStatus();
   }
-  // Item 4: header-inline filter, same live-as-you-type convention as L0/L1.
+  // Items 4/36: Excel header (sort + filter) on Est-No/Tender/Bid Manager/
+  // Status; the Triage progress and Action columns stay plain.
+  var _bmTriageXh = null;
+  function _getBmTriageXh() {
+    if (_bmTriageXh) return _bmTriageXh;
+    function uniq(getter) {
+      return function () {
+        var seen = {}, out = [];
+        _bmTriageCache.forEach(function (r) {
+          var v = getter(r); v = v == null ? "" : String(v);
+          if (!seen[v]) { seen[v] = true; out.push(v); }
+        });
+        return out.sort(function (a, b) { return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }); });
+      };
+    }
+    var statusGet = function (r) { return (BM_TRIAGE_STATUS_META[r.status] || ["", r.status])[1]; };
+    var columns = [
+      { key: "est_no", get: function (r) { return r.est_no; }, uniqueValues: uniq(function (r) { return r.est_no; }) },
+      { key: "name", get: function (r) { return r.name; }, uniqueValues: uniq(function (r) { return r.name; }) },
+      { key: "bm", get: function (r) { return r.bid_manager || ""; }, uniqueValues: uniq(function (r) { return r.bid_manager || ""; }) },
+      null,
+      { key: "status", get: statusGet, uniqueValues: uniq(statusGet) },
+      null,
+    ];
+    var theadRow = document.getElementById("bmTriageBody").closest("table").querySelector("thead tr");
+    _bmTriageXh = installExcelHeader(theadRow, columns);
+    _bmTriageXh.onChange(function () { _renderBmTriageStatus(); });
+    return _bmTriageXh;
+  }
   function _renderBmTriageStatus() {
     var term = document.getElementById("bmTriageSearch").value.trim().toLowerCase();
     var rows = _bmTriageCache.filter(function (r) {
       if (!term) return true;
       return [r.est_no, r.name, r.bid_manager].filter(Boolean).join(" ").toLowerCase().indexOf(term) !== -1;
     });
+    rows = _getBmTriageXh().process(rows);
     var tbody = document.getElementById("bmTriageBody");
     tbody.innerHTML = "";
     if (!rows.length) {
@@ -8380,30 +8778,53 @@
     loadSupport();
   });
 
+  // Item 20 (redlined): the flat "list row crammed into a modal" thread view
+  // is replaced with a real conversation panel -- meta header, message
+  // bubbles for the full back-and-forth, and (when open) an always-visible
+  // reply box right in the panel instead of a popup prompt. Modeled on the
+  // Deliverables detail modal's structure (meta grid up top, wide card).
   function _renderSupportThread(container, r, opts) {
     container.innerHTML = "";
+    var panel = el("div", "qa-thread");
+
     // Item 37: surface who this was really directed to (a specific SME, or
     // Admins generally) so whoever's handling it knows to loop them in.
-    var context = ["To: " + (r.target_email || "Admins"), r.stage, r.est_no, r.deliverable].filter(Boolean).join(" &middot; ");
-    var row = el("div", "aq-row");
-    var main = el("div", "aq-main");
-    main.appendChild(el("div", "aq-title", r.name || r.email));
-    main.appendChild(el("div", "aq-sub",
-      '<span>' + r.email + '</span>' + (context ? '<span class="sep">&middot;</span><span>' + context + "</span>" : "")));
-    main.appendChild(el("div", "deliv-comment", r.message));
-    (r.messages || []).forEach(function (m) {
-      var who = m.author === "admin" ? "Admin" : (r.name || r.email || "Asker");
-      var mrow = el("div", "deliv-comment", "<b>" + who + ":</b> " + m.body);
-      main.appendChild(mrow);
+    var meta = el("div", "modal-meta-grid");
+    [["Asked By", r.name ? r.name + " (" + r.email + ")" : r.email],
+     ["To", r.target_email || "Admins"],
+     ["Stage", r.stage || "&#8213;"],
+     ["Project / Deliverable", [r.est_no, r.deliverable].filter(Boolean).join(" &middot; ") || "&#8213;"]].forEach(function (m) {
+      var mi = el("div");
+      mi.appendChild(el("div", "mk", m[0]));
+      mi.appendChild(el("div", "mv", m[1]));
+      meta.appendChild(mi);
     });
-    row.appendChild(main);
-    var side = el("div", "deliv-actions");
-    if (r.status === "resolved") {
-      side.appendChild(el("span", "pill good", '<span class="dot"></span>Resolved'));
-    } else {
-      side.appendChild(el("span", "pill warn", '<span class="dot"></span>Open'));
+    panel.appendChild(meta);
+    panel.appendChild(r.status === "resolved"
+      ? el("span", "pill good", '<span class="dot"></span>Resolved')
+      : el("span", "pill warn", '<span class="dot"></span>Open'));
+
+    // The conversation itself: the original question first, then every
+    // reply in order, each its own bubble so a back-and-forth actually
+    // reads like one, instead of the old italic one-liners stacked flat.
+    var thread = el("div", "qa-thread-messages");
+    var firstBubble = el("div", "qa-bubble asker");
+    firstBubble.appendChild(el("div", "qa-bubble-author", r.name || r.email));
+    firstBubble.appendChild(el("div", "qa-bubble-body", r.message));
+    thread.appendChild(firstBubble);
+    (r.messages || []).forEach(function (m) {
+      var isAdmin = m.author === "admin";
+      var bubble = el("div", "qa-bubble" + (isAdmin ? " admin" : " asker"));
+      bubble.appendChild(el("div", "qa-bubble-author", isAdmin ? "Admin" : (r.name || r.email || "Asker")));
+      bubble.appendChild(el("div", "qa-bubble-body", m.body));
+      thread.appendChild(bubble);
+    });
+    panel.appendChild(thread);
+
+    if (r.status !== "resolved" && (opts.canReply || opts.canResolve)) {
+      var footer = el("div", "qa-thread-footer");
+      var kbRefSelect = null;
       if (opts.canReply) {
-        var kbRefSelect = null;
         // Item 150/172.1: admin-only -- point this reply at an existing
         // knowledge base answer instead of writing a fresh one, so
         // resolving this ticket doesn't add a duplicate entry (the reply
@@ -8416,24 +8837,29 @@
             o.value = e.id;
             kbRefSelect.appendChild(o);
           });
-          side.appendChild(kbRefSelect);
+          footer.appendChild(kbRefSelect);
         }
-        var replyBtn = el("button", "btn", "Reply");
+        // A real, always-visible reply box right in the panel -- not a
+        // popup prompt -- so writing and sending a reply is one motion.
+        var textarea = document.createElement("textarea");
+        textarea.className = "qa-reply-box";
+        textarea.placeholder = opts.replyPlaceholder;
+        footer.appendChild(textarea);
+        if (kbRefSelect) {
+          kbRefSelect.addEventListener("change", function () {
+            if (!kbRefSelect.value) return;
+            var picked = opts.kbEntries.find(function (e) { return String(e.id) === kbRefSelect.value; });
+            if (picked) textarea.value = picked.answer;
+          });
+        }
+        var actionsRow = el("div", "qa-thread-actions");
+        var replyBtn = el("button", "btn primary", "Send Reply");
         replyBtn.addEventListener("click", async function () {
+          var body = textarea.value.trim();
+          if (!body) { showToast("A reply message is required", true); return; }
           var picked = (kbRefSelect && kbRefSelect.value)
             ? opts.kbEntries.find(function (e) { return String(e.id) === kbRefSelect.value; }) : null;
-          var result = await openActionCommentModal({
-            title: "Reply",
-            hint: opts.replyPlaceholder,
-            placeholder: opts.replyPlaceholder,
-            defaultValue: picked ? picked.answer : "",
-            required: true,
-            requiredMessage: "A reply message is required",
-            confirmLabel: "Send Reply",
-            allowFile: false,
-          });
-          if (!result) return;
-          var payload = { body: result.comment, actor_role: CURRENT_ROLE, actor_email: myIdentity() };
+          var payload = { body: body, actor_role: CURRENT_ROLE, actor_email: myIdentity() };
           if (picked) payload.kb_reference_id = picked.id;
           try {
             await api("/api/support/" + r.id + "/" + opts.replyEndpoint, {
@@ -8446,43 +8872,44 @@
           }
           opts.onReplied();
         });
-        side.appendChild(replyBtn);
-      }
-      if (opts.canResolve) {
-        var resolveBtn = el("button", "btn", "Mark Resolved");
-        resolveBtn.addEventListener("click", async function () {
-          // If the admin picked a KB reference but resolved straight away
-          // without hitting Reply, the asker would otherwise get nothing --
-          // send them the referenced answer first so resolving always means
-          // "they've been answered."
-          var hasAdminReply = (r.messages || []).some(function (m) { return m.author === "admin"; });
-          if (!hasAdminReply && kbRefSelect && kbRefSelect.value) {
-            var picked = opts.kbEntries.find(function (e) { return String(e.id) === kbRefSelect.value; });
-            if (picked) {
-              try {
-                await api("/api/support/" + r.id + "/reply", {
-                  method: "POST", headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    body: picked.answer, actor_role: CURRENT_ROLE, actor_email: myIdentity(),
-                    kb_reference_id: picked.id,
-                  }),
-                });
-              } catch (err) {
-                showToast("Could not send the referenced answer &#8211; " + apiErrorDetail(err), true);
-                return;
+        actionsRow.appendChild(replyBtn);
+        if (opts.canResolve) {
+          var resolveBtn = el("button", "btn", "Mark Resolved");
+          resolveBtn.addEventListener("click", async function () {
+            // If the admin picked a KB reference but resolved straight away
+            // without hitting Reply, the asker would otherwise get nothing
+            // -- send them the referenced answer first so resolving always
+            // means "they've been answered."
+            var hasAdminReply = (r.messages || []).some(function (m) { return m.author === "admin"; });
+            if (!hasAdminReply && kbRefSelect && kbRefSelect.value) {
+              var picked = opts.kbEntries.find(function (e) { return String(e.id) === kbRefSelect.value; });
+              if (picked) {
+                try {
+                  await api("/api/support/" + r.id + "/reply", {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      body: picked.answer, actor_role: CURRENT_ROLE, actor_email: myIdentity(),
+                      kb_reference_id: picked.id,
+                    }),
+                  });
+                } catch (err) {
+                  showToast("Could not send the referenced answer &#8211; " + apiErrorDetail(err), true);
+                  return;
+                }
               }
             }
-          }
-          await api("/api/support/" + r.id + "/resolve?actor_role=" + CURRENT_ROLE, { method: "PATCH" });
-          showToast("Marked resolved");
-          refreshNavBadges();
-          opts.onReplied();
-        });
-        side.appendChild(resolveBtn);
+            await api("/api/support/" + r.id + "/resolve?actor_role=" + CURRENT_ROLE, { method: "PATCH" });
+            showToast("Marked resolved");
+            refreshNavBadges();
+            opts.onReplied();
+          });
+          actionsRow.appendChild(resolveBtn);
+        }
+        footer.appendChild(actionsRow);
       }
+      panel.appendChild(footer);
     }
-    row.appendChild(side);
-    container.appendChild(row);
+    container.appendChild(panel);
   }
 
   // Item 150: Ask a Question / Knowledge Base sub-tabs inside the same
@@ -8504,14 +8931,41 @@
     var haystack = (entry.question + " " + entry.answer + " " + (entry.est_no || "") + " " + (entry.deliverable || "")).toLowerCase();
     return haystack.indexOf(term) !== -1;
   }
-  // Item 21: a real table -- numbered rows, Stage/Related Project/Related
+  // Items 21/36: a real table -- numbered rows, Stage/Related Project/Related
   // Deliverable columns, high-level only, click a row for the full
   // question+answer (previously grouped-by-category divs with the full
-  // answer always shown inline).
+  // answer always shown inline). Excel header adds sort on every column and
+  // filter on Stage/Related Project/Related Deliverable.
+  var _kbXh = null;
+  function _getKbXh() {
+    if (_kbXh) return _kbXh;
+    function uniq(getter) {
+      return function () {
+        var seen = {}, out = [];
+        kbCache.forEach(function (e) {
+          var v = getter(e); v = v == null ? "" : String(v);
+          if (!seen[v]) { seen[v] = true; out.push(v); }
+        });
+        return out.sort(function (a, b) { return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }); });
+      };
+    }
+    var columns = [
+      { key: "id", get: function (e) { return e.id; }, filterable: false },
+      { key: "question", get: function (e) { return e.question; }, filterable: false },
+      { key: "stage", get: function (e) { return e.category === "L0" || e.category === "L1" ? e.category : ""; }, uniqueValues: uniq(function (e) { return e.category === "L0" || e.category === "L1" ? e.category : ""; }) },
+      { key: "est_no", get: function (e) { return e.est_no || ""; }, uniqueValues: uniq(function (e) { return e.est_no || ""; }) },
+      { key: "deliverable", get: function (e) { return e.deliverable || ""; }, uniqueValues: uniq(function (e) { return e.deliverable || ""; }) },
+    ];
+    var theadRow = document.getElementById("kbBody").closest("table").querySelector("thead tr");
+    _kbXh = installExcelHeader(theadRow, columns);
+    _kbXh.onChange(function () { _renderKbList(); });
+    return _kbXh;
+  }
   function _renderKbList() {
     var term = document.getElementById("kbSearch").value.trim().toLowerCase();
     var category = document.getElementById("kbCategoryFilter").value;
     var filtered = kbCache.filter(function (e) { return _kbMatches(e, term, category); });
+    filtered = _getKbXh().process(filtered);
     var tbody = document.getElementById("kbBody");
     var pager = document.getElementById("kbPager");
     if (!filtered.length) {
@@ -8749,43 +9203,66 @@
     _ticketsKbEntries = await api("/api/support/kb");
     _renderTicketsList();
   }
-  // Item 20: a real table -- numbered rows (Q1, Q2...), high-level info
+  // Items 20/36: a real table -- numbered rows (Q1, Q2...), high-level info
   // only (question snippet, asker, status, date), click a row for the
   // full conversation in its own modal instead of every question's whole
-  // thread rendering inline. Header-inline filter (item 4) + pager.
+  // thread rendering inline. Header-inline filter (item 4) + Excel header
+  // sort/filter. No pager here (item 20 redlined that back out) -- every
+  // matching question just lists, same convention as L0 Tenders/L1 Projects.
+  var _ticketsXh = null;
+  function _getTicketsXh() {
+    if (_ticketsXh) return _ticketsXh;
+    function uniq(getter) {
+      return function () {
+        var seen = {}, out = [];
+        _ticketsCache.forEach(function (r) {
+          var v = getter(r); v = v == null ? "" : String(v);
+          if (!seen[v]) { seen[v] = true; out.push(v); }
+        });
+        return out.sort(function (a, b) { return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }); });
+      };
+    }
+    var statusGet = function (r) { return r.status === "resolved" ? "Resolved" : "Open"; };
+    var columns = [
+      null, // Q-number is a display-only rank, not a real sortable/filterable field
+      { key: "message", get: function (r) { return r.message; }, filterable: false },
+      { key: "asker", get: function (r) { return r.name || r.email; }, uniqueValues: uniq(function (r) { return r.name || r.email; }) },
+      { key: "status", get: statusGet, uniqueValues: uniq(statusGet) },
+      { key: "date", get: function (r) { return (r.created_at || "").slice(0, 10); }, filterable: false },
+    ];
+    var theadRow = document.getElementById("ticketsBody").closest("table").querySelector("thead tr");
+    _ticketsXh = installExcelHeader(theadRow, columns);
+    _ticketsXh.onChange(function () { _renderTicketsList(); });
+    return _ticketsXh;
+  }
   function _renderTicketsList() {
     var term = document.getElementById("ticketsSearch").value.trim().toLowerCase();
     var filtered = _ticketsCache.filter(function (r) {
       if (!term) return true;
       return ((r.name || "") + " " + r.email + " " + r.message + " " + (r.est_no || "")).toLowerCase().indexOf(term) !== -1;
     });
+    filtered = _getTicketsXh().process(filtered);
     var tbody = document.getElementById("ticketsBody");
-    var pager = document.getElementById("ticketsPager");
     if (!filtered.length) {
       tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--ink-500);padding:30px;">' +
         (term ? "No questions match &#8220;" + term + "&#8221;." : "No requests yet.") + "</td></tr>";
-      pager.innerHTML = "";
       return;
     }
-    renderPager(pager, filtered, 10, function (pageItems) {
-      tbody.innerHTML = "";
-      pageItems.forEach(function (r) {
-        // Item 20b: numbered against the full filtered set, not just the
-        // current page, so Q1/Q2/... stays stable as you page through.
-        var qNum = filtered.indexOf(r) + 1;
-        var tr = el("tr");
-        tr.style.cursor = "pointer";
-        tr.appendChild(el("td", "num", "Q" + qNum));
-        var snippet = r.message.length > 70 ? r.message.slice(0, 70) + "&#8230;" : r.message;
-        tr.appendChild(el("td", "", snippet));
-        tr.appendChild(el("td", "", r.name || r.email));
-        tr.appendChild(el("td", "", r.status === "resolved"
-          ? '<span class="pill good"><span class="dot"></span>Resolved</span>'
-          : '<span class="pill warn"><span class="dot"></span>Open</span>'));
-        tr.appendChild(el("td", "", fmtDate((r.created_at || "").slice(0, 10))));
-        tr.addEventListener("click", function () { _openTicketDetail(r); });
-        tbody.appendChild(tr);
-      });
+    tbody.innerHTML = "";
+    filtered.forEach(function (r, idx) {
+      var qNum = idx + 1;
+      var tr = el("tr");
+      tr.style.cursor = "pointer";
+      tr.appendChild(el("td", "num", "Q" + qNum));
+      var snippet = r.message.length > 70 ? r.message.slice(0, 70) + "&#8230;" : r.message;
+      tr.appendChild(el("td", "", snippet));
+      tr.appendChild(el("td", "", r.name || r.email));
+      tr.appendChild(el("td", "", r.status === "resolved"
+        ? '<span class="pill good"><span class="dot"></span>Resolved</span>'
+        : '<span class="pill warn"><span class="dot"></span>Open</span>'));
+      tr.appendChild(el("td", "", fmtDate((r.created_at || "").slice(0, 10))));
+      tr.addEventListener("click", function () { _openTicketDetail(r); });
+      tbody.appendChild(tr);
     });
   }
   document.getElementById("ticketsSearch").addEventListener("input", _renderTicketsList);

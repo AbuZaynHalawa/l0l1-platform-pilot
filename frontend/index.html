@@ -38,7 +38,7 @@
       <button class="nav-item" data-view="deliverableformulas"><span class="ic">&#128220;</span> Deliverables Catalog</button>
       <!-- Item 12: same data as the admin Master PO Report, read-only for
            every role here. -->
-      <button class="nav-item" data-view="masterpo"><span class="ic">&#129534;</span> Master PO</button>
+      <button class="nav-item" data-view="masterpo"><span class="ic">&#129534;</span> Master POs List</button>
       <!-- Item [nav icon collisions]: was the same clipboard as Assigned
            Deliverables and admin Requests below -- three different pages
            sharing one icon made the rail unscannable by icon alone.
@@ -147,9 +147,13 @@
             <div id="milestonesL0"></div>
           </div>
           <div class="card concerns-card" id="concernsL0Card">
-            <div class="section-title concerns-title-row stage-title-l0">&#9888; L0 Concerns</div>
+            <!-- Item 2 (doc redline): pager sits in the header row itself,
+                 same level as the title, not below the list. -->
+            <div class="section-title concerns-title-row stage-title-l0">
+              <span>&#9888; L0 Concerns</span>
+              <div class="pager" id="concernsL0Pager"></div>
+            </div>
             <ul id="concernsL0List"></ul>
-            <div class="pager" id="concernsL0Pager"></div>
           </div>
           <div class="card">
             <div class="section-title stage-title-l0">Top L0 Departments</div>
@@ -166,9 +170,11 @@
             <div id="milestonesL1"></div>
           </div>
           <div class="card concerns-card" id="concernsL1Card">
-            <div class="section-title concerns-title-row stage-title-l1">&#9888; L1 Concerns</div>
+            <div class="section-title concerns-title-row stage-title-l1">
+              <span>&#9888; L1 Concerns</span>
+              <div class="pager" id="concernsL1Pager"></div>
+            </div>
             <ul id="concernsL1List"></ul>
-            <div class="pager" id="concernsL1Pager"></div>
           </div>
           <div class="card">
             <div class="section-title stage-title-l1">Top L1 Departments</div>
@@ -859,7 +865,6 @@
             <th style="width:140px;">Status</th><th style="width:110px;">Date</th></tr></thead>
           <tbody id="ticketsBody"></tbody>
         </table>
-        <div class="pager" id="ticketsPager"></div>
       </div>
     </section>
 
@@ -1893,7 +1898,7 @@
 <!-- Item 19: My Questions' full thread (reply UI included) opens here on
      click, instead of every question rendering its whole thread inline. -->
 <div class="modal-overlay" id="myQAOverlay" hidden>
-  <div class="modal-card">
+  <div class="modal-card wide">
     <div class="modal-head">
       <div><h2>Your Question</h2></div>
       <button class="modal-close" id="myQAClose">&#10005;</button>
@@ -1905,7 +1910,7 @@
 <!-- Item 20: Open Questions' full thread (reply/resolve/reference-KB)
      opens here on click, instead of every question rendering inline. -->
 <div class="modal-overlay" id="ticketDetailOverlay" hidden>
-  <div class="modal-card">
+  <div class="modal-card wide">
     <div class="modal-head">
       <div><h2 id="ticketDetailTitle">Question</h2></div>
       <button class="modal-close" id="ticketDetailClose">&#10005;</button>

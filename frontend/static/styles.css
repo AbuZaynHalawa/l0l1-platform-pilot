@@ -384,6 +384,12 @@
   .dash-status-row > * { min-width: 0; }
   .dash-status-card { padding: 22px 24px 24px; }
   .dash-status-card .dsc-head { font-size: 12.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-500); margin-bottom: 12px; }
+  /* Item 32: each duplicated L0/L1 card gets a thin top border in that
+     stage's own identity color, same orange/green used everywhere else,
+     so the pair still reads as a matched set (like Active Tenders above)
+     rather than two generic cards. */
+  .dash-status-card.l0 { border-top: 3px solid var(--l0-1); }
+  .dash-status-card.l1 { border-top: 3px solid #1f9d5c; }
   .dash-status-card .dsc-children { display: grid; grid-template-columns: repeat(auto-fit, minmax(78px, 1fr)); gap: 12px; }
   .dsc-child {
     background: var(--surface-sunken); border-radius: var(--radius-sm); padding: 14px 12px; text-align: center;
@@ -395,12 +401,6 @@
   .dsc-child.crit .dsc-child-val { color: var(--crit); }
   .dsc-child.warn .dsc-child-val { color: var(--warn); }
   .dsc-child.good .dsc-child-val { color: var(--good); }
-  /* Item 32: L0/L1 subtotals under each pooled child stat -- same
-     orange/green stage identity as .dash-project-card.l0/.l1 above. */
-  .dsc-child-sub { display: flex; justify-content: center; gap: 8px; margin-top: 6px; font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
-  .dsc-child-sub span { border-radius: 20px; padding: 1px 7px; }
-  .dsc-child-sub .l0 { color: var(--l0-1); background: rgba(204, 106, 30, .1); }
-  .dsc-child-sub .l1 { color: #1f9d5c; background: rgba(31, 157, 92, .1); }
   @media (max-width: 980px) { .dash-project-row, .dash-status-row { grid-template-columns: 1fr; } }
 
   /* Item [dashboard stage alignment]: L0 and L1 must land in the same row
@@ -444,7 +444,15 @@
   /* Shared pager (items 2/19/26) -- prev/next + "Page X of Y", used
      wherever a list is capped to a page size instead of rendering
      everything at once. */
-  .pager { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 10px 0 2px; }
+  /* Item 30 (doc redline): a pager sitting right below a table inside a
+     bare .card (no padding of its own -- Follow Up, Open Questions,
+     Knowledge Base, Custom Report) used to have only 2px below it, so it
+     read as jammed against the card's bottom edge. Even 16px top+bottom. */
+  .pager { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 16px 0; }
+  /* Item 2: Concerns' pager lives inside .section-title's own header row
+     now, not below the list -- no vertical padding needed there. */
+  .section-title .pager { padding: 0; gap: 8px; }
+  .section-title .pager-label { min-width: 68px; font-size: 11px; }
   .pager-btn {
     width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface);
     color: var(--ink-700); font-size: 14px; font-family: inherit; cursor: pointer; display: flex; align-items: center;
@@ -554,6 +562,32 @@
   table.data tbody tr { cursor: pointer; }
   table.data tbody tr:hover { background: var(--surface-sunken); }
   table.data tbody tr:last-child td { border-bottom: none; }
+  /* Items 4/36: the reusable "Excel header" -- click a column label to sort,
+     click its funnel icon for a multi-select filter dropdown. Works inside
+     both table.data (L0/L1) and .fp-table (everywhere else) headers. */
+  th.xh-th { padding: 0 !important; }
+  .xh-th-wrap { display: flex; align-items: center; gap: 4px; padding: 11px 10px 11px 16px; }
+  .xh-sort-btn { display: flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; flex: 1; min-width: 0; }
+  .xh-label { overflow: hidden; text-overflow: ellipsis; }
+  .xh-sort-svg { flex-shrink: 0; opacity: .35; }
+  .xh-sort-svg .xh-sort-up, .xh-sort-svg .xh-sort-down { opacity: .45; }
+  th.xh-sort-asc .xh-sort-svg, th.xh-sort-desc .xh-sort-svg { opacity: 1; }
+  th.xh-sort-asc .xh-sort-svg .xh-sort-down { opacity: .2; }
+  th.xh-sort-asc .xh-sort-svg .xh-sort-up { fill: var(--purple-1); }
+  th.xh-sort-desc .xh-sort-svg .xh-sort-up { opacity: .2; }
+  th.xh-sort-desc .xh-sort-svg .xh-sort-down { fill: var(--purple-1); }
+  .xh-filter-btn { border: none; background: transparent; color: var(--ink-500); cursor: pointer; padding: 4px; border-radius: 5px; flex-shrink: 0; display: flex; }
+  .xh-filter-btn:hover { background: var(--surface-sunken); color: var(--purple-1); }
+  th[data-xh-filtered="1"] .xh-filter-btn { color: var(--purple-1); }
+  .xh-panel { position: absolute; z-index: 500; width: 230px; max-height: 320px; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow-2); padding: 10px; }
+  .xh-panel-search { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 7px 9px; font-size: 12px; font-family: inherit; color: var(--ink-900); background: var(--surface-sunken); margin-bottom: 8px; }
+  .xh-panel-list { overflow-y: auto; flex: 1; min-height: 30px; max-height: 220px; display: flex; flex-direction: column; }
+  .xh-panel-row { display: flex; align-items: center; gap: 8px; padding: 5px 4px; font-size: 12.5px; color: var(--ink-700); font-weight: 400; text-transform: none; letter-spacing: normal; cursor: pointer; border-radius: 5px; }
+  .xh-panel-row:hover { background: var(--surface-sunken); }
+  .xh-panel-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .xh-panel-selectall { border-bottom: 1px solid var(--line); margin-bottom: 4px; padding-bottom: 8px; font-weight: 700; }
+  .xh-panel-actions { display: flex; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+  .xh-panel-actions .btn { flex: 1; padding: 7px 10px; font-size: 11.5px; }
   .est-no { font-weight: 700; white-space: nowrap; }
   .est-no.l0 { color: var(--l0-1); }
   .est-no.l1 { color: #1f9d5c; }
@@ -636,6 +670,14 @@
   .fs-date { font-size: 11px; color: var(--ink-500); }
 
   .split { display: grid; grid-template-columns: 1.05fr .95fr; gap: 18px; align-items: flex-start; }
+  /* Item 25's root cause: same [hidden]-vs-own-display gotcha as .pill/
+     .nav-item/.terminal-banner.triage-banner above -- .split's own
+     display:grid outranks the [hidden] attribute's display:none in the
+     cascade, so JS toggling .hidden on #supAskPane (the only .split-classed
+     element ever hidden this way) did nothing visually -- it stayed
+     stacked on top of Knowledge Base underneath it, reading as "duplicate
+     sections" between the two Q/A subtabs. */
+  .split[hidden] { display: none; }
   .detail-split { grid-template-columns: 0.72fr 1.28fr; align-items: start; }
   /* Item 125: the deliverables panel stays pinned in view while the
      department folder list (often long, especially with item 98's nested
@@ -751,9 +793,16 @@
   .tour-step-text b { color: var(--ink-900); }
   /* Item 33: "Meet GAHIZ!" tour step's intro row -- the mascot badge
      beside a one-line intro, above the rest of the step's usual copy. */
-  .gahiz-intro { display: flex; align-items: center; gap: 14px; background: var(--accent-soft); border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; font-size: 13px; color: var(--ink-700); line-height: 1.5; }
-  .gahiz-intro-badge { width: 56px; height: 56px; border-radius: 50%; flex-shrink: 0; object-fit: cover; box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 35%, transparent); }
+  /* Item 37 (doc redline): the big thumbs-up/tablet hero shot, not just
+     the small round badge -- its own purple gradient background doubles
+     as the block's accent, so the text half sits on a plain soft surface
+     rather than fighting it with a second background. */
+  .gahiz-intro { display: flex; align-items: stretch; border-radius: 16px; overflow: hidden; margin-bottom: 16px; box-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 30%, transparent); }
+  .gahiz-intro-hero { width: 150px; height: auto; object-fit: cover; flex-shrink: 0; display: block; }
+  .gahiz-intro-text { background: var(--accent-soft); padding: 20px 24px; display: flex; flex-direction: column; justify-content: center; gap: 8px; font-size: 13.5px; color: var(--ink-700); line-height: 1.6; }
+  .gahiz-intro-name { font-size: 22px; font-weight: 800; color: var(--purple-1); }
   .gahiz-intro b { color: var(--purple-1); }
+  @media (max-width: 560px) { .gahiz-intro { flex-direction: column; } .gahiz-intro-hero { width: 100%; max-height: 220px; } }
   .tour-list { margin: 0 0 14px; padding-left: 18px; font-size: 12.5px; color: var(--ink-700); line-height: 1.9; }
   .tour-list b { color: var(--ink-900); }
   .tour-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 22px; border-top: 1px solid var(--line); }
@@ -1009,6 +1058,22 @@
   .deliv-subheader { padding: 10px 18px 6px; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--purple-1); background: var(--accent-soft); }
   .deliv-subheader:first-child { border-top-left-radius: 12px; border-top-right-radius: 12px; }
   .deliv-actions { display: flex; gap: 6px; flex: none; }
+  /* Item 20 (redlined): the Open Questions / My Questions detail modal's
+     conversation panel -- meta grid up top (shared .modal-meta-grid), then
+     real message bubbles instead of flat italic lines, then a standing
+     reply box instead of a popup prompt. */
+  .qa-thread .pill { margin-bottom: 14px; }
+  .qa-thread-messages { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+  .qa-bubble { max-width: 82%; padding: 10px 14px; border-radius: 12px; background: var(--surface-sunken); }
+  .qa-bubble.admin { align-self: flex-end; background: var(--accent-soft); }
+  .qa-bubble-author { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-500); margin-bottom: 4px; }
+  .qa-bubble.admin .qa-bubble-author { color: var(--purple-1); }
+  .qa-bubble-body { font-size: 13px; color: var(--ink-900); line-height: 1.55; white-space: pre-wrap; }
+  .qa-thread-footer { border-top: 1px solid var(--line); padding-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .qa-thread-footer select { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 8px 10px; font-size: 12px; color: var(--ink-700); background: var(--surface); }
+  .qa-reply-box { width: 100%; min-height: 84px; resize: vertical; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; font-size: 13px; font-family: inherit; color: var(--ink-900); background: var(--surface); }
+  .qa-reply-box:focus { outline: none; border-color: var(--accent-line); }
+  .qa-thread-actions { display: flex; gap: 8px; justify-content: flex-end; }
   .btn { border: 1px solid var(--line); background: var(--surface); color: var(--ink-700); border-radius: var(--radius-sm); padding: 9px 16px; font-size: 12px; font-weight: 700; cursor: pointer; }
   .btn:hover { border-color: var(--accent-line); color: var(--purple-1); }
   .btn.primary { background: linear-gradient(135deg, var(--purple-1), var(--purple-2)); border-color: transparent; color: #fff; }
@@ -1529,14 +1594,17 @@
   .achiever-row { display: flex; align-items: center; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--line); }
   .achiever-row:last-child { border-bottom: none; }
   .achiever-rank { font-size: 17px; width: 24px; text-align: center; }
-  /* Item 25: "narrow the names" -- capped rather than flex:1 all the way
-     to the pct column, so a long name/email doesn't crowd out the number
-     on a wide card; still min-width:0 so the ellipsis truncation below
-     keeps working. */
-  .achiever-main { flex: 0 1 auto; min-width: 0; max-width: 68%; }
+  /* Item 29 (doc redline on the original item 25 fix): flex:0 (no grow)
+     left a wide dead gap before the % for every short name/email, which
+     read as broken/uneven spacing -- worse than the original "too wide"
+     complaint. flex:1 again (fills the row, same as before item 25) with
+     max-width still capping it so one genuinely long name/email can't
+     crowd the number out; min-width:0 keeps the ellipsis truncation
+     below working either way. */
+  .achiever-main { flex: 1 1 auto; min-width: 0; max-width: 68%; }
   .achiever-email { font-size: 13px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .achiever-sub { font-size: 11.5px; color: var(--ink-500); margin-top: 1px; }
-  .achiever-pct { font-size: 15px; font-weight: 700; color: var(--good); margin-left: auto; }
+  .achiever-pct { font-size: 15px; font-weight: 700; color: var(--good); flex-shrink: 0; margin-left: 12px; }
   .sample-tag { font-size: 9.5px; font-weight: 700; color: var(--ink-500); background: var(--surface-sunken); border-radius: 8px; padding: 1px 6px; text-transform: uppercase; letter-spacing: .3px; vertical-align: middle; }
 
   /* ---------- history department accordion ---------- */
@@ -1578,6 +1646,9 @@
   .fu-row-title { font-size: 13px; font-weight: 700; color: var(--ink-900); }
   .fu-row-sub { font-size: 11.5px; color: var(--ink-500); margin-top: 2px; display: flex; flex-wrap: wrap; gap: 4px 8px; }
   .fu-row-side { display: flex; align-items: center; gap: 10px; flex: none; }
+  /* Item 33: include/exclude this row from Send Reminders…, right on the
+     row itself instead of only inside the modal after the fact. */
+  .fu-row-check { width: 16px; height: 16px; cursor: pointer; flex-shrink: 0; accent-color: var(--accent); }
   .fu-overdue-badge { font-size: 11.5px; font-weight: 700; border-radius: 20px; padding: 4px 11px; white-space: nowrap; }
   .fu-overdue-badge.critical { color: var(--crit); background: var(--crit-bg); }
   .fu-overdue-badge.overdue { color: var(--warn); background: var(--warn-bg); }
@@ -1734,6 +1805,17 @@
   .rep-po-table-wrap { overflow-x: hidden; background: var(--surface); border-radius: 10px; box-shadow: var(--shadow-1); border: 1.5px solid var(--line); }
   .rep-po-table { border-collapse: collapse; width: 100%; font-size: 12.5px; table-layout: fixed; }
   .rep-po-table thead th { position: sticky; top: 0; background: var(--accent); color: #fff; text-align: left; padding: 10px 12px; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: .02em; white-space: normal; word-break: break-word; }
+  /* Item 36: sort arrows sit on the same purple as --accent, so they need
+     their own white-based contrast instead of the default purple-1 highlight. */
+  .rep-po-table thead th.xh-th { color: #fff; padding: 0 !important; }
+  .rep-po-table thead th .xh-sort-svg { opacity: .55; }
+  .rep-po-table thead th.xh-sort-asc .xh-sort-svg, .rep-po-table thead th.xh-sort-desc .xh-sort-svg { opacity: 1; }
+  /* Item 11: Custom Report's columns are filterable too (unlike Master PO's
+     sort-only header), so the funnel icon needs the same white treatment. */
+  .rep-po-table thead th .xh-filter-btn { color: rgba(255,255,255,.75); }
+  .rep-po-table thead th .xh-filter-btn:hover { background: rgba(255,255,255,.15); color: #fff; }
+  .rep-po-table thead th[data-xh-filtered="1"] .xh-filter-btn { color: #fff; background: rgba(255,255,255,.2); }
+  .rep-po-table thead th.xh-sort-asc .xh-sort-svg .xh-sort-up, .rep-po-table thead th.xh-sort-desc .xh-sort-svg .xh-sort-down { fill: #fff; }
   .rep-po-table tbody td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; white-space: normal; word-break: break-word; }
   .rep-po-table tbody tr:hover { background: var(--surface-sunken); }
 
