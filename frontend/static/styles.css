@@ -1148,6 +1148,12 @@
   .tour-feature-list { display: flex; flex-direction: column; gap: 12px; margin: 14px 0; }
   .tour-feature-row { display: flex; gap: 12px; align-items: flex-start; }
   .tour-feature-ic { width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex: none; }
+  /* [queued]: "Finding Your Way Around" now uses the real sidebar's SVG
+     nav icons (NAV_ICONS/_navIcon, app.js) instead of emoji, matching what
+     the nav itself actually shows -- stroke="currentColor" already picks
+     up each tone's color from .tour-feature-ic.<tone> above, just needs a
+     size (an SVG with only a viewBox has no intrinsic size otherwise). */
+  .tour-feature-ic svg { width: 16px; height: 16px; }
   .tour-feature-ic.accent { background: var(--accent-soft); color: var(--purple-1); }
   .tour-feature-ic.good { background: var(--good-bg); color: var(--good); }
   .tour-feature-ic.warn { background: var(--warn-bg); color: var(--warn); }

@@ -2408,15 +2408,15 @@
       body:
         '<p class="tour-step-text">Quick reference for the rest of the nav:</p>' +
         '<div class="tour-feature-list">' +
-        featureRowMock("&#128194;", "accent", "L0 Tenders / L1 Projects / Timeline", "The full project lists and the pooled Gantt view.") +
-        featureRowMock("&#128203;", "accent", "Assigned Deliverables", "Every deliverable assigned to you, filterable by L0/L1 and status.") +
-        featureRowMock("&#128276;", "good", "Announcements", "General program news, filterable by type and date.") +
-        featureRowMock("&#9200;", "warn", "Reminders", "Everything that needs your action: due-soon/overdue nudges, request updates.") +
-        featureRowMock("&#9989;", "good", "BM Triage Status", "Every active tender's applicable/not-required progress.") +
-        featureRowMock("&#128200;", "accent", "Performance", "On-time-rate tracking by department, feeding Top Achievers.") +
-        featureRowMock("&#128220;", "accent", "Deliverables Catalog", "Every due-date formula and scoring weight in plain English &#8212; suggest a formula change with your reasoning.") +
-        featureRowMock("&#128228;", "accent", "My Requests", "Every request you've sent to an Admin &#8212; due-dates, reassignments, SME nominations, and more &#8212; and where each stands.") +
-        featureRowMock("&#128172;", "accent", "Q/A &#8211; Ask the Team", "Raise a question, track your own requests.") +
+        featureRowMock(NAV_ICONS.l0, "accent", "L0 Tenders / L1 Projects / Timeline", "The full project lists and the pooled Gantt view.") +
+        featureRowMock(NAV_ICONS.assigned, "accent", "Assigned Deliverables", "Every deliverable assigned to you, filterable by L0/L1 and status.") +
+        featureRowMock(NAV_ICONS.announcements, "good", "Announcements", "General program news, filterable by type and date.") +
+        featureRowMock(NAV_ICONS.reminders, "warn", "Reminders", "Everything that needs your action: due-soon/overdue nudges, request updates.") +
+        featureRowMock(NAV_ICONS.bmtriage, "good", "BM Triage Status", "Every active tender's applicable/not-required progress.") +
+        featureRowMock(NAV_ICONS.performance, "accent", "Performance", "On-time-rate tracking by department, feeding Top Achievers.") +
+        featureRowMock(NAV_ICONS.deliverableformulas, "accent", "Deliverables Catalog", "Every due-date formula and scoring weight in plain English &#8212; suggest a formula change with your reasoning.") +
+        featureRowMock(NAV_ICONS.myrequests, "accent", "My Requests", "Every request you've sent to an Admin &#8212; due-dates, reassignments, SME nominations, and more &#8212; and where each stands.") +
+        featureRowMock(NAV_ICONS.support, "accent", "Q/A &#8211; Ask the Team", "Raise a question, track your own requests.") +
         featureRowMock('<img src="/static/img/gahiz-icon.png" alt="GAHIZ" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />', "accent", "GAHIZ", "Ask how something in the platform works, or about your own assigned work &#8212; falls back to Ask the Team for anything it can't answer.") +
         featureRowMock("&#128736;", "crit", "Admin Only", "Reports (4 filterable/printable report types), Top Achievers, Focal Points, Deliverables Configuration, Requests, Follow Up, Open Questions, Archived Projects.") +
         "</div>" +
