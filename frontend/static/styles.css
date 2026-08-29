@@ -397,7 +397,7 @@
      not the brand red -- red is reserved for the platform title in the top
      header and a short accent rule under each page title instead. */
   .view-head h1 { font-size: 25px; color: var(--ink-900); position: relative; display: inline-block; padding-bottom: 10px; }
-  .view-head h1::after { content: ""; position: absolute; left: 1px; bottom: 0; width: 36px; height: 3px; border-radius: 2px; background: var(--algihaz-red); }
+  .view-head h1::after { content: ""; position: absolute; left: 1px; right: 1px; bottom: 0; width: auto; height: 3px; border-radius: 2px; background: var(--algihaz-red); }
   .view-head p.sub { color: var(--ink-500); font-size: 13.5px; margin-top: 3px; }
   .eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--purple-1); font-weight: 700; margin-bottom: 6px; }
 
@@ -451,8 +451,8 @@
   }
   .dpc-head .dpc-tag, .dpc-head > div:last-child { position: relative; z-index: 1; }
   .dash-project-card .dpc-tag {
-    width: 44px; height: 44px; border-radius: 11px; display: flex; align-items: center; justify-content: center;
-    font-size: 22px; font-weight: 800; flex-shrink: 0; background: rgba(255,255,255,.22); color: #fff;
+    width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center;
+    font-size: 12.5px; font-weight: 800; flex-shrink: 0; background: rgba(255,255,255,.22); color: #fff;
   }
   .dash-project-card .dpc-value { font-size: 30px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; color: #fff; }
   .dash-project-card .dpc-label { font-size: 12.5px; color: rgba(255,255,255,.85); font-weight: 700; margin-top: 3px; }
