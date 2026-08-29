@@ -700,9 +700,17 @@
   });
   // [Red Dark Design] "View all X ->" links -- generic wiring off the same
   // data-view attribute every nav item already uses, so a new one just
-  // needs the attribute + class, no dedicated handler.
+  // needs the attribute + class, no dedicated handler. [queued: Announcements
+  // stage filter] a data-stage attribute on top of that pre-scopes the
+  // Announcements page specifically (goToAnnouncementsFilter) instead of
+  // landing on its unfiltered list -- "Latest L0 Announcements" -> View all
+  // now actually stays on L0.
   document.querySelectorAll(".section-view-all[data-view]").forEach(function (btn) {
-    btn.addEventListener("click", function (e) { e.stopPropagation(); switchView(btn.dataset.view); });
+    btn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      if (btn.dataset.view === "announcements" && btn.dataset.stage) { goToAnnouncementsFilter(btn.dataset.stage); return; }
+      switchView(btn.dataset.view);
+    });
   });
   document.querySelectorAll(".nav-item").forEach(function (btn) {
     btn.addEventListener("click", function () { switchView(btn.dataset.view); closeMobileNav(); });
@@ -9692,6 +9700,27 @@
 
   /* ================= ANNOUNCEMENTS ================= */
   var announcementsAll = [];
+  // [queued: Announcements stage filter] same chip-toggle pattern
+  // Assigned Deliverables' L0/L1 toggle uses -- client-side, like the
+  // existing type/date filters, since announcementsAll is already fetched
+  // whole and a.stage now rides along on every row (see AnnouncementOut).
+  var annStageFilter = "";
+  document.querySelectorAll("#annStageToggle .chip").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.querySelectorAll("#annStageToggle .chip").forEach(function (b) { b.classList.remove("active"); });
+      btn.classList.add("active");
+      annStageFilter = btn.dataset.stage;
+      renderAnnouncements();
+    });
+  });
+  // Lets the Dashboard's "Latest L0/L1 Announcements" View all links (see
+  // .section-view-all[data-stage] wiring below) pre-scope this page to one
+  // stage instead of landing on the unfiltered list every time.
+  function goToAnnouncementsFilter(stage) {
+    annStageFilter = stage || "";
+    document.querySelectorAll("#annStageToggle .chip").forEach(function (b) { b.classList.toggle("active", b.dataset.stage === annStageFilter); });
+    switchView("announcements");
+  }
   document.getElementById("annTypeFilter").addEventListener("change", renderAnnouncements);
   document.getElementById("annFromDate").addEventListener("change", renderAnnouncements);
   document.getElementById("annToDate").addEventListener("change", renderAnnouncements);
@@ -9699,6 +9728,8 @@
     document.getElementById("annTypeFilter").value = "";
     document.getElementById("annFromDate").value = "";
     document.getElementById("annToDate").value = "";
+    annStageFilter = "";
+    document.querySelectorAll("#annStageToggle .chip").forEach(function (b) { b.classList.toggle("active", !b.dataset.stage); });
     renderAnnouncements();
   });
   async function loadAnnouncements() {
@@ -9763,6 +9794,7 @@
     var from = document.getElementById("annFromDate").value;
     var to = document.getElementById("annToDate").value;
     var list = announcementsAll.filter(function (a) {
+      if (annStageFilter && a.stage !== annStageFilter) return false;
       if (type && a.type !== type) return false;
       var day = a.created_at.slice(0, 10);
       if (from && day < from) return false;

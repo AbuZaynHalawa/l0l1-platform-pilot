@@ -77,6 +77,18 @@ def list_announcements(limit: int = 50, actor_role: str | None = None, actor_ema
             a for a in items
             if email in [r.strip().lower() for r in (a.recipients or "").split(",")]
         ]
+
+    # [queued: Announcements stage filter] one batched query for every
+    # distinct project_id still in `items`, instead of a per-row lookup --
+    # attached as a transient attribute, picked up by AnnouncementOut's
+    # from_attributes the same as any other field.
+    project_ids = {a.project_id for a in items if a.project_id is not None}
+    if project_ids:
+        stage_by_project = dict(
+            db.query(models.Project.id, models.Project.stage).filter(models.Project.id.in_(project_ids)).all()
+        )
+        for a in items:
+            a.stage = stage_by_project.get(a.project_id)
     return items
 
 

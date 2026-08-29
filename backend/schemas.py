@@ -264,6 +264,12 @@ class AnnouncementOut(BaseModel):
     project_id: int | None = None
     submission_id: int | None = None
     project_international: bool = False  # [L0 International]
+    # [queued: Announcements stage filter] the announcement's project's
+    # stage ("L0"/"L1"), None for a rare project-less announcement --
+    # transient, attached in list_announcements, not a real column. Lets
+    # the frontend filter/scope the Announcements page by stage without a
+    # separate project lookup.
+    stage: str | None = None
 
     class Config:
         from_attributes = True

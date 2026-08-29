@@ -151,7 +151,7 @@
         <div class="dash-stage-col" id="stageColL0">
           <div class="card">
             <div class="section-title stage-title-l0"><span>Latest L0 Announcements</span>
-              <button class="section-view-all" type="button" data-view="announcements">View all <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+              <button class="section-view-all" type="button" data-view="announcements" data-stage="L0">View all <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
             </div>
             <div id="digestL0List"></div>
           </div>
@@ -176,7 +176,7 @@
         <div class="dash-stage-col" id="stageColL1">
           <div class="card">
             <div class="section-title stage-title-l1"><span>Latest L1 Announcements</span>
-              <button class="section-view-all" type="button" data-view="announcements">View all <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+              <button class="section-view-all" type="button" data-view="announcements" data-stage="L1">View all <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
             </div>
             <div id="digestL1List"></div>
           </div>
@@ -305,6 +305,16 @@
           <h1>Announcements</h1>
           <p class="sub">Every announcement and targeted notification the platform has sent, automatically, from a single event stream.</p>
         </div>
+      </div>
+      <!-- [queued: Announcements stage filter] the Dashboard's "View all"
+           links under Latest L0/L1 Announcements used to land here
+           unscoped -- same .filter-chips pattern Assigned Deliverables'
+           L0/L1 toggle already uses, so those links (and this page on its
+           own) can actually narrow to one stage. -->
+      <div class="filter-chips" id="annStageToggle">
+        <button class="chip active" data-stage="">All</button>
+        <button class="chip" data-stage="L0">L0 Tenders</button>
+        <button class="chip" data-stage="L1">L1 Projects</button>
       </div>
       <!-- Item 153/165: Type filter options are built dynamically by app.js
            (buildAnnouncementFilterUI) from ANN_TYPE_META, scoped to the
