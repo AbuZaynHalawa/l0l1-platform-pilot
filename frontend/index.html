@@ -36,6 +36,9 @@
       <button class="nav-item" id="bmTriageNavItem" data-view="bmtriage"><span class="ic">&#9989;</span> BM Triage Status <span class="nav-badge" id="bmTriageBadge"></span></button>
       <button class="nav-item" data-view="performance"><span class="ic">&#128200;</span> Performance</button>
       <button class="nav-item" data-view="deliverableformulas"><span class="ic">&#128220;</span> Deliverables Catalog</button>
+      <!-- Item 12: same data as the admin Master PO Report, read-only for
+           every role here. -->
+      <button class="nav-item" data-view="masterpo"><span class="ic">&#129534;</span> Master PO</button>
       <!-- Item [nav icon collisions]: was the same clipboard as Assigned
            Deliverables and admin Requests below -- three different pages
            sharing one icon made the rail unscannable by icon alone.
@@ -1160,63 +1163,77 @@
     <!-- MASTER PO REPORT -->
     <section class="view report-design-ref" id="view-report-masterpo" hidden>
       <button class="back-link" id="repMasterPoBack">&#8592; Back to Reports</button>
-      <div class="view-head">
-        <div>
-          <div class="eyebrow">Reports</div>
-          <h1>Master PO Report</h1>
-          <p class="sub">Every PO line item across every active L1 project.</p>
+      <!-- Item 12: masterPoCore is the exact same live component (search,
+           filters, category cards, table -- same ids, same JS, same data)
+           the standalone "Master PO" nav tab renders -- physically
+           relocates this one node into whichever mount point is visiting
+           it right now (same re-homing pattern as perfOverviewCore /
+           Performance Report), so the two views can never drift apart. -->
+      <div id="masterPoCore">
+        <div class="view-head">
+          <div>
+            <div class="eyebrow">Reports</div>
+            <h1 id="masterPoTitle">Master PO Report</h1>
+            <p class="sub">Every PO line item across every active L1 project.</p>
+          </div>
+          <div class="report-actions">
+            <button class="btn" id="repMasterPoPrintBtn">&#128424; Print</button>
+          </div>
         </div>
-        <div class="report-actions">
-          <button class="btn" id="repMasterPoPrintBtn">&#128424; Print</button>
+        <div class="card-grid-heading">PO Categories</div>
+        <div class="rep-po-grid" id="repMasterPoCatGrid" style="margin-bottom:22px;"></div>
+        <div class="rep-po-filter-bar" id="repMasterPoFilterRow">
+          <input type="text" class="rep-po-search" id="repMasterPoSearch" placeholder="Search project, deliverable, category&#8230;" />
+          <div class="rep-po-dropdown-row">
+            <div class="rep-po-dropdown-group">
+              <label for="repMasterPoProjectFilter">Project</label>
+              <select id="repMasterPoProjectFilter"><option value="">All Projects</option></select>
+            </div>
+            <div class="rep-po-dropdown-group">
+              <label for="repMasterPoCategoryFilter">PO Category</label>
+              <select id="repMasterPoCategoryFilter"><option value="">All</option></select>
+            </div>
+            <div class="rep-po-dropdown-group">
+              <label for="repMasterPoStatusFilter">PO Status</label>
+              <select id="repMasterPoStatusFilter">
+                <option value="">All</option>
+                <option value="signed">Signed by both parties</option>
+                <option value="not-due">Not Due</option>
+                <option value="pending-due">Pending (Due)</option>
+              </select>
+            </div>
+            <div class="rep-po-dropdown-group">
+              <label for="repMasterPoProjectStatusFilter">Project Status</label>
+              <select id="repMasterPoProjectStatusFilter">
+                <option value="">All</option>
+                <option value="Signed">Signed</option>
+                <option value="Not Signed">Not Signed</option>
+              </select>
+            </div>
+            <div class="rep-po-dropdown-group highlight">
+              <label for="repMasterPoDeptFilter">&#127919; Department</label>
+              <select id="repMasterPoDeptFilter"><option value="">All</option></select>
+            </div>
+            <span class="rep-po-clear-filters" id="repMasterPoClearFilters">&#10006; Clear all filters</span>
+          </div>
+        </div>
+        <div class="rep-po-count-line" id="repMasterPoCount"></div>
+        <div class="rep-po-table-wrap">
+          <table class="rep-po-table">
+            <thead><tr>
+              <th>Project Status</th><th>Project</th><th>Item</th><th>PO / Deliverable</th><th>Category</th>
+              <th>PO Status</th><th>Final Due Date</th><th>Actual / Signed</th><th>Delay</th>
+            </tr></thead>
+            <tbody id="repMasterPoBody"></tbody>
+          </table>
         </div>
       </div>
-      <div class="card-grid-heading">PO Categories</div>
-      <div class="rep-po-grid" id="repMasterPoCatGrid" style="margin-bottom:22px;"></div>
-      <div class="rep-po-filter-bar" id="repMasterPoFilterRow">
-        <input type="text" class="rep-po-search" id="repMasterPoSearch" placeholder="Search project, deliverable, category&#8230;" />
-        <div class="rep-po-dropdown-row">
-          <div class="rep-po-dropdown-group">
-            <label for="repMasterPoProjectFilter">Project</label>
-            <select id="repMasterPoProjectFilter"><option value="">All Projects</option></select>
-          </div>
-          <div class="rep-po-dropdown-group">
-            <label for="repMasterPoCategoryFilter">PO Category</label>
-            <select id="repMasterPoCategoryFilter"><option value="">All</option></select>
-          </div>
-          <div class="rep-po-dropdown-group">
-            <label for="repMasterPoStatusFilter">PO Status</label>
-            <select id="repMasterPoStatusFilter">
-              <option value="">All</option>
-              <option value="signed">Signed by both parties</option>
-              <option value="not-due">Not Due</option>
-              <option value="pending-due">Pending (Due)</option>
-            </select>
-          </div>
-          <div class="rep-po-dropdown-group">
-            <label for="repMasterPoProjectStatusFilter">Project Status</label>
-            <select id="repMasterPoProjectStatusFilter">
-              <option value="">All</option>
-              <option value="Signed">Signed</option>
-              <option value="Not Signed">Not Signed</option>
-            </select>
-          </div>
-          <div class="rep-po-dropdown-group highlight">
-            <label for="repMasterPoDeptFilter">&#127919; Department</label>
-            <select id="repMasterPoDeptFilter"><option value="">All</option></select>
-          </div>
-          <span class="rep-po-clear-filters" id="repMasterPoClearFilters">&#10006; Clear all filters</span>
-        </div>
-      </div>
-      <div class="rep-po-count-line" id="repMasterPoCount"></div>
-      <div class="rep-po-table-wrap">
-        <table class="rep-po-table">
-          <thead><tr>
-            <th>Project Status</th><th>Project</th><th>Item</th><th>PO / Deliverable</th><th>Category</th>
-            <th>PO Status</th><th>Final Due Date</th><th>Actual / Signed</th><th>Delay</th>
-          </tr></thead>
-          <tbody id="repMasterPoBody"></tbody>
-        </table>
-      </div>
+    </section>
+
+    <!-- MASTER PO (user-facing nav tab -- item 12, same data/rendering as
+         the report above, read-only for every role). -->
+    <section class="view" id="view-masterpo" hidden>
+      <div id="masterPoMount"></div>
     </section>
 
     <!-- OVERVIEW PO REPORT (all L1 projects, project-card view) -->

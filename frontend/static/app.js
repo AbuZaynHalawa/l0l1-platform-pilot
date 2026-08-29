@@ -368,7 +368,7 @@
     journey: loadJourney, scores: loadScores, focalpoints: loadFocalPoints, followup: loadFollowUp, requests: loadRequests,
     support: loadSupport, bmtriage: loadBmTriageStatus, tickets: loadTickets,
     deliverableformulas: loadDeliverableFormulas, deliverablesconfig: loadDeliverablesConfig,
-    archivedprojects: loadArchivedProjects, myrequests: loadMyRequests,
+    archivedprojects: loadArchivedProjects, myrequests: loadMyRequests, masterpo: loadMasterPo,
     "report-performance": loadReportPerformance, "report-masterpo": loadReportMasterPo,
     "report-overviewpo": loadReportOverviewPo, "report-budgetstatus": loadReportBudgetStatus,
   };
@@ -5176,7 +5176,14 @@
     document.body.removeChild(ta);
   }
 
+  // Item 12: masterPoCore may currently be sitting in the standalone
+  // Master PO nav tab's mount point (see loadMasterPo below) -- re-home it
+  // here unconditionally, same pattern as loadPerformance/perfOverviewCore,
+  // so navigating to the Reports page's Master PO Report always shows it
+  // in its normal place regardless of whichever view last relocated it.
   async function loadReportMasterPo() {
+    document.getElementById("view-report-masterpo").appendChild(document.getElementById("masterPoCore"));
+    document.getElementById("masterPoTitle").textContent = "Master PO Report";
     var rows = await api("/api/reports/master-po?actor_role=" + encodeURIComponent(CURRENT_ROLE));
     var projSel = document.getElementById("repMasterPoProjectFilter");
     var catSel = document.getElementById("repMasterPoCategoryFilter");
@@ -5284,6 +5291,15 @@
       renderAll();
     };
     renderAll();
+  }
+  // Item 12: the standalone "Master PO" nav tab -- runs the exact same
+  // load/render as the Reports page's Master PO Report (zero risk of the
+  // two ever showing different data or filters), then relocates the
+  // now-populated node into this tab's own mount point.
+  async function loadMasterPo() {
+    await loadReportMasterPo();
+    document.getElementById("masterPoMount").appendChild(document.getElementById("masterPoCore"));
+    document.getElementById("masterPoTitle").textContent = "Master PO";
   }
 
   async function loadReportOverviewPo() {

@@ -75,8 +75,10 @@ def get_master_po_report(actor_role: str = "Viewer", db: Session = Depends(get_d
     same per-project data the PO Lifecycle tab (po_cycle_summary) already
     computes, just called once per project and tagged with that project's
     identity instead of scoped to one project's own detail page.
+
+    Item 12: read-only for every role now, not admin-only -- it also backs
+    the user-facing "Master PO" nav tab, not just the admin Reports page.
     """
-    _require_admin(actor_role)
     projects = (
         db.query(models.Project)
         .filter(models.Project.stage == models.Stage.L1, models.Project.archived.is_not(True))
