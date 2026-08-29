@@ -430,23 +430,31 @@
   .dash-project-row > * { min-width: 0; }
   .dash-project-card { padding: 0; border: none; overflow: hidden; display: flex; flex-direction: column; }
   .dash-project-card .dpc-head { padding: 20px 24px; display: flex; align-items: center; gap: 14px; }
-  /* [Red Dark Design] real OHTL photography (Yasser's own asset, cropped
-     into an orange-toned and green-toned piece) as the header's decorative
-     corner, spec section 10/11 -- replaces the earlier hand-drawn SVG
-     placeholder. Layered UNDER the gradient (background shorthand paints
-     top-to-bottom: image first, gradient second, so the gradient tints the
-     photo instead of hiding it) so the tower art reads as part of the
-     panel's own color instead of a flat sticker. */
+  /* [Red Dark Design] Yasser's "White-Line Power Grid Overlays" tower/wire
+     line art as the header's decorative corner, spec section 10/11 -- same
+     file used for both L0 and L1 (it's white line art, not color-specific
+     photography, so it reads fine on either panel color). Cropped tight so
+     the tower's own base sits on the image's bottom edge, then
+     background-origin: border-box + position: right bottom carries that
+     straight through to the panel's actual bottom edge (ignoring
+     .dpc-head's own padding, which background-position would otherwise
+     measure from) -- the tower feet sit flush on the panel edge instead of
+     floating mid-panel. Layered UNDER the gradient (background shorthand
+     paints top-to-bottom: image first, gradient second, so the gradient
+     tints the art instead of hiding it) so it reads as part of the panel's
+     own color instead of a flat sticker. */
   .dash-project-card.l0 .dpc-head {
     background-color: var(--l0-1);
     background-image: linear-gradient(135deg, color-mix(in srgb, var(--l0-2) 60%, transparent) 0%, color-mix(in srgb, var(--l0-1) 45%, transparent) 100%), url("/static/img/ohtl-orange.png");
-    background-position: center, right center; background-size: auto, 190px auto; background-repeat: no-repeat, no-repeat;
+    background-position: center, right bottom; background-size: auto, 230px auto; background-repeat: no-repeat, no-repeat;
+    background-origin: padding-box, border-box;
     position: relative; overflow: hidden;
   }
   .dash-project-card.l1 .dpc-head {
     background-color: var(--l1-1);
     background-image: linear-gradient(135deg, color-mix(in srgb, var(--l1-2) 60%, transparent) 0%, color-mix(in srgb, var(--l1-1) 45%, transparent) 100%), url("/static/img/ohtl-green.png");
-    background-position: center, right center; background-size: auto, 190px auto; background-repeat: no-repeat, no-repeat;
+    background-position: center, right bottom; background-size: auto, 230px auto; background-repeat: no-repeat, no-repeat;
+    background-origin: padding-box, border-box;
     position: relative; overflow: hidden;
   }
   .dpc-head .dpc-tag, .dpc-head > div:last-child { position: relative; z-index: 1; }
