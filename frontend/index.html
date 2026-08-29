@@ -20,7 +20,9 @@
   <div class="rail-backdrop" id="railBackdrop"></div>
   <aside class="rail" id="rail">
     <div class="brand">
-      <div class="brand-badge"><img src="/static/logo.png" alt="Algihaz Contracting" /></div>
+      <!-- [Red Dark Design] white-text variant for the navy sidebar --
+           original logo.png (dark text) is untouched, this is additive. -->
+      <div class="brand-badge"><img src="/static/img/logo-white.png" alt="Algihaz Contracting" /></div>
     </div>
 
     <div class="nav-group-label">Workspace</div>
@@ -148,7 +150,9 @@
       <div class="dash-row dash-stage-split">
         <div class="dash-stage-col" id="stageColL0">
           <div class="card">
-            <div class="section-title stage-title-l0">Latest L0 Announcements</div>
+            <div class="section-title stage-title-l0"><span>Latest L0 Announcements</span>
+              <button class="section-view-all" type="button" data-view="announcements">View all <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+            </div>
             <div id="digestL0List"></div>
           </div>
           <div class="card">
@@ -171,7 +175,9 @@
         </div>
         <div class="dash-stage-col" id="stageColL1">
           <div class="card">
-            <div class="section-title stage-title-l1">Latest L1 Announcements</div>
+            <div class="section-title stage-title-l1"><span>Latest L1 Announcements</span>
+              <button class="section-view-all" type="button" data-view="announcements">View all <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+            </div>
             <div id="digestL1List"></div>
           </div>
           <div class="card">

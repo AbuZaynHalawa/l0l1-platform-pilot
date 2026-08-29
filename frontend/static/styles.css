@@ -265,7 +265,8 @@
      BM Triage Status for a role that shouldn't see them) did nothing
      visually without this explicit override. */
   .nav-item[hidden] { display: none; }
-  .nav-item .ic { width: 17px; text-align: center; opacity: .85; color: var(--sidebar-icon); }
+  .nav-item .ic { width: 18px; height: 18px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; opacity: .9; color: var(--sidebar-icon); }
+  .nav-item .ic svg { width: 18px; height: 18px; }
   .nav-item:hover { background: var(--sidebar-hover); color: #ffffff; }
   .nav-item:hover .ic { color: #ffffff; }
   .nav-item.active {
@@ -276,8 +277,11 @@
   /* Left exactly as it has always been: red count on a soft pink ground.
      The pop coral is deliberately NOT used here -- this badge already
      worked, and it stays untouched by the polish pass. */
-  .nav-badge { margin-left: auto; background: var(--crit-bg); color: var(--crit); font-size: 10.5px; font-weight: 800; padding: 1px 6px; border-radius: 20px; }
-  .nav-item.active .nav-badge { background: rgba(255,255,255,.2); color: #fff; }
+  /* [Red Dark Design] solid ALGIHAZ red, white number -- matches the
+     reference image; the old soft-pink/red-text treatment only worked
+     against a white sidebar. */
+  .nav-badge { margin-left: auto; background: var(--algihaz-red); color: #fff; font-size: 10.5px; font-weight: 800; padding: 1px 7px; border-radius: 20px; }
+  .nav-item.active .nav-badge { background: #ffffff; color: var(--algihaz-red); }
 
   .rail-foot { margin-top: auto; padding: 12px 8px 2px; border-top: 1px solid var(--navy-dark); }
   /* Sidebar background is always navy regardless of the page's own light/
@@ -429,6 +433,15 @@
   .dash-project-card .dpc-label { font-size: 12.5px; color: rgba(255,255,255,.85); font-weight: 700; margin-top: 3px; }
   .dash-project-card .dpc-body { padding: 6px 10px 8px; flex: 1; }
   .dpc-body-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-500); padding: 6px 12px 2px; }
+  /* [Red Dark Design] "View all X ->" links, spec's reference image. */
+  .dpc-body-title-row, .section-title-view-all-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .dpc-body-title-row .dpc-body-title { padding-bottom: 0; }
+  .dpc-view-all, .section-view-all {
+    display: inline-flex; align-items: center; gap: 4px; border: none; background: none; cursor: pointer;
+    font-size: 11.5px; font-weight: 700; color: var(--algihaz-red); padding: 6px 12px 2px; white-space: nowrap;
+  }
+  .dpc-view-all:hover, .section-view-all:hover { text-decoration: underline; }
+  .dpc-view-all svg, .section-view-all svg { width: 13px; height: 13px; flex-shrink: 0; }
   .dpc-recent-row {
     display: flex; align-items: baseline; gap: 10px; padding: 10px 14px; border-radius: var(--radius-sm); cursor: pointer;
   }
@@ -731,7 +744,9 @@
   .detail-head-main { flex: 1; min-width: 0; }
   .detail-head-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
   #dStatusSelect { border: 1px solid var(--line); background: var(--surface); color: var(--ink-700); border-radius: 20px; padding: 7px 12px; font-size: 12px; font-weight: 700; }
-  .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-500); font-size: 12.5px; font-weight: 600; cursor: pointer; margin-bottom: 14px; background: none; border: none; padding: 0; }
+  /* [Red Dark Design] spec section 22: Back uses the brand red. */
+  .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--algihaz-red); font-size: 12.5px; font-weight: 700; cursor: pointer; margin-bottom: 14px; background: none; border: none; padding: 0; }
+  .back-link:hover { color: var(--algihaz-red-dark); }
   .back-link:hover { color: var(--purple-1); }
   .detail-title { font-size: 21px; margin-top: 8px; }
   .stage-badge { font-size: 12px; font-weight: 800; padding: 5px 14px; border-radius: 999px; letter-spacing: .04em; }
