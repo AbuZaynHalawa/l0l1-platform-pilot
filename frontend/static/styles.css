@@ -1100,7 +1100,16 @@
     content: "Today"; position: absolute; top: -14px; left: 50%; transform: translateX(-50%);
     font-size: 8.5px; font-weight: 700; color: var(--crit); white-space: nowrap;
   }
-  .tour-callout { display: flex; gap: 8px; align-items: flex-start; background: var(--accent-soft); border-radius: 9px; padding: 10px 12px; font-size: 12px; color: var(--ink-700); margin-top: 12px; }
+  /* Content here is one plain paragraph -- a leading emoji character then
+     text with inline <b> tags, never a separate icon element -- but
+     display:flex still boxed every <b> and every text run between them as
+     its own flex item. With just one bold phrase that went unnoticed; a
+     callout with several (e.g. Performance & Top Achievers' Manage
+     Tracking/Scoring Weight/Deliverables Configuration/Deliverables
+     Catalog) had each phrase shrink-wrap into its own narrow stacked
+     column instead of the paragraph just wrapping normally. Block flow
+     instead of flex fixes it everywhere with no markup changes needed. */
+  .tour-callout { display: block; background: var(--accent-soft); border-radius: 9px; padding: 10px 12px; font-size: 12px; color: var(--ink-700); margin-top: 12px; line-height: 1.55; }
   .tour-callout b { color: var(--ink-900); }
 
   .tour-flow-strip { display: flex; align-items: center; gap: 10px; margin: 2px 0 16px; }
