@@ -215,7 +215,11 @@
     panel.dataset.forTh = String(thIndex);
     var searchInput = el("input", "xh-panel-search");
     searchInput.type = "text";
-    searchInput.placeholder = "Search values&#8230;";
+    // .placeholder is a plain attribute, not innerHTML -- it never decodes
+    // HTML entities, so "&#8230;" rendered as that literal text instead of
+    // an ellipsis. Real character instead, same as every other plain-
+    // attribute string in this file.
+    searchInput.placeholder = "Search values…";
     panel.appendChild(searchInput);
     var listWrap = el("div", "xh-panel-list");
     panel.appendChild(listWrap);
