@@ -4,7 +4,7 @@ whatever it's anchored to (announcement/BSD/site visit/pre-bid deadline, or
 the next workday after its predecessor's due date) through to its own due date.
 """
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from .. import models, rules
 from ..database import get_db
@@ -110,26 +110,30 @@ _GANTT_START_OVERRIDES: dict[str, tuple[str, object]] = {
 }
 
 
-def _find_submission(db: Session, project: models.Project, item_no: str, stage) -> models.DeliverableSubmission | None:
-    return (
-        db.query(models.DeliverableSubmission)
-        .join(models.DeliverableDefinition)
-        .filter(
-            models.DeliverableSubmission.project_id == project.id,
-            models.DeliverableDefinition.item_no == item_no,
-            models.DeliverableDefinition.stage == stage,
-        )
-        .first()
-    )
+def _build_submission_lookup(subs: list[models.DeliverableSubmission]) -> dict[tuple[int, str], models.DeliverableSubmission]:
+    """(project_id, item_no) -> submission, built once from a batch already
+    loaded by the caller. _bar_start's predecessor/override chasing used to
+    run a fresh `_find_submission` query per row (and the "start_of" branch
+    could chain into a second one) -- at pooled-timeline scale (hundreds of
+    projects x dozens of items each) that's easily 1000+ extra round trips
+    on top of the one query that already has every submission this needs.
+    Same fix as recompute_project_due_dates' own lookup dict, applied here.
+    Last one wins on a (project_id, item_no) collision (Operation Units'
+    TBU/PBU/DBU/BBU split) -- fine, _bar_start only needs *a* due date for
+    that item, same as before this fix (the old per-row query had no
+    stronger tie-break either, just whichever row the DB returned first).
+    """
+    return {(s.project_id, s.definition.item_no): s for s in subs}
 
 
-def _bar_start(db: Session, project: models.Project, d: models.DeliverableDefinition, due_date=None):
+def _bar_start(lookup: dict[tuple[int, str], models.DeliverableSubmission], project: models.Project,
+                d: models.DeliverableDefinition, due_date=None):
     override = _GANTT_START_OVERRIDES.get(d.item_no) if d.stage == models.Stage.L1 else None
     if override:
         kind, value = override
         if kind == "duration_back":
             return rules.subtract_workdays(due_date, value) if due_date else None
-        other = _find_submission(db, project, value, d.stage)
+        other = lookup.get((project.id, value))
         if other is None or other.due_date is None:
             return None
         if kind == "predecessor":
@@ -137,7 +141,7 @@ def _bar_start(db: Session, project: models.Project, d: models.DeliverableDefini
         # kind == "start_of": recurse into the OTHER item's own bar-start
         # (which may itself be a plain predecessor anchor -- no override
         # needed there, the recursion falls through to the default branch).
-        other_start = _bar_start(db, project, other.definition, other.due_date)
+        other_start = _bar_start(lookup, project, other.definition, other.due_date)
         return rules.next_workday_after(other_start) if other_start else None
 
     if d.anchor_type == "announcement":
@@ -149,7 +153,7 @@ def _bar_start(db: Session, project: models.Project, d: models.DeliverableDefini
     if d.anchor_type == "pre_bid":
         return project.pre_bid_deadline
     if d.anchor_type == "predecessor" and d.predecessor_item_no:
-        pred = _find_submission(db, project, d.predecessor_item_no, d.stage)
+        pred = lookup.get((project.id, d.predecessor_item_no))
         if pred is None or pred.due_date is None:
             return None
         return rules.next_workday_after(pred.due_date)
@@ -184,8 +188,15 @@ def get_project_gantt(project_id: int, db: Session = Depends(get_db)):
         raise HTTPException(404, "Project not found")
     rules.recompute_project_due_dates(db, project)
     db.commit()
+    # joinedload both hops (definition, definition.department) instead of
+    # the plain .join() this used to rely on -- a .join() only shapes the
+    # SQL used for filtering/ordering, it doesn't populate the ORM
+    # relationship attributes, so every s.definition / d.department access
+    # below was a fresh lazy-load query per row (2 x ~75 items = ~150 extra
+    # round trips per open, on top of _bar_start's own, see its lookup dict).
     subs = (
         db.query(models.DeliverableSubmission)
+        .options(joinedload(models.DeliverableSubmission.definition).joinedload(models.DeliverableDefinition.department))
         .join(models.DeliverableDefinition)
         .join(models.Department)
         .filter(models.DeliverableSubmission.project_id == project_id)
@@ -193,6 +204,7 @@ def get_project_gantt(project_id: int, db: Session = Depends(get_db)):
         .all()
     )
     subs.sort(key=lambda s: (s.definition.department.number or 0, rules.item_sort_key(s.definition.item_no)))
+    lookup = _build_submission_lookup(subs)
     rows = []
     seen_item_nos = set()  # Operation Units' TBU/PBU/DBU/BBU split means the same
     # item_no can have several submissions on one project -- one bar per
@@ -209,7 +221,7 @@ def get_project_gantt(project_id: int, db: Session = Depends(get_db)):
         if d.item_no in seen_item_nos:
             continue
         seen_item_nos.add(d.item_no)
-        start = _bar_start(db, project, d, s.due_date) or s.due_date
+        start = _bar_start(lookup, project, d, s.due_date) or s.due_date
         if start > s.due_date:
             start = s.due_date
         rows.append({
@@ -242,13 +254,26 @@ def get_stage_timeline(stage: str, db: Session = Depends(get_db)):
     rows = []
     if projects:
         proj_by_id = {p.id: p for p in projects}
+        # Item [gantt perf]: joinedload both hops instead of the plain
+        # .join() this used to rely on -- a .join() only shapes the SQL
+        # used for filtering, it doesn't populate the ORM relationship
+        # attributes, so every s.definition / d.department access below was
+        # a fresh lazy-load query per row. At pooled-timeline scale
+        # (hundreds of projects x dozens of items each, ~700 rows) that's
+        # 1000+ extra round trips per open, worse under concurrent load
+        # (e.g. right after the Dashboard's own burst of parallel calls)
+        # where it could starve long enough to look like a hang. Combined
+        # with _bar_start's own lookup dict (see _build_submission_lookup)
+        # this endpoint now runs on the one query below, no more.
         subs = (
             db.query(models.DeliverableSubmission)
+            .options(joinedload(models.DeliverableSubmission.definition).joinedload(models.DeliverableDefinition.department))
             .join(models.DeliverableDefinition)
             .join(models.Department)
             .filter(models.DeliverableSubmission.project_id.in_(proj_by_id.keys()))
             .all()
         )
+        lookup = _build_submission_lookup(subs)
         seen_item_nos = set()  # (project_id, item_no) -- same dedup as get_project_gantt,
         # keyed per-project here since pooling must NOT collapse the same
         # item_no across different projects.
@@ -264,7 +289,7 @@ def get_stage_timeline(stage: str, db: Session = Depends(get_db)):
                 continue
             seen_item_nos.add((s.project_id, d.item_no))
             project = proj_by_id[s.project_id]
-            start = _bar_start(db, project, d, s.due_date) or s.due_date
+            start = _bar_start(lookup, project, d, s.due_date) or s.due_date
             if start > s.due_date:
                 start = s.due_date
             rows.append({

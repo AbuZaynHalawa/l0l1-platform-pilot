@@ -390,7 +390,22 @@
      rather than two generic cards. */
   .dash-status-card.l0 { border-top: 3px solid var(--l0-1); }
   .dash-status-card.l1 { border-top: 3px solid #1f9d5c; }
-  .dash-status-card .dsc-children { display: grid; grid-template-columns: repeat(auto-fit, minmax(78px, 1fr)); gap: 12px; }
+  /* Redlined: Deadline and Progress used to be two separate titled cards
+     per stage -- now one row each inside a single card, DEADLINE/PROGRESS
+     as a label to the left of the row instead of its own card header. */
+  .dsc-row { display: flex; align-items: center; gap: 14px; }
+  .dsc-row + .dsc-row { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .dsc-row-label {
+    flex-shrink: 0; width: 64px; font-size: 10px; font-weight: 800; text-transform: uppercase;
+    letter-spacing: .05em; color: var(--ink-500);
+  }
+  /* Fixed 5 columns, not auto-fit/minmax -- with the row label now eating
+     into the card's width (redlined merge of Deadline+Progress into one
+     card), auto-fit's 78px floor no longer fit 5 across and silently
+     wrapped onto a second line per row. Always exactly 5 children here, so
+     always exactly 5 columns; cramped labels wrap inside their own cell
+     instead of the grid wrapping the whole row. */
+  .dash-status-card .dsc-children { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
   .dsc-child {
     background: var(--surface-sunken); border-radius: var(--radius-sm); padding: 14px 12px; text-align: center;
     border: 1px solid var(--line); transition: background .15s;
@@ -1502,7 +1517,12 @@
   .matrix-toggle .chip { padding: 5px 12px; font-size: 11.5px; }
   .focus-toggle { display: flex; gap: 8px; }
   .focus-toggle .chip { padding: 5px 12px; font-size: 11.5px; }
-  .matrix-legend { padding: 12px 18px 0; margin-bottom: 4px; }
+  /* Regression fix: same "ann-type-key" borrowed-layout bug as the Timeline
+     legend -- item 5 deleted that class along with the Announcements
+     legend it belonged to, silently leaving this legend unstyled too. */
+  .matrix-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; padding: 12px 18px 0; margin-bottom: 4px; }
+  .matrix-legend .lg { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--ink-700); }
+  .matrix-legend .sw { width: 13px; height: 13px; border-radius: 4px; flex-shrink: 0; }
   .matrix-note { padding: 0 18px 10px; margin: 0; font-size: 11.5px; color: var(--ink-500); }
   .matrix-wrap { overflow: auto; max-height: 560px; }
   .fp-table { border-collapse: collapse; font-size: 12.5px; width: 100%; }

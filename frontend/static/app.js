@@ -76,7 +76,10 @@
   // returns the list to render -- callers just render whatever comes back,
   // same "give it data, get back what to draw" shape as renderPager.
   var XH_FILTER_ICON = '<svg width="10" height="10" viewBox="0 0 16 16"><path d="M1 2h14l-5.5 6.5v4.5l-3 2v-6.5z" fill="currentColor"/></svg>';
-  var XH_SORT_ICON = '<svg width="9" height="9" viewBox="0 0 16 16" class="xh-sort-svg"><path class="xh-sort-up" d="M8 3l4 5H4z" fill="currentColor"/><path class="xh-sort-down" d="M8 13l4-5H4z" fill="currentColor"/></svg>';
+  // Redlined: the old 9x9 icon at .35 opacity read as "too small to see" --
+  // bigger (14x14), bolder triangles with real spacing between them, and a
+  // visible resting opacity instead of near-invisible until hovered.
+  var XH_SORT_ICON = '<svg width="14" height="14" viewBox="0 0 16 20" class="xh-sort-svg"><path class="xh-sort-up" d="M8 0L14 7H2z" fill="currentColor"/><path class="xh-sort-down" d="M8 20L14 13H2z" fill="currentColor"/></svg>';
   var _xhOpenPanel = null; // only one filter dropdown open at a time, across every table
   function _xhClosePanel() {
     if (_xhOpenPanel) { _xhOpenPanel.remove(); _xhOpenPanel = null; }
@@ -775,10 +778,13 @@
     // no per-child stage split), just duplicated wholesale into an L0
     // card and an L1 card, exactly like the Active Tenders pair above,
     // instead of one pooled card trying to show both stages at once.
-    function statusCard(title, stage, children) {
-      var card = el("div", "card dash-status-card " + stage.toLowerCase());
-      var head = el("div", "dsc-head", stage + " " + title);
-      card.appendChild(head);
+    // Redlined again: Deadline and Progress used to be two entirely
+    // separate cards per stage (4 cards total) -- now one card per stage
+    // ("L0 Deliverables Status"), with DEADLINE/PROGRESS as a row label on
+    // the left of each row instead of each row being its own titled card.
+    function statusRow(rowLabel, stage, children) {
+      var row = el("div", "dsc-row");
+      row.appendChild(el("div", "dsc-row-label", rowLabel));
       var kids = el("div", "dsc-children");
       children.forEach(function (c) {
         var child = el("div", "dsc-child" + (c[3] ? " " + c[3] : ""));
@@ -789,35 +795,34 @@
         }
         kids.appendChild(child);
       });
-      card.appendChild(kids);
-      return card;
+      row.appendChild(kids);
+      return row;
     }
-    var deadlineRow = el("div", "dash-status-row");
-    [["L0", d.not_due_l0, d.overdue_l0, d.early_l0, d.on_time_l0, d.late_l0],
-     ["L1", d.not_due_l1, d.overdue_l1, d.early_l1, d.on_time_l1, d.late_l1]]
+    var statusRowGroup = el("div", "dash-status-row");
+    [["L0", d.not_due_l0, d.overdue_l0, d.early_l0, d.on_time_l0, d.late_l0,
+           d.no_progress_l0, d.in_progress_l0, d.pending_review_l0, d.approved_l0, d.rejected_l0],
+     ["L1", d.not_due_l1, d.overdue_l1, d.early_l1, d.on_time_l1, d.late_l1,
+           d.no_progress_l1, d.in_progress_l1, d.pending_review_l1, d.approved_l1, d.rejected_l1]]
       .forEach(function (s) {
-        deadlineRow.appendChild(statusCard("Deliverables Deadline Status", s[0], [
+        var card = el("div", "card dash-status-card " + s[0].toLowerCase());
+        card.appendChild(el("div", "dsc-head", s[0] + " Deliverables Status"));
+        card.appendChild(statusRow("Deadline", s[0], [
           [mine ? "My Not Due" : "Not Due", s[1], ["deadline", "not_due"], ""],
           [mine ? "My Due" : "Due", s[2], ["deadline", "due"], "crit"],
           ["Early", s[3], ["deadline", "early"], "good"],
           ["On Time", s[4], ["deadline", "on_time"], "good"],
           ["Late", s[5], ["deadline", "late"], "crit"],
         ]));
-      });
-    stats.appendChild(deadlineRow);
-    var progressRow = el("div", "dash-status-row");
-    [["L0", d.no_progress_l0, d.in_progress_l0, d.pending_review_l0, d.approved_l0, d.rejected_l0],
-     ["L1", d.no_progress_l1, d.in_progress_l1, d.pending_review_l1, d.approved_l1, d.rejected_l1]]
-      .forEach(function (s) {
-        progressRow.appendChild(statusCard("Deliverables Progress Status", s[0], [
-          ["No Progress Yet", s[1], ["progress", "no_progress"], ""],
-          ["In Progress", s[2], ["progress", "in_progress"], "warn"],
-          [mine ? "My Pending SME Review" : "Pending SME Review", s[3], ["progress", "pending_review"], "warn"],
-          ["Completed", s[4], ["progress", "approved"], "good"],
-          ["Rejected", s[5], ["progress", "rejected"], "crit"],
+        card.appendChild(statusRow("Progress", s[0], [
+          ["No Progress Yet", s[6], ["progress", "no_progress"], ""],
+          ["In Progress", s[7], ["progress", "in_progress"], "warn"],
+          [mine ? "My Pending SME Review" : "Pending SME Review", s[8], ["progress", "pending_review"], "warn"],
+          ["Completed", s[9], ["progress", "approved"], "good"],
+          ["Rejected", s[10], ["progress", "rejected"], "crit"],
         ]));
+        statusRowGroup.appendChild(card);
       });
-    stats.appendChild(progressRow);
+    stats.appendChild(statusRowGroup);
 
     // Item [dashboard stage split]: Top Departments, Newest Milestones and
     // Latest Announcements each render twice now, once into L0's column
@@ -946,25 +951,36 @@
     var rows = !term ? data.rows : data.rows.filter(function (row) {
       return (row.item_no + " " + row.short_name + " " + row.name).toLowerCase().indexOf(term) !== -1;
     });
+    // Item 4 (queued): a second header-inline filter, narrowing which
+    // project *columns* show instead of which deliverable rows do --
+    // Est No. isn't a row field, it's each column's own header.
+    var estTerm = document.getElementById("matrixEstFilter").value.trim().toLowerCase();
+    var projects = !estTerm ? data.projects : data.projects.filter(function (p) {
+      return p.est_no.toLowerCase().indexOf(estTerm) !== -1;
+    });
     if (!rows.length) {
       wrap.innerHTML = '<div class="empty-state">No deliverables match &#8220;' + term + '&#8221;.</div>';
       return;
     }
+    if (!projects.length) {
+      wrap.innerHTML = '<div class="empty-state">No projects match Est No. &#8220;' + estTerm + '&#8221;.</div>';
+      return;
+    }
     var html = '<table class="matrix-table"><thead><tr><th>Deliverable</th>';
-    data.projects.forEach(function (p) {
+    projects.forEach(function (p) {
       html += '<th title="' + p.name.replace(/"/g, "&quot;") + '">' + p.est_no + "</th>";
     });
     html += "</tr></thead><tbody>";
     var lastDept = null;
     rows.forEach(function (row) {
       if (row.department !== lastDept) {
-        html += '<tr><td class="matrix-dept-row" colspan="' + (data.projects.length + 1) + '">' +
+        html += '<tr><td class="matrix-dept-row" colspan="' + (projects.length + 1) + '">' +
           deptLabel(row.department, row.department_number) + "</td></tr>";
         lastDept = row.department;
       }
       html += '<tr><td class="matrix-row-label" title="' + row.name.replace(/"/g, "&quot;") + '">' + row.item_no + " &middot; " + row.short_name +
         (row.is_milestone ? ' <span class="matrix-milestone-tag">' + row.milestone_code + "</span>" : "") + "</td>";
-      data.projects.forEach(function (p) {
+      projects.forEach(function (p) {
         var cell = row.cells[p.id];
         if (!cell) { html += '<td class="matrix-empty-cell">&#8213;</td>'; return; }
         // Item 143 (2nd revision): the matrix shows the 3-state Deadline
@@ -2209,7 +2225,7 @@
       title: "Meet GAHIZ!",
       gahiz: true, // toggles #tourGahizFloat -- see renderTourStep()
       body:
-        '<div class="gahiz-intro"><div class="gahiz-intro-name">Meet GAHIZ!</div>' +
+        '<div class="gahiz-intro"><div class="gahiz-intro-name">GAHIZ is always ready to support you!</div>' +
         "<b>GAHIZ</b> is Al Gihaz Contracting's AI Agent &#8212; your AI Support Agent right inside " +
         "the portal.</div>" +
         '<p class="tour-step-text">His bubble sits in the bottom-right corner of every page &#8212; ' +
@@ -2219,7 +2235,7 @@
         '<div class="mock-titlebar"><div class="mock-dot-3"></div><div class="mock-dot-3"></div>' +
         '<div class="mock-dot-3"></div><span>Any page in the app</span></div>' +
         '<div style="height:64px;"></div>' +
-        '<img src="/static/img/gahiz-badge.png" alt="GAHIZ" style="position:absolute;right:14px;bottom:14px;width:42px;height:42px;border-radius:50%;' +
+        '<img src="/static/img/gahiz-icon.png" alt="GAHIZ" style="position:absolute;right:14px;bottom:14px;width:42px;height:42px;border-radius:50%;' +
         'box-shadow:0 5px 16px color-mix(in srgb, var(--accent) 45%, transparent);" />' +
         "</div>" +
         '<div class="tour-callout" style="margin:10px 0;">&#128071; That bubble, on every page &#8212; click it and a chat panel opens:</div>' +
@@ -2271,7 +2287,7 @@
         featureRowMock("&#128220;", "accent", "Deliverables Catalog", "Every due-date formula and scoring weight in plain English &#8212; suggest a formula change with your reasoning.") +
         featureRowMock("&#128228;", "accent", "My Requests", "Every request you've sent to an Admin &#8212; due-dates, reassignments, SME nominations, and more &#8212; and where each stands.") +
         featureRowMock("&#128172;", "accent", "Q/A &#8211; Ask the Team", "Raise a question, track your own requests.") +
-        featureRowMock('<img src="/static/img/gahiz-badge.png" alt="GAHIZ" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />', "accent", "GAHIZ", "Ask how something in the platform works, or about your own assigned work &#8212; falls back to Ask the Team for anything it can't answer.") +
+        featureRowMock('<img src="/static/img/gahiz-icon.png" alt="GAHIZ" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" />', "accent", "GAHIZ", "Ask how something in the platform works, or about your own assigned work &#8212; falls back to Ask the Team for anything it can't answer.") +
         featureRowMock("&#128736;", "crit", "Admin Only", "Reports (4 filterable/printable report types), Top Achievers, Focal Points, Deliverables Configuration, Requests, Follow Up, Open Questions, Archived Projects.") +
         "</div>" +
         '<div class="tour-callout">&#127881; That\'s the full picture &#8212; close this and start ' +
@@ -7678,6 +7694,20 @@
         (r.decision_comment ? '<span class="sep">&middot;</span><span>&#8220;' + r.decision_comment + '&#8221;</span>' : "")));
       row.appendChild(main);
       row.appendChild(el("div", "", _historyStatusPill(r.status)));
+      // Redlined: history rows had no click-through at all -- same detail
+      // popup as the live pending queue, just without Approve/Reject.
+      row.style.cursor = "pointer";
+      row.addEventListener("click", function () {
+        openFuDetailModal({
+          eyebrow: kindLabel + " Request &#8211; " + _historyStatusPill(r.status), title: r.item_no + " &middot; " + r.name,
+          fields: [
+            ["Project", r.est_no], ["Requested by", r.requested_by_email],
+            ["Change", r.kind === "extension" ? (fmtDate(r.current_due_date) + " &#8594; " + fmtDate(r.requested_due_date)) : "Put this item on hold"],
+            ["Reason", r.reason], ["Decided", r.decided_at ? fmtDate(r.decided_at.slice(0, 10)) : ""],
+            ["Decision comment", r.decision_comment],
+          ],
+        });
+      });
       container.appendChild(row);
     });
   });
@@ -7696,6 +7726,16 @@
         (r.decided_at ? '<span class="sep">&middot;</span><span>' + fmtDate(r.decided_at.slice(0, 10)) + '</span>' : "")));
       row.appendChild(main);
       row.appendChild(el("div", "", _historyStatusPill(r.status)));
+      row.style.cursor = "pointer";
+      row.addEventListener("click", function () {
+        openFuDetailModal({
+          eyebrow: "Reassignment Request &#8211; " + _historyStatusPill(r.status), title: r.item_no + " &middot; " + r.name,
+          fields: [
+            ["Project", r.est_no], ["From", r.from_email || "Unassigned"], ["To", r.to_email],
+            ["Reason", r.reason], ["Decided", r.decided_at ? fmtDate(r.decided_at.slice(0, 10)) : ""],
+          ],
+        });
+      });
       container.appendChild(row);
     });
   });
@@ -7714,6 +7754,16 @@
         (n.decision_comment ? '<span class="sep">&middot;</span><span>&#8220;' + n.decision_comment + '&#8221;</span>' : "")));
       row.appendChild(main);
       row.appendChild(el("div", "", _historyStatusPill(n.status)));
+      row.style.cursor = "pointer";
+      row.addEventListener("click", function () {
+        openFuDetailModal({
+          eyebrow: "SME Nomination &#8211; " + _historyStatusPill(n.status), title: n.item_no + " &middot; " + n.item_name,
+          fields: [
+            ["Nominee", (n.name || n.email)], ["Stage", n.stage], ["Department", deptLabel(n.department, n.department_number)],
+            ["Decided", n.decided_at ? fmtDate(n.decided_at.slice(0, 10)) : ""], ["Decision comment", n.decision_comment],
+          ],
+        });
+      });
       container.appendChild(row);
     });
   });
@@ -7732,6 +7782,17 @@
         (r.decided_at ? '<span class="sep">&middot;</span><span>' + fmtDate(r.decided_at.slice(0, 10)) + '</span>' : "")));
       row.appendChild(main);
       row.appendChild(el("div", "", _historyStatusPill(r.status)));
+      row.style.cursor = "pointer";
+      row.addEventListener("click", function () {
+        openFuDetailModal({
+          eyebrow: "Group Add Request &#8211; " + _historyStatusPill(r.status), title: (r.name || r.email) + " &middot; " + r.role,
+          fields: [
+            ["Email", r.email], ["Role", r.role],
+            ["Requested by", r.requested_by_name || r.requested_by_email],
+            ["Decided", r.decided_at ? fmtDate(r.decided_at.slice(0, 10)) : ""],
+          ],
+        });
+      });
       container.appendChild(row);
     });
   });
@@ -7750,6 +7811,17 @@
         (r.decision_comment ? '<span class="sep">&middot;</span><span>&#8220;' + r.decision_comment + '&#8221;</span>' : "")));
       row.appendChild(main);
       row.appendChild(el("div", "", _historyStatusPill(r.status)));
+      row.style.cursor = "pointer";
+      row.addEventListener("click", function () {
+        openFuDetailModal({
+          eyebrow: "Formula Change Suggestion &#8211; " + _historyStatusPill(r.status), title: r.item_no + " &middot; " + r.item_name,
+          fields: [
+            ["Requested by", r.requested_by_name || r.requested_by_email], ["Currently", r.current_summary],
+            ["Comment", r.comment], ["Decided", r.decided_at ? fmtDate(r.decided_at.slice(0, 10)) : ""],
+            ["Decision comment", r.decision_comment],
+          ],
+        });
+      });
       container.appendChild(row);
     });
   });
@@ -7767,6 +7839,16 @@
         (r.decided_at ? '<span class="sep">&middot;</span><span>' + fmtDate(r.decided_at.slice(0, 10)) + '</span>' : "")));
       row.appendChild(main);
       row.appendChild(el("div", "", _historyStatusPill(r.status)));
+      row.style.cursor = "pointer";
+      row.addEventListener("click", function () {
+        openFuDetailModal({
+          eyebrow: "Bid Value Access Request &#8211; " + _historyStatusPill(r.status), title: r.est_no + " &middot; " + r.name,
+          fields: [
+            ["Requested by", r.requested_by_name ? r.requested_by_name + " (" + r.requested_by_email + ")" : r.requested_by_email],
+            ["Decided", r.decided_at ? fmtDate(r.decided_at.slice(0, 10)) : ""],
+          ],
+        });
+      });
       container.appendChild(row);
     });
   });
@@ -8783,6 +8865,7 @@
   document.getElementById("bmTriageSearch").addEventListener("input", _renderBmTriageStatus);
   document.getElementById("perfTriageSearch").addEventListener("input", _renderPerfTriage);
   document.getElementById("matrixSearch").addEventListener("input", _renderMatrix);
+  document.getElementById("matrixEstFilter").addEventListener("input", _renderMatrix);
 
   /* ================= ASK THE TEAM ================= */
   // Item 146: read-only identity lookup -- acting-email field, else the

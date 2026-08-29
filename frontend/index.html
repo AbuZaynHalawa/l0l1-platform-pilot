@@ -205,11 +205,17 @@
         <!-- Item 31: header-inline filter, live as you type -- the matrix
              itself keeps its own scroll (.matrix-wrap), the one deliberate
              exception to the no-horizontal-scroll rule (item 9). -->
-        <div class="search-wrap" style="margin:0 18px 10px;">
-          <span class="sic">&#128269;</span>
-          <input id="matrixSearch" type="text" placeholder="Filter by item number or deliverable name&#8230;" />
+        <div style="display:flex;gap:10px;margin:0 18px 10px;flex-wrap:wrap;">
+          <div class="search-wrap" style="flex:2;min-width:220px;">
+            <span class="sic">&#128269;</span>
+            <input id="matrixSearch" type="text" placeholder="Filter by item number or deliverable name&#8230;" />
+          </div>
+          <div class="search-wrap" style="flex:1;min-width:150px;">
+            <span class="sic">&#128269;</span>
+            <input id="matrixEstFilter" type="text" placeholder="Filter by Est No&#8230;" />
+          </div>
         </div>
-        <div class="ann-type-key matrix-legend">
+        <div class="matrix-legend">
           <span class="lg"><span class="sw" style="background:var(--ink-300)"></span> Not Due</span>
           <span class="lg"><span class="sw" style="background:var(--crit)"></span> Due</span>
           <span class="lg"><span class="sw" style="background:var(--good)"></span> Completed</span>
@@ -1978,10 +1984,10 @@
      in aiChatHistory (app.js) and is resent each turn. Always keeps a
      permanent "Ask the Team" escape hatch alongside the chat. -->
 <!-- Item 33: GAHIZ, Al Gihaz's AI Agent, replaces the generic robot emoji. -->
-<button id="aiChatBubble" class="ai-chat-bubble" aria-label="GAHIZ &#8211; AI Support" title="GAHIZ &#8211; AI Support"><img src="/static/img/gahiz-badge.png" alt="GAHIZ" /></button>
+<button id="aiChatBubble" class="ai-chat-bubble" aria-label="GAHIZ &#8211; AI Support" title="GAHIZ &#8211; AI Support"><img src="/static/img/gahiz-icon.png" alt="GAHIZ" /></button>
 <div id="aiChatPanel" class="ai-chat-panel" hidden>
   <div class="ai-chat-panel-head">
-    <span><span class="ai-chat-panel-ic"><img src="/static/img/gahiz-badge.png" alt="GAHIZ" /></span> GAHIZ</span>
+    <span><span class="ai-chat-panel-ic"><img src="/static/img/gahiz-icon.png" alt="GAHIZ" /></span> GAHIZ</span>
     <span style="display:flex;align-items:center;gap:8px;">
       <span id="aiChatUsage" class="ai-chat-usage" title="Messages left today"></span>
       <button class="modal-close" id="aiChatPanelClose">&#10005;</button>
