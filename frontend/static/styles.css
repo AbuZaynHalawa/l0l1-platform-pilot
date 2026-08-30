@@ -819,18 +819,26 @@
   .mini-dot.on { background: var(--purple-1); }
 
   .detail-head { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; margin-bottom: 6px; flex-wrap: wrap; }
-  .detail-head-main { flex: 1; min-width: 0; }
+  /* min-width:0 (the usual flex-shrink guard) removed on purpose here --
+     it let this box get squeezed narrower than the nowrap title's real
+     width, which is what let the title clip/overlap the actions instead
+     of the row properly wrapping them apart. */
+  .detail-head-main { flex: 1; }
   .detail-head-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
   #dStatusSelect { border: 1px solid var(--line); background: var(--surface); color: var(--ink-700); border-radius: 20px; padding: 7px 12px; font-size: 12px; font-weight: 700; }
   /* [Red Dark Design] spec section 22: Back uses the brand red. */
   .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--algihaz-red); font-size: 12.5px; font-weight: 700; cursor: pointer; margin-bottom: 14px; background: none; border: none; padding: 0; }
   .back-link:hover { color: var(--algihaz-red-dark); }
   .back-link:hover { color: var(--purple-1); }
-  /* [queued]: kept wrapping onto 2-3 lines for longer project names (e.g.
-     "Construction of New 380 kV Starah PV BSP #9176") -- one line always,
-     ellipsis if it's genuinely too long for the available width rather
-     than silently overflowing the page. */
-  .detail-title { font-size: 21px; margin-top: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* [queued]: redlined the ellipsis -- the full name has to actually show,
+     never truncated. white-space:nowrap keeps it one line (no more
+     wrapping onto 2-3 lines for longer names like "Construction of New
+     380 kV Starah PV BSP #9176"); no overflow/ellipsis this time, so
+     .detail-head-main below drops its min-width:0 to match -- that's
+     what lets .detail-head's own flex-wrap correctly measure the title's
+     real width and wrap .detail-head-actions onto its own row when the
+     title needs the space, instead of squeezing/clipping the title. */
+  .detail-title { font-size: 21px; margin-top: 8px; white-space: nowrap; }
   .stage-badge { font-size: 12px; font-weight: 800; padding: 5px 14px; border-radius: 999px; letter-spacing: .04em; }
   /* [consistency sweep] was a hardcoded light-peach hex while .l1 right
      below already correctly used a token (--good-bg) -- color-mix off
