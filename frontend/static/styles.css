@@ -518,6 +518,10 @@
   .dash-kpi-sub.down { color: var(--crit); font-weight: 700; }
   @media (max-width: 1180px) { .dash-kpi-row { grid-template-columns: repeat(3, 1fr); } }
   @media (max-width: 700px) { .dash-kpi-row { grid-template-columns: repeat(2, 1fr); } }
+  /* [mobile fix] 2 columns still forced each card to a ~225px floor (icon +
+     label text refusing to wrap tighter), overflowing a real phone's
+     ~290-390px viewport. One column below phone width. */
+  @media (max-width: 480px) { .dash-kpi-row { grid-template-columns: 1fr; } }
   .dpc-recent-name { font-size: 12.5px; color: var(--ink-700); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; }
   .dpc-recent-date { font-size: 11px; color: var(--ink-500); flex-shrink: 0; white-space: nowrap; }
   .dpc-empty { padding: 10px 12px; font-size: 12px; color: var(--ink-500); }
@@ -565,6 +569,17 @@
   .dsc-child.warn .dsc-child-val { color: var(--warn); }
   .dsc-child.good .dsc-child-val { color: var(--good); }
   @media (max-width: 980px) { .dash-project-row, .dash-status-row { grid-template-columns: 1fr; } }
+  /* [mobile fix] this fixed 5-column grid had no responsive breakpoint at
+     all -- unlike its sibling .dash-kpi-row (which already scales 5->3->2),
+     it stayed 5 columns down to any width, squeezing a number + a label
+     like "Pending SME Review" into ~35-50px on a real phone. Stack the
+     fixed-width row label above the grid (frees its full width for the
+     cells) and drop to 3 columns (wraps 3+2) so each cell has room. */
+  @media (max-width: 640px) {
+    .dsc-row { flex-direction: column; align-items: stretch; gap: 8px; }
+    .dsc-row-label { width: auto; }
+    .dash-status-card .dsc-children { grid-template-columns: repeat(3, 1fr); }
+  }
 
   /* Item [dashboard stage alignment]: L0 and L1 must land in the same row
      every time -- Concerns in particular varies in height a lot (a
@@ -731,6 +746,23 @@
   table.data tbody tr { cursor: pointer; }
   table.data tbody tr:hover { background: var(--surface-sunken); }
   table.data tbody tr:last-child td { border-bottom: none; }
+  /* [mobile fix] table-layout:fixed divides column width equally, and at a
+     true phone width an 8-column table (L0 Tenders) gives each Excel
+     header (sort label + filter icon side by side) ~32px -- td text wraps
+     fine, but th stays nowrap and the sort/filter controls' own flex
+     children can't shrink that far either, so header text overflowed and
+     visibly overlapped the next column (confirmed: a 57px-wide label in a
+     32.5px column, sort button collapsing to 0 width). Below phone width,
+     same scoped-scroll exception the Deliverables Matrix already has
+     (item 9's "no horizontal scroll" policy was about accidental page-
+     level scroll from unbroken text, not about banning a data table from
+     scrolling sideways on a phone) -- natural column widths, .table-scroll
+     carries the scrollbar so it never leaks to the page. */
+  @media (max-width: 640px) {
+    .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    table.data { table-layout: auto; min-width: 640px; }
+    table.data th { white-space: nowrap; }
+  }
   /* Items 4/36: the reusable "Excel header" -- click a column label to sort,
      click its funnel icon for a multi-select filter dropdown. Works inside
      both table.data (L0/L1) and .fp-table (everywhere else) headers, plus
@@ -794,7 +826,11 @@
   .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--algihaz-red); font-size: 12.5px; font-weight: 700; cursor: pointer; margin-bottom: 14px; background: none; border: none; padding: 0; }
   .back-link:hover { color: var(--algihaz-red-dark); }
   .back-link:hover { color: var(--purple-1); }
-  .detail-title { font-size: 21px; margin-top: 8px; }
+  /* [queued]: kept wrapping onto 2-3 lines for longer project names (e.g.
+     "Construction of New 380 kV Starah PV BSP #9176") -- one line always,
+     ellipsis if it's genuinely too long for the available width rather
+     than silently overflowing the page. */
+  .detail-title { font-size: 21px; margin-top: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .stage-badge { font-size: 12px; font-weight: 800; padding: 5px 14px; border-radius: 999px; letter-spacing: .04em; }
   /* [consistency sweep] was a hardcoded light-peach hex while .l1 right
      below already correctly used a token (--good-bg) -- color-mix off
@@ -1525,9 +1561,14 @@
   .ai-chat-panel-input-row textarea { flex: 1; padding: 8px 12px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface-sunken); color: var(--ink-900); font-size: 13px; box-sizing: border-box; font-family: inherit; resize: none; }
   .ai-chat-panel-footer { flex-shrink: 0; padding: 10px 12px 12px; text-align: center; }
   .ai-chat-panel-footer .btn { font-size: 11.5px; padding: 6px 12px; }
+  /* [mobile fix] was still the full 80x122px desktop size, just nudged in
+     a few px -- on a real phone that's a huge floating figure sitting
+     directly over page content (confirmed: overlapping the Dashboard's
+     All/My Items tabs and first KPI card). Scaled down, same aspect
+     ratio, and pulled in further so it reads as a small corner tab. */
   @media (max-width: 480px) {
-    .ai-chat-bubble { right: 16px; bottom: 16px; }
-    .ai-chat-panel { right: 8px; left: 8px; bottom: 84px; width: auto; }
+    .ai-chat-bubble { right: 10px; bottom: 10px; width: 56px; height: 86px; }
+    .ai-chat-panel { right: 8px; left: 8px; bottom: 66px; width: auto; }
   }
 
   /* Item 144: Assigned Deliverables as a real table. Grid columns are a
@@ -1536,6 +1577,17 @@
      table ever needing horizontal scroll. */
   .aqt { width: 100%; }
   .aqt-row { display: grid; grid-template-columns: 78px minmax(0,2.3fr) minmax(0,1.1fr) minmax(0,1fr) 148px 168px 96px 200px; align-items: center; gap: 10px; }
+  /* [mobile fix] .aqt had no overflow handling at all -- its row's fixed
+     columns alone (78+148+168+96+200) sum to 690px, well past any phone
+     viewport, so this was leaking real page-level horizontal overflow
+     (confirmed: 411px of it), not even contained the way table.data's
+     column-squeeze at least was. Same scoped-scroll exception as
+     table.data below phone width -- .aqt carries the scrollbar, gets a
+     sensible min-width so columns stay usable instead of vanishing. */
+  @media (max-width: 640px) {
+    .aqt { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .aqt-row { min-width: 900px; }
+  }
   .aqt-head { padding: 10px 18px; border-bottom: 1px solid var(--line); background: var(--surface-sunken); }
   .aqt-head .aqt-cell { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-500); }
   .aqt-head .aqt-cell:last-child { text-align: right; }

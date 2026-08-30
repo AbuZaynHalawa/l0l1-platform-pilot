@@ -27,7 +27,7 @@
 
     <div class="nav-group-label">Workspace</div>
     <nav class="nav">
-      <button class="nav-item" data-view="journey"><span class="ic">&#128337;</span> L0/L1 Walkthrough</button>
+      <button class="nav-item" data-view="journey"><span class="ic">&#128337;</span> Discover L0/L1</button>
       <button class="nav-item active" data-view="dashboard"><span class="ic">&#9673;</span> Dashboard</button>
       <button class="nav-item" id="l0NavItem" data-view="l0"><span class="ic">&#128196;</span> L0 Tenders <span class="nav-badge" id="l0Badge"></span></button>
       <button class="nav-item" id="l1NavItem" data-view="l1"><span class="ic">&#128274;</span> L1 Projects <span class="nav-badge" id="l1Badge"></span></button>
@@ -90,7 +90,7 @@
            next to the logo, on every page. -->
       <div class="topbar-title">
         <b>PROJECT READINESS (L0/L1) PLATFORM</b>
-        <span>Tendering and Early Project Stages</span>
+        <span>Tendering and Early Project Execution Stages</span>
       </div>
       <div class="search-wrap">
         <span class="sic">&#128269;</span>
@@ -825,9 +825,17 @@
           <div class="eyebrow">Admin</div>
           <h1>Follow Up</h1>
           <p class="sub">Everything currently due or overdue, with bulk reminders.</p>
+          <!-- [mobile fix] was a separate icon <span> + content <div> pair,
+               which relied on .tour-callout's old flex layout to sit side
+               by side -- that layout got removed (fixed a bug where a
+               plain-text callout with several <b> phrases fragmented into
+               stacked boxes), so the icon and text here started stacking
+               instead of sitting beside each other. Matches every other
+               .tour-callout usage now: the icon is just the div's own
+               leading character. -->
           <div class="tour-callout" style="margin-top:10px;">
-            <span>&#128276;</span>
-            <div>
+            &#128276;
+            <div style="display:inline;">
               <b>To send reminders:</b>
               <ol style="margin:4px 0 0;padding-left:18px;">
                 <li>Filter the list below to the deliverables you want.</li>
