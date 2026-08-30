@@ -818,21 +818,23 @@
   .mini-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line); }
   .mini-dot.on { background: var(--purple-1); }
 
-  /* [queued]: redlined which side wraps -- was wrap (actions, DOM-second,
-     drops to line 2 below the title). wrap-reverse doesn't change which
-     item overflows (still whichever doesn't fit after main claims line 1
-     first in flex order), only which LINE renders on top -- so the
-     overflow line (actions) now renders above, and the title's own line
-     renders below it, full width. Zero effect on the single-line case
-     (short titles still share the row with actions exactly as before --
-     there's only one line, nothing to reverse). */
-  .detail-head { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; margin-bottom: 6px; flex-wrap: wrap-reverse; }
-  /* min-width:0 (the usual flex-shrink guard) removed on purpose here --
-     it let this box get squeezed narrower than the nowrap title's real
-     width, which is what let the title clip/overlap the actions instead
-     of the row properly wrapping them apart. */
-  .detail-head-main { flex: 1; }
-  .detail-head-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  /* [queued]: redlined twice more -- the actions row needs to stay
+     exactly where it is (right-aligned, same row as the stage badge),
+     never move. Two earlier attempts (wrap, then wrap-reverse) tried to
+     get this out of one shared flex row between the badge+title as one
+     unit and the actions -- wrap-reverse fixed the wrap direction but
+     broke the actions' own right-alignment the moment it became the
+     only item on its line (space-between has nothing to space with a
+     single item, so it fell back to the start/left edge), and still
+     dragged the badge down away from the actions since they were one
+     flex child together. Restructured instead (index.html): badges and
+     actions are now direct siblings in their own row
+     (.detail-head-top), so that row never reflows regardless of title
+     length -- the title is a separate, always-own-line block below it. */
+  .detail-head { display: block; margin-bottom: 6px; }
+  .detail-head-top { display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; }
+  .detail-head-badges { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .detail-head-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   #dStatusSelect { border: 1px solid var(--line); background: var(--surface); color: var(--ink-700); border-radius: 20px; padding: 7px 12px; font-size: 12px; font-weight: 700; }
   /* [Red Dark Design] spec section 22: Back uses the brand red. */
   .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--algihaz-red); font-size: 12.5px; font-weight: 700; cursor: pointer; margin-bottom: 14px; background: none; border: none; padding: 0; }

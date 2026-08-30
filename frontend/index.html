@@ -941,22 +941,30 @@
     <!-- PROJECT DETAIL -->
     <section class="view" id="view-detail" hidden>
       <button class="back-link" id="backBtn">&#8592; Back to list</button>
+      <!-- [queued]: redlined again -- badges now share a top row with the
+           action buttons (buttons stay put on the right, badges left),
+           and the title always gets its own full-width row below that,
+           instead of the title/badges being one flex unit that dragged
+           the badges out of position whenever the title needed to wrap
+           away from the buttons. -->
       <div class="detail-head">
-        <div class="detail-head-main">
-          <span class="stage-badge" id="dStageBadge"></span>
-          <span class="pill neutral" id="dIntlBadge" hidden><span class="dot"></span>International</span>
-          <span class="pill neutral" id="dArchivedBadge" hidden><span class="dot"></span>Archived</span>
-          <h1 class="detail-title" id="dTitle"></h1>
+        <div class="detail-head-top">
+          <div class="detail-head-badges">
+            <span class="stage-badge" id="dStageBadge"></span>
+            <span class="pill neutral" id="dIntlBadge" hidden><span class="dot"></span>International</span>
+            <span class="pill neutral" id="dArchivedBadge" hidden><span class="dot"></span>Archived</span>
+          </div>
+          <div class="detail-head-actions">
+            <button class="btn" id="dL0LinkBtn" hidden>&#8592; View L0 Tender Folder</button>
+            <button class="btn" id="dGanttBtn">View Timeline</button>
+            <button class="btn primary" id="dExtendBsdBtn" hidden>Extend Deadline</button>
+            <button class="btn ghost-crit" id="dArchiveBtn" hidden>Archive Project</button>
+            <span class="pill" id="dTriagePill" hidden></span>
+            <span class="pill" id="dStatusPill"></span>
+            <select id="dStatusSelect" style="display:none;"></select>
+          </div>
         </div>
-        <div class="detail-head-actions">
-          <button class="btn" id="dL0LinkBtn" hidden>&#8592; View L0 Tender Folder</button>
-          <button class="btn" id="dGanttBtn">View Timeline</button>
-          <button class="btn primary" id="dExtendBsdBtn" hidden>Extend Deadline</button>
-          <button class="btn ghost-crit" id="dArchiveBtn" hidden>Archive Project</button>
-          <span class="pill" id="dTriagePill" hidden></span>
-          <span class="pill" id="dStatusPill"></span>
-          <select id="dStatusSelect" style="display:none;"></select>
-        </div>
+        <h1 class="detail-title" id="dTitle"></h1>
       </div>
       <div class="detail-meta-row" id="dMeta"></div>
       <div class="terminal-banner" id="dArchivedBanner" hidden>&#128230; This project is archived &#8212; it's excluded from every report, dashboard, and listing. An admin can restore it any time with the button above.</div>
