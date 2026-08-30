@@ -818,7 +818,15 @@
   .mini-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line); }
   .mini-dot.on { background: var(--purple-1); }
 
-  .detail-head { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; margin-bottom: 6px; flex-wrap: wrap; }
+  /* [queued]: redlined which side wraps -- was wrap (actions, DOM-second,
+     drops to line 2 below the title). wrap-reverse doesn't change which
+     item overflows (still whichever doesn't fit after main claims line 1
+     first in flex order), only which LINE renders on top -- so the
+     overflow line (actions) now renders above, and the title's own line
+     renders below it, full width. Zero effect on the single-line case
+     (short titles still share the row with actions exactly as before --
+     there's only one line, nothing to reverse). */
+  .detail-head { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; margin-bottom: 6px; flex-wrap: wrap-reverse; }
   /* min-width:0 (the usual flex-shrink guard) removed on purpose here --
      it let this box get squeezed narrower than the nowrap title's real
      width, which is what let the title clip/overlap the actions instead
