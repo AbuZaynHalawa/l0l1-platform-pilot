@@ -16,6 +16,15 @@
      local, since OrbitControls.js itself imports from 'three'. -->
 <link rel="stylesheet" href="/static/css/landing.css" />
 <link rel="preload" as="image" href="/static/img/landing/desert-bg.png" />
+<!-- landing.js's <script type="module"> sits at the end of <body>, and its
+     `import ... from './three.core.js'` inside three.module.js is only
+     discoverable once the browser has already fetched+parsed that file --
+     without these hints the three fetches happen as a sequential 3-deep
+     waterfall (landing.js -> three.module.js -> three.core.js) instead of
+     starting together, adding real delay before the scene can build. -->
+<link rel="modulepreload" href="/static/js/vendor/three.module.js" />
+<link rel="modulepreload" href="/static/js/vendor/three.core.js" />
+<link rel="modulepreload" href="/static/js/vendor/OrbitControls.js" />
 <script type="importmap">
 { "imports": {
     "three": "/static/js/vendor/three.module.js",

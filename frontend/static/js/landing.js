@@ -1405,6 +1405,19 @@ async function doBuildScene() {
     }
     renderer.render(scene, camera);
   };
+
+  // Warm up every material's shader program before the first frame, off the
+  // 3-second intro assembly's critical path. Without this, the driver
+  // compiles each of the ~15 PBR materials + shadow/tonemap variants lazily
+  // on their first actual draw call -- which happens to land right in the
+  // middle of the visible intro animation (elT/3.0 below is real elapsed
+  // time, uncompensated for stalls), so the assembly looked laggy/dropped
+  // frames right when it should have been smooth. compileAsync polls
+  // compile status without blocking the main thread, unlike the older sync
+  // compile().
+  if (renderer.compileAsync) {
+    try { await renderer.compileAsync(scene, camera); } catch (err) { /* fall through and animate anyway */ }
+  }
   animate();
 }
 
