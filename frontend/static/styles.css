@@ -793,11 +793,21 @@
      narrow fixed-width columns (e.g. "Counts in Performance" in Manage
      Tracking) instead of an ellipsis or a hard cutoff. */
   .xh-label { white-space: normal; line-height: 1.25; }
-  /* [Assigned Deliverables header wrap]: Est No./Due Date are short labels
-     that don't need the wrap-instead-of-clip treatment above -- they were
-     wrapping onto 2 lines purely because their columns are narrow, not
-     because the text itself is long. */
-  #assignedTableHead .xh-label { white-space: nowrap; }
+  /* [Assigned Deliverables header overflow]: every header here is a
+     single word (Deliverable, Department, Deadline, Progress...) except
+     Est No./Focal Point/Due Date -- the base .xh-label's "wrap instead of
+     clip" rule above only actually works when there's a space to break
+     at, so a single-word label in a squeezed column (Deliverable/
+     Department, both flexible-width, get genuinely narrow on a smaller
+     window) had nowhere to wrap and just overflowed its own cell,
+     visually colliding with the next column's header. nowrap+ellipsis
+     for every column here (not just Est No./Due Date, which is what the
+     first pass at this narrowly fixed) means a too-narrow label clips
+     cleanly to "Deliver…" instead of bleeding into its neighbor --
+     min-width:0 is needed too since .xh-label sits inside .xh-sort-btn's
+     own flex layout, which otherwise refuses to shrink it below its
+     content's natural (unclipped) width. */
+  #assignedTableHead .xh-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .xh-sort-svg { flex-shrink: 0; opacity: .35; }
   .xh-sort-svg .xh-sort-up, .xh-sort-svg .xh-sort-down { opacity: .45; }
   .xh-sort-asc .xh-sort-svg, .xh-sort-desc .xh-sort-svg { opacity: 1; }
