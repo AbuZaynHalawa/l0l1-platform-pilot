@@ -534,6 +534,13 @@
   .dash-status-row > * { min-width: 0; }
   .dash-status-card { padding: 22px 24px 24px; }
   .dash-status-card .dsc-head { font-size: 12.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 12px; }
+  /* [Dashboard perf/UX] "View all X Assigned Deliverables" reuses the same
+     title-row + link pattern as the Latest Tenders cards above -- the row
+     itself now carries the spacing dsc-head used to own alone, and
+     dsc-head's own margin is zeroed so it doesn't also push the button
+     off-center within the row. */
+  .dash-status-card .section-title-view-all-row { margin-bottom: 12px; }
+  .dash-status-card .section-title-view-all-row .dsc-head { margin-bottom: 0; }
   /* Item 32: each duplicated L0/L1 card gets a thin top border in that
      stage's own identity color, same orange/green used everywhere else,
      so the pair still reads as a matched set (like Active Tenders above)

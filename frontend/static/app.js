@@ -939,7 +939,17 @@
            d.no_progress_l1, d.in_progress_l1, d.pending_review_l1, d.approved_l1, d.rejected_l1]]
       .forEach(function (s) {
         var card = el("div", "card dash-status-card " + s[0].toLowerCase());
-        card.appendChild(el("div", "dsc-head", s[0] + " Deliverables Status"));
+        var dscTitleRow = el("div", "section-title-view-all-row");
+        dscTitleRow.appendChild(el("div", "dsc-head", s[0] + " Deliverables Status"));
+        var dscViewAll = el("button", "section-view-all", "View all " + s[0] + " Assigned Deliverables" +
+          ' <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>');
+        dscViewAll.type = "button";
+        // "View all" = this stage's Assigned Deliverables with no
+        // deadline/progress axis filter -- same goToAssignedFilter() every
+        // other stat click uses, just with no axis/value to pre-filter on.
+        dscViewAll.addEventListener("click", function () { goToAssignedFilter(null, null, s[0]); });
+        dscTitleRow.appendChild(dscViewAll);
+        card.appendChild(dscTitleRow);
         card.appendChild(statusRow("Deadline", s[0], [
           [mine ? "My Not Due" : "Not Due", s[1], ["deadline", "not_due"], ""],
           [mine ? "My Due" : "Due", s[2], ["deadline", "due"], "crit"],
@@ -9080,7 +9090,12 @@
     }
     rows.forEach(function (r) {
       var tr = el("tr");
-      tr.appendChild(el("td", "", r.est_no));
+      // Item [BM Triage Est color]: every other Est-No column in the app
+      // (L0/L1 Tenders, Dashboard's recent-tenders rows...) colors the Est
+      // number in that stage's identity color -- this table only ever
+      // lists active L0 tenders, so it's always the "l0" variant, but it
+      // was rendering as plain text instead of picking that up.
+      tr.appendChild(el("td", "est-no l0", r.est_no));
       tr.appendChild(el("td", "", '<span class="proj-name">' + r.name + '</span>'));
       tr.appendChild(el("td", "", r.bid_manager || "&#8213;"));
       tr.appendChild(el("td", "", r.total_count ? (r.total_count - r.pending_count) + " / " + r.total_count : "&#8213;"));
