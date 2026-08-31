@@ -10320,8 +10320,23 @@
   }
   checkBmTriageDeadline();
   // Item 41 (reworked): the System Introduction opens automatically on
-  // every sign-in now (not just the first one), on top of whatever view
+  // every SIGN-IN now (not just the first one), on top of whatever view
   // the app landed on -- unless the person turned that off for themselves
   // via the tour's own "Disable auto tour on sign in" checkbox.
-  if (localStorage.getItem("tourAutoDisabled") !== "1") openTour();
+  //
+  // Item [queued: tour on every refresh]: "every sign-in" stopped meaning
+  // "every page load" once landing.js's own mount() started skipping the
+  // sign-in gate on a same-session refresh (sessionStorage.hvSignedIn) --
+  // this bootstrap runs unconditionally on every load regardless, so
+  // without this check a plain refresh reopened the tour every time, since
+  // it can't otherwise tell "just signed in" apart from "already signed in
+  // an hour ago, just refreshing". hvSignedIn is set the instant landing.js
+  // reveals the app (onSubmit), before this IIFE ever runs on that same
+  // load -- but on a refresh it was ALREADY set from the previous load, so
+  // reading it here at bootstrap time is exactly "is this a fresh sign-in
+  // or a same-session reload" without landing.js and app.js needing any
+  // direct reference to each other.
+  var justSignedInThisLoad = true;
+  try { justSignedInThisLoad = sessionStorage.getItem("hvSignedIn") !== "1"; } catch (e) {}
+  if (justSignedInThisLoad && localStorage.getItem("tourAutoDisabled") !== "1") openTour();
 })();
