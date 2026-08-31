@@ -126,6 +126,23 @@ function el(id) { return document.getElementById(id); }
 // ================================================================
 export function mount() {
   if (!stopped) return; // already mounted -- mount() must only ever run once per real page load
+
+  // Item [queued: refresh re-asks to sign in]: this used to gate every
+  // single page load deliberately ("it's the sign-in screen, so it should
+  // gate every visit" -- confirmed earlier in the build). Reworked per
+  // Yasser: once signed in this tab session, a plain refresh shouldn't
+  // force it again. Checked first, before any of the scene/audio setup
+  // below, so a signed-in refresh never pays the WebGL/asset cost just to
+  // immediately tear it back down -- it skips straight to what onSubmit's
+  // own teardown would have left behind.
+  let alreadySignedIn = false;
+  try { alreadySignedIn = sessionStorage.getItem('hvSignedIn') === '1'; } catch (err) {}
+  if (alreadySignedIn) {
+    const root = document.getElementById('hvLanding');
+    if (root) root.hidden = true;
+    return;
+  }
+
   stopped = false;
 
   els.root = el('hvLanding');
@@ -415,6 +432,11 @@ function closeSignin() {
 // the plan's "key discovery").
 function onSubmit(e) {
   e.preventDefault();
+  // Item [queued: refresh re-asks to sign in]: mark this signed in for the
+  // rest of the browser tab's session -- mount()'s own early-exit checks
+  // this on the next load/refresh. sessionStorage, not localStorage, so a
+  // genuinely new session (closing the browser) still gates normally.
+  try { sessionStorage.setItem('hvSignedIn', '1'); } catch (err) {}
   els.root.classList.add('hv-dismissing');
   window.setTimeout(() => {
     destroy();
