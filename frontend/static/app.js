@@ -1494,44 +1494,79 @@
       row.appendChild(aqtDueCell);
 
       var authorized = isAssigned(d);
-      var actions = el("div", "aqt-cell aqt-actions");
+      var actionsCell = el("div", "aqt-cell aqt-actions");
       // Stop the row's own click (which opens the modal) from also firing
       // when a button inside the actions cell is clicked.
-      actions.addEventListener("click", function (ev) { ev.stopPropagation(); });
-      if (authorized && d.file_url) actions.appendChild(fileLink(d));
-      actions.appendChild(followButton(d));
-      if (!authorized) {
-        actions.appendChild(el("span", "aqt-locked", "Owner/SME only"));
-      } else {
-        // Item 143 (2nd revision): whole-deliverable Approve/Reject only
-        // exists once Mark Completed has been clicked (Pending SME Review)
-        // -- per-document review no longer exists.
-        if (d.status === "pending_review" && can("review")) {
-          var appr = el("button", "btn primary", "Approve");
-          appr.addEventListener("click", function () { review(d.id, true, loadAssigned); });
-          var rej = el("button", "btn ghost-crit", "Reject");
-          rej.addEventListener("click", function () { review(d.id, false, loadAssigned); });
-          actions.appendChild(appr); actions.appendChild(rej);
-        }
-        if (d.deadline_status === "due" && can("remind")) {
-          var remindBtn = el("button", "btn ghost-crit", "Send reminder");
-          remindBtn.addEventListener("click", async function () {
-            try {
-              var res = await api("/api/deliverables/bulk-remind", {
-                method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ submission_ids: [d.id], actor_role: CURRENT_ROLE }),
-              });
-              showToast(res.sent ? "Reminder sent to " + d.owner : "No owner to remind");
-            } catch (err) {
-              showToast("Could not send reminder &#8211; " + apiErrorDetail(err), true);
-            }
-          });
-          actions.appendChild(remindBtn);
-        }
-      }
-      row.appendChild(actions);
+      actionsCell.addEventListener("click", function (ev) { ev.stopPropagation(); });
+      // [Small-screen actions]: same set of buttons rendered into two
+      // containers -- .aqt-actions-inline (desktop: one line, see
+      // .aqt-actions/nowrap) and a hamburger-triggered .aqt-actions-menu
+      // dropdown (small screens, ~640px and under, see the media query in
+      // styles.css) with them stacked instead. Only one is ever visible at
+      // a time via CSS; _buildAssignedActionsInto builds fresh buttons/
+      // listeners into whichever container it's given, since a DOM node
+      // can't be reused in two places without cloning away its listeners.
+      var inlineWrap = el("div", "aqt-actions-inline");
+      var dropdown = el("div", "aqt-actions-dropdown");
+      dropdown.hidden = true;
+      var toggle = el("button", "aqt-actions-toggle", "&#9776;");
+      toggle.type = "button";
+      toggle.setAttribute("aria-label", "Actions");
+      toggle.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        var willOpen = dropdown.hidden;
+        document.querySelectorAll(".aqt-actions-dropdown").forEach(function (dd) { dd.hidden = true; });
+        dropdown.hidden = !willOpen;
+      });
+      var menuWrap = el("div", "aqt-actions-menu");
+      menuWrap.appendChild(toggle);
+      menuWrap.appendChild(dropdown);
+      _buildAssignedActionsInto(inlineWrap, d, authorized);
+      _buildAssignedActionsInto(dropdown, d, authorized);
+      actionsCell.appendChild(inlineWrap);
+      actionsCell.appendChild(menuWrap);
+      row.appendChild(actionsCell);
       wrap.appendChild(row);
     });
+  }
+  // One outstanding dropdown at a time, and closes on any outside click --
+  // same convention the app's other popover menus (Excel-header filter
+  // panels) already follow.
+  document.addEventListener("click", function () {
+    document.querySelectorAll(".aqt-actions-dropdown").forEach(function (dd) { dd.hidden = true; });
+  });
+  function _buildAssignedActionsInto(container, d, authorized) {
+    if (authorized && d.file_url) container.appendChild(fileLink(d));
+    container.appendChild(followButton(d));
+    if (!authorized) {
+      container.appendChild(el("span", "aqt-locked", "Owner/SME only"));
+    } else {
+      // Item 143 (2nd revision): whole-deliverable Approve/Reject only
+      // exists once Mark Completed has been clicked (Pending SME Review)
+      // -- per-document review no longer exists.
+      if (d.status === "pending_review" && can("review")) {
+        var appr = el("button", "btn primary", "Approve");
+        appr.addEventListener("click", function () { review(d.id, true, loadAssigned); });
+        var rej = el("button", "btn ghost-crit", "Reject");
+        rej.addEventListener("click", function () { review(d.id, false, loadAssigned); });
+        container.appendChild(appr); container.appendChild(rej);
+      }
+      if (d.deadline_status === "due" && can("remind")) {
+        var remindBtn = el("button", "btn ghost-crit", "Send reminder");
+        remindBtn.addEventListener("click", async function () {
+          try {
+            var res = await api("/api/deliverables/bulk-remind", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ submission_ids: [d.id], actor_role: CURRENT_ROLE }),
+            });
+            showToast(res.sent ? "Reminder sent to " + d.owner : "No owner to remind");
+          } catch (err) {
+            showToast("Could not send reminder &#8211; " + apiErrorDetail(err), true);
+          }
+        });
+        container.appendChild(remindBtn);
+      }
+    }
   }
   function followButton(d) {
     var btn = el("button", "btn" + (d.following ? " primary" : ""), d.following ? "&#9733; Following" : "&#9734; Follow");

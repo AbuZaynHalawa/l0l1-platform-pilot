@@ -1634,17 +1634,6 @@
      breakpoint below, which still trims Actions back down since Focal
      Point is already gone there and there's less room to redistribute. */
   .aqt-row { display: grid; grid-template-columns: 108px minmax(0,1.6fr) minmax(0,1.1fr) minmax(0,1fr) 110px 150px 116px 270px; align-items: center; gap: 10px; }
-  /* [mobile fix] .aqt had no overflow handling at all -- its row's fixed
-     columns alone (78+148+168+96+200) sum to 690px, well past any phone
-     viewport, so this was leaking real page-level horizontal overflow
-     (confirmed: 411px of it), not even contained the way table.data's
-     column-squeeze at least was. Same scoped-scroll exception as
-     table.data below phone width -- .aqt carries the scrollbar, gets a
-     sensible min-width so columns stay usable instead of vanishing. */
-  @media (max-width: 640px) {
-    .aqt { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    .aqt-row { min-width: 900px; }
-  }
   /* [Header double-padding]: .xh-th-wrap (installExcelHeader) already
      gives every sortable/filterable cell its own 11px top/bottom padding
      -- stacking .aqt-head's own vertical padding on top of that made the
@@ -1679,9 +1668,51 @@
   .aqt-actions { display: flex; flex-wrap: nowrap; gap: 6px; justify-content: flex-end; }
   .aqt-actions .btn { padding: 5px 12px; font-size: 11.5px; }
   .aqt-locked { font-size: 11px; color: var(--ink-300); font-style: italic; text-align: right; }
+  .aqt-actions-inline { display: flex; flex-wrap: nowrap; gap: 6px; justify-content: flex-end; }
+  /* [Small-screen actions]: hidden except under the 640px breakpoint
+     above, which flips this pair (menu shown, inline hidden). Popover
+     styling matches .xh-panel (the Excel-header filter dropdown) --
+     same surface/border/radius/shadow language as every other popover
+     in the app. */
+  .aqt-actions-menu { display: none; position: relative; }
+  .aqt-actions-toggle {
+    display: flex; align-items: center; justify-content: center;
+    width: 44px; height: 44px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+    background: var(--surface); font-size: 16px; color: var(--ink-700); cursor: pointer; margin-left: auto;
+  }
+  .aqt-actions-toggle:hover { background: var(--surface-sunken); }
+  .aqt-actions-dropdown {
+    position: absolute; right: 0; top: calc(100% + 4px); z-index: 30;
+    display: flex; flex-direction: column; gap: 6px; min-width: 170px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    box-shadow: var(--shadow-2); padding: 8px;
+  }
+  .aqt-actions-dropdown .btn, .aqt-actions-dropdown .aqt-locked { width: 100%; text-align: left; }
+  /* [Small-screen actions]: below 640px, Actions collapses from a row of
+     up to 4 buttons down to a single 44px hamburger toggle (min-width
+     wasn't the real fix for a phone -- Approve/Reject/Send reminder/
+     Follow together need real width no matter how the rest of the row is
+     squeezed). That alone frees enough room that Deliverable can keep a
+     genuine minimum width (140px, so a name is still legible) instead of
+     the whole row needing a hard 900px min-width + horizontal scroll to
+     stay usable. .aqt still carries a scroll fallback underneath, in case
+     an unusually narrow phone still can't fit even this. Placed after
+     the base .aqt-actions-inline/.aqt-actions-menu rules above -- same
+     specificity, so source order is what makes this one win at narrow
+     widths. */
   @media (max-width: 1180px) {
     .aqt-row { grid-template-columns: 100px minmax(0,1.4fr) minmax(0,1fr) 100px 140px 108px 250px; }
     .aqt-focal { display: none; }
+  }
+  /* Comes after the 1180px block above -- 640px is a subset of it (both
+     apply at once on a phone), and both set .aqt-row's grid-template-
+     columns, so this one has to win by source order at the narrower
+     width. */
+  @media (max-width: 640px) {
+    .aqt { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .aqt-row { grid-template-columns: 76px minmax(140px,1.6fr) minmax(0,1fr) 90px 100px 88px 44px; min-width: 620px; }
+    .aqt-actions-inline { display: none; }
+    .aqt-actions-menu { display: block; }
   }
   /* Item 142 rework: these spans had ellipsis rules but no min-width, so
      flexbox couldn't actually shrink them below their content's natural
