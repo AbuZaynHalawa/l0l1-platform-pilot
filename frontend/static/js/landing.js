@@ -1372,13 +1372,14 @@ async function doBuildScene() {
       if (frameCount % 6 === 0) {
         const bed = drive * 0.085 + explode * 0.05;
         const bz = drive * 0.035;
-        if (bed < 0.0012 && bz < 0.0008) {
-          a.bedGain.gain.setValueAtTime(0, ct);
-          a.buzzGain.gain.setValueAtTime(0, ct);
-        } else {
-          a.bedGain.gain.setTargetAtTime(bed, ct, 0.15);
-          a.buzzGain.gain.setTargetAtTime(bz, ct, 0.2);
-        }
+        // Always ramp (setTargetAtTime), never snap straight to 0 -- an
+        // instant setValueAtTime jump from an audible level is a real
+        // discontinuity (a click/pop), which read as "the background
+        // stopping and resetting" the moment hover+motion dropped out.
+        // A short exponential ramp reaches inaudible in a couple hundred
+        // ms either way, so this doesn't leave a lingering trail.
+        a.bedGain.gain.setTargetAtTime(bed, ct, bed < a.bedGain.gain.value ? 0.12 : 0.15);
+        a.buzzGain.gain.setTargetAtTime(bz, ct, bz < a.buzzGain.gain.value ? 0.12 : 0.2);
         a.bp.frequency.setTargetAtTime(1700 + drive * 2600 + explode * 900, ct, 0.25);
       }
       const rate = hover * 2.6 + (mouseSpeed || 0) * hover * 7 + explode * 3 + outro * 4;
@@ -1539,9 +1540,11 @@ function initAudio() {
   // by ctx.close() on teardown. space-ambience.mp3 is a pre-built seamless
   // loop (ffmpeg acrossfade of the tail back into the head), and looping
   // via AudioBufferSourceNode.loop is sample-accurate/gapless, unlike an
-  // <audio loop> element. Kept quiet (0.06, well under bedGain's own
+  // <audio loop> element. Kept quiet (0.04, well under bedGain's own
   // ~0.085-0.135 idle-interaction range and buzzGain/spark/discharge) so it
-  // sits under the transformer's own interactive sounds, not over them.
+  // sits under the transformer's own interactive sounds, not over them --
+  // lowered from an initial 0.06 once the longer replacement track read
+  // louder than the original short one at the same gain value.
   fetch('/static/audio/space-ambience.mp3')
     .then((r) => r.arrayBuffer())
     .then((b) => ctx.decodeAudioData(b))
@@ -1553,7 +1556,7 @@ function initAudio() {
       src.start();
       audio.spaceSource = src;
       spaceGain.gain.setValueAtTime(0, ctx.currentTime);
-      spaceGain.gain.linearRampToValueAtTime(0.06, ctx.currentTime + 1.5);
+      spaceGain.gain.linearRampToValueAtTime(0.04, ctx.currentTime + 1.5);
     })
     .catch(() => {});
 
