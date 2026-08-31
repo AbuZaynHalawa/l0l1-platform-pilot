@@ -1521,7 +1521,10 @@ function initAudio() {
   buzzGain.gain.value = 0;
   buzz.connect(buzzBp); buzzBp.connect(buzzGain); buzzGain.connect(master);
   buzz.start();
-  audio = { ctx, master, bedGain, buzzGain, bp, on: true };
+  const spaceGain = ctx.createGain();
+  spaceGain.gain.value = 0;
+  spaceGain.connect(master);
+  audio = { ctx, master, bedGain, buzzGain, bp, spaceGain, on: true };
   window.__hvAudio = audio;
   (window.__hvAudioAll = window.__hvAudioAll || []).push(ctx);
   fetch('/static/audio/electric-shock.mp3')
@@ -1529,6 +1532,31 @@ function initAudio() {
     .then((b) => ctx.decodeAudioData(b))
     .then((buf) => { if (audio) audio.zapBuf = buf; })
     .catch(() => {});
+
+  // Constant background ambience -- unlike bedGain/buzzGain (hover+motion
+  // driven, silent at rest), this plays continuously at a fixed, low level
+  // once unlocked, gated only by the master mute/unmute (toggleSound) and
+  // by ctx.close() on teardown. space-ambience.mp3 is a pre-built seamless
+  // loop (ffmpeg acrossfade of the tail back into the head), and looping
+  // via AudioBufferSourceNode.loop is sample-accurate/gapless, unlike an
+  // <audio loop> element. Kept quiet (0.06, well under bedGain's own
+  // ~0.085-0.135 idle-interaction range and buzzGain/spark/discharge) so it
+  // sits under the transformer's own interactive sounds, not over them.
+  fetch('/static/audio/space-ambience.mp3')
+    .then((r) => r.arrayBuffer())
+    .then((b) => ctx.decodeAudioData(b))
+    .then((buf) => {
+      if (!audio || stopped) return;
+      const src = ctx.createBufferSource();
+      src.buffer = buf; src.loop = true;
+      src.connect(spaceGain);
+      src.start();
+      audio.spaceSource = src;
+      spaceGain.gain.setValueAtTime(0, ctx.currentTime);
+      spaceGain.gain.linearRampToValueAtTime(0.06, ctx.currentTime + 1.5);
+    })
+    .catch(() => {});
+
   if (ctx.state === 'suspended') ctx.resume();
 }
 
