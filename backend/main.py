@@ -62,12 +62,25 @@ def index():
     # Stamping the asset URLs with the file's own mtime forces a brand-new URL
     # (and therefore a real fetch) on every deploy that changes either file.
     html = (FRONTEND_DIR / "index.html").read_text(encoding="utf-8")
+    # landing.css/landing.js stamped the same way as app.js/styles.css --
+    # deliberately NOT the vendored three.js/OrbitControls files under
+    # static/js/vendor/. Those are referenced only via the import map's
+    # bare "three" specifier, and OrbitControls.js's own internal
+    # `import ... from 'three'` has to resolve to that exact same URL —
+    # a query string here and not there (or a different one each deploy)
+    # would make the browser treat them as two different module
+    # identities. If the vendored files ever need cache-busting after a
+    # version bump, do it by changing the filename, not a query string.
     version = str(int(max(
         (FRONTEND_DIR / "static" / "app.js").stat().st_mtime,
         (FRONTEND_DIR / "static" / "styles.css").stat().st_mtime,
+        (FRONTEND_DIR / "static" / "css" / "landing.css").stat().st_mtime,
+        (FRONTEND_DIR / "static" / "js" / "landing.js").stat().st_mtime,
     )))
     html = html.replace('/static/app.js"', f'/static/app.js?v={version}"')
     html = html.replace('/static/styles.css"', f'/static/styles.css?v={version}"')
+    html = html.replace('/static/css/landing.css"', f'/static/css/landing.css?v={version}"')
+    html = html.replace('/static/js/landing.js"', f'/static/js/landing.js?v={version}"')
     return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 
 

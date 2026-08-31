@@ -1,0 +1,149 @@
+/* ================================================================
+   HV Transformer Landing + Sign-In reveal
+   Ported from design_handoff_hv_transformer_signin/source/HV Transformer
+   Landing v5.dc.html at pixel-accurate fidelity. Layout stays as inline
+   styles in index.html's #hvLanding markup, exactly as authored (the
+   source's own porting note: "style-hover=/style-focus= are :hover/:focus
+   rules; move them into styles.css. Everything else is ordinary HTML
+   attributes and inline styles.") -- this file is only: fonts, the design
+   tokens (scoped under #hvLanding, never :root, so these short generic
+   names -- --edge, --ink, --rule, --gutter -- can never collide with the
+   app's own --ink-900-style tokens), @keyframes, and :hover/:focus states.
+   ================================================================ */
+
+/* Archivo, per the handoff README's Type section ("Archivo throughout,
+   from the design system's stylesheet") -- the source's own _ds bundle
+   isn't part of the handoff, so it's loaded directly here. */
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&display=swap');
+
+#hvLanding {
+  --font-heading: 'Archivo', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: 'Archivo', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* ---------- keyframes (verbatim from the source) ---------- */
+@keyframes hvFadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes hvFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes hvBurstIn { 0% { opacity: 0; transform: scale(0.62) translateY(26px); filter: blur(6px); } 60% { opacity: 1; filter: blur(0); } 100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); } }
+@keyframes hvSheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+/* ---------- host + base cosmetics ---------- */
+#hvLanding {
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  background: #121110;
+  color: #f3f2f2;
+  font-family: var(--font-body);
+  overflow: hidden;
+}
+#hvLanding a { color: #f3f2f2; text-decoration: none; }
+#hvLanding a:hover { color: #ec3013; }
+#hvLanding ::selection { background: rgba(236, 48, 19, 0.3); }
+/* Reversed burst-in for dismissal -- same easing family as the reveal,
+   played backwards, per the plan's "reuse the design's own transition
+   language" for the teardown fade. */
+@keyframes hvBurstOut { 0% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); } 100% { opacity: 0; transform: scale(0.62) translateY(26px); filter: blur(6px); } }
+#hvLanding.hv-dismissing { animation: hvBurstOut 0.5s cubic-bezier(0.22, 1, 0.28, 1) both; pointer-events: none; }
+
+/* ---------- design tokens ---------- */
+#hvLanding {
+  --ink: #f3f2f2;
+  --ink-dim: rgba(243, 242, 242, 0.58);
+  --ink-faint: rgba(243, 242, 242, 0.3);
+  --rule: rgba(243, 242, 242, 0.16);
+  --stage-num: clamp(54px, 6.6vw, 124px);
+  --stage-sub: clamp(14px, 1.35vw, 21px);
+  --edge: 44px;
+  --gutter: 196px;
+  --nav-top: 148px;
+  --nav-ty: 0;
+  --sound-bottom: var(--edge);
+  --controls-bottom: var(--edge);
+  --logo-h: 74px;
+  --step-pt: calc(var(--edge) + var(--logo-h) + 56px);
+  --scrim-w: 46%;
+  --hero-pb: calc(var(--edge) * 2);
+  --rail-pad: 10px 14px;
+  --sound-pad: 10px 16px;
+  --hint-bottom: calc(var(--edge) + 60px);
+  --exit-pad: 8px 2px;
+  --rail-off: 62px;
+  --nav-v: flex;
+  --nav-h: none;
+  --panel-w: 344px;
+  --panel-right: auto;
+  --panel-left: 44px;
+  --panel-top: 50%;
+  --panel-bottom: auto;
+  --panel-ty: -50%;
+  --panel-anim: hvFadeIn 0.35s ease both;
+  --col-w: 38%;
+}
+@media (max-width: 1180px) {
+  #hvLanding {
+    --gutter: 148px;
+    --col-w: 52%;
+  }
+}
+@media (max-width: 1000px) {
+  #hvLanding {
+    --edge: 30px;
+    --gutter: 0px;
+    --col-w: 62%;
+    --nav-v: none;
+    --nav-h: flex;
+    --sound-bottom: calc(var(--edge) + 74px);
+    --controls-bottom: calc(var(--edge) + 74px);
+    --rail-pad: 14px 16px;
+    --sound-pad: 14px 18px;
+    --hint-bottom: calc(var(--edge) + 84px);
+    --exit-pad: 12px 4px;
+    --rail-off: 64px;
+    --logo-h: 52px;
+    --scrim-w: 88%;
+    --hero-pb: calc(var(--edge) + 86px);
+  }
+}
+@media (max-width: 860px) {
+  #hvLanding {
+    --edge: 20px;
+    --gutter: 0px;
+    --stage-num: clamp(52px, 15vw, 96px);
+    --nav-v: none;
+    --nav-h: flex;
+    --panel-w: 100%;
+    --panel-right: 0px;
+    --panel-left: 0px;
+    --nav-top: 120px;
+    --panel-top: auto;
+    --panel-bottom: 0px;
+    --panel-ty: 0;
+    --panel-anim: hvSheetUp 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    --col-w: 100%;
+  }
+}
+
+/* ---------- hover / focus states ----------
+   Source used a per-element style-hover="..."/style-focus="..." attribute;
+   grouped here into shared classes where the treatment is identical
+   (several controls share the exact same hover style), per element where
+   it isn't. Every rule below corresponds 1:1 to a style-hover/style-focus
+   attribute in the source -- see the class applied to each element in
+   index.html's #hvLanding markup for which group it belongs to. */
+#hvLanding .hv-nav-v-btn:hover { border-right: 2px solid #ec3013; }
+#hvLanding .hv-ctrl-btn:hover { color: #ffffff; border-top: 2px solid #ec3013; }
+#hvLanding .hv-cta-fill:hover { background: #c8240c; color: #ffffff; }
+#hvLanding .hv-explore-cta:hover { color: #ec3013; border-bottom: 2px solid #ec3013; }
+#hvLanding .hv-exit-explore:hover { color: #ffffff; border-bottom: 2px solid #ec3013; }
+#hvLanding .hv-close-btn:hover { color: #ffffff; }
+#hvLanding .hv-field:focus { border-bottom: 2px solid #ec3013; outline: none; }
+
+/* #hvSignin needs display:flex to center its panel, which the source
+   never had to reconcile with a [hidden] toggle (it was conditionally
+   mounted instead) -- an inline display:flex would permanently defeat
+   the native [hidden] rule regardless of specificity, so the flex
+   display lives here instead, same fix pattern already used elsewhere
+   in this app for this exact class of bug. */
+#hvSignin { display: flex; }
+#hvSignin[hidden] { display: none; }

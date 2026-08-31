@@ -9,8 +9,161 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/static/styles.css" />
+<!-- HV Transformer Landing + Sign-In -- ported from
+     design_handoff_hv_transformer_signin/. three.js vendored locally
+     (see plan snug-moseying-lemon.md) rather than hitting unpkg.com; the
+     bare "three" specifier stays in the import map even though it's
+     local, since OrbitControls.js itself imports from 'three'. -->
+<link rel="stylesheet" href="/static/css/landing.css" />
+<link rel="preload" as="image" href="/static/img/landing/desert-bg.png" />
+<script type="importmap">
+{ "imports": {
+    "three": "/static/js/vendor/three.module.js",
+    "three/addons/controls/OrbitControls.js": "/static/js/vendor/OrbitControls.js"
+} }
+</script>
 </head>
 <body>
+
+<!-- ================================================================
+     HV Transformer Landing + Sign-In reveal
+     Ported at pixel-accurate fidelity from design_handoff_hv_transformer_
+     signin/source/HV Transformer Landing v5.dc.html -- layout kept as
+     inline styles exactly as authored (its own porting note: "style-
+     hover=/style-focus= are :hover/:focus rules; move them into
+     styles.css [landing.css, here]. Everything else is ordinary HTML
+     attributes and inline styles."). Sits on top of the app the whole
+     time it's mounted -- .shell boots normally underneath, unseen, so
+     by the time sign-in is submitted it's already fully ready (see
+     static/js/landing.js's mount()/onSubmit).
+     ================================================================ -->
+<div id="hvLanding">
+  <div style="position:absolute;top:0;left:0;width:100%;height:100dvh;z-index:0;overflow:hidden;">
+    <div id="hvSceneWrap" style="position:absolute;inset:0;overflow:hidden;pointer-events:none;will-change:transform;">
+      <div style="position:absolute;inset:-7%;background-image:url('/static/img/landing/desert-bg.png');background-size:cover;background-position:center 58%;filter:blur(18px) saturate(0.45) brightness(0.34);"></div>
+      <div style="position:absolute;inset:0;background:radial-gradient(115% 78% at 52% 74%, rgba(74,64,53,0.5) 0%, rgba(26,24,22,0.9) 58%, rgba(15,14,13,1) 100%);"></div>
+      <div style="position:absolute;left:50%;top:58%;width:76%;height:38%;transform:translateX(-50%);background:radial-gradient(ellipse at center, rgba(140,120,94,0.2) 0%, rgba(140,120,94,0) 68%);"></div>
+      <div style="position:absolute;inset:0;box-shadow:inset 0 0 220px 90px rgba(10,9,8,0.85);"></div>
+    </div>
+    <canvas id="hvCanvas" style="position:absolute;inset:0;width:100%;height:100%;display:block;cursor:default;"></canvas>
+    <canvas id="hvDustCanvas" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;display:block;"></canvas>
+  </div>
+
+  <div style="position:fixed;top:0;left:0;right:0;height:calc(var(--edge) + var(--logo-h) + 34px);z-index:5;pointer-events:none;background:linear-gradient(180deg,#121110 0%,rgba(18,17,16,0.94) 62%,rgba(18,17,16,0) 100%);"></div>
+
+  <div style="position:fixed;top:var(--edge);left:var(--edge);z-index:6;display:flex;align-items:center;gap:18px;pointer-events:none;">
+    <img src="/static/img/landing/algihaz-logo-dark.png" alt="ALGIHAZ CONTRACTING" style="height:var(--logo-h);width:auto;display:block;" />
+    <div style="width:2px;height:52px;background:var(--rule);"></div>
+    <div>
+      <div style="font-family:var(--font-heading);font-weight:700;font-size:14px;letter-spacing:0.16em;color:var(--ink);">ALGIHAZ CONTRACTING</div>
+      <div style="font-size:10px;letter-spacing:0.18em;color:var(--ink-dim);margin-top:5px;">PROJECT READINESS (L0/L1) PLATFORM</div>
+    </div>
+  </div>
+
+  <div id="hvNavV" style="position:absolute;right:var(--edge);top:calc(var(--edge) + 128px);z-index:4;display:var(--nav-v);flex-direction:column;gap:2px;transition:opacity 0.4s ease;">
+    <button type="button" class="hv-nav-group hv-nav-v-btn" data-hv-group="hv" data-hv-key="bushingHV2" style="display:grid;grid-template-columns:1fr 26px;align-items:center;gap:12px;background:none;border:0;border-right:2px solid var(--rule);padding:9px 14px;cursor:pointer;text-align:right;font-family:var(--font-body);"><span style="font-size:11px;letter-spacing:0.15em;color:var(--ink-dim);white-space:nowrap;">HV SYSTEM</span><span style="font-size:10px;letter-spacing:0.1em;color:var(--ink-faint);">01</span></button>
+    <button type="button" class="hv-nav-group hv-nav-v-btn" data-hv-group="lv" data-hv-key="bushingLV2" style="display:grid;grid-template-columns:1fr 26px;align-items:center;gap:12px;background:none;border:0;border-right:2px solid var(--rule);padding:9px 14px;cursor:pointer;text-align:right;font-family:var(--font-body);"><span style="font-size:11px;letter-spacing:0.15em;color:var(--ink-dim);white-space:nowrap;">LV SYSTEM</span><span style="font-size:10px;letter-spacing:0.1em;color:var(--ink-faint);">02</span></button>
+    <button type="button" class="hv-nav-group hv-nav-v-btn" data-hv-group="cooling" data-hv-key="radiatorBankR" style="display:grid;grid-template-columns:1fr 26px;align-items:center;gap:12px;background:none;border:0;border-right:2px solid var(--rule);padding:9px 14px;cursor:pointer;text-align:right;font-family:var(--font-body);"><span style="font-size:11px;letter-spacing:0.15em;color:var(--ink-dim);white-space:nowrap;">COOLING</span><span style="font-size:10px;letter-spacing:0.1em;color:var(--ink-faint);">03</span></button>
+    <button type="button" class="hv-nav-group hv-nav-v-btn" data-hv-group="oltc" data-hv-key="onLoadTapChanger" style="display:grid;grid-template-columns:1fr 26px;align-items:center;gap:12px;background:none;border:0;border-right:2px solid var(--rule);padding:9px 14px;cursor:pointer;text-align:right;font-family:var(--font-body);"><span style="font-size:11px;letter-spacing:0.15em;color:var(--ink-dim);white-space:nowrap;">OLTC</span><span style="font-size:10px;letter-spacing:0.1em;color:var(--ink-faint);">04</span></button>
+    <button type="button" class="hv-nav-group hv-nav-v-btn" data-hv-group="protection" data-hv-key="conservatorAssembly" style="display:grid;grid-template-columns:1fr 26px;align-items:center;gap:12px;background:none;border:0;border-right:2px solid var(--rule);padding:9px 14px;cursor:pointer;text-align:right;font-family:var(--font-body);"><span style="font-size:11px;letter-spacing:0.15em;color:var(--ink-dim);white-space:nowrap;">PROTECTION</span><span style="font-size:10px;letter-spacing:0.1em;color:var(--ink-faint);">05</span></button>
+    <button type="button" class="hv-nav-group hv-nav-v-btn" data-hv-group="core" data-hv-key="coreAndWindings" style="display:grid;grid-template-columns:1fr 26px;align-items:center;gap:12px;background:none;border:0;border-right:2px solid var(--rule);padding:9px 14px;cursor:pointer;text-align:right;font-family:var(--font-body);"><span style="font-size:11px;letter-spacing:0.15em;color:var(--ink-dim);white-space:nowrap;">CORE &amp; WINDINGS</span><span style="font-size:10px;letter-spacing:0.1em;color:var(--ink-faint);">06</span></button>
+  </div>
+
+  <div id="hvNavH" style="position:absolute;left:0;right:0;top:calc(100dvh - var(--rail-off));z-index:4;display:var(--nav-h);gap:2px;overflow-x:auto;transition:opacity 0.4s ease;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:linear-gradient(180deg,rgba(18,17,16,0) 0%,rgba(18,17,16,0.92) 60%);">
+    <button type="button" class="hv-nav-group" data-hv-group="hv" data-hv-key="bushingHV2" style="flex:0 0 auto;background:none;border:0;border-bottom:2px solid var(--rule);padding:var(--rail-pad);min-height:44px;cursor:pointer;font-family:var(--font-body);font-size:11px;letter-spacing:0.14em;color:var(--ink-dim);white-space:nowrap;">HV SYSTEM</button>
+    <button type="button" class="hv-nav-group" data-hv-group="lv" data-hv-key="bushingLV2" style="flex:0 0 auto;background:none;border:0;border-bottom:2px solid var(--rule);padding:var(--rail-pad);min-height:44px;cursor:pointer;font-family:var(--font-body);font-size:11px;letter-spacing:0.14em;color:var(--ink-dim);white-space:nowrap;">LV SYSTEM</button>
+    <button type="button" class="hv-nav-group" data-hv-group="cooling" data-hv-key="radiatorBankR" style="flex:0 0 auto;background:none;border:0;border-bottom:2px solid var(--rule);padding:var(--rail-pad);min-height:44px;cursor:pointer;font-family:var(--font-body);font-size:11px;letter-spacing:0.14em;color:var(--ink-dim);white-space:nowrap;">COOLING</button>
+    <button type="button" class="hv-nav-group" data-hv-group="oltc" data-hv-key="onLoadTapChanger" style="flex:0 0 auto;background:none;border:0;border-bottom:2px solid var(--rule);padding:var(--rail-pad);min-height:44px;cursor:pointer;font-family:var(--font-body);font-size:11px;letter-spacing:0.14em;color:var(--ink-dim);white-space:nowrap;">OLTC</button>
+    <button type="button" class="hv-nav-group" data-hv-group="protection" data-hv-key="conservatorAssembly" style="flex:0 0 auto;background:none;border:0;border-bottom:2px solid var(--rule);padding:var(--rail-pad);min-height:44px;cursor:pointer;font-family:var(--font-body);font-size:11px;letter-spacing:0.14em;color:var(--ink-dim);white-space:nowrap;">PROTECTION</button>
+    <button type="button" class="hv-nav-group" data-hv-group="core" data-hv-key="coreAndWindings" style="flex:0 0 auto;background:none;border:0;border-bottom:2px solid var(--rule);padding:var(--rail-pad);min-height:44px;cursor:pointer;font-family:var(--font-body);font-size:11px;letter-spacing:0.14em;color:var(--ink-dim);white-space:nowrap;">CORE &amp; WINDINGS</button>
+  </div>
+
+  <div id="hvLabel" style="position:fixed;top:0;left:0;z-index:8;pointer-events:none;opacity:0;transition:opacity 0.16s ease;background:rgba(18,17,16,0.9);border-left:2px solid #ec3013;padding:8px 12px;white-space:nowrap;">
+    <div id="hvLabelText" style="font-family:var(--font-heading);font-weight:700;font-size:11px;letter-spacing:0.12em;color:var(--ink);">PART</div>
+    <div id="hvLabelCat" style="font-size:9px;letter-spacing:0.18em;color:var(--ink-faint);margin-top:3px;">SYSTEM</div>
+  </div>
+
+  <div id="hvControls" style="position:fixed;bottom:var(--controls-bottom);left:50%;transform:translateX(-50%);z-index:7;display:flex;gap:2px;opacity:0;transition:opacity 0.4s ease;pointer-events:none;">
+    <button type="button" id="hvExplodeBtn" class="hv-ctrl-btn" style="background:rgba(18,17,16,0.86);border:0;border-top:2px solid var(--rule);color:var(--ink-dim);padding:12px 20px;font-family:var(--font-body);font-size:10px;letter-spacing:0.18em;cursor:pointer;">EXPLODE</button>
+    <button type="button" id="hvInsideBtn" class="hv-ctrl-btn" style="background:rgba(18,17,16,0.86);border:0;border-top:2px solid var(--rule);color:var(--ink-dim);padding:12px 20px;font-family:var(--font-body);font-size:10px;letter-spacing:0.18em;cursor:pointer;">INSIDE</button>
+    <button type="button" id="hvResetBtn" class="hv-ctrl-btn" style="background:rgba(18,17,16,0.86);border:0;border-top:2px solid var(--rule);color:var(--ink-dim);padding:12px 20px;font-family:var(--font-body);font-size:10px;letter-spacing:0.18em;cursor:pointer;">RESET VIEW</button>
+  </div>
+
+  <button type="button" id="hvSoundBtn" class="hv-ctrl-btn" style="position:fixed;bottom:var(--sound-bottom);right:var(--edge);z-index:7;background:rgba(18,17,16,0.86);border:0;border-top:2px solid var(--rule);color:var(--ink);padding:var(--sound-pad);min-height:44px;font-family:var(--font-body);font-size:10px;letter-spacing:0.18em;cursor:pointer;">SOUND ON</button>
+
+  <div id="hvSections" style="position:relative;z-index:2;transition:opacity 0.5s ease;">
+  <section style="position:relative;z-index:2;min-height:100dvh;box-sizing:border-box;padding:calc(var(--edge) * 2) var(--edge) var(--hero-pb);display:flex;flex-direction:column;justify-content:flex-end;pointer-events:none;">
+    <div style="position:absolute;left:0;top:0;bottom:0;width:var(--scrim-w);z-index:0;pointer-events:none;background:linear-gradient(90deg,rgba(14,13,12,0.9) 0%,rgba(14,13,12,0.78) 46%,rgba(14,13,12,0) 100%);"></div>
+    <div style="position:relative;z-index:1;max-width:var(--col-w);pointer-events:auto;animation:hvFadeUp 1.2s cubic-bezier(0.2,0.8,0.2,1) 0.2s both;">
+      <div style="font-family:var(--font-heading);font-weight:700;font-size:var(--stage-num);line-height:0.88;letter-spacing:-0.03em;color:var(--ink);">PROJECT<br />READINESS</div>
+      <div style="height:2px;background:var(--rule);margin:26px 0 18px;"></div>
+      <div style="font-family:var(--font-heading);font-weight:700;font-size:var(--stage-sub);line-height:1.25;letter-spacing:0.04em;color:#ec3013;">L0/L1 PLATFORM</div>
+      <div style="font-size:12px;letter-spacing:0.08em;color:var(--ink-dim);margin-top:14px;">Tendering and Early Project Execution Stages</div>
+      <div style="display:flex;flex-wrap:wrap;gap:26px;align-items:center;margin-top:38px;">
+        <button type="button" id="hvHeroSignIn" class="hv-cta-fill" style="background:#ec3013;border:0;color:#ffffff;padding:15px 26px;font-family:var(--font-heading);font-weight:700;font-size:11px;letter-spacing:0.18em;text-align:left;white-space:nowrap;cursor:pointer;">SIGN IN</button>
+        <button type="button" id="hvExploreBtn" class="hv-explore-cta" style="background:none;border:0;border-bottom:2px solid var(--rule);color:var(--ink);padding:15px 2px;font-family:var(--font-heading);font-weight:700;font-size:11px;letter-spacing:0.18em;white-space:nowrap;cursor:pointer;">EXPLORE TRANSFORMER →</button>
+      </div>
+      <div style="font-size:10px;letter-spacing:0.16em;color:var(--ink-dim);margin-top:22px;">HOVER A COMPONENT · CLICK TO INSPECT</div>
+    </div>
+  </section>
+  </div>
+
+  <div id="hvExploreOverlay" hidden style="position:fixed;inset:0;z-index:5;pointer-events:none;animation:hvFadeIn 0.9s ease both;">
+    <div style="position:absolute;left:var(--edge);bottom:var(--hint-bottom);display:grid;gap:7px;">
+      <div id="hvHintRotate" style="font-size:10px;letter-spacing:0.2em;color:var(--ink-dim);">DRAG TO ROTATE</div>
+      <div id="hvHintZoom" style="font-size:10px;letter-spacing:0.2em;color:var(--ink-dim);">SCROLL TO ZOOM</div>
+      <div id="hvHintPick" style="font-size:10px;letter-spacing:0.2em;color:var(--ink-dim);">CLICK A COMPONENT TO INSPECT</div>
+    </div>
+    <button type="button" id="hvExitExplore" class="hv-exit-explore" style="position:absolute;top:calc(var(--edge) + 56px);right:var(--edge);pointer-events:auto;background:none;border:0;border-bottom:2px solid var(--rule);color:var(--ink-dim);padding:var(--exit-pad);min-height:44px;display:flex;align-items:center;font-family:var(--font-body);font-size:10px;letter-spacing:0.18em;cursor:pointer;">EXIT EXPLORE ✕</button>
+  </div>
+
+  <!-- [hidden]-vs-own-display: display:flex was inline here (matching the
+       source, which never needed a hidden-attribute toggle since it was
+       conditionally MOUNTED instead) -- an inline style always beats the
+       [hidden] UA rule regardless of specificity, so toggling .hidden
+       from JS did nothing visually. Moved the flex display into
+       landing.css as a real #hvSignin[hidden]-aware rule, same fix
+       pattern already used elsewhere in this app (.xh-clearbar[hidden]
+       etc.) -- see landing.css. -->
+  <div id="hvSignin" hidden style="position:fixed;inset:0;z-index:12;background:rgba(12,11,10,0.5);align-items:center;justify-content:center;padding:var(--edge);box-sizing:border-box;animation:hvFadeIn 0.9s ease both;">
+    <div id="hvSigninPanel" style="width:100%;max-width:390px;background:rgba(22,21,20,0.97);border-top:2px solid #ec3013;padding:32px 30px 36px;box-sizing:border-box;animation:hvBurstIn 1.05s cubic-bezier(0.22,1,0.28,1) both;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;">
+        <img src="/static/img/landing/algihaz-logo-dark.png" alt="ALGIHAZ CONTRACTING" style="height:40px;width:auto;display:block;" />
+        <button type="button" id="hvSigninClose" class="hv-close-btn" aria-label="Close sign in" style="background:none;border:0;color:var(--ink-faint);font-size:17px;line-height:1;cursor:pointer;padding:0;min-width:44px;min-height:44px;margin:-10px -12px -10px 0;display:flex;align-items:center;justify-content:flex-end;">✕</button>
+      </div>
+      <div style="font-family:var(--font-heading);font-weight:700;font-size:20px;color:var(--ink);margin-top:26px;">Sign in</div>
+      <div style="font-size:11px;letter-spacing:0.14em;color:var(--ink-faint);margin-top:7px;">PROJECT READINESS (L0/L1) PLATFORM</div>
+      <form id="hvSigninForm" style="display:grid;gap:20px;margin-top:26px;">
+        <div style="display:grid;gap:8px;">
+          <label for="hvEmail" style="font-size:10px;letter-spacing:0.18em;color:var(--ink-faint);">EMAIL</label>
+          <input id="hvEmail" type="email" required placeholder="name@algihaz.com" class="hv-field" style="background:rgba(243,242,242,0.06);border:0;border-bottom:2px solid var(--rule);color:var(--ink);font-family:var(--font-body);font-size:16px;min-height:44px;padding:11px 12px;box-sizing:border-box;outline:none;" />
+        </div>
+        <div style="display:grid;gap:8px;">
+          <label for="hvPassword" style="font-size:10px;letter-spacing:0.18em;color:var(--ink-faint);">PASSWORD</label>
+          <input id="hvPassword" type="password" required placeholder="••••••••" class="hv-field" style="background:rgba(243,242,242,0.06);border:0;border-bottom:2px solid var(--rule);color:var(--ink);font-family:var(--font-body);font-size:16px;min-height:44px;padding:11px 12px;box-sizing:border-box;outline:none;" />
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;">
+          <label style="display:flex;align-items:center;gap:11px;min-height:44px;padding-right:4px;font-size:11px;color:var(--ink-dim);cursor:pointer;">
+            <input type="checkbox" style="width:20px;height:20px;flex:0 0 auto;accent-color:#ec3013;" />Remember me
+          </label>
+          <a href="#" style="font-size:11px;color:var(--ink-dim);">Forgot password?</a>
+        </div>
+        <button type="submit" class="hv-cta-fill" style="background:#ec3013;border:0;color:#ffffff;padding:15px 20px;font-family:var(--font-heading);font-weight:700;font-size:11px;letter-spacing:0.18em;cursor:pointer;text-align:left;">SIGN IN →</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="hvSpecPanel" hidden style="position:fixed;width:var(--panel-w);right:var(--panel-right);left:var(--panel-left);top:var(--panel-top);bottom:var(--panel-bottom);transform:translateY(var(--panel-ty));z-index:9;box-sizing:border-box;background:rgba(20,19,18,0.93);border-top:2px solid #ec3013;padding:26px 26px 30px;animation:var(--panel-anim);">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;">
+      <div id="hvSpecCategory" style="font-size:10px;letter-spacing:0.22em;color:#ec3013;"></div>
+      <button type="button" id="hvSpecClose" class="hv-close-btn" aria-label="Close details" style="background:none;border:0;color:var(--ink-faint);font-size:16px;line-height:1;cursor:pointer;padding:0;min-width:44px;min-height:44px;margin:-12px -12px -12px 0;display:flex;align-items:center;justify-content:flex-end;">✕</button>
+    </div>
+    <div id="hvSpecTitle" style="font-family:var(--font-heading);font-weight:700;font-size:26px;line-height:1.1;letter-spacing:-0.01em;color:var(--ink);margin-top:14px;"></div>
+    <div id="hvSpecDesc" style="font-size:12px;line-height:1.75;color:var(--ink-dim);margin-top:14px;"></div>
+    <div id="hvSpecSpecs" style="display:grid;gap:2px;margin-top:22px;"></div>
+    <button type="button" id="hvViewAssembly" class="hv-cta-fill" style="width:100%;margin-top:26px;background:#ec3013;border:0;color:#ffffff;padding:14px 18px;font-family:var(--font-heading);font-weight:700;font-size:10px;letter-spacing:0.18em;cursor:pointer;text-align:left;">VIEW ASSEMBLY →</button>
+  </div>
+</div>
 
 <div class="shell">
   <!-- Item 154: mobile nav toggle + its backdrop. Hidden entirely on wide
@@ -2058,5 +2211,6 @@
 </div>
 
 <script src="/static/app.js"></script>
+<script type="module" src="/static/js/landing.js"></script>
 </body>
 </html>
