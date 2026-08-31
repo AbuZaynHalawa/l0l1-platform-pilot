@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends
@@ -69,6 +70,14 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
     # always land exactly on their due date, so they all fall into On
     # Time specifically) and made the two pages disagree on the same numbers.
     stat_subs = [s for s in stat_subs if not s.auto_completed]
+    # [Dashboard perf]: dept_rows and the top-departments loop further down
+    # each used to re-scan the full stat_subs/org_subs list once per
+    # department (~20 departments x up to ~3500 subs = tens of thousands of
+    # comparisons). Grouping once here turns that into a single pass plus
+    # dict lookups.
+    stat_subs_by_dept: dict[int, list] = defaultdict(list)
+    for s in stat_subs:
+        stat_subs_by_dept[s.definition.department_id].append(s)
 
     # Item 143 (2nd revision): "overdue"/"not_due" are now live Deadline
     # computations, not stored statuses — see rules.deadline_status().
@@ -144,8 +153,8 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
         # is on (identical to all_subs when it isn't), so Concerns scopes
         # right along with the stat cards instead of always staying org-wide.
         dept_subs = [
-            s for s in stat_subs
-            if s.definition.department_id == dept.id and not s.auto_completed and s.definition.kpi_relevant is not False
+            s for s in stat_subs_by_dept.get(dept.id, [])
+            if s.definition.kpi_relevant is not False
         ]
         dept_overdue = [s for s in dept_subs if rules.deadline_status(s)[0] == "due"]
         due_and_done = [s for s in dept_subs if s.status == models.SubmissionStatus.APPROVED] + dept_overdue + [
@@ -183,6 +192,9 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
     # as before, since "my concerns" is meant to narrow to the focus
     # person's own cohort.
     org_subs = [s for s in all_subs if not s.auto_completed]
+    org_subs_by_dept: dict[int, list] = defaultdict(list)
+    for s in org_subs:
+        org_subs_by_dept[s.definition.department_id].append(s)
     # overdue_l0/overdue_l1 (used in the Concerns copy below) now come from
     # the item-32 stage-bucket pass above -- same values, one fewer scan.
     top_depts_l0, top_depts_l1 = [], []
@@ -190,7 +202,7 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
     for dept in db.query(models.Department).order_by(models.Department.number).all():
         if dept.name in _PERF_EXCLUDED_DEPTS:
             continue
-        focus_d_subs = _kpi_cohort([s for s in stat_subs if s.definition.department_id == dept.id])
+        focus_d_subs = _kpi_cohort(stat_subs_by_dept.get(dept.id, []))
         l0_pct_focus = _level_stats(focus_d_subs, models.Stage.L0)["percentage"]
         l1_pct_focus = _level_stats(focus_d_subs, models.Stage.L1)["percentage"]
         if l0_pct_focus is not None and l0_pct_focus < 80:
@@ -198,7 +210,7 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
         if l1_pct_focus is not None and l1_pct_focus < 80:
             concerns_l1.append(f"<b>{dept.name}</b> is at {l1_pct_focus}% approved-on-time this pilot.")
 
-        org_d_subs = _kpi_cohort([s for s in org_subs if s.definition.department_id == dept.id])
+        org_d_subs = _kpi_cohort(org_subs_by_dept.get(dept.id, []))
         l0_pct_org = _level_stats(org_d_subs, models.Stage.L0)["percentage"]
         l1_pct_org = _level_stats(org_d_subs, models.Stage.L1)["percentage"]
         if l0_pct_org is not None:
