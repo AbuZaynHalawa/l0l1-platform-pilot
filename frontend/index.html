@@ -455,6 +455,11 @@
           </div>
           <div id="assignedList"></div>
         </div>
+        <!-- Item [Assigned Deliverables pager]: the full cross-project
+             queue can run into the hundreds of rows -- paginated
+             (renderPager, 10/page) same as every other long list in the
+             app, instead of rendering the entire filtered set at once. -->
+        <div class="pager" id="assignedListPager"></div>
       </div>
     </section>
 

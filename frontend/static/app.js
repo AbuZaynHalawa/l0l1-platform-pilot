@@ -1445,10 +1445,18 @@
 
     _renderAssignedList();
   }
+  // Item [Assigned Deliverables pager]: the full cross-project queue can
+  // run into the hundreds of rows -- paginated (renderPager, same widget
+  // Dashboard's Concerns cards use) at 10/page, instead of rendering the
+  // entire filtered set at once every time a filter/sort/page reload runs.
   function _renderAssignedList() {
     var items = _assignedAll.filter(deliverableMatchesFilters);
     items = _getAssignedXh().process(items);
     var wrap = document.getElementById("assignedList");
+    var pager = document.getElementById("assignedListPager");
+    renderPager(pager, items, 10, function (pageItems) { _renderAssignedPage(wrap, pageItems); });
+  }
+  function _renderAssignedPage(wrap, items) {
     wrap.innerHTML = "";
     if (!items.length) { wrap.appendChild(el("div", "empty-state", "Nothing here right now.")); return; }
     // Item 144: a real table -- one column per field, plain buttons off to
