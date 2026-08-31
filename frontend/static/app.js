@@ -5837,6 +5837,17 @@
     category: function (r) { return r.category.replace(/_/g, " "); },
     po_status: function (r) { return _PO_STATUS_LABEL2[r.po_status] || r.po_status; },
   };
+  // Item [PO Category display]: the canonical label for every PO category
+  // the backend's CATEGORY_STEP_SEQUENCE tracks (po_line_items.py) --
+  // Overview PO's filter dropdown draws its option list from this fixed
+  // set now, not from whatever categories happen to already have a PO
+  // line item somewhere (that silently dropped "Consultancy", since no
+  // project has used it yet) -- and gives MEP/S/C their real acronym
+  // casing instead of a raw db value like "mep"/"sc".
+  var PO_CATEGORY_LABELS = {
+    long_lead: "Long Lead", early_activity: "Early Activity", mep: "MEP",
+    consultancy: "Consultancy", sc: "S/C",
+  };
   async function loadReportMasterPo() {
     document.getElementById("view-report-masterpo").appendChild(document.getElementById("masterPoCore"));
     document.getElementById("masterPoTitle").textContent = "Master PO Report";
@@ -5945,11 +5956,21 @@
   }
 
   async function loadReportOverviewPo() {
+    // [Overview PO 3-projects bug]: master-po only emits a row for a
+    // project once it has at least one real PoLineItem (po_cycle_summary
+    // returns an empty items list otherwise) -- so a project that hasn't
+    // started PO Lifecycle tracking yet had no row anywhere, and byProject
+    // below (built purely from those rows) silently dropped it instead of
+    // showing it with 0 items, same as every other report in this app
+    // that keeps an empty-but-real card visible rather than hiding it.
+    // Fetching the L1 project list directly and seeding byProject from it
+    // first means every active L1 project always gets a card.
     var results = await Promise.all([
       api("/api/reports/master-po?actor_role=" + encodeURIComponent(CURRENT_ROLE)),
       api("/api/reports/budget-status?actor_role=" + encodeURIComponent(CURRENT_ROLE)),
+      api("/api/projects?stage=L1"),
     ]);
-    var rows = results[0], budgetRows = results[1];
+    var rows = results[0], budgetRows = results[1], l1Projects = results[2];
     var budgetByProject = {};
     budgetRows.forEach(function (b) { budgetByProject[b.est_no] = b.items; });
     function budgetTier(b) {
@@ -5961,14 +5982,16 @@
     }
 
     var byProject = {};
+    l1Projects.filter(function (p) { return !p.archived; }).forEach(function (p) {
+      byProject[p.est_no] = { est_no: p.est_no, project_name: p.name, project_manager: p.project_manager,
+        bid_manager: p.bid_manager, contract_status: p.contract_status, rows: [] };
+    });
     rows.forEach(function (r) { (byProject[r.est_no] = byProject[r.est_no] || { est_no: r.est_no, project_name: r.project_name, project_manager: r.project_manager, bid_manager: r.bid_manager, contract_status: r.contract_status, rows: [] }).rows.push(r); });
     var projects = Object.keys(byProject).map(function (k) { return byProject[k]; }).sort(function (a, b) { return a.est_no < b.est_no ? -1 : 1; });
 
     var catSel = document.getElementById("repOverviewPoCategoryFilter");
-    var seenCat = {};
-    rows.forEach(function (r) { seenCat[r.category] = true; });
     catSel.innerHTML = '<option value="">All</option>';
-    Object.keys(seenCat).sort().forEach(function (c) { var o = el("option", "", c.replace(/_/g, " ")); o.value = c; catSel.appendChild(o); });
+    Object.keys(PO_CATEGORY_LABELS).forEach(function (c) { var o = el("option", "", PO_CATEGORY_LABELS[c]); o.value = c; catSel.appendChild(o); });
 
     function filteredProjects() {
       var catF = catSel.value, statusF = document.getElementById("repOverviewPoStatusFilter").value,
