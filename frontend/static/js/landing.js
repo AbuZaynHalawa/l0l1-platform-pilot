@@ -110,6 +110,14 @@ let resumeAudio = null;
 let savedBodyOverflow = null; // §3 -- captured once, restored (not blanked) on release
 let listenersBound = false;
 
+// 'click' and 'mousedown' are the two events browsers reliably treat as a
+// real "user activation" for unlocking an autoplay-blocked AudioContext --
+// mousemove/wheel/scroll never do (continuous input, not a discrete
+// activation-triggering gesture), so those three were never actually
+// unlocking anything on their own; kept here anyway since they're harmless
+// and do widen the surface for keyboard/touch users.
+const AUDIO_UNLOCK_EVENTS = ['click', 'mousedown', 'pointerdown', 'mousemove', 'keydown', 'touchstart', 'wheel', 'scroll'];
+
 const els = {}; // filled in mount() from getElementById
 
 function el(id) { return document.getElementById(id); }
@@ -167,8 +175,7 @@ export function mount() {
   resumeAudio = () => {
     if (audio && audio.on && audio.ctx.state === 'suspended') audio.ctx.resume();
   };
-  ['pointerdown', 'mousemove', 'keydown', 'touchstart', 'wheel', 'scroll'].forEach((ev) =>
-    window.addEventListener(ev, resumeAudio, { passive: true }));
+  AUDIO_UNLOCK_EVENTS.forEach((ev) => window.addEventListener(ev, resumeAudio, { passive: true }));
   listenersBound = true;
 }
 
@@ -177,8 +184,7 @@ export function destroy() {
   stopped = true; // both rAF loops (animate/draw) check this before rescheduling
 
   if (listenersBound) {
-    ['pointerdown', 'mousemove', 'keydown', 'touchstart', 'wheel', 'scroll'].forEach((ev) =>
-      window.removeEventListener(ev, resumeAudio));
+    AUDIO_UNLOCK_EVENTS.forEach((ev) => window.removeEventListener(ev, resumeAudio));
   }
   if (onWinOut) { window.removeEventListener('blur', onWinOut); document.removeEventListener('pointerleave', onWinOut); }
   if (onWinMove) window.removeEventListener('pointermove', onWinMove);
