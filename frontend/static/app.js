@@ -2555,15 +2555,14 @@
     // Redlined: GAHIZ floats outside the slide, only on his own step.
     document.getElementById("tourGahizFloat").hidden = !s.gahiz;
   }
-  // Item 41: a brand-new user (no completed-walkthrough flag yet) gets this
-  // forced open on their very first load and can't back out of it -- no
-  // close button, no backdrop dismiss -- until they've actually clicked
-  // through to the end. Anyone reopening it later (nav item, or a returning
-  // user) gets the normal closable version.
-  var tourLocked = false;
-  function openTour(forced) {
-    tourLocked = !!forced;
-    document.getElementById("tourClose").hidden = tourLocked;
+  // Item 41 (reworked): no more "mandatory, can't back out" mode -- the
+  // close button is always available now. Instead the tour auto-opens on
+  // every sign-in (see the bootstrap call at the bottom of this file),
+  // and a person who doesn't want that can turn it off for themselves via
+  // the "Disable auto tour on sign in" checkbox below, a standing
+  // per-browser preference (tourAutoDisabled) checked at that same
+  // bootstrap call.
+  function openTour() {
     tourStep = 0;
     renderTourStep();
     document.getElementById("tourOverlay").hidden = false;
@@ -2572,15 +2571,15 @@
     document.getElementById("tourOverlay").hidden = true;
     // Item 1: whenever the walkthrough ends -- whether opened from the
     // "L0/L1 Walkthrough" nav item (which has no real page of its own, see
-    // loadJourney) or forced open on first login on top of some other view
-    // -- land the user on the Dashboard, not wherever they happened to be.
+    // loadJourney) or auto-opened on sign-in on top of some other view --
+    // land the user on the Dashboard, not wherever they happened to be.
     // (Landing on "journey" instead was tried and reverted: loadJourney()
     // itself unconditionally reopens the tour, so it would just pop back
     // open immediately after finishing -- "journey" IS the tour, not a
     // separate page to land on.)
     switchView("dashboard");
   }
-  document.getElementById("tourStartBtn").addEventListener("click", function () { openTour(false); });
+  document.getElementById("tourStartBtn").addEventListener("click", openTour);
   document.getElementById("tourClose").addEventListener("click", closeTour);
   document.getElementById("tourPrev").addEventListener("click", function () {
     if (tourStep > 0) { tourStep--; renderTourStep(); }
@@ -2589,14 +2588,14 @@
     if (tourStep < TOUR_STEPS.length - 1) { tourStep++; renderTourStep(); return; }
     // Reaching the last slide via "Next" already leaves it on screen to
     // read -- clicking "Done" itself is the real "I'm finished" action, so
-    // it closes the tour exactly like the X does (same dashboard-redirect
-    // logic in closeTour() if it was opened from the Walkthrough tab).
-    if (tourLocked) {
-      localStorage.setItem("tourCompletedOnce", "1");
-      tourLocked = false;
-      document.getElementById("tourClose").hidden = false;
-    }
+    // it closes the tour exactly like the X does.
     closeTour();
+  });
+  var tourAutoToggle = document.getElementById("tourAutoToggle");
+  tourAutoToggle.checked = localStorage.getItem("tourAutoDisabled") === "1";
+  tourAutoToggle.addEventListener("change", function () {
+    if (tourAutoToggle.checked) localStorage.setItem("tourAutoDisabled", "1");
+    else localStorage.removeItem("tourAutoDisabled");
   });
   /* ===== [PO Lifecycle] declaring-item selection UI, inside the normal deliverable modal ===== */
   var PO_DECLARING_ITEM_NOS = ["1.2", "4.1", "2.11", "2.17"];
@@ -10249,8 +10248,9 @@
     if (sharedMatch) openDelivModal(parseInt(sharedMatch[1], 10));
   }
   checkBmTriageDeadline();
-  // Item 41: a brand-new browser (no completed-walkthrough flag) gets the
-  // System Introduction forced open, on top of whatever view they landed
-  // on, before they can do anything else on the site.
-  if (!localStorage.getItem("tourCompletedOnce")) openTour(true);
+  // Item 41 (reworked): the System Introduction opens automatically on
+  // every sign-in now (not just the first one), on top of whatever view
+  // the app landed on -- unless the person turned that off for themselves
+  // via the tour's own "Disable auto tour on sign in" checkbox.
+  if (localStorage.getItem("tourAutoDisabled") !== "1") openTour();
 })();
