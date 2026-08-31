@@ -1454,7 +1454,7 @@
     items = _getAssignedXh().process(items);
     var wrap = document.getElementById("assignedList");
     var pager = document.getElementById("assignedListPager");
-    renderPager(pager, items, 10, function (pageItems) { _renderAssignedPage(wrap, pageItems); });
+    renderPager(pager, items, 20, function (pageItems) { _renderAssignedPage(wrap, pageItems); });
   }
   function _renderAssignedPage(wrap, items) {
     wrap.innerHTML = "";

@@ -1623,7 +1623,15 @@
      card's width -- text columns ellipsize under pressure instead of the
      table ever needing horizontal scroll. */
   .aqt { width: 100%; }
-  .aqt-row { display: grid; grid-template-columns: 108px minmax(0,2.3fr) minmax(0,1.1fr) minmax(0,1fr) 148px 168px 116px 200px; align-items: center; gap: 10px; }
+  /* [Actions column width]: sized for the common case (Follow alone ~75px,
+     Follow+Send reminder ~189px, Approve+Reject ~141px) with real margin,
+     not the rare all-4-buttons-at-once case (~336px, when an item is both
+     pending review and overdue) -- sizing the whole table for that rare
+     row squeezed Deliverable/Department/Focal Point to 0px on an ordinary
+     1280px laptop viewport. That row's own actions can spill past the
+     column edge instead (still one line, just occasionally wider than its
+     track) rather than punishing every other row's layout. */
+  .aqt-row { display: grid; grid-template-columns: 108px minmax(0,2.3fr) minmax(0,1.1fr) minmax(0,1fr) 110px 150px 116px 220px; align-items: center; gap: 10px; }
   /* [mobile fix] .aqt had no overflow handling at all -- its row's fixed
      columns alone (78+148+168+96+200) sum to 690px, well past any phone
      viewport, so this was leaking real page-level horizontal overflow
@@ -1635,9 +1643,16 @@
     .aqt { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     .aqt-row { min-width: 900px; }
   }
-  .aqt-head { padding: 10px 18px; border-bottom: 1px solid var(--line); background: var(--surface-sunken); }
+  /* [Header double-padding]: .xh-th-wrap (installExcelHeader) already
+     gives every sortable/filterable cell its own 11px top/bottom padding
+     -- stacking .aqt-head's own vertical padding on top of that made the
+     header row taller than every other table's, despite no wrapped text.
+     Vertical padding now lives only on the cells (via .xh-th-wrap for
+     xh-enabled ones, and directly below for Actions, the one cell that
+     isn't). */
+  .aqt-head { padding: 0 18px; border-bottom: 1px solid var(--line); background: var(--surface-sunken); }
   .aqt-head .aqt-cell { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-500); }
-  .aqt-head .aqt-cell:last-child { text-align: right; }
+  .aqt-head .aqt-cell:last-child { text-align: right; padding: 11px 0; }
   .aqt-body-row { padding: 12px 18px; border-bottom: 1px solid var(--line); cursor: pointer; }
   .aqt-body-row:last-child { border-bottom: none; }
   .aqt-body-row:hover { background: var(--surface-sunken); }
@@ -1654,11 +1669,16 @@
   .aqt-status.warn { color: var(--warn); } .aqt-status.warn .dot { background: var(--warn); }
   .aqt-status.crit { color: var(--crit); } .aqt-status.crit .dot { background: var(--crit); }
   .aqt-status.neutral { color: var(--ink-500); } .aqt-status.neutral .dot { background: var(--ink-300); }
-  .aqt-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+  /* [Actions on one line]: up to 4 buttons can appear together (Follow +
+     Approve + Reject + Send reminder, when an item is both pending review
+     and overdue) -- the column is now wide enough (360px) that they don't
+     need to; flex-wrap:wrap used to stack them into a ragged multi-row
+     mess whenever the column ran a little short. */
+  .aqt-actions { display: flex; flex-wrap: nowrap; gap: 6px; justify-content: flex-end; }
   .aqt-actions .btn { padding: 5px 12px; font-size: 11.5px; }
   .aqt-locked { font-size: 11px; color: var(--ink-300); font-style: italic; text-align: right; }
   @media (max-width: 1180px) {
-    .aqt-row { grid-template-columns: 100px minmax(0,2fr) minmax(0,1fr) 130px 150px 108px 170px; }
+    .aqt-row { grid-template-columns: 100px minmax(0,2fr) minmax(0,1fr) 100px 140px 108px 210px; }
     .aqt-focal { display: none; }
   }
   /* Item 142 rework: these spans had ellipsis rules but no min-width, so
