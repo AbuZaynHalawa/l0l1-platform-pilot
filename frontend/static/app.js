@@ -2574,6 +2574,10 @@
     // "L0/L1 Walkthrough" nav item (which has no real page of its own, see
     // loadJourney) or forced open on first login on top of some other view
     // -- land the user on the Dashboard, not wherever they happened to be.
+    // (Landing on "journey" instead was tried and reverted: loadJourney()
+    // itself unconditionally reopens the tour, so it would just pop back
+    // open immediately after finishing -- "journey" IS the tour, not a
+    // separate page to land on.)
     switchView("dashboard");
   }
   document.getElementById("tourStartBtn").addEventListener("click", function () { openTour(false); });
