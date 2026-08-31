@@ -513,10 +513,22 @@ def delete_tender_document(project_id: int, doc_id: int, actor_role: str = "View
 def delete_project(project_id: int, actor_role: str = "Viewer", db: Session = Depends(get_db)):
     """Removes a project and everything under it — mainly for cleaning up a
     mistaken or test entry. Cascades cover submissions and workflow history
-    on their own; documents, followers, and reassignment requests aren't
-    reverse-cascaded from the submission side, so they're cleared explicitly
-    here. Announcements are detached (kept, project/submission refs nulled)
-    rather than deleted, so the activity log isn't rewritten.
+    on their own; documents, followers, reassignment requests, due-date
+    requests, bid-value-access requests, and PO line items aren't
+    reverse-cascaded from the submission/project side, so they're cleared
+    explicitly here. Announcements are detached (kept, project/submission
+    refs nulled) rather than deleted, so the activity log isn't rewritten.
+
+    [Delete-project gaps]: due_date_requests, bid_value_access_requests, and
+    po_line_items were missing from this cleanup entirely -- all three have
+    non-nullable FKs to project/submission with no ondelete=CASCADE, so
+    deleting any project with real PO Lifecycle activity (line items, a
+    due-date extension request, a bid-value grant) 500'd instead of
+    deleting. Found while removing test projects on production -- a plain
+    L0 test stub deleted fine, but one with actual PO Lifecycle usage
+    didn't. po_line_item_id on submissions gets nulled before the line
+    items themselves are deleted (it's nullable, but still a real FK that
+    would otherwise dangle for the instant between the two deletes).
     """
     if actor_role != "Admin":
         raise HTTPException(403, "Only an Admin can delete a project")
@@ -531,11 +543,16 @@ def delete_project(project_id: int, actor_role: str = "Viewer", db: Session = De
         db.query(models.Document).filter(models.Document.submission_id.in_(sub_ids)).delete(synchronize_session=False)
         db.query(models.Follower).filter(models.Follower.submission_id.in_(sub_ids)).delete(synchronize_session=False)
         db.query(models.ReassignmentRequest).filter(models.ReassignmentRequest.submission_id.in_(sub_ids)).delete(synchronize_session=False)
+        db.query(models.DueDateRequest).filter(models.DueDateRequest.submission_id.in_(sub_ids)).delete(synchronize_session=False)
+        db.query(models.DeliverableSubmission).filter(models.DeliverableSubmission.id.in_(sub_ids)).update(
+            {"po_line_item_id": None}, synchronize_session=False)
         db.query(models.Announcement).filter(models.Announcement.submission_id.in_(sub_ids)).update(
             {"submission_id": None}, synchronize_session=False)
     db.query(models.Announcement).filter(models.Announcement.project_id == project_id).update(
         {"project_id": None}, synchronize_session=False)
     db.query(models.TenderDocument).filter(models.TenderDocument.project_id == project_id).delete(synchronize_session=False)
+    db.query(models.BidValueAccessRequest).filter(models.BidValueAccessRequest.project_id == project_id).delete(synchronize_session=False)
+    db.query(models.PoLineItem).filter(models.PoLineItem.project_id == project_id).delete(synchronize_session=False)
 
     db.delete(project)
     db.commit()
