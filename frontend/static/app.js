@@ -1468,8 +1468,9 @@
       // Item [Assigned Deliverables short names]: short_name (same curated
       // label Matrix/Timeline already use), full name as the hover title
       // since this cell ellipsizes under pressure (.aqt-ellipsis).
-      var nameCell = el("div", "aqt-cell aqt-ellipsis aqt-name",
-        d.item_no + " &middot; " + d.short_name + '<span class="aqt-proj"> &#8211; ' + d.project_name + "</span>");
+      // [No project name in Deliverable cell]: the Est No. column already
+      // identifies the project -- repeating it here was redundant.
+      var nameCell = el("div", "aqt-cell aqt-ellipsis aqt-name", d.item_no + " &middot; " + d.short_name);
       nameCell.title = d.name;
       row.appendChild(nameCell);
 

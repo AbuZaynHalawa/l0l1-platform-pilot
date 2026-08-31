@@ -793,6 +793,11 @@
      narrow fixed-width columns (e.g. "Counts in Performance" in Manage
      Tracking) instead of an ellipsis or a hard cutoff. */
   .xh-label { white-space: normal; line-height: 1.25; }
+  /* [Assigned Deliverables header wrap]: Est No./Due Date are short labels
+     that don't need the wrap-instead-of-clip treatment above -- they were
+     wrapping onto 2 lines purely because their columns are narrow, not
+     because the text itself is long. */
+  #assignedTableHead .xh-label { white-space: nowrap; }
   .xh-sort-svg { flex-shrink: 0; opacity: .35; }
   .xh-sort-svg .xh-sort-up, .xh-sort-svg .xh-sort-down { opacity: .45; }
   .xh-sort-asc .xh-sort-svg, .xh-sort-desc .xh-sort-svg { opacity: 1; }
@@ -1642,7 +1647,6 @@
   .aqt-est.l0 { color: var(--l0-1); }
   .aqt-est.l1 { color: var(--l1-1); }
   .aqt-name { font-size: 13px; font-weight: 700; }
-  .aqt-name .aqt-proj { font-weight: 500; color: var(--ink-500); }
   .aqt-dept, .aqt-focal, .aqt-due { font-size: 12.5px; color: var(--ink-700); }
   .aqt-status { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; white-space: nowrap; }
   .aqt-status .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
