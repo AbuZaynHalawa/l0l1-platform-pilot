@@ -398,7 +398,11 @@
      header and a short accent rule under each page title instead. */
   .view-head h1 { font-size: 25px; color: var(--ink-900); position: relative; display: inline-block; padding-bottom: 10px; }
   .view-head h1::after { content: ""; position: absolute; left: 1px; right: 1px; bottom: 0; width: auto; height: 3px; border-radius: 2px; background: var(--algihaz-red); }
-  .view-head p.sub { color: var(--ink-500); font-size: 13.5px; margin-top: 3px; }
+  /* Item [subtitle spacing]: was 3px, visibly tighter than the 10px gap the
+     title keeps above the red underline (h1's own padding-bottom) -- match
+     it so the underline sits centered between title and subtitle instead
+     of hugging the subtitle. */
+  .view-head p.sub { color: var(--ink-500); font-size: 13.5px; margin-top: 10px; }
   .eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--purple-1); font-weight: 700; margin-bottom: 6px; }
 
   .card { background: var(--surface); border: 1.5px solid var(--card-border); border-radius: var(--radius); box-shadow: var(--shadow-1); }
@@ -1712,7 +1716,7 @@
   .gantt-est-tag { display: inline-block; margin-left: 6px; font-size: 10.5px; font-weight: 700; color: var(--ink-500); background: var(--surface-sunken); border-radius: 6px; padding: 1px 6px; }
   .gantt-bu-note { font-size: 10.5px; font-weight: 700; color: var(--purple-2); }
   .gantt-col-header {
-    display: flex; align-items: center; gap: 12px; padding: 7px 14px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 12px; padding: 7px 14px;
     font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-500);
     /* This row's content (Item/Est/Start/Finish) mirrors the frozen columns
        inside .gantt-scroll, which are pinned and never need to scroll --
@@ -1726,7 +1730,19 @@
        */
     overflow: hidden;
   }
-  .gantt-axis-clip { overflow: hidden; }
+  /* Item [Timeline header alignment]: Item/Est/Start/Finish used to sit on
+     a full row of their own, stacked above the axis's year/month/day rows
+     -- reading as 4 separate header rows instead of one. Pulling the axis
+     block up by .gantt-col-header's own height overlaps the two: they
+     never collide horizontally (the axis's own padding-left already
+     reserves exactly .gantt-col-header's width for the frozen columns), so
+     this lands Item/Est/Start/Finish vertically alongside the year row --
+     the timeline's own title row -- with month/day stacking immediately
+     under as before. .gantt-col-header's own border-bottom (removed above)
+     would otherwise cut straight through the now-shifted month row; the
+     axis's own trailing border (after the day row) is still the one real
+     separator below the whole header block. */
+  .gantt-axis-clip { overflow: hidden; margin-top: -27px; }
   .gantt-axis { padding-left: 418px; border-bottom: 1px solid var(--line); margin-bottom: 4px; width: max-content; }
   .gantt-axis-row { display: flex; }
   .gantt-axis-row.year span { font-size: 11px; font-weight: 800; color: var(--ink-700); padding: 3px 6px; }
@@ -2556,7 +2572,13 @@
 .po-column .po-item-track .dot.skipped { background: var(--crit); opacity: 0.45; }
 .po-column .po-item-track .dot.clickable { cursor: pointer; }
 .po-column .po-item-track .dot.clickable:hover { box-shadow: 0 0 0 1.5px var(--ink-300); }
-.po-column .rail { border-left: 1.5px solid var(--line); }
+/* Item [PO Lifecycle dark rail]: this .rail is unrelated to the app's main
+   nav .rail (the dark sidebar) -- they just share a class name. .rail's own
+   `background: var(--sidebar-bg)` is less specific than this selector but
+   sets a DIFFERENT property (background, not border), so it was never
+   actually overridden -- the sidebar's dark navy was bleeding straight into
+   this decorative divider line. This should never have a fill at all. */
+.po-column .rail { border-left: 1.5px solid var(--line); background: none; }
 .po-column .card { display: flex; gap: 8px; align-items: flex-start; padding: 7px 10px; }
 .po-column .card .icon { flex-shrink: 0; margin-top: 1px; }
 .po-column .card .body { flex: 1; min-width: 0; }

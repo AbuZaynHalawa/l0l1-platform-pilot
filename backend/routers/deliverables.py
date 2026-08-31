@@ -60,7 +60,7 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
 
     # Item [Assigned Deliverables perf]: this endpoint returns every
     # deliverable across the whole platform (3300+ rows) on every page
-    # load, so per-row cost multiplies fast. Two fixes:
+    # load, so per-row cost multiplies fast. Three fixes:
     # 1. contains_eager reuses the joins already in the WHERE clause to
     #    populate s.project / s.definition / s.definition.department, so
     #    accessing them below doesn't lazy-load a fresh query per unique
@@ -72,6 +72,68 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
     #    lookup dict per project (same shape recompute_project_due_dates
     #    already builds for its own internal use, see rules.py) up front
     #    instead.
+    # 3. [Queued: SQL-level scoping] lookups_by_project only ever calls
+    #    .status/.due_date/.project_id/.po_line_item_id and .definition's
+    #    own fields on the rows it stores (verified against
+    #    awaiting_milestone_note's + _get_submissions' full body) -- never
+    #    .project or .definition.department. So the FULL-catalog fetch
+    #    needed to build it doesn't need those two joins at all; only the
+    #    rows actually being returned to a scoped (non-Admin) caller need
+    #    the expensive Department+Project-joined hydration. Splitting this
+    #    into a light full-catalog fetch (Definition only) + a heavy fetch
+    #    narrowed to just the caller's own row ids (via a plain
+    #    `id IN (...)` filter, computed from the light rows -- resolve_owners/
+    #    resolve_smes only read columns the light fetch already has) means
+    #    an Owner/SME's request no longer pays the Department+Project join
+    #    cost for the ~3300 rows it was always going to filter back out.
+    #    Admin's request is unscoped and unchanged either way.
+    light_q = (
+        db.query(models.DeliverableSubmission)
+        .join(models.DeliverableDefinition)
+        .join(models.Project)
+        .options(contains_eager(models.DeliverableSubmission.definition))
+        .filter(models.Project.archived.is_not(True))
+    )
+    # auto_completed rows (e.g. 1.1) are filtered out of the RESPONSE below,
+    # same as before -- but NOT out of this query, because they're exactly
+    # the causal-chain anchors other items' predecessor checks depend on
+    # (see projects.py get_deliverables' own comment on this). Building the
+    # lookup from an already-filtered list would make awaiting_milestone_note
+    # blind to an auto-completed predecessor and misreport a real item as
+    # still "Awaiting" one that's actually done.
+    light_subs = light_q.all()
+    my_follows = set()
+    if actor_email:
+        my_follows = {
+            f.submission_id for f in
+            db.query(models.Follower).filter(models.Follower.email == actor_email.strip().lower()).all()
+        }
+    scope_to_mine = bool(actor_role) and actor_role != "Admin"
+    my_email = (actor_email or "").strip().lower()
+    # lookups_by_project needs the FULL cross-project catalog regardless of
+    # scope -- a scoped user's own item can be predecessor-chained behind
+    # someone else's, so awaiting_milestone_note() below still needs to see
+    # the whole picture even when the caller only ends up viewing one item.
+    lookups_by_project: dict[int, dict[str, list]] = {}
+    for s in light_subs:
+        lookups_by_project.setdefault(s.project_id, {}).setdefault(s.definition.item_no, []).append(s)
+
+    def _is_mine(s: "models.DeliverableSubmission") -> bool:
+        if not my_email:
+            return False
+        owners = {e.strip().lower() for e in rules.resolve_owners(s) if e}
+        smes = {e.strip().lower() for e in rules.resolve_smes(s) if e}
+        if actor_role == "SME":
+            # Item [SME scope]: an SME's assigned cohort is only what
+            # needs their review right now -- pending review, or
+            # rejected by them specifically until it moves past
+            # rejected -- not every status on items they're tied to.
+            is_pending_for_me = my_email in smes and s.status == models.SubmissionStatus.PENDING_REVIEW
+            is_my_rejection = s.status == models.SubmissionStatus.REJECTED and (s.reviewed_by_email or "").strip().lower() == my_email
+            is_my_approval = s.status == models.SubmissionStatus.APPROVED and (s.reviewed_by_email or "").strip().lower() == my_email
+            return is_pending_for_me or is_my_rejection or is_my_approval
+        return my_email in owners or my_email in smes
+
     q = (
         db.query(models.DeliverableSubmission)
         .join(models.DeliverableDefinition)
@@ -83,57 +145,10 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
         )
         .filter(models.Project.archived.is_not(True))
     )
-    # auto_completed rows (e.g. 1.1) are filtered out of the RESPONSE below,
-    # same as before -- but NOT out of this query, because they're exactly
-    # the causal-chain anchors other items' predecessor checks depend on
-    # (see projects.py get_deliverables' own comment on this). Building the
-    # lookup from an already-filtered list would make awaiting_milestone_note
-    # blind to an auto-completed predecessor and misreport a real item as
-    # still "Awaiting" one that's actually done.
-    subs = q.all()
-    my_follows = set()
-    if actor_email:
-        my_follows = {
-            f.submission_id for f in
-            db.query(models.Follower).filter(models.Follower.email == actor_email.strip().lower()).all()
-        }
-    scope_to_mine = bool(actor_role) and actor_role != "Admin"
-    my_email = (actor_email or "").strip().lower()
-    visible_subs = [s for s in subs if not s.auto_completed]
-    # lookups_by_project needs the FULL cross-project catalog regardless of
-    # scope -- a scoped user's own item can be predecessor-chained behind
-    # someone else's, so awaiting_milestone_note() below still needs to see
-    # the whole picture even when the caller only ends up viewing one item.
-    lookups_by_project: dict[int, dict[str, list]] = {}
-    for s in subs:
-        lookups_by_project.setdefault(s.project_id, {}).setdefault(s.definition.item_no, []).append(s)
-    # [Assigned Deliverables perf, scoped requests]: this used to apply the
-    # owner/SME scope only inside the output loop below, AFTER doc_counts/
-    # pending_kinds/the notes query had already run across the full 3300+
-    # row catalog -- so an Owner/SME request that ends up surfacing a
-    # handful of rows (or, for a stale/mistyped actor_email, zero) still
-    # paid the same fixed cost as Admin's full-catalog one. resolve_owners/
-    # resolve_smes only read fields already present on the fetched row (no
-    # extra query), so narrowing visible_subs down to just this caller's
-    # rows here, before any of the batch lookups below, is free and skips
-    # all of that work for every row that was never going to be returned.
     if scope_to_mine:
-        def _is_mine(s: "models.DeliverableSubmission") -> bool:
-            if not my_email:
-                return False
-            owners = {e.strip().lower() for e in rules.resolve_owners(s) if e}
-            smes = {e.strip().lower() for e in rules.resolve_smes(s) if e}
-            if actor_role == "SME":
-                # Item [SME scope]: an SME's assigned cohort is only what
-                # needs their review right now -- pending review, or
-                # rejected by them specifically until it moves past
-                # rejected -- not every status on items they're tied to.
-                is_pending_for_me = my_email in smes and s.status == models.SubmissionStatus.PENDING_REVIEW
-                is_my_rejection = s.status == models.SubmissionStatus.REJECTED and (s.reviewed_by_email or "").strip().lower() == my_email
-                is_my_approval = s.status == models.SubmissionStatus.APPROVED and (s.reviewed_by_email or "").strip().lower() == my_email
-                return is_pending_for_me or is_my_rejection or is_my_approval
-            return my_email in owners or my_email in smes
-        visible_subs = [s for s in visible_subs if _is_mine(s)]
+        matched_ids = [s.id for s in light_subs if not s.auto_completed and _is_mine(s)]
+        q = q.filter(models.DeliverableSubmission.id.in_(matched_ids))
+    visible_subs = [s for s in q.all() if not s.auto_completed]
     doc_counts = rules.document_counts(db, [s.id for s in visible_subs])
     pending_kinds = rules.pending_due_date_request_kinds(db, [s.id for s in visible_subs])
     # Second N+1, same shape as awaiting_milestone_note's: rules.mark_complete_note(s)
@@ -165,7 +180,13 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
             "id": s.id, "est_no": s.project.est_no, "project_name": s.project.name, "stage": s.project.stage.value,
             "department": s.definition.department.name, "department_number": s.definition.department.number,
             "item_no": s.definition.item_no,
-            "name": rules.display_name(s.definition, s.project), "due_date": s.due_date, "status": s.status.value,
+            "name": rules.display_name(s.definition, s.project),
+            # Item [Assigned Deliverables short names]: the row label used to
+            # be the full definition name, unlike the Matrix/Timeline (which
+            # already show short_name) -- falls back to the full name for
+            # any definition without a curated short_name.
+            "short_name": s.definition.short_name or rules.display_name(s.definition, s.project),
+            "due_date": s.due_date, "status": s.status.value,
             "deadline_status": deadline_key, "deadline_days": deadline_days, "auto_completed": s.auto_completed,
             "owner": ", ".join(rules.resolve_owners(s)) or "Unassigned",
             "owner_emails": rules.resolve_owners(s),

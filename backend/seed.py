@@ -958,6 +958,74 @@ L0_SHORT_NAMES = {
     "15.1": "Equipment Cost Estimates", "15.2": "Equipment Availability", "16.1": "Camp Cost Estimates",
 }
 
+# [International short names]: L0_INTERNATIONAL_ITEMS reuses the SAME
+# item_no scheme as the standard L0 catalog (1.x=Tendering, 2.x=Operations,
+# 3.x=Supply Chain, ...) but the wording at each item_no genuinely differs
+# between the two catalogs (e.g. standard "1.10" = "Float Consultant RFQ"
+# vs international "1.10" = "Float SC RFQ's") -- so this can't reuse
+# L0_SHORT_NAMES by item_no, it needs its own curated set. Every
+# department-number prefix here (1-19) is unique to one department in
+# L0_INTERNATIONAL_ITEMS (unlike L1_ITEMS' TBU/PBU/DBU/BBU, which
+# deliberately repeat the same item_no across several departments), so a
+# flat item_no key is safe here too.
+L0_INTERNATIONAL_SHORT_NAMES = {
+    "1.1": "Receive GO Approval", "1.2": "Announce Site Visit", "1.3": "Announce Pre-bid Meeting",
+    "1.4": "Pre-bid Deadline", "1.5": "Assign Bid Manager", "1.6": "Request Bid Bond",
+    "1.7": "Develop Estimate Program", "1.8": "IBU Participation Decision", "1.9": "Align with Partner",
+    "1.10": "Float SC RFQ", "1.11": "Float Materials RFQ", "1.12": "Float Consultant RFQ",
+    "1.13": "Circulate Technical Offers", "1.14": "Align with Subsidiary (BD)", "1.15": "Review Project Schedule",
+    "1.16": "Review Execution Plan", "1.17": "Incorporate Consultant Findings", "1.18": "Incorporate SME Findings",
+    "1.19": "Share Manpower Schedule", "1.20": "Provide BOQ & Price Breakdown", "1.21": "Develop Technical Proposal",
+    "1.22": "Develop Commercial Proposal", "1.23": "Adjust Proposal (Comments)", "1.24": "Submit Proposal",
+
+    "2.1": "Attend Site Visit", "2.2": "Site Visit Report", "2.3": "Assign Focal Point",
+    "2.4": "Review Local Codes", "2.5": "Check Security & Stability", "2.6": "Site Establishment Plan",
+    "2.7": "Highlight Pre-bid Points", "2.8": "Prepare Risk Register", "2.9": "Subcontracting Strategy",
+    "2.10": "Prepare Execution Plan", "2.11": "Review Project Schedule",
+
+    "3.1": "Prepare Risk Register", "3.2": "Highlight Pre-bid Points", "3.3": "Prepare Pre-bid Agreements",
+    "3.4": "PO & Procurement History", "3.5": "Long Lead Items List", "3.6": "Logistics Pricing Support",
+    "3.7": "Internal Prequalification", "3.8": "Negotiation Rounds",
+
+    "4.1": "Prepare Risk Register", "4.2": "Highlight Pre-bid Points", "4.3": "Site Investigations List",
+    "4.4": "Equipment Technical RFP", "4.5": "Generate Design & BOQ", "4.6": "Hire Engineering Firm",
+    "4.7": "Value Engineering Studies", "4.8": "Review Technical Offers", "4.9": "Support Tech Proposals",
+
+    "5.1": "Prepare Risk Register", "5.2": "Highlight Pre-bid Points", "5.3": "Prepare Project Schedule",
+    "5.4": "Verify Quantities",
+
+    "6.1": "Prepare Risk Register", "6.2": "Highlight Pre-bid Points",
+
+    "7.1": "Prepare Risk Register", "7.2": "Highlight Pre-bid Points", "7.3": "Prepare NDA",
+    "7.4": "Review Pre-bid Agreements", "7.5": "JV / Consortium Agreement",
+
+    "8.1": "Local Content Report", "8.2": "HR Cost Estimates", "8.3": "Workforce Availability",
+    "8.4": "Team CVs & Certificates",
+
+    "9.1": "Prepare Risk Register", "9.2": "Issue Bid Bonds", "9.3": "Financial Capacity Update",
+
+    "10.1": "Prepare Risk Register", "10.2": "Audited Financial Statements", "10.3": "Insurance Certificates",
+    "10.4": "Insurance Cost", "10.5": "Proposed Overheads", "10.6": "Cash Flow & Finance Cost",
+
+    "11.1": "Prepare Risk Register", "11.2": "Highlight Pre-bid Points", "11.3": "QA/QC Plan",
+
+    "12.1": "Prepare Risk Register", "12.2": "Highlight Pre-bid Points", "12.3": "Safety Requirements & PPE",
+    "12.4": "HSE Plan", "12.5": "Weather & Environment Check",
+
+    "13.1": "Staff & Office Cost",
+    "14.1": "Compile Risk Registers",
+    "15.1": "Equipment Cost Estimates",
+    "16.1": "Camp Cost Estimates",
+
+    "17.1": "Power of Attorney", "17.2": "Litigation Disclosure",
+
+    "18.1": "Partner Communications (BD)", "18.2": "Arrange Site Visit (BD)", "18.3": "Market & Competitor Analysis",
+    "18.4": "Ongoing & Completed Projects", "18.5": "Intl Experience References",
+
+    "19.1": "Commercial Registration", "19.2": "Zakat/Tax/VAT Certificates", "19.3": "GOSI Certificate",
+    "19.4": "Chamber of Commerce Cert.", "19.5": "Company Profile",
+}
+
 L1_SHORT_NAMES = {
     "1.1": "L1 Announcement", "1.2": "Early Mobilization Plan", "1.3": "Commercial & Tech Handover",
     "1.4": "Start Post-Bid Clarification", "1.5": "Receive LOA", "1.6": "Contract Signing",
@@ -1934,13 +2002,13 @@ def run():
         }
 
         # [L0 International]: still Stage.L0 (no separate Stage value), on its
-        # own departments -- no short-name catalog of its own yet, so
-        # short_name just falls back to the full name (matches how any
-        # standard L0/L1 item without an L0_SHORT_NAMES/L1_SHORT_NAMES entry
-        # already behaves).
+        # own departments. Curated short names now live in
+        # L0_INTERNATIONAL_SHORT_NAMES (queued item: matrix/timeline/assigned
+        # deliverables were falling back to the full long name for every
+        # international item, unlike the standard catalog).
         for item_no, name, dkey, anchor, pred, offset, direction, dtype, ms in L0_INTERNATIONAL_ITEMS:
             dept = dept_map[L0_INTERNATIONAL_DEPT[dkey]]
-            upsert("L0", item_no, name, name, dept.id, anchor, pred, offset, direction, dtype, bool(ms), ms)
+            upsert("L0", item_no, name, L0_INTERNATIONAL_SHORT_NAMES.get(item_no, name), dept.id, anchor, pred, offset, direction, dtype, bool(ms), ms)
 
         db.commit()
 

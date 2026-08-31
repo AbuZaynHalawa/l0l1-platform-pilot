@@ -1053,6 +1053,11 @@
       document.querySelectorAll(".matrix-toggle .chip").forEach(function (b) { b.classList.remove("active"); });
       btn.classList.add("active");
       matrixStage = btn.dataset.stage;
+      // L0 and L1 are entirely different deliverable catalogs -- a
+      // Deliverable-column filter picked under one would just silently
+      // match nothing under the other, reading as a bug rather than a
+      // stage switch.
+      _matrixXhState.filters = {};
       loadMatrix();
     });
   });
@@ -1063,6 +1068,16 @@
     _matrixCache = await api("/api/dashboard/matrix" + qs);
     _renderMatrix();
   }
+  // Item [Matrix Deliverable filter]: the Deliverable column reuses the
+  // same Excel-style dropdown panel (_xhOpenFilterPanel) every other table
+  // in the app uses -- but not installExcelHeader itself, since that
+  // assumes one static <thead> reused across renders (see _masterPoXh).
+  // The Matrix's own <thead> is rebuilt from scratch on every render (its
+  // project columns change with the stage/Est filter), so the filter state
+  // lives in this module-level object instead, surviving each rebuild, and
+  // the header's filter button is re-wired after every innerHTML replace.
+  var _matrixXhState = { filters: {} };
+  function _matrixDeliverableValue(row) { return row.item_no + " · " + row.short_name; }
   function _renderMatrix() {
     var data = _matrixCache;
     var wrap = document.getElementById("matrixWrap");
@@ -1074,6 +1089,8 @@
     var rows = !term ? data.rows : data.rows.filter(function (row) {
       return (row.item_no + " " + row.short_name + " " + row.name).toLowerCase().indexOf(term) !== -1;
     });
+    var deliverableFilter = _matrixXhState.filters.deliverable;
+    if (deliverableFilter) rows = rows.filter(function (row) { return deliverableFilter.has(_matrixDeliverableValue(row)); });
     // Item 4 (queued): a second header-inline filter, narrowing which
     // project *columns* show instead of which deliverable rows do --
     // Est No. isn't a row field, it's each column's own header.
@@ -1081,19 +1098,28 @@
     var projects = !estTerm ? data.projects : data.projects.filter(function (p) {
       return p.est_no.toLowerCase().indexOf(estTerm) !== -1;
     });
-    if (!rows.length) {
-      wrap.innerHTML = '<div class="empty-state">No deliverables match &#8220;' + term + '&#8221;.</div>';
-      return;
-    }
     if (!projects.length) {
       wrap.innerHTML = '<div class="empty-state">No projects match Est No. &#8220;' + estTerm + '&#8221;.</div>';
       return;
     }
-    var html = '<table class="matrix-table"><thead><tr><th>Deliverable</th>';
+    // Item [Matrix Deliverable filter, empty-result fix]: this used to
+    // replace the WHOLE table (header included) with a plain empty-state
+    // div whenever no rows matched -- which meant deselecting everything in
+    // the Deliverable filter made its own filter button vanish along with
+    // the table, with no way left in the UI to reopen the panel and fix it.
+    // The header (and its filter button) now always renders; only the body
+    // becomes the empty-state message.
+    var html = '<table class="matrix-table"><thead><tr><th class="xh-th"' + (deliverableFilter ? ' data-xh-filtered="1"' : "") + '><div class="xh-th-wrap">' +
+      '<span class="xh-label">Deliverable</span><button type="button" class="xh-filter-btn" id="matrixDeliverableFilterBtn">' + XH_FILTER_ICON + "</button></div></th>";
     projects.forEach(function (p) {
       html += '<th title="' + p.name.replace(/"/g, "&quot;") + '">' + p.est_no + "</th>";
     });
     html += "</tr></thead><tbody>";
+    if (!rows.length) {
+      var emptyMsg = deliverableFilter && !term ? "No deliverables match the current Deliverable filter."
+        : "No deliverables match &#8220;" + term + "&#8221;" + (deliverableFilter ? " within the current Deliverable filter." : ".");
+      html += '<tr><td colspan="' + (projects.length + 1) + '"><div class="empty-state">' + emptyMsg + "</div></td></tr>";
+    }
     var lastDept = null;
     rows.forEach(function (row) {
       if (row.department !== lastDept) {
@@ -1119,6 +1145,26 @@
     wrap.innerHTML = html;
     wrap.querySelectorAll(".matrix-dot").forEach(function (dot) {
       dot.addEventListener("click", function () { openDetail(Number(dot.dataset.pid)); });
+    });
+    var deliverableBtn = document.getElementById("matrixDeliverableFilterBtn");
+    deliverableBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      // uniqueValues comes from data.rows (the full, unfiltered catalog for
+      // this stage), not the currently-visible `rows` -- so the panel's own
+      // checklist always offers everything, regardless of what the search
+      // box or an already-active filter has narrowed the table down to.
+      var col = {
+        key: "deliverable",
+        uniqueValues: function () {
+          var seen = {}, out = [];
+          data.rows.forEach(function (r) {
+            var v = _matrixDeliverableValue(r);
+            if (!seen[v]) { seen[v] = true; out.push(v); }
+          });
+          return out.sort(function (a, b) { return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }); });
+        },
+      };
+      _xhOpenFilterPanel(deliverableBtn, col, _matrixXhState, deliverableBtn.closest("th"), _renderMatrix, 0);
     });
   }
 
@@ -1376,8 +1422,12 @@
 
       row.appendChild(el("div", "aqt-cell aqt-ellipsis aqt-est " + (d.stage || "").toLowerCase(), d.est_no));
 
+      // Item [Assigned Deliverables short names]: short_name (same curated
+      // label Matrix/Timeline already use), full name as the hover title
+      // since this cell ellipsizes under pressure (.aqt-ellipsis).
       var nameCell = el("div", "aqt-cell aqt-ellipsis aqt-name",
-        d.item_no + " &middot; " + d.name + '<span class="aqt-proj"> &#8211; ' + d.project_name + "</span>");
+        d.item_no + " &middot; " + d.short_name + '<span class="aqt-proj"> &#8211; ' + d.project_name + "</span>");
+      nameCell.title = d.name;
       row.appendChild(nameCell);
 
       row.appendChild(el("div", "aqt-cell aqt-ellipsis aqt-dept", deptLabel(d.department, d.department_number)));
