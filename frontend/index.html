@@ -87,6 +87,7 @@
     <button type="button" id="hvExplodeBtn" class="hv-ctrl-btn" style="background:rgba(18,17,16,0.86);border:0;border-top:2px solid var(--rule);color:var(--ink-dim);padding:12px 20px;font-family:var(--font-body);font-size:10px;letter-spacing:0.18em;cursor:pointer;">EXPLODE</button>
     <button type="button" id="hvInsideBtn" class="hv-ctrl-btn" style="background:rgba(18,17,16,0.86);border:0;border-top:2px solid var(--rule);color:var(--ink-dim);padding:12px 20px;font-family:var(--font-body);font-size:10px;letter-spacing:0.18em;cursor:pointer;">INSIDE</button>
     <button type="button" id="hvResetBtn" class="hv-ctrl-btn" style="background:rgba(18,17,16,0.86);border:0;border-top:2px solid var(--rule);color:var(--ink-dim);padding:12px 20px;font-family:var(--font-body);font-size:10px;letter-spacing:0.18em;cursor:pointer;">RESET VIEW</button>
+    <button type="button" id="hvExitExplore" class="hv-cta-fill" style="background:#ec3013;border:0;color:#ffffff;padding:12px 20px;font-family:var(--font-body);font-weight:700;font-size:10px;letter-spacing:0.18em;cursor:pointer;">EXIT EXPLORE ✕</button>
   </div>
 
   <button type="button" id="hvSoundBtn" class="hv-ctrl-btn" style="position:fixed;bottom:var(--sound-bottom);right:var(--edge);z-index:7;background:rgba(18,17,16,0.86);border:0;border-top:2px solid var(--rule);color:var(--ink);padding:var(--sound-pad);min-height:44px;font-family:var(--font-body);font-size:10px;letter-spacing:0.18em;cursor:pointer;">SOUND ON</button>
@@ -114,7 +115,6 @@
       <div id="hvHintZoom" style="font-size:10px;letter-spacing:0.2em;color:var(--ink-dim);">SCROLL TO ZOOM</div>
       <div id="hvHintPick" style="font-size:10px;letter-spacing:0.2em;color:var(--ink-dim);">CLICK A COMPONENT TO INSPECT</div>
     </div>
-    <button type="button" id="hvExitExplore" class="hv-exit-explore" style="position:absolute;top:calc(var(--edge) + 56px);right:var(--edge);pointer-events:auto;background:none;border:0;border-bottom:2px solid var(--rule);color:var(--ink-dim);padding:var(--exit-pad);min-height:44px;display:flex;align-items:center;font-family:var(--font-body);font-size:10px;letter-spacing:0.18em;cursor:pointer;">EXIT EXPLORE ✕</button>
   </div>
 
   <!-- [hidden]-vs-own-display: display:flex was inline here (matching the
