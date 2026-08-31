@@ -2285,6 +2285,15 @@
   .psb-seg.warn { background: var(--warn); }
   .psb-seg.crit { background: var(--crit); }
   .psb-seg.neutral { background: var(--neutral); }
+  /* [Late/Due differentiation]: Late (already completed, but after its due
+     date) used to share plain "crit" with Due (still open and overdue) --
+     same solid red on both the bar segment and the legend dot, reading as
+     one status. Still unmistakably a red/negative outcome, but a diagonal
+     green/red hatch instead of solid red keeps it visually distinct from
+     Due at a glance. */
+  .psb-seg.late-hatch {
+    background: repeating-linear-gradient(45deg, var(--crit) 0, var(--crit) 5px, var(--good) 5px, var(--good) 10px);
+  }
   .psc2-legend { display: flex; gap: 14px; margin-top: 10px; flex-wrap: wrap; }
   .psc2-legend-item { display: flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; color: var(--ink-700); cursor: pointer; border-radius: 6px; padding: 2px 4px; margin: -2px -4px; transition: opacity .15s ease, color .15s ease; }
   .psc2-legend-item:hover { background: var(--surface-sunken); }
@@ -2301,6 +2310,9 @@
   .psc2-legend-item.warn .dot { background: var(--warn); }
   .psc2-legend-item.crit .dot { background: var(--crit); }
   .psc2-legend-item.neutral .dot { background: var(--neutral); }
+  .psc2-legend-item.late-hatch .dot {
+    background: repeating-linear-gradient(45deg, var(--crit) 0, var(--crit) 2px, var(--good) 2px, var(--good) 4px);
+  }
   .psc2-hint { font-size: 10.5px; color: var(--ink-300); text-align: right; margin-top: 8px; }
 
   .perf-filter-card { padding: 16px 20px; margin-bottom: 20px; border-top: 3px solid var(--ink-700); }

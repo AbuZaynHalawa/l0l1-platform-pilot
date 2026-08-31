@@ -1425,11 +1425,18 @@
     // .psc2-legend pattern the Performance tab's own summary cards use)
     // instead of a row of plain filter pills -- same semantic colors the
     // Dashboard's own Deadline/Progress Status cards use (item 32): not_due
-    // neutral, due/late crit, early/on_time good; no_progress neutral,
+    // neutral, due crit, early/on_time good; no_progress neutral,
     // in_progress/pending_review warn, approved good, rejected crit.
+    // [Late/Due differentiation]: late used to share plain "crit" with due
+    // too, reading as the exact same red on both the bar segment and the
+    // legend dot even though they mean different things (still-open and
+    // overdue, vs already completed but after its due date) -- "late-hatch"
+    // is its own class, a green/red diagonal hatch (see styles.css), so
+    // it's still unmistakably a red/negative outcome without being
+    // indistinguishable from Due.
     _renderAssignedFilterBar("assignedDeadlineBar", DEADLINE_FILTERS, deadlineBase,
       function (d) { return d.deadline_status; }, assignedDeadlineFilter,
-      { not_due: "", due: "crit", early: "good", on_time: "good", late: "crit" },
+      { not_due: "", due: "crit", early: "good", on_time: "good", late: "late-hatch" },
       function (v) { assignedDeadlineFilter = v; loadAssigned(); });
     _renderAssignedFilterBar("assignedProgressBar", progressFilterSet, progressBase,
       function (d) { return d.status; }, assignedProgressFilter,
