@@ -9046,6 +9046,67 @@
   // Reassignment, SME Nomination, Bid Value Access, L0-L1 Group Add,
   // Formula Change), reusing the same openFuDetailModal Follow Up already
   // built rather than a second detail-view implementation.
+  // Item [My Requests filters]: same Excel-header filter+sort every other
+  // table in the app uses.
+  var _myRequestsXh = null;
+  var _myRequestsAll = [];
+  function _myRequestsStatusLabel(status) {
+    return status === "pending" ? "Pending" : status === "approved" ? "Approved" : "Rejected";
+  }
+  function _myRequestsXhController() {
+    if (_myRequestsXh) return _myRequestsXh;
+    function uniq(getter) {
+      return function () {
+        var seen = {}, out = [];
+        _myRequestsAll.forEach(function (r) {
+          var v = getter(r); v = v == null || v === "" ? "" : String(v);
+          if (!seen[v]) { seen[v] = true; out.push(v); }
+        });
+        return out.sort(function (a, b) { return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }); });
+      };
+    }
+    var typeOf = function (r) { return r.type; };
+    var titleOf = function (r) { return r.title; };
+    var statusOf = function (r) { return _myRequestsStatusLabel(r.status); };
+    var atLabelOf = function (r) { return fmtDate((r.at || "").slice(0, 10)); };
+    var columns = [
+      { key: "type", get: typeOf, uniqueValues: uniq(typeOf) },
+      { key: "title", get: titleOf, uniqueValues: uniq(titleOf) },
+      { key: "status", get: statusOf, uniqueValues: uniq(statusOf) },
+      // Filter values match the displayed dd-Mon-yyyy label (same idiom as
+      // Assigned Deliverables' Due Date column), sort still uses the real
+      // timestamp so newest-first/oldest-first stays chronologically correct.
+      { key: "at", get: atLabelOf, sortValue: function (r) { return r.at || ""; }, uniqueValues: uniq(atLabelOf) },
+    ];
+    var theadRow = document.getElementById("myRequestsBody").closest("table").querySelector("thead tr");
+    _myRequestsXh = installExcelHeader(theadRow, columns);
+    _myRequestsXh.onChange(function () { _renderMyRequests(_myRequestsXh.process(_myRequestsAll)); });
+    return _myRequestsXh;
+  }
+  function _renderMyRequests(rows) {
+    var tbody = document.getElementById("myRequestsBody");
+    tbody.innerHTML = "";
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--ink-500);padding:30px;">' +
+        (_myRequestsAll.length ? "No requests match the current filters." : "You haven\'t sent any requests yet.") + '</td></tr>';
+      return;
+    }
+    rows.forEach(function (r) {
+      var tr = el("tr");
+      tr.style.cursor = "pointer";
+      var statusPill = r.status === "pending"
+        ? '<span class="pill neutral"><span class="dot"></span>Pending</span>'
+        : _historyStatusPill(r.status);
+      tr.appendChild(el("td", "", r.type));
+      tr.appendChild(el("td", "", r.title));
+      tr.appendChild(el("td", "", statusPill));
+      tr.appendChild(el("td", "", fmtDate((r.at || "").slice(0, 10))));
+      tr.addEventListener("click", function () {
+        openFuDetailModal({ eyebrow: r.type + " &middot; " + (r.status === "pending" ? "Pending" : (r.status === "approved" ? "Approved" : "Rejected")), title: r.title, fields: r.fields });
+      });
+      tbody.appendChild(tr);
+    });
+  }
   async function loadMyRequests() {
     var email = passiveIdentity();
     var tbody = document.getElementById("myRequestsBody");
@@ -9113,26 +9174,8 @@
       });
     });
     rows.sort(function (a, b) { return new Date(b.at) - new Date(a.at); });
-
-    if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--ink-500);padding:30px;">You haven\'t sent any requests yet.</td></tr>';
-      return;
-    }
-    rows.forEach(function (r) {
-      var tr = el("tr");
-      tr.style.cursor = "pointer";
-      var statusPill = r.status === "pending"
-        ? '<span class="pill neutral"><span class="dot"></span>Pending</span>'
-        : _historyStatusPill(r.status);
-      tr.appendChild(el("td", "", r.type));
-      tr.appendChild(el("td", "", r.title));
-      tr.appendChild(el("td", "", statusPill));
-      tr.appendChild(el("td", "", fmtDate((r.at || "").slice(0, 10))));
-      tr.addEventListener("click", function () {
-        openFuDetailModal({ eyebrow: r.type + " &middot; " + (r.status === "pending" ? "Pending" : (r.status === "approved" ? "Approved" : "Rejected")), title: r.title, fields: r.fields });
-      });
-      tbody.appendChild(tr);
-    });
+    _myRequestsAll = rows;
+    _renderMyRequests(_myRequestsXhController().process(rows));
   }
 
   /* ================= BM TRIAGE STATUS (admin) ================= */
