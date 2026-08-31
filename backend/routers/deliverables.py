@@ -100,11 +100,42 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
     scope_to_mine = bool(actor_role) and actor_role != "Admin"
     my_email = (actor_email or "").strip().lower()
     visible_subs = [s for s in subs if not s.auto_completed]
-    doc_counts = rules.document_counts(db, [s.id for s in visible_subs])
-    pending_kinds = rules.pending_due_date_request_kinds(db, [s.id for s in visible_subs])
+    # lookups_by_project needs the FULL cross-project catalog regardless of
+    # scope -- a scoped user's own item can be predecessor-chained behind
+    # someone else's, so awaiting_milestone_note() below still needs to see
+    # the whole picture even when the caller only ends up viewing one item.
     lookups_by_project: dict[int, dict[str, list]] = {}
     for s in subs:
         lookups_by_project.setdefault(s.project_id, {}).setdefault(s.definition.item_no, []).append(s)
+    # [Assigned Deliverables perf, scoped requests]: this used to apply the
+    # owner/SME scope only inside the output loop below, AFTER doc_counts/
+    # pending_kinds/the notes query had already run across the full 3300+
+    # row catalog -- so an Owner/SME request that ends up surfacing a
+    # handful of rows (or, for a stale/mistyped actor_email, zero) still
+    # paid the same fixed cost as Admin's full-catalog one. resolve_owners/
+    # resolve_smes only read fields already present on the fetched row (no
+    # extra query), so narrowing visible_subs down to just this caller's
+    # rows here, before any of the batch lookups below, is free and skips
+    # all of that work for every row that was never going to be returned.
+    if scope_to_mine:
+        def _is_mine(s: "models.DeliverableSubmission") -> bool:
+            if not my_email:
+                return False
+            owners = {e.strip().lower() for e in rules.resolve_owners(s) if e}
+            smes = {e.strip().lower() for e in rules.resolve_smes(s) if e}
+            if actor_role == "SME":
+                # Item [SME scope]: an SME's assigned cohort is only what
+                # needs their review right now -- pending review, or
+                # rejected by them specifically until it moves past
+                # rejected -- not every status on items they're tied to.
+                is_pending_for_me = my_email in smes and s.status == models.SubmissionStatus.PENDING_REVIEW
+                is_my_rejection = s.status == models.SubmissionStatus.REJECTED and (s.reviewed_by_email or "").strip().lower() == my_email
+                is_my_approval = s.status == models.SubmissionStatus.APPROVED and (s.reviewed_by_email or "").strip().lower() == my_email
+                return is_pending_for_me or is_my_rejection or is_my_approval
+            return my_email in owners or my_email in smes
+        visible_subs = [s for s in visible_subs if _is_mine(s)]
+    doc_counts = rules.document_counts(db, [s.id for s in visible_subs])
+    pending_kinds = rules.pending_due_date_request_kinds(db, [s.id for s in visible_subs])
     # Second N+1, same shape as awaiting_milestone_note's: rules.mark_complete_note(s)
     # only short-circuits when s.file_name is set, and most of the catalog
     # (No Progress Yet, no upload) has none -- so it was lazy-loading
@@ -128,23 +159,6 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
     for s in visible_subs:
         if status and s.status.value != status:
             continue
-        if scope_to_mine:
-            owners = {e.strip().lower() for e in rules.resolve_owners(s) if e}
-            smes = {e.strip().lower() for e in rules.resolve_smes(s) if e}
-            if not my_email:
-                continue
-            if actor_role == "SME":
-                # Item [SME scope]: an SME's assigned cohort is only what
-                # needs their review right now -- pending review, or
-                # rejected by them specifically until it moves past
-                # rejected -- not every status on items they're tied to.
-                is_pending_for_me = my_email in smes and s.status == models.SubmissionStatus.PENDING_REVIEW
-                is_my_rejection = s.status == models.SubmissionStatus.REJECTED and (s.reviewed_by_email or "").strip().lower() == my_email
-                is_my_approval = s.status == models.SubmissionStatus.APPROVED and (s.reviewed_by_email or "").strip().lower() == my_email
-                if not (is_pending_for_me or is_my_rejection or is_my_approval):
-                    continue
-            elif my_email not in owners and my_email not in smes:
-                continue
         deadline_key, deadline_days = rules.deadline_status(s)
         _action_ts = [t for t in (s.submitted_at, s.reviewed_at) if t]
         out.append({
