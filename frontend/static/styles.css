@@ -1623,15 +1623,17 @@
      card's width -- text columns ellipsize under pressure instead of the
      table ever needing horizontal scroll. */
   .aqt { width: 100%; }
-  /* [Actions column width]: sized for the common case (Follow alone ~75px,
-     Follow+Send reminder ~189px, Approve+Reject ~141px) with real margin,
-     not the rare all-4-buttons-at-once case (~336px, when an item is both
-     pending review and overdue) -- sizing the whole table for that rare
-     row squeezed Deliverable/Department/Focal Point to 0px on an ordinary
-     1280px laptop viewport. That row's own actions can spill past the
-     column edge instead (still one line, just occasionally wider than its
-     track) rather than punishing every other row's layout. */
-  .aqt-row { display: grid; grid-template-columns: 108px minmax(0,2.3fr) minmax(0,1.1fr) minmax(0,1fr) 110px 150px 116px 220px; align-items: center; gap: 10px; }
+  /* [Actions column width]: 220px already covered the common case
+     (Follow alone ~75px, Follow+Send reminder ~189px, Approve+Reject
+     ~141px) with real margin; widened further to 270px, narrowing
+     Deliverable's own flexible share (2.3fr -> 1.6fr) to make room --
+     comfortably covers the rare all-4-buttons case (~336px, when an item
+     is both pending review and overdue) too, at the ordinary desktop
+     widths this app already targets. Deliberately NOT sized off the
+     absolute worst case at every possible viewport -- see the 1180px
+     breakpoint below, which still trims Actions back down since Focal
+     Point is already gone there and there's less room to redistribute. */
+  .aqt-row { display: grid; grid-template-columns: 108px minmax(0,1.6fr) minmax(0,1.1fr) minmax(0,1fr) 110px 150px 116px 270px; align-items: center; gap: 10px; }
   /* [mobile fix] .aqt had no overflow handling at all -- its row's fixed
      columns alone (78+148+168+96+200) sum to 690px, well past any phone
      viewport, so this was leaking real page-level horizontal overflow
@@ -1678,7 +1680,7 @@
   .aqt-actions .btn { padding: 5px 12px; font-size: 11.5px; }
   .aqt-locked { font-size: 11px; color: var(--ink-300); font-style: italic; text-align: right; }
   @media (max-width: 1180px) {
-    .aqt-row { grid-template-columns: 100px minmax(0,2fr) minmax(0,1fr) 100px 140px 108px 210px; }
+    .aqt-row { grid-template-columns: 100px minmax(0,1.4fr) minmax(0,1fr) 100px 140px 108px 250px; }
     .aqt-focal { display: none; }
   }
   /* Item 142 rework: these spans had ellipsis rules but no min-width, so
