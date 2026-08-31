@@ -4791,7 +4791,6 @@
       : await api("/api/gantt/projects/" + projectId);
 
     var deptSel = document.getElementById("ganttDeptFilter");
-    var legend = document.getElementById("ganttDeptLegend");
     var seenDepts = {};
     ganttRowsUnfiltered.forEach(function (r) { seenDepts[r.department] = r.department_number; });
     var sortedDeptNames = Object.keys(seenDepts).sort(function (a, b) { return (seenDepts[a] || 0) - (seenDepts[b] || 0); });
@@ -4811,6 +4810,20 @@
       var o = el("option", "", cat); o.value = cat;
       wbsSel.appendChild(o);
     });
+
+    applyGanttFilters();
+  }
+
+  // Item [Timeline legend follows filters]: this used to build from
+  // ganttRowsUnfiltered inside renderGanttFor(), once per project/scope
+  // change -- so it always listed every department that HAD deliverables
+  // in the pooled/project data, regardless of which deadline/progress/WBS/
+  // department filter was actually narrowing the visible rows. Takes the
+  // already-filtered `rows` now (called from applyGanttFilters below) so a
+  // filter that happens to leave only Tendering and Planning rows visible
+  // shows only those two swatches, not every department in the catalog.
+  function renderGanttLegend(rows) {
+    var legend = document.getElementById("ganttDeptLegend");
     legend.innerHTML = "";
     if (ganttIsPooled) {
       // Timeline-display-only: TBU/PBU/DBU/BBU are 4 real, separate
@@ -4820,6 +4833,9 @@
       // department_number) and 4 near-identical legend rows was just visual
       // noise here. The BU itself still shows -- as a note on each bar's own
       // label below, not as a separate legend entry.
+      var seenDepts = {};
+      rows.forEach(function (r) { seenDepts[r.department] = r.department_number; });
+      var sortedDeptNames = Object.keys(seenDepts).sort(function (a, b) { return (seenDepts[a] || 0) - (seenDepts[b] || 0); });
       var seenOpUnitsBU = sortedDeptNames.some(function (name) { return /^Operation Units \((TBU|PBU|DBU|BBU)\)$/.test(name); });
       sortedDeptNames.forEach(function (name) {
         if (/^Operation Units \((TBU|PBU|DBU|BBU)\)$/.test(name)) return;
@@ -4841,7 +4857,9 @@
       // for Completed, "neutral" for everything else (Not Due, On Hold,
       // and any deadline_status MATRIX_BUCKET_META doesn't cover) -- .gantt-
       // bar.neutral is actually var(--purple-1), not a grey, so the swatch
-      // has to match that or it reads as an unexplained extra color.
+      // has to match that or it reads as an unexplained extra color. Fixed
+      // 3-item list regardless of filters -- it's not department-based, so
+      // "follow the filters" doesn't apply the same way here.
       [["var(--good)", "Completed"], ["var(--crit)", "Due / Rejected"], ["var(--purple-1)", "Not Due"]].forEach(function (pair) {
         var lg = el("span", "lg");
         lg.innerHTML = '<span class="sw" style="background:' + pair[0] + '"></span>';
@@ -4856,8 +4874,6 @@
     // wall of text). .gantt-dept-legend now owns its own complete layout.
     legend.className = "gantt-dept-legend";
     legend.style.display = "";
-
-    applyGanttFilters();
   }
 
   function applyGanttFilters() {
@@ -4869,6 +4885,7 @@
       return (!dept || r.department === dept) && (!wbs || r.category === wbs) &&
         (!deadline || r.deadline_status === deadline) && (!progress || r.status === progress);
     });
+    renderGanttLegend(rows);
     drawGanttRows(rows, ganttIsPooled);
   }
 
