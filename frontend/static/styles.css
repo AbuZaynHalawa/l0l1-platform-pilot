@@ -1994,12 +1994,6 @@
      Same stretch-and-flex-fill treatment as .achievers-row above. */
   #view-scores .split { align-items: stretch; }
   #view-scores .split > .card { display: flex; flex-direction: column; }
-  /* Item [Requests bottom-edge alignment]: same fix as Top Achievers above --
-     Request Categories (left, 6 short rows) vs the selected category's
-     panel (right, now Pending + History + a pager) almost never match in
-     height under .detail-split's default align-items:start, leaving a
-     ragged bottom edge between the two cards. */
-  #view-requests .split { align-items: stretch; }
   #view-scores .achiever-list { flex: 1; overflow-x: hidden; overflow-y: auto; }
   .achiever-row { display: flex; align-items: center; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--line); }
   .achiever-row:last-child { border-bottom: none; }
