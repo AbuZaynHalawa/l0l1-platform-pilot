@@ -99,7 +99,6 @@ let freeCam = false;
 let mouseSpeed = 0;
 let clock = 0;
 let lastMs = 0;
-let sparkAcc = 0;
 let audio = null;
 let audioSuspendT = null;
 let signinT = null;
@@ -1382,12 +1381,6 @@ async function doBuildScene() {
         a.buzzGain.gain.setTargetAtTime(bz, ct, bz < a.buzzGain.gain.value ? 0.12 : 0.2);
         a.bp.frequency.setTargetAtTime(1700 + drive * 2600 + explode * 900, ct, 0.25);
       }
-      const rate = hover * 2.6 + (mouseSpeed || 0) * hover * 7 + explode * 3 + outro * 4;
-      sparkAcc = (sparkAcc || 0) + rate * 0.016;
-      if (sparkAcc >= 1) {
-        sparkAcc = 0;
-        spark(0.3 + hover * 0.6 + (mouseSpeed || 0) * 0.5 + outro * 0.6);
-      }
     }
     mouseSpeed = (mouseSpeed || 0) * 0.94;
 
@@ -1489,7 +1482,9 @@ function initDust() {
 }
 
 // ================================================================
-// audio engine (ported 1:1 from initAudio/discharge/spark)
+// audio engine (ported 1:1 from initAudio/discharge -- spark() dropped,
+// see git history: its click/crackle bursts fired during hover/explore
+// interaction and were flagged as unwanted, not just too loud)
 // ================================================================
 function initAudio() {
   const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -1541,7 +1536,7 @@ function initAudio() {
   // loop (ffmpeg acrossfade of the tail back into the head), and looping
   // via AudioBufferSourceNode.loop is sample-accurate/gapless, unlike an
   // <audio loop> element. Kept quiet (0.04, well under bedGain's own
-  // ~0.085-0.135 idle-interaction range and buzzGain/spark/discharge) so it
+  // ~0.085-0.135 idle-interaction range and buzzGain/discharge) so it
   // sits under the transformer's own interactive sounds, not over them --
   // lowered from an initial 0.06 once the longer replacement track read
   // louder than the original short one at the same gain value.
@@ -1577,23 +1572,6 @@ function discharge() {
   src.connect(g); g.connect(a.master);
   src.start(t, 0, dur);
   src.onended = () => { try { g.disconnect(); } catch (e) {} };
-}
-
-function spark(intensity) {
-  const a = audio;
-  if (!a || !a.on) return;
-  const ctx = a.ctx, t = ctx.currentTime;
-  const dur = 0.04 + Math.random() * 0.11;
-  const n = Math.ceil(ctx.sampleRate * dur);
-  const buf = ctx.createBuffer(1, n, ctx.sampleRate);
-  const d = buf.getChannelData(0);
-  for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 2.2);
-  const src = ctx.createBufferSource(); src.buffer = buf;
-  const sbp = ctx.createBiquadFilter();
-  sbp.type = 'bandpass'; sbp.frequency.value = 1600 + Math.random() * 4800; sbp.Q.value = 1.1;
-  const g = ctx.createGain(); g.gain.value = 0.1 * intensity;
-  src.connect(sbp); sbp.connect(g); g.connect(a.master);
-  src.start(t);
 }
 
 // Auto-mount on module load -- this IS the first thing visible on every
