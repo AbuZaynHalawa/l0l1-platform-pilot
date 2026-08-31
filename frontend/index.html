@@ -918,16 +918,15 @@
           </div>
         </div>
         <!-- Item [Requests history default-visible]: the old per-category
-             "Show History" toggle is gone -- decided requests render
-             underneath the pending ones by default, same as every other
-             list in the app, with a pager (renderPager) since a category's
-             full decided history can run long. See loadRequests() /
-             _renderRequestHistory() in app.js. -->
+             "Show History" toggle is gone -- decided requests render right
+             underneath the pending ones by default, as one continuous
+             list (no "History" sub-heading breaking it up), with a pager
+             (renderPager) since a category's full decided history can run
+             long. See loadRequests() / _renderRequestHistory() in app.js. -->
         <div class="card table-card fu-compact">
           <div class="req-cat-panel" data-cat="dueDate">
             <div class="section-title"><span>Due-Date Requests</span></div>
             <div id="dueDateReqList"></div>
-            <div class="section-title req-history-title"><span>History</span></div>
             <div id="dueDateReqHistory"></div>
             <div class="pager" id="dueDateReqHistoryPager"></div>
           </div>
@@ -935,7 +934,6 @@
           <div class="req-cat-panel" data-cat="reassign" hidden>
             <div class="section-title"><span>Reassignment Requests</span></div>
             <div id="reassignList"></div>
-            <div class="section-title req-history-title"><span>History</span></div>
             <div id="reassignHistory"></div>
             <div class="pager" id="reassignHistoryPager"></div>
           </div>
@@ -943,7 +941,6 @@
           <div class="req-cat-panel" data-cat="smeNom" hidden>
             <div class="section-title"><span>SME Nominations</span></div>
             <div id="smeNomList"></div>
-            <div class="section-title req-history-title"><span>History</span></div>
             <div id="smeNomHistory"></div>
             <div class="pager" id="smeNomHistoryPager"></div>
           </div>
@@ -951,7 +948,6 @@
           <div class="req-cat-panel" data-cat="bidValue" hidden>
             <div class="section-title"><span>Bid Value Access Requests</span></div>
             <div id="bidValueReqList"></div>
-            <div class="section-title req-history-title"><span>History</span></div>
             <div id="bidValueReqHistory"></div>
             <div class="pager" id="bidValueReqHistoryPager"></div>
           </div>
@@ -959,7 +955,6 @@
           <div class="req-cat-panel" data-cat="groupAdd" hidden>
             <div class="section-title"><span>Group Add Requests</span></div>
             <div id="groupAddReqList"></div>
-            <div class="section-title req-history-title"><span>History</span></div>
             <div id="groupAddReqHistory"></div>
             <div class="pager" id="groupAddReqHistoryPager"></div>
           </div>
@@ -967,7 +962,6 @@
           <div class="req-cat-panel" data-cat="formula" hidden>
             <div class="section-title"><span>Formula Change Requests</span></div>
             <div id="formulaReqList"></div>
-            <div class="section-title req-history-title"><span>History</span></div>
             <div id="formulaReqHistory"></div>
             <div class="pager" id="formulaReqHistoryPager"></div>
           </div>
