@@ -1990,6 +1990,12 @@
      Same stretch-and-flex-fill treatment as .achievers-row above. */
   #view-scores .split { align-items: stretch; }
   #view-scores .split > .card { display: flex; flex-direction: column; }
+  /* Item [Requests bottom-edge alignment]: same fix as Top Achievers above --
+     Request Categories (left, 6 short rows) vs the selected category's
+     panel (right, now Pending + History + a pager) almost never match in
+     height under .detail-split's default align-items:start, leaving a
+     ragged bottom edge between the two cards. */
+  #view-requests .split { align-items: stretch; }
   #view-scores .achiever-list { flex: 1; overflow-x: hidden; overflow-y: auto; }
   .achiever-row { display: flex; align-items: center; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--line); }
   .achiever-row:last-child { border-bottom: none; }
@@ -2108,8 +2114,11 @@
      reflow via auto-fill) so it stays at the app's normal width.
      #view-masterpo (the standalone nav tab, item 12) renders the exact
      same masterPoCore table -- same fix belongs there too, it was just
-     missed when this was originally scoped to the report only. */
-  #view-report-masterpo, #view-masterpo { max-width: 1700px; }
+     missed when this was originally scoped to the report only.
+     #view-report-budgetstatus is the same .rep-po-table component family
+     (7 columns: Est-No/Project/Contract Status/6.1/6.2/6.3/Note) --
+     widened up front rather than waiting for the same overflow report. */
+  #view-report-masterpo, #view-masterpo, #view-report-budgetstatus { max-width: 1700px; }
   /* Deliverables Configuration / Deliverables Catalog: same problem once
      their lists became real tables (Item No / Department / Name / Formula
      / Weight / Edit columns) -- .view's 1280px cap squeezed the trailing
@@ -2234,30 +2243,13 @@
   .rep-po-table tbody td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; white-space: normal; word-break: break-word; }
   .rep-po-table tbody tr:hover { background: var(--surface-sunken); }
 
-  /* ---------- Budget Status report: one compact row per project -- a
-     thin 3-segment bar (6.1/6.2/6.3), reusing the same slim .rep-po-bar
-     look Master PO/Overview PO's cards already use, so 30 projects still
-     fit on a printable page instead of the old label+icon+note boxes.
-     Status classes (done/progress/blocked/pending) match app.js's own
-     poSingleStatus() so this never drifts from PO Lifecycle's own
-     color-coding; per-segment detail moves into a native title="" tooltip
-     (see _budgetSegTitle in app.js), and one short trailing comment
-     (_budgetRowNote) surfaces just what needs attention next. ---------- */
-  .budget-report-list { background: var(--surface); border: 1.5px solid var(--line); border-radius: 10px; box-shadow: var(--shadow-1); overflow: hidden; }
-  .budget-row-c { display: flex; align-items: center; gap: 14px; padding: 7px 14px; border-bottom: 1px solid var(--line); }
-  .budget-row-c:last-child { border-bottom: none; }
-  .budget-row-c:hover { background: var(--surface-sunken); }
-  .budget-row-c-title { flex: 1 1 auto; min-width: 0; font-size: 12.5px; font-weight: 700; color: var(--ink-900); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .budget-row-c-sub { font-weight: 500; color: var(--ink-500); font-size: 11px; margin-left: 6px; }
-  .budget-row-c-bar.rep-po-bar { width: 130px; flex-shrink: 0; margin-bottom: 0; gap: 2px; }
-  .budget-row-c-bar .seg { flex: 1; }
-  .budget-row-c-bar .seg.done { background: var(--good); }
-  .budget-row-c-bar .seg.progress { background: var(--warn); }
-  .budget-row-c-bar .seg.blocked { background: var(--crit); }
-  .budget-row-c-bar .seg.pending { background: var(--ink-300); }
-  .budget-row-c-note { width: 150px; flex-shrink: 0; text-align: right; font-size: 11px; font-weight: 700; color: var(--ink-500); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  @media (max-width: 640px) { .budget-row-c { flex-wrap: wrap; } .budget-row-c-title { flex-basis: 100%; } .budget-row-c-note { width: auto; text-align: left; } }
-  @media print { .budget-row-c { padding: 4px 10px; } }
+  /* Budget Status report: now a real .rep-po-table (Est-No/Project/
+     Contract Status/6.1/6.2/6.3/Note columns, Excel-header filter+sort on
+     each) instead of the old compact card-row list -- see
+     loadReportBudgetStatus in app.js. Tier badges reuse .rep-po-badge's
+     existing excellent/acceptable/needs-action/neutral classes, mapped
+     from the same poSingleStatus() tiers (done/progress/blocked/pending)
+     PO Lifecycle's own cards use, so the color-coding never drifts. */
 
   /* ================= ITEM 42: PERFORMANCE DASHBOARD ================= */
   /* L0/L1 each get their own identity color, consistently, everywhere they

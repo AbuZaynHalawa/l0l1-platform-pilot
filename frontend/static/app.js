@@ -6170,52 +6170,82 @@
     }
     return "Complete";
   }
+  // [Budget report table]: same tier vocabulary poSingleStatus already
+  // returns (done/progress/blocked/pending) as the old dropdown's own
+  // option labels -- kept identical so the column filter reads the same
+  // way the removed dropdown did.
+  var _BUDGET_TIER_LABEL = { done: "Complete", progress: "In Progress", blocked: "Blocked / Overdue", pending: "Not Due Yet" };
+  var _BUDGET_TIER_BADGE = { done: "excellent", progress: "acceptable", blocked: "needs-action", pending: "neutral" };
+  var _budgetXh = null;
+  var _budgetAllRows = [];
+  function _budgetXhController() {
+    if (_budgetXh) return _budgetXh;
+    function uniq(getter) {
+      return function () {
+        var seen = {}, out = [];
+        _budgetAllRows.forEach(function (r) {
+          var v = getter(r); v = v == null ? "" : String(v);
+          if (!seen[v]) { seen[v] = true; out.push(v); }
+        });
+        return out.sort(function (a, b) { return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }); });
+      };
+    }
+    var projectOf = function (r) { return r.est_no + " " + r.project_name; };
+    var statusOf = function (r) { return r.contract_status || ""; };
+    function tierOf(itemNo) {
+      return function (r) { return _BUDGET_TIER_LABEL[r.items[itemNo] ? poSingleStatus(r.items[itemNo]) : "pending"]; };
+    }
+    var columns = [
+      { key: "est_no", get: function (r) { return r.est_no; }, uniqueValues: uniq(function (r) { return r.est_no; }) },
+      { key: "project", get: projectOf, uniqueValues: uniq(projectOf) },
+      { key: "contract_status", get: statusOf, uniqueValues: uniq(statusOf) },
+      { key: "t61", get: tierOf("6.1"), uniqueValues: uniq(tierOf("6.1")) },
+      { key: "t62", get: tierOf("6.2"), uniqueValues: uniq(tierOf("6.2")) },
+      { key: "t63", get: tierOf("6.3"), uniqueValues: uniq(tierOf("6.3")) },
+      { key: "note", get: _budgetRowNote, uniqueValues: uniq(_budgetRowNote) },
+    ];
+    var theadRow = document.getElementById("repBudgetBody").closest("table").querySelector("thead tr");
+    _budgetXh = installExcelHeader(theadRow, columns);
+    return _budgetXh;
+  }
   async function loadReportBudgetStatus() {
     var rows = await api("/api/reports/budget-status?actor_role=" + encodeURIComponent(CURRENT_ROLE));
-    var projSel = document.getElementById("repBudgetProjectFilter");
-    var statusSel = document.getElementById("repBudgetStatusFilter");
-    projSel.innerHTML = '<option value="">All Projects</option>';
-    rows.forEach(function (r) { var o = el("option", "", r.est_no + " &middot; " + r.project_name); o.value = r.est_no; projSel.appendChild(o); });
+    _budgetAllRows = rows;
+    var xh = _budgetXhController();
+    xh.onChange(render);
 
     function render() {
-      var projF = projSel.value, statusF = statusSel.value;
-      var filtered = rows.filter(function (r) {
-        if (projF && r.est_no !== projF) return false;
-        if (statusF) {
-          var tiers = ["6.1", "6.2", "6.3"].map(function (k) { return r.items[k] ? poSingleStatus(r.items[k]) : "pending"; });
-          if (tiers.indexOf(statusF) === -1) return false;
-        }
-        return true;
-      });
+      var filtered = xh.process(rows);
       document.getElementById("repBudgetCount").textContent = "Showing " + filtered.length + " of " + rows.length + " projects";
-      var wrap = document.getElementById("repBudgetList");
-      wrap.innerHTML = "";
-      if (!filtered.length) { wrap.appendChild(el("div", "empty-state", "No matching projects.")); return; }
+      var body = document.getElementById("repBudgetBody");
+      body.innerHTML = "";
+      if (!filtered.length) { body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--ink-500);padding:30px;">No matching projects.</td></tr>'; return; }
       filtered.forEach(function (r) {
-        var row = el("div", "budget-row-c");
-        var title = el("div", "budget-row-c-title", r.est_no + " &middot; " + r.project_name +
-          (r.contract_status ? ' <span class="budget-row-c-sub">' + r.contract_status + '</span>' : ""));
-        row.appendChild(title);
-        var bar = el("div", "budget-row-c-bar rep-po-bar");
+        var tr = el("tr");
+        // Item [Budget L1 identity]: this report is L1-only (Oracle budget
+        // items only ever exist on L1 projects) -- Est-No now carries the
+        // same est-no.l1 green identity color every other L1 table uses,
+        // instead of plain text.
+        tr.appendChild(el("td", "est-no l1", r.est_no));
+        tr.appendChild(el("td", "", '<span class="proj-name">' + r.project_name + '</span>'));
+        tr.appendChild(el("td", "", r.contract_status
+          ? '<span class="pill ' + (r.contract_status === "Signed" ? "good" : "neutral") + '"><span class="dot"></span>' + r.contract_status + "</span>"
+          : "&#8213;"));
         ["6.1", "6.2", "6.3"].forEach(function (itemNo) {
           var item = r.items[itemNo];
           var tier = item ? poSingleStatus(item) : "pending";
-          var seg = document.createElement("span");
-          seg.className = "seg " + tier;
-          seg.title = _budgetSegTitle(itemNo, item, tier);
+          var td = el("td", "", '<span class="rep-po-badge ' + _BUDGET_TIER_BADGE[tier] + '" title="' +
+            _budgetSegTitle(itemNo, item, tier) + '">' + _BUDGET_TIER_LABEL[tier] + "</span>");
           if (item && item.submission_id) {
-            seg.style.cursor = "pointer";
-            seg.addEventListener("click", function () { openDelivModal(item.submission_id); });
+            td.style.cursor = "pointer";
+            td.addEventListener("click", function () { openDelivModal(item.submission_id); });
           }
-          bar.appendChild(seg);
+          tr.appendChild(td);
         });
-        row.appendChild(bar);
-        row.appendChild(el("div", "budget-row-c-note", _budgetRowNote(r)));
-        wrap.appendChild(row);
+        tr.appendChild(el("td", "", _budgetRowNote(r)));
+        body.appendChild(tr);
       });
     }
-    projSel.onchange = render;
-    statusSel.onchange = render;
     render();
   }
 
@@ -6958,46 +6988,93 @@
   var scoresData = { owners: [], smes: [] };
   async function loadScores() {
     scoresData = await api("/api/dashboard/top-achievers");
-    var deptSel = document.getElementById("scoresDeptFilter");
-    if (!deptSel.dataset.loaded) {
-      var depts = await api("/api/departments");
-      depts.forEach(function (dep) {
-        var opt = document.createElement("option");
-        opt.value = dep.name; opt.textContent = deptLabel(dep.name, dep.number);
-        deptSel.appendChild(opt);
-      });
-      deptSel.dataset.loaded = "1";
-    }
     renderScores();
   }
-  function renderScores() {
-    var q = document.getElementById("scoresSearch").value.trim().toLowerCase();
-    var dept = document.getElementById("scoresDeptFilter").value;
-    var sort = document.getElementById("scoresSort").value;
-    function filterSort(rows, kind) {
-      var filtered = rows.filter(function (r) {
-        if (dept && r.department !== dept) return false;
-        if (q && ((r.name || "") + " " + r.email).toLowerCase().indexOf(q) === -1) return false;
-        return true;
-      });
-      filtered = filtered.slice();
-      if (sort === "name") {
-        filtered.sort(function (a, b) { return (a.name || a.email).localeCompare(b.name || b.email); });
-      } else if (sort === "pct_desc") {
-        filtered.sort(function (a, b) { return kind === "sme" ? a.avg_seconds - b.avg_seconds : b.pct - a.pct; });
-      } else if (sort === "total_desc") {
-        filtered.sort(function (a, b) {
-          return (kind === "sme" ? b.reviewed - a.reviewed : b.total - a.total);
+  // Item [Top Achievers tables]: same Excel-header filter+sort every other
+  // table in the app uses, one controller per table (Owners/SMEs have
+  // different columns) -- department is now a real, filterable column
+  // instead of only reachable via the old dropdown.
+  var _scoresXh = { owner: null, sme: null };
+  function _scoresXhController(kind) {
+    if (_scoresXh[kind]) return _scoresXh[kind];
+    // Reads scoresData live (not a snapshot) so a later loadScores() with
+    // fresh data still offers the right set of unique filter values --
+    // same pattern _budgetAllRows/_masterPoAllRows already use.
+    function uniq(getter) {
+      return function () {
+        var rows = kind === "sme" ? (scoresData.smes || []) : (scoresData.owners || []);
+        var seen = {}, out = [];
+        rows.forEach(function (r) {
+          var v = getter(r); v = v == null || v === "" ? "" : String(v);
+          if (!seen[v]) { seen[v] = true; out.push(v); }
         });
-      }
-      return filtered;
+        return out.sort(function (a, b) { return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }); });
+      };
     }
-    renderAchievers("scoresOwners", filterSort(scoresData.owners || [], "owner"), "owner");
-    renderAchievers("scoresSmes", filterSort(scoresData.smes || [], "sme"), "sme");
+    var nameOf = function (r) { return r.name || ""; };
+    var emailOf = function (r) { return r.email; };
+    var deptOf = function (r) { return r.department || ""; };
+    var columns = kind === "sme"
+      ? [
+          // Never sorted/filtered (rank is purely positional, from the
+          // rows' own current order) -- get() is consequently never
+          // called by installExcelHeader, this is just a placeholder.
+          { key: "rank", get: function () { return ""; }, filterable: false, sortable: false },
+          { key: "name", get: nameOf, uniqueValues: uniq(nameOf) },
+          { key: "email", get: emailOf, uniqueValues: uniq(emailOf) },
+          { key: "department", get: deptOf, uniqueValues: uniq(deptOf) },
+          { key: "reviewed", get: function (r) { return r.reviewed; }, uniqueValues: uniq(function (r) { return r.reviewed; }) },
+          { key: "avg", get: function (r) { return r.avg_label; }, sortValue: function (r) { return r.avg_seconds; }, uniqueValues: uniq(function (r) { return r.avg_label; }) },
+        ]
+      : [
+          // Never sorted/filtered (rank is purely positional, from the
+          // rows' own current order) -- get() is consequently never
+          // called by installExcelHeader, this is just a placeholder.
+          { key: "rank", get: function () { return ""; }, filterable: false, sortable: false },
+          { key: "name", get: nameOf, uniqueValues: uniq(nameOf) },
+          { key: "email", get: emailOf, uniqueValues: uniq(emailOf) },
+          { key: "department", get: deptOf, uniqueValues: uniq(deptOf) },
+          { key: "approved", get: function (r) { return r.approved + " / " + r.total; }, sortValue: function (r) { return r.total ? r.approved / r.total : 0; }, uniqueValues: uniq(function (r) { return r.approved + " / " + r.total; }) },
+          { key: "pct", get: function (r) { return r.pct + "%"; }, sortValue: function (r) { return r.pct; }, uniqueValues: uniq(function (r) { return r.pct + "%"; }) },
+        ];
+    var theadRow = document.getElementById(kind === "sme" ? "scoresSmes" : "scoresOwners").closest("table").querySelector("thead tr");
+    _scoresXh[kind] = installExcelHeader(theadRow, columns);
+    _scoresXh[kind].onChange(renderScores);
+    return _scoresXh[kind];
   }
-  document.getElementById("scoresSearch").addEventListener("input", renderScores);
-  document.getElementById("scoresDeptFilter").addEventListener("change", renderScores);
-  document.getElementById("scoresSort").addEventListener("change", renderScores);
+  function renderAchieversTable(containerId, rows, kind) {
+    var wrap = document.getElementById(containerId);
+    wrap.innerHTML = "";
+    if (!rows.length) {
+      var tr0 = el("tr");
+      var td0 = el("td", "", "Not enough data yet.");
+      td0.setAttribute("colspan", "6");
+      tr0.appendChild(td0);
+      wrap.appendChild(tr0);
+      return;
+    }
+    var medals = ["&#129351;", "&#129352;", "&#129353;"];
+    rows.forEach(function (r, i) {
+      var tr = el("tr");
+      tr.appendChild(el("td", "achiever-rank", medals[i] || String(i + 1)));
+      tr.appendChild(el("td", "", (r.name || "&#8213;") + (r.sample ? ' <span class="sample-tag">Sample</span>' : "")));
+      tr.appendChild(el("td", "", r.email));
+      tr.appendChild(el("td", "", r.department || "&#8213;"));
+      if (kind === "sme") {
+        tr.appendChild(el("td", "num", String(r.reviewed)));
+        tr.appendChild(el("td", "num", r.avg_label));
+      } else {
+        tr.appendChild(el("td", "num", r.approved + " / " + r.total));
+        tr.appendChild(el("td", "num", r.pct + "%"));
+      }
+      wrap.appendChild(tr);
+    });
+  }
+  function renderScores() {
+    var ownersXh = _scoresXhController("owner"), smesXh = _scoresXhController("sme");
+    renderAchieversTable("scoresOwners", ownersXh.process(scoresData.owners || []), "owner");
+    renderAchieversTable("scoresSmes", smesXh.process(scoresData.smes || []), "sme");
+  }
 
   /* ================= FOCAL POINTS (admin) ================= */
   var fpTab = "L0";
@@ -7087,37 +7164,45 @@
 
   var _fpRows = [];
   var _fpRoster = [];
-  function _fpFilterValues() {
-    return {
-      dept: document.getElementById("fpFilterDept").value,
-      item: document.getElementById("fpFilterItem").value,
-      owner: document.getElementById("fpFilterOwner").value,
-      sme: document.getElementById("fpFilterSme").value,
-    };
-  }
-  function _fpPopulateFilterOptions() {
-    var depts = [], items = [], owners = {}, smes = {};
-    _fpRows.forEach(function (d) {
-      if (depts.indexOf(d.department) === -1) depts.push(d.department);
-      items.push(d);
-      (d.owner_emails || []).forEach(function (e) { owners[e] = true; });
-      (d.default_sme_emails || []).forEach(function (e) { smes[e] = true; });
-    });
-    function fill(selectId, options, placeholder) {
-      var sel = document.getElementById(selectId);
-      var current = sel.value;
-      sel.innerHTML = "";
-      var placeholderOpt = el("option", "", placeholder); placeholderOpt.value = "";
-      sel.appendChild(placeholderOpt);
-      options.forEach(function (o) {
-        var opt = el("option", "", o.label); opt.value = o.value; sel.appendChild(opt);
-      });
-      if (options.some(function (o) { return o.value === current; })) sel.value = current;
+  // Item [Focal Points header filters]: same Excel-header pattern as every
+  // other table -- Owner/SME are genuinely multi-value (a deliverable can
+  // have more than one of each via the roster picker), so their filter/
+  // sort column uses the joined "a@x.com, b@x.com" string, same value the
+  // cell displays as plain text before you click into its picker. That's
+  // a real (documented) simplification vs the old dropdown's per-email
+  // "any of the picked owners" match -- reads correctly for the common
+  // single-owner/single-SME case, and multi-owner rows still show up as
+  // their own filterable combination rather than silently not matching.
+  var _fpXh = null;
+  function _fpXhController() {
+    if (_fpXh) return _fpXh;
+    function uniq(getter) {
+      return function () {
+        var seen = {}, out = [];
+        _fpRows.forEach(function (r) {
+          var v = getter(r); v = v == null || v === "" ? "" : String(v);
+          if (!seen[v]) { seen[v] = true; out.push(v); }
+        });
+        return out.sort(function (a, b) { return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }); });
+      };
     }
-    fill("fpFilterDept", depts.map(function (d) { return { value: d, label: d }; }), "All Departments");
-    fill("fpFilterItem", items.map(function (d) { return { value: d.id, label: d.item_no + " · " + d.name }; }), "All Deliverables");
-    fill("fpFilterOwner", Object.keys(owners).sort().map(function (e) { return { value: e, label: e }; }), "All Owners");
-    fill("fpFilterSme", Object.keys(smes).sort().map(function (e) { return { value: e, label: e }; }), "All SMEs");
+    var itemOf = function (r) { return r.item_no; };
+    var nameOf = function (r) { return r.name; };
+    var deptOf = function (r) { return r.department || ""; };
+    var ownerOf = function (r) { return r.is_tendering_bm ? "" : (r.owner_emails || []).join(", "); };
+    var smeOf = function (r) { return (r.default_sme_emails || []).join(", "); };
+    var columns = [
+      { key: "item", get: itemOf, uniqueValues: uniq(itemOf) },
+      { key: "name", get: nameOf, uniqueValues: uniq(nameOf) },
+      { key: "department", get: deptOf, uniqueValues: uniq(deptOf) },
+      { key: "owner", get: ownerOf, uniqueValues: uniq(ownerOf) },
+      { key: "sme", get: smeOf, uniqueValues: uniq(smeOf) },
+      { key: "save", get: function () { return ""; }, filterable: false, sortable: false },
+    ];
+    var theadRow = document.getElementById("focalPointsBody").closest("table").querySelector("thead tr");
+    _fpXh = installExcelHeader(theadRow, columns);
+    _fpXh.onChange(function () { _fpRenderRows(_fpXh.process(_fpRows)); });
+    return _fpXh;
   }
   function _fpRenderStats(rows) {
     var owners = {}, smes = {};
@@ -7144,16 +7229,13 @@
       _fpRenderStats(rows);
       return;
     }
-    var lastDept = null;
+    // [Focal Points header filters]: the department-header divider rows
+    // this used to insert (d.department !== lastDept) assumed the rows
+    // arrived pre-grouped by department -- once any column is sortable,
+    // that assumption no longer holds (sorting by Item/Deliverable/Owner
+    // interleaves departments), and Department is now its own filterable
+    // column anyway, so a flat row list replaces the grouped one.
     rows.forEach(function (d) {
-      if (d.department !== lastDept) {
-        var hr = el("tr");
-        var hc = el("td", "matrix-dept-row", deptLabel(d.department, d.department_number));
-        hc.setAttribute("colspan", "6");
-        hr.appendChild(hc);
-        tbody.appendChild(hr);
-        lastDept = d.department;
-      }
       var tr = el("tr");
       tr.appendChild(el("td", "", d.item_no));
       var nameCell = el("td", "fp-deliv-name", d.name);
@@ -7196,8 +7278,7 @@
         // with what was just saved, without a full re-fetch.
         d.default_sme_emails = smePicker.getValues();
         if (ownerPicker) d.owner_emails = ownerPicker.getValues();
-        _fpPopulateFilterOptions();
-        _fpRenderStats(_fpApplyFilters());
+        _fpRenderStats(_fpXhController().process(_fpRows));
         showToast("Updated for " + d.item_no);
       });
       var tdSave = el("td"); tdSave.appendChild(saveBtn);
@@ -7206,31 +7287,10 @@
     });
     _fpRenderStats(rows);
   }
-  function _fpApplyFilters() {
-    var f = _fpFilterValues();
-    return _fpRows.filter(function (d) {
-      if (f.dept && d.department !== f.dept) return false;
-      if (f.item && String(d.id) !== f.item) return false;
-      if (f.owner && (d.owner_emails || []).indexOf(f.owner) === -1) return false;
-      if (f.sme && (d.default_sme_emails || []).indexOf(f.sme) === -1) return false;
-      return true;
-    });
-  }
-  ["fpFilterDept", "fpFilterItem", "fpFilterOwner", "fpFilterSme"].forEach(function (id) {
-    document.getElementById(id).addEventListener("change", function () { _fpRenderRows(_fpApplyFilters()); });
-  });
-  document.getElementById("fpFilterClear").addEventListener("click", function () {
-    ["fpFilterDept", "fpFilterItem", "fpFilterOwner", "fpFilterSme"].forEach(function (id) {
-      document.getElementById(id).value = "";
-    });
-    _fpRenderRows(_fpApplyFilters());
-  });
-
   async function loadFocalDeliverables(stage, international) {
     _fpRows = await api("/api/departments/deliverable-focal?stage=" + stage + (international ? "&international=true" : ""));
     _fpRoster = await _getRoster();
-    _fpPopulateFilterOptions();
-    _fpRenderRows(_fpApplyFilters());
+    _fpRenderRows(_fpXhController().process(_fpRows));
   }
 
   async function loadBidManagers() {
@@ -7766,6 +7826,13 @@
       });
     }
     refreshNavBadges();
+    // Item [Requests history default-visible]: history for all 6
+    // categories loads right alongside their pending lists now (no more
+    // lazy per-category "Show History" click) -- also re-runs on every
+    // decision (loadRequests() itself is what approve/reject already
+    // calls to refresh), so a just-decided item moves from Pending into
+    // History immediately instead of needing a manual reopen.
+    loadRequestsHistory();
   }
   // Item 24: split view -- wired once (not inside loadRequests, which
   // reruns on every load/decision) since this is pure show/hide, the same
@@ -7957,195 +8024,189 @@
     return '<span class="pill ' + (status === "approved" ? "good" : "crit") + '"><span class="dot"></span>' +
       (status === "approved" ? "Approved" : "Rejected") + '</span>';
   }
-  function _setupHistoryToggle(toggleId, containerId, loadFn) {
-    var btn = document.getElementById(toggleId);
-    var container = document.getElementById(containerId);
-    var loaded = false;
-    btn.addEventListener("click", async function () {
-      if (container.hidden) {
-        container.hidden = false;
-        btn.textContent = "Hide History";
-        if (!loaded) { await loadFn(container); loaded = true; }
-      } else {
-        container.hidden = true;
-        btn.textContent = "Show History";
+  // [Requests history default-visible]: all 6 categories' history loads
+  // eagerly now (called from loadRequests() itself), each paginated
+  // (renderPager, same widget the Dashboard's Concerns cards use) since a
+  // category's full decided history can run long -- was previously lazy
+  // per-category behind a "Show History" click. Row-building per category
+  // is unchanged from before; only the load-and-render wrapper changed.
+  function _loadRequestHistory(containerId, pagerId, fetchUrl, emptyMsg, rowFn) {
+    return api(fetchUrl).then(function (all) {
+      var decided = all.filter(function (r) { return r.status !== "pending"; });
+      var container = document.getElementById(containerId);
+      var pager = document.getElementById(pagerId);
+      if (!decided.length) {
+        container.innerHTML = "";
+        container.appendChild(el("div", "empty-state", emptyMsg));
+        pager.innerHTML = "";
+        return;
       }
+      renderPager(pager, decided, 8, function (pageItems) {
+        container.innerHTML = "";
+        pageItems.forEach(function (r) { container.appendChild(rowFn(r)); });
+      });
     });
   }
-  _setupHistoryToggle("dueDateHistoryToggle", "dueDateReqHistory", async function (container) {
-    var all = await api("/api/deliverables/due-date-requests?status=");
-    var decided = all.filter(function (r) { return r.status !== "pending"; });
-    container.innerHTML = "";
-    if (!decided.length) { container.appendChild(el("div", "empty-state", "No decided requests yet.")); return; }
-    decided.forEach(function (r) {
-      var row = el("div", "aq-row");
-      var main = el("div", "aq-main");
-      var kindLabel = r.kind === "extension" ? "Extension" : "Hold";
-      main.appendChild(el("div", "aq-title", kindLabel + " &middot; " + r.item_no + " &middot; " + r.name));
-      main.appendChild(el("div", "aq-sub",
-        '<span>' + r.est_no + '</span><span class="sep">&middot;</span><span>' + r.requested_by_email + '</span>' +
-        (r.decided_at ? '<span class="sep">&middot;</span><span>' + fmtDate(r.decided_at.slice(0, 10)) + '</span>' : "") +
-        (r.decision_comment ? '<span class="sep">&middot;</span><span>&#8220;' + r.decision_comment + '&#8221;</span>' : "")));
-      row.appendChild(main);
-      row.appendChild(el("div", "", _historyStatusPill(r.status)));
-      // Redlined: history rows had no click-through at all -- same detail
-      // popup as the live pending queue, just without Approve/Reject.
-      row.style.cursor = "pointer";
-      row.addEventListener("click", function () {
-        openFuDetailModal({
-          eyebrow: kindLabel + " Request &#8211; " + _historyStatusPill(r.status), title: r.item_no + " &middot; " + r.name,
-          fields: [
-            ["Project", r.est_no], ["Requested by", r.requested_by_email],
-            ["Change", r.kind === "extension" ? (fmtDate(r.current_due_date) + " &#8594; " + fmtDate(r.requested_due_date)) : "Put this item on hold"],
-            ["Reason", r.reason], ["Decided", r.decided_at ? fmtDate(r.decided_at.slice(0, 10)) : ""],
-            ["Decision comment", r.decision_comment],
-          ],
+  function _loadDueDateHistory() {
+    return _loadRequestHistory("dueDateReqHistory", "dueDateReqHistoryPager",
+      "/api/deliverables/due-date-requests?status=", "No decided requests yet.", function (r) {
+        var row = el("div", "aq-row");
+        var main = el("div", "aq-main");
+        var kindLabel = r.kind === "extension" ? "Extension" : "Hold";
+        main.appendChild(el("div", "aq-title", kindLabel + " &middot; " + r.item_no + " &middot; " + r.name));
+        main.appendChild(el("div", "aq-sub",
+          '<span>' + r.est_no + '</span><span class="sep">&middot;</span><span>' + r.requested_by_email + '</span>' +
+          (r.decided_at ? '<span class="sep">&middot;</span><span>' + fmtDate(r.decided_at.slice(0, 10)) + '</span>' : "") +
+          (r.decision_comment ? '<span class="sep">&middot;</span><span>&#8220;' + r.decision_comment + '&#8221;</span>' : "")));
+        row.appendChild(main);
+        row.appendChild(el("div", "", _historyStatusPill(r.status)));
+        // Redlined: history rows had no click-through at all -- same detail
+        // popup as the live pending queue, just without Approve/Reject.
+        row.style.cursor = "pointer";
+        row.addEventListener("click", function () {
+          openFuDetailModal({
+            eyebrow: kindLabel + " Request &#8211; " + _historyStatusPill(r.status), title: r.item_no + " &middot; " + r.name,
+            fields: [
+              ["Project", r.est_no], ["Requested by", r.requested_by_email],
+              ["Change", r.kind === "extension" ? (fmtDate(r.current_due_date) + " &#8594; " + fmtDate(r.requested_due_date)) : "Put this item on hold"],
+              ["Reason", r.reason], ["Decided", r.decided_at ? fmtDate(r.decided_at.slice(0, 10)) : ""],
+              ["Decision comment", r.decision_comment],
+            ],
+          });
         });
+        return row;
       });
-      container.appendChild(row);
-    });
-  });
-  _setupHistoryToggle("reassignHistoryToggle", "reassignHistory", async function (container) {
-    var all = await api("/api/deliverables/reassignment-requests?status=");
-    var decided = all.filter(function (r) { return r.status !== "pending"; });
-    container.innerHTML = "";
-    if (!decided.length) { container.appendChild(el("div", "empty-state", "No decided requests yet.")); return; }
-    decided.forEach(function (r) {
-      var row = el("div", "aq-row");
-      var main = el("div", "aq-main");
-      main.appendChild(el("div", "aq-title", r.item_no + " &middot; " + r.name));
-      main.appendChild(el("div", "aq-sub",
-        '<span>' + r.est_no + '</span><span class="sep">&middot;</span>' +
-        '<span>' + (r.from_email || "Unassigned") + ' &#8594; ' + r.to_email + '</span>' +
-        (r.decided_at ? '<span class="sep">&middot;</span><span>' + fmtDate(r.decided_at.slice(0, 10)) + '</span>' : "")));
-      row.appendChild(main);
-      row.appendChild(el("div", "", _historyStatusPill(r.status)));
-      row.style.cursor = "pointer";
-      row.addEventListener("click", function () {
-        openFuDetailModal({
-          eyebrow: "Reassignment Request &#8211; " + _historyStatusPill(r.status), title: r.item_no + " &middot; " + r.name,
-          fields: [
-            ["Project", r.est_no], ["From", r.from_email || "Unassigned"], ["To", r.to_email],
-            ["Reason", r.reason], ["Decided", r.decided_at ? fmtDate(r.decided_at.slice(0, 10)) : ""],
-          ],
+  }
+  function _loadReassignHistory() {
+    return _loadRequestHistory("reassignHistory", "reassignHistoryPager",
+      "/api/deliverables/reassignment-requests?status=", "No decided requests yet.", function (r) {
+        var row = el("div", "aq-row");
+        var main = el("div", "aq-main");
+        main.appendChild(el("div", "aq-title", r.item_no + " &middot; " + r.name));
+        main.appendChild(el("div", "aq-sub",
+          '<span>' + r.est_no + '</span><span class="sep">&middot;</span>' +
+          '<span>' + (r.from_email || "Unassigned") + ' &#8594; ' + r.to_email + '</span>' +
+          (r.decided_at ? '<span class="sep">&middot;</span><span>' + fmtDate(r.decided_at.slice(0, 10)) + '</span>' : "")));
+        row.appendChild(main);
+        row.appendChild(el("div", "", _historyStatusPill(r.status)));
+        row.style.cursor = "pointer";
+        row.addEventListener("click", function () {
+          openFuDetailModal({
+            eyebrow: "Reassignment Request &#8211; " + _historyStatusPill(r.status), title: r.item_no + " &middot; " + r.name,
+            fields: [
+              ["Project", r.est_no], ["From", r.from_email || "Unassigned"], ["To", r.to_email],
+              ["Reason", r.reason], ["Decided", r.decided_at ? fmtDate(r.decided_at.slice(0, 10)) : ""],
+            ],
+          });
         });
+        return row;
       });
-      container.appendChild(row);
-    });
-  });
-  _setupHistoryToggle("smeNomHistoryToggle", "smeNomHistory", async function (container) {
-    var all = await api("/api/departments/sme-nominations");
-    var decided = all.filter(function (r) { return r.status !== "pending"; });
-    container.innerHTML = "";
-    if (!decided.length) { container.appendChild(el("div", "empty-state", "No decided nominations yet.")); return; }
-    decided.forEach(function (n) {
-      var row = el("div", "aq-row");
-      var main = el("div", "aq-main");
-      main.appendChild(el("div", "aq-title", n.item_no + " &middot; " + n.item_name));
-      main.appendChild(el("div", "aq-sub",
-        '<span>' + (n.name || n.email) + '</span><span class="sep">&middot;</span><span>' + n.stage + '</span>' +
-        (n.decided_at ? '<span class="sep">&middot;</span><span>' + fmtDate(n.decided_at.slice(0, 10)) + '</span>' : "") +
-        (n.decision_comment ? '<span class="sep">&middot;</span><span>&#8220;' + n.decision_comment + '&#8221;</span>' : "")));
-      row.appendChild(main);
-      row.appendChild(el("div", "", _historyStatusPill(n.status)));
-      row.style.cursor = "pointer";
-      row.addEventListener("click", function () {
-        openFuDetailModal({
-          eyebrow: "SME Nomination &#8211; " + _historyStatusPill(n.status), title: n.item_no + " &middot; " + n.item_name,
-          fields: [
-            ["Nominee", (n.name || n.email)], ["Stage", n.stage], ["Department", deptLabel(n.department, n.department_number)],
-            ["Decided", n.decided_at ? fmtDate(n.decided_at.slice(0, 10)) : ""], ["Decision comment", n.decision_comment],
-          ],
+  }
+  function _loadSmeNomHistory() {
+    return _loadRequestHistory("smeNomHistory", "smeNomHistoryPager",
+      "/api/departments/sme-nominations", "No decided nominations yet.", function (n) {
+        var row = el("div", "aq-row");
+        var main = el("div", "aq-main");
+        main.appendChild(el("div", "aq-title", n.item_no + " &middot; " + n.item_name));
+        main.appendChild(el("div", "aq-sub",
+          '<span>' + (n.name || n.email) + '</span><span class="sep">&middot;</span><span>' + n.stage + '</span>' +
+          (n.decided_at ? '<span class="sep">&middot;</span><span>' + fmtDate(n.decided_at.slice(0, 10)) + '</span>' : "") +
+          (n.decision_comment ? '<span class="sep">&middot;</span><span>&#8220;' + n.decision_comment + '&#8221;</span>' : "")));
+        row.appendChild(main);
+        row.appendChild(el("div", "", _historyStatusPill(n.status)));
+        row.style.cursor = "pointer";
+        row.addEventListener("click", function () {
+          openFuDetailModal({
+            eyebrow: "SME Nomination &#8211; " + _historyStatusPill(n.status), title: n.item_no + " &middot; " + n.item_name,
+            fields: [
+              ["Nominee", (n.name || n.email)], ["Stage", n.stage], ["Department", deptLabel(n.department, n.department_number)],
+              ["Decided", n.decided_at ? fmtDate(n.decided_at.slice(0, 10)) : ""], ["Decision comment", n.decision_comment],
+            ],
+          });
         });
+        return row;
       });
-      container.appendChild(row);
-    });
-  });
-  _setupHistoryToggle("groupAddReqHistoryToggle", "groupAddReqHistory", async function (container) {
-    var all = await api("/api/departments/user-add-requests?status=");
-    var decided = all.filter(function (r) { return r.status !== "pending"; });
-    container.innerHTML = "";
-    if (!decided.length) { container.appendChild(el("div", "empty-state", "No decided requests yet.")); return; }
-    decided.forEach(function (r) {
-      var row = el("div", "aq-row");
-      var main = el("div", "aq-main");
-      main.appendChild(el("div", "aq-title", (r.name || r.email) + " &middot; " + r.role));
-      main.appendChild(el("div", "aq-sub",
-        '<span>' + r.email + '</span><span class="sep">&middot;</span>' +
-        '<span>Requested by ' + (r.requested_by_name || r.requested_by_email) + '</span>' +
-        (r.decided_at ? '<span class="sep">&middot;</span><span>' + fmtDate(r.decided_at.slice(0, 10)) + '</span>' : "")));
-      row.appendChild(main);
-      row.appendChild(el("div", "", _historyStatusPill(r.status)));
-      row.style.cursor = "pointer";
-      row.addEventListener("click", function () {
-        openFuDetailModal({
-          eyebrow: "Group Add Request &#8211; " + _historyStatusPill(r.status), title: (r.name || r.email) + " &middot; " + r.role,
-          fields: [
-            ["Email", r.email], ["Role", r.role],
-            ["Requested by", r.requested_by_name || r.requested_by_email],
-            ["Decided", r.decided_at ? fmtDate(r.decided_at.slice(0, 10)) : ""],
-          ],
+  }
+  function _loadGroupAddHistory() {
+    return _loadRequestHistory("groupAddReqHistory", "groupAddReqHistoryPager",
+      "/api/departments/user-add-requests?status=", "No decided requests yet.", function (r) {
+        var row = el("div", "aq-row");
+        var main = el("div", "aq-main");
+        main.appendChild(el("div", "aq-title", (r.name || r.email) + " &middot; " + r.role));
+        main.appendChild(el("div", "aq-sub",
+          '<span>' + r.email + '</span><span class="sep">&middot;</span>' +
+          '<span>Requested by ' + (r.requested_by_name || r.requested_by_email) + '</span>' +
+          (r.decided_at ? '<span class="sep">&middot;</span><span>' + fmtDate(r.decided_at.slice(0, 10)) + '</span>' : "")));
+        row.appendChild(main);
+        row.appendChild(el("div", "", _historyStatusPill(r.status)));
+        row.style.cursor = "pointer";
+        row.addEventListener("click", function () {
+          openFuDetailModal({
+            eyebrow: "Group Add Request &#8211; " + _historyStatusPill(r.status), title: (r.name || r.email) + " &middot; " + r.role,
+            fields: [
+              ["Email", r.email], ["Role", r.role],
+              ["Requested by", r.requested_by_name || r.requested_by_email],
+              ["Decided", r.decided_at ? fmtDate(r.decided_at.slice(0, 10)) : ""],
+            ],
+          });
         });
+        return row;
       });
-      container.appendChild(row);
-    });
-  });
-  _setupHistoryToggle("formulaReqHistoryToggle", "formulaReqHistory", async function (container) {
-    var all = await api("/api/deliverables/config/formula-change-requests?status=");
-    var decided = all.filter(function (r) { return r.status !== "pending"; });
-    container.innerHTML = "";
-    if (!decided.length) { container.appendChild(el("div", "empty-state", "No decided requests yet.")); return; }
-    decided.forEach(function (r) {
-      var row = el("div", "aq-row");
-      var main = el("div", "aq-main");
-      main.appendChild(el("div", "aq-title", r.item_no + " &middot; " + r.item_name));
-      main.appendChild(el("div", "aq-sub",
-        '<span>' + (r.requested_by_name || r.requested_by_email) + '</span>' +
-        (r.decided_at ? '<span class="sep">&middot;</span><span>' + fmtDate(r.decided_at.slice(0, 10)) + '</span>' : "") +
-        (r.decision_comment ? '<span class="sep">&middot;</span><span>&#8220;' + r.decision_comment + '&#8221;</span>' : "")));
-      row.appendChild(main);
-      row.appendChild(el("div", "", _historyStatusPill(r.status)));
-      row.style.cursor = "pointer";
-      row.addEventListener("click", function () {
-        openFuDetailModal({
-          eyebrow: "Formula Change Suggestion &#8211; " + _historyStatusPill(r.status), title: r.item_no + " &middot; " + r.item_name,
-          fields: [
-            ["Requested by", r.requested_by_name || r.requested_by_email], ["Currently", r.current_summary],
-            ["Comment", r.comment], ["Decided", r.decided_at ? fmtDate(r.decided_at.slice(0, 10)) : ""],
-            ["Decision comment", r.decision_comment],
-          ],
+  }
+  function _loadFormulaHistory() {
+    return _loadRequestHistory("formulaReqHistory", "formulaReqHistoryPager",
+      "/api/deliverables/config/formula-change-requests?status=", "No decided requests yet.", function (r) {
+        var row = el("div", "aq-row");
+        var main = el("div", "aq-main");
+        main.appendChild(el("div", "aq-title", r.item_no + " &middot; " + r.item_name));
+        main.appendChild(el("div", "aq-sub",
+          '<span>' + (r.requested_by_name || r.requested_by_email) + '</span>' +
+          (r.decided_at ? '<span class="sep">&middot;</span><span>' + fmtDate(r.decided_at.slice(0, 10)) + '</span>' : "") +
+          (r.decision_comment ? '<span class="sep">&middot;</span><span>&#8220;' + r.decision_comment + '&#8221;</span>' : "")));
+        row.appendChild(main);
+        row.appendChild(el("div", "", _historyStatusPill(r.status)));
+        row.style.cursor = "pointer";
+        row.addEventListener("click", function () {
+          openFuDetailModal({
+            eyebrow: "Formula Change Suggestion &#8211; " + _historyStatusPill(r.status), title: r.item_no + " &middot; " + r.item_name,
+            fields: [
+              ["Requested by", r.requested_by_name || r.requested_by_email], ["Currently", r.current_summary],
+              ["Comment", r.comment], ["Decided", r.decided_at ? fmtDate(r.decided_at.slice(0, 10)) : ""],
+              ["Decision comment", r.decision_comment],
+            ],
+          });
         });
+        return row;
       });
-      container.appendChild(row);
-    });
-  });
-  _setupHistoryToggle("bidValueReqHistoryToggle", "bidValueReqHistory", async function (container) {
-    var all = await api("/api/projects/bid-value-requests?status=");
-    var decided = all.filter(function (r) { return r.status !== "pending"; });
-    container.innerHTML = "";
-    if (!decided.length) { container.appendChild(el("div", "empty-state", "No decided requests yet.")); return; }
-    decided.forEach(function (r) {
-      var row = el("div", "aq-row");
-      var main = el("div", "aq-main");
-      main.appendChild(el("div", "aq-title", r.est_no + " &middot; " + r.name));
-      main.appendChild(el("div", "aq-sub",
-        '<span>' + (r.requested_by_name ? r.requested_by_name + " (" + r.requested_by_email + ")" : r.requested_by_email) + '</span>' +
-        (r.decided_at ? '<span class="sep">&middot;</span><span>' + fmtDate(r.decided_at.slice(0, 10)) + '</span>' : "")));
-      row.appendChild(main);
-      row.appendChild(el("div", "", _historyStatusPill(r.status)));
-      row.style.cursor = "pointer";
-      row.addEventListener("click", function () {
-        openFuDetailModal({
-          eyebrow: "Bid Value Access Request &#8211; " + _historyStatusPill(r.status), title: r.est_no + " &middot; " + r.name,
-          fields: [
-            ["Requested by", r.requested_by_name ? r.requested_by_name + " (" + r.requested_by_email + ")" : r.requested_by_email],
-            ["Decided", r.decided_at ? fmtDate(r.decided_at.slice(0, 10)) : ""],
-          ],
+  }
+  function _loadBidValueHistory() {
+    return _loadRequestHistory("bidValueReqHistory", "bidValueReqHistoryPager",
+      "/api/projects/bid-value-requests?status=", "No decided requests yet.", function (r) {
+        var row = el("div", "aq-row");
+        var main = el("div", "aq-main");
+        main.appendChild(el("div", "aq-title", r.est_no + " &middot; " + r.name));
+        main.appendChild(el("div", "aq-sub",
+          '<span>' + (r.requested_by_name ? r.requested_by_name + " (" + r.requested_by_email + ")" : r.requested_by_email) + '</span>' +
+          (r.decided_at ? '<span class="sep">&middot;</span><span>' + fmtDate(r.decided_at.slice(0, 10)) + '</span>' : "")));
+        row.appendChild(main);
+        row.appendChild(el("div", "", _historyStatusPill(r.status)));
+        row.style.cursor = "pointer";
+        row.addEventListener("click", function () {
+          openFuDetailModal({
+            eyebrow: "Bid Value Access Request &#8211; " + _historyStatusPill(r.status), title: r.est_no + " &middot; " + r.name,
+            fields: [
+              ["Requested by", r.requested_by_name ? r.requested_by_name + " (" + r.requested_by_email + ")" : r.requested_by_email],
+              ["Decided", r.decided_at ? fmtDate(r.decided_at.slice(0, 10)) : ""],
+            ],
+          });
         });
+        return row;
       });
-      container.appendChild(row);
-    });
-  });
+  }
+  function loadRequestsHistory() {
+    _loadDueDateHistory(); _loadReassignHistory(); _loadSmeNomHistory();
+    _loadGroupAddHistory(); _loadFormulaHistory(); _loadBidValueHistory();
+  }
 
   /* ================= DELIVERABLES CONFIGURATION (branch editor + admin/SME pages) ================= */
   // Shared branch-editor widget, reused verbatim by the admin definition

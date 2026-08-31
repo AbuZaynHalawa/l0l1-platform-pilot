@@ -710,26 +710,24 @@
           <p class="sub">Full ranking behind the Dashboard's Top Achievers &#8212; every Owner and SME, not just the top 3.</p>
         </div>
       </div>
-      <div class="card">
-        <div class="fp-add-row" style="border-top:none;padding-top:14px;">
-          <input type="text" id="scoresSearch" placeholder="Search by name or email&#8230;" />
-          <select id="scoresDeptFilter"><option value="">All Departments</option></select>
-          <select id="scoresSort">
-            <option value="rank">Sort: Default ranking</option>
-            <option value="name">Sort: Name A&#8211;Z</option>
-            <option value="pct_desc">Sort: Rate/Speed, best first</option>
-            <option value="total_desc">Sort: Most activity first</option>
-          </select>
-        </div>
-      </div>
+      <!-- Item [Top Achievers tables]: the old search/department/sort
+           controls are gone -- every column below has its own Excel-header
+           filter+sort now, same convention as every other table, wired in
+           renderScores()/loadScores(). -->
       <div class="split">
         <div class="card table-card">
           <div class="section-title">Owners <span class="cnt">by on-time approval rate</span></div>
-          <div id="scoresOwners" class="achiever-list"></div>
+          <table class="fp-table">
+            <thead><tr><th></th><th>Name</th><th>Email</th><th>Department</th><th>Approved</th><th>Rate</th></tr></thead>
+            <tbody id="scoresOwners"></tbody>
+          </table>
         </div>
         <div class="card table-card">
           <div class="section-title">SME <span class="cnt">by average response time</span></div>
-          <div id="scoresSmes" class="achiever-list"></div>
+          <table class="fp-table">
+            <thead><tr><th></th><th>Name</th><th>Email</th><th>Department</th><th>Reviews</th><th>Avg Response</th></tr></thead>
+            <tbody id="scoresSmes"></tbody>
+          </table>
         </div>
       </div>
     </section>
@@ -754,13 +752,11 @@
       <div class="card table-card" id="fpDeliverablePanel">
         <p class="sub fp-hint">Set the Owner email for a specific item to override its department's default, and the SME assigned to new submissions of it. Tendering Department items are always routed to that project's own Bid Manager for the Owner (not editable here), but their SME still is.</p>
         <div class="fp-stats" id="fpStats"></div>
-        <div class="fp-filter-row" id="fpFilterRow">
-          <select id="fpFilterDept"><option value="">All Departments</option></select>
-          <select id="fpFilterItem"><option value="">All Deliverables</option></select>
-          <select id="fpFilterOwner"><option value="">All Owners</option></select>
-          <select id="fpFilterSme"><option value="">All SMEs</option></select>
-          <button class="btn" id="fpFilterClear">Clear</button>
-        </div>
+        <!-- Item [Focal Points header filters]: the old Department/
+             Deliverable/Owner/SME dropdown row + Clear button is gone --
+             every column below has its own Excel-header filter+sort now,
+             same convention as every other table (installExcelHeader in
+             loadFocalDeliverables()). -->
         <div class="fp-table-scroll">
           <table class="fp-table">
             <thead><tr><th>Item</th><th>Deliverable</th><th>Department</th><th>Deliverable's Owner Email</th><th>SME Email</th><th></th></tr></thead>
@@ -921,59 +917,59 @@
             <div class="folder-row" data-cat="formula"><div class="folder-left"><span class="folder-ic">&#128203;</span><div class="folder-name">Formula Change Requests</div></div><div class="folder-right"><span class="folder-pct" id="formulaReqCount"></span></div></div>
           </div>
         </div>
+        <!-- Item [Requests history default-visible]: the old per-category
+             "Show History" toggle is gone -- decided requests render
+             underneath the pending ones by default, same as every other
+             list in the app, with a pager (renderPager) since a category's
+             full decided history can run long. See loadRequests() /
+             _renderRequestHistory() in app.js. -->
         <div class="card table-card fu-compact">
           <div class="req-cat-panel" data-cat="dueDate">
-            <div class="section-title">
-              <span>Due-Date Requests</span>
-              <button class="btn" id="dueDateHistoryToggle" style="font-size:11px;padding:4px 10px;">Show History</button>
-            </div>
+            <div class="section-title"><span>Due-Date Requests</span></div>
             <div id="dueDateReqList"></div>
-            <div id="dueDateReqHistory" hidden></div>
+            <div class="section-title req-history-title"><span>History</span></div>
+            <div id="dueDateReqHistory"></div>
+            <div class="pager" id="dueDateReqHistoryPager"></div>
           </div>
 
           <div class="req-cat-panel" data-cat="reassign" hidden>
-            <div class="section-title">
-              <span>Reassignment Requests</span>
-              <button class="btn" id="reassignHistoryToggle" style="font-size:11px;padding:4px 10px;">Show History</button>
-            </div>
+            <div class="section-title"><span>Reassignment Requests</span></div>
             <div id="reassignList"></div>
-            <div id="reassignHistory" hidden></div>
+            <div class="section-title req-history-title"><span>History</span></div>
+            <div id="reassignHistory"></div>
+            <div class="pager" id="reassignHistoryPager"></div>
           </div>
 
           <div class="req-cat-panel" data-cat="smeNom" hidden>
-            <div class="section-title">
-              <span>SME Nominations</span>
-              <button class="btn" id="smeNomHistoryToggle" style="font-size:11px;padding:4px 10px;">Show History</button>
-            </div>
+            <div class="section-title"><span>SME Nominations</span></div>
             <div id="smeNomList"></div>
-            <div id="smeNomHistory" hidden></div>
+            <div class="section-title req-history-title"><span>History</span></div>
+            <div id="smeNomHistory"></div>
+            <div class="pager" id="smeNomHistoryPager"></div>
           </div>
 
           <div class="req-cat-panel" data-cat="bidValue" hidden>
-            <div class="section-title">
-              <span>Bid Value Access Requests</span>
-              <button class="btn" id="bidValueReqHistoryToggle" style="font-size:11px;padding:4px 10px;">Show History</button>
-            </div>
+            <div class="section-title"><span>Bid Value Access Requests</span></div>
             <div id="bidValueReqList"></div>
-            <div id="bidValueReqHistory" hidden></div>
+            <div class="section-title req-history-title"><span>History</span></div>
+            <div id="bidValueReqHistory"></div>
+            <div class="pager" id="bidValueReqHistoryPager"></div>
           </div>
 
           <div class="req-cat-panel" data-cat="groupAdd" hidden>
-            <div class="section-title">
-              <span>Group Add Requests</span>
-              <button class="btn" id="groupAddReqHistoryToggle" style="font-size:11px;padding:4px 10px;">Show History</button>
-            </div>
+            <div class="section-title"><span>Group Add Requests</span></div>
             <div id="groupAddReqList"></div>
-            <div id="groupAddReqHistory" hidden></div>
+            <div class="section-title req-history-title"><span>History</span></div>
+            <div id="groupAddReqHistory"></div>
+            <div class="pager" id="groupAddReqHistoryPager"></div>
           </div>
 
           <div class="req-cat-panel" data-cat="formula" hidden>
-            <div class="section-title">
-              <span>Formula Change Requests</span>
-              <button class="btn" id="formulaReqHistoryToggle" style="font-size:11px;padding:4px 10px;">Show History</button>
-            </div>
+            <div class="section-title"><span>Formula Change Requests</span></div>
             <div id="formulaReqList"></div>
-            <div id="formulaReqHistory" hidden></div>
+            <div class="section-title req-history-title"><span>History</span></div>
+            <div id="formulaReqHistory"></div>
+            <div class="pager" id="formulaReqHistoryPager"></div>
           </div>
         </div>
       </div>
@@ -1558,18 +1554,21 @@
           <button class="btn" id="repBudgetPrintBtn">&#128424; Print</button>
         </div>
       </div>
-      <div class="fp-add-row" id="repBudgetFilterRow">
-        <select id="repBudgetProjectFilter"><option value="">All Projects</option></select>
-        <select id="repBudgetStatusFilter">
-          <option value="">Any Status</option>
-          <option value="done">Complete</option>
-          <option value="progress">In Progress</option>
-          <option value="blocked">Blocked / Overdue</option>
-          <option value="pending">Not Due Yet</option>
-        </select>
-      </div>
+      <!-- Item [Budget report table]: the old dropdown filter row is gone --
+           every column filter now lives in its own header, same
+           Excel-header convention as Master PO Report / every other table
+           in the app, wired in loadReportBudgetStatus(). -->
       <div class="rep-po-count-line" id="repBudgetCount"></div>
-      <div class="budget-report-list" id="repBudgetList"></div>
+      <div class="rep-po-table-wrap">
+        <table class="rep-po-table">
+          <thead><tr>
+            <th>Est-No</th><th>Project</th><th>Contract Status</th>
+            <th>Temp Budget (6.1)</th><th>Tendering Budget (6.2)</th><th>Locked Budget (6.3)</th>
+            <th>Note</th>
+          </tr></thead>
+          <tbody id="repBudgetBody"></tbody>
+        </table>
+      </div>
     </section>
 
     <!-- CREATE PROJECT -->
