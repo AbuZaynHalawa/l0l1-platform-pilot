@@ -817,8 +817,19 @@
   async function loadDashboard() {
     var focusEmail = dashFocus === "mine" ? myIdentity() : "";
     var qs = focusEmail ? "?focus_email=" + encodeURIComponent(focusEmail) : "";
-    var d = await api("/api/dashboard" + qs);
+    // [Dashboard perf]: these 4 requests (+ lifetime KPIs) don't actually
+    // depend on each other's responses -- top-achievers, the announcements
+    // digest, and the matrix only ever needed focusEmail, which is known
+    // synchronously right here, not anything /api/dashboard returns. Firing
+    // them all together instead of awaiting one before starting the next
+    // turns 4+ sequential round-trips into one, each only as slow as the
+    // slowest of them.
+    matrixFocusEmail = focusEmail;
+    var achieversPromise = api("/api/dashboard/top-achievers");
+    var announcementsPromise = Promise.all([loadStageAnnouncements("L0"), loadStageAnnouncements("L1")]);
+    var matrixPromise = loadMatrix();
     loadLifetimeKpis();
+    var d = await api("/api/dashboard" + qs);
 
     // Item [dashboard stage split]: Concerns is now one card per stage,
     // living in that stage's own column further down. Item [empty concerns]:
@@ -989,7 +1000,7 @@
     renderStageDepts("L0", d.top_depts_l0);
     renderStageDepts("L1", d.top_depts_l1);
 
-    var achievers = await api("/api/dashboard/top-achievers");
+    var achievers = await achieversPromise;
     renderAchievers("topOwners", achievers.owners.slice(0, 3), "owner");
     renderAchievers("topSmes", achievers.smes.slice(0, 3), "sme");
 
@@ -1035,10 +1046,8 @@
         }
       });
     }
-    await Promise.all([loadStageAnnouncements("L0"), loadStageAnnouncements("L1")]);
-
-    matrixFocusEmail = focusEmail;
-    await loadMatrix();
+    await announcementsPromise;
+    await matrixPromise;
   }
 
   /* ================= DELIVERABLES MATRIX ================= */

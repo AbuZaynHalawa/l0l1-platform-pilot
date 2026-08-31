@@ -1,7 +1,7 @@
 from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, contains_eager
 
 from .. import models, rules
 from ..database import get_db
@@ -36,9 +36,20 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
         if p.status == models.ProjectStatus.IN_PROGRESS:
             rules.recompute_project_due_dates(db, p)
     db.commit()
-    all_subs = db.query(models.DeliverableSubmission).join(models.DeliverableSubmission.project).filter(
-        models.Project.archived.is_not(True)
-    ).all()
+    # [Dashboard perf]: everything derived from this list below reads
+    # s.definition.* on nearly every row (deadline status, department_id,
+    # kpi_relevant, resolve_owners/resolve_smes' default_owner_emails/
+    # default_sme_emails fallback) -- with no eager option here, that was a
+    # separate lazy-load query per unique submission (up to ~3500 of them),
+    # the same N+1 shape already found and fixed on /api/deliverables.
+    # joinedload folds it into the one query below instead.
+    all_subs = (
+        db.query(models.DeliverableSubmission)
+        .join(models.DeliverableSubmission.project)
+        .options(joinedload(models.DeliverableSubmission.definition))
+        .filter(models.Project.archived.is_not(True))
+        .all()
+    )
 
     focus = (focus_email or "").strip().lower()
     stat_subs = all_subs
@@ -226,10 +237,19 @@ def get_dashboard(focus_email: str | None = None, db: Session = Depends(get_db))
     # that stage's own catalog -- scoped to focus_email when "My Items" is
     # on (item [My Items scoping v2]), same as the project cards above.
     def _recent_milestones(stage_enum):
+        # [Dashboard perf]: the row-builder below reads s.definition.* and
+        # s.project.* on every row (plus resolve_owners/resolve_smes read
+        # s.definition again when focus_email is set) -- same N+1 shape as
+        # the rest of this file. contains_eager reuses the two joins already
+        # here (for filtering) to populate both instead of lazy-loading.
         q = (
             db.query(models.DeliverableSubmission)
             .join(models.DeliverableDefinition)
             .join(models.DeliverableSubmission.project)
+            .options(
+                contains_eager(models.DeliverableSubmission.definition),
+                contains_eager(models.DeliverableSubmission.project),
+            )
             .filter(
                 models.DeliverableDefinition.is_milestone.is_(True),
                 models.DeliverableDefinition.stage == stage_enum,
@@ -420,9 +440,16 @@ def get_top_achievers(db: Session = Depends(get_db)):
     db.commit()
     subs = []
     if active_projects:
+        # [Dashboard perf]: _rank_owners/_rank_smes read s.definition.
+        # kpi_relevant on every row -- the join here was only ever used for
+        # SQLAlchemy's join-target resolution, never actually eager-loaded,
+        # so that was a separate lazy-load query per unique submission (same
+        # N+1 shape as get_dashboard/get_performance above). contains_eager
+        # reuses this same join to populate it instead of adding a second one.
         subs = (
             db.query(models.DeliverableSubmission)
             .join(models.DeliverableDefinition)
+            .options(contains_eager(models.DeliverableSubmission.definition))
             .filter(models.DeliverableSubmission.project_id.in_([p.id for p in active_projects]))
             .all()
         )
@@ -450,9 +477,14 @@ def get_matrix(stage: str, focus_email: str | None = None, db: Session = Depends
         .order_by(models.Project.announcement_date)
         .all()
     )
+    # [Dashboard perf]: the sort key below and each row built further down
+    # both read d.department.* -- same N+1 shape as elsewhere in this file.
+    # contains_eager reuses the join already here (for ordering) instead of
+    # a separate lazy-load per unique department.
     defs = (
         db.query(models.DeliverableDefinition)
         .join(models.Department)
+        .options(contains_eager(models.DeliverableDefinition.department))
         .filter(models.DeliverableDefinition.stage == stage, models.DeliverableDefinition.active == True)  # noqa: E712
         .order_by(models.Department.number)
         .all()
@@ -478,6 +510,11 @@ def get_matrix(stage: str, focus_email: str | None = None, db: Session = Depends
         db.commit()
         subs = (
             db.query(models.DeliverableSubmission)
+            # [Dashboard perf]: the focus_email branch below calls
+            # resolve_owners/resolve_smes per row, which read s.definition's
+            # default_owner_emails/default_sme_emails fallback -- same N+1
+            # shape as the rest of this file.
+            .options(joinedload(models.DeliverableSubmission.definition))
             .filter(models.DeliverableSubmission.project_id.in_([p.id for p in projects]))
             .all()
         )
@@ -793,9 +830,20 @@ def get_performance(db: Session = Depends(get_db)):
     ).all():
         rules.recompute_project_due_dates(db, p)
     db.commit()
-    all_subs = db.query(models.DeliverableSubmission).join(models.DeliverableSubmission.project).filter(
-        models.Project.archived.is_not(True)
-    ).all()
+    # [Dashboard perf]: everything derived from this list below reads
+    # s.definition.* on nearly every row (deadline status, department_id,
+    # kpi_relevant, resolve_owners/resolve_smes' default_owner_emails/
+    # default_sme_emails fallback) -- with no eager option here, that was a
+    # separate lazy-load query per unique submission (up to ~3500 of them),
+    # the same N+1 shape already found and fixed on /api/deliverables.
+    # joinedload folds it into the one query below instead.
+    all_subs = (
+        db.query(models.DeliverableSubmission)
+        .join(models.DeliverableSubmission.project)
+        .options(joinedload(models.DeliverableSubmission.definition))
+        .filter(models.Project.archived.is_not(True))
+        .all()
+    )
 
     all_depts = db.query(models.Department).order_by(models.Department.number).all()
     dept_by_name = {d.name: d for d in all_depts}
@@ -880,9 +928,20 @@ def get_performance_breakdown(department: str, stage: str, db: Session = Depends
     ).all():
         rules.recompute_project_due_dates(db, p)
     db.commit()
-    all_subs = db.query(models.DeliverableSubmission).join(models.DeliverableSubmission.project).filter(
-        models.Project.archived.is_not(True)
-    ).all()
+    # [Dashboard perf]: everything derived from this list below reads
+    # s.definition.* on nearly every row (deadline status, department_id,
+    # kpi_relevant, resolve_owners/resolve_smes' default_owner_emails/
+    # default_sme_emails fallback) -- with no eager option here, that was a
+    # separate lazy-load query per unique submission (up to ~3500 of them),
+    # the same N+1 shape already found and fixed on /api/deliverables.
+    # joinedload folds it into the one query below instead.
+    all_subs = (
+        db.query(models.DeliverableSubmission)
+        .join(models.DeliverableSubmission.project)
+        .options(joinedload(models.DeliverableSubmission.definition))
+        .filter(models.Project.archived.is_not(True))
+        .all()
+    )
     # Mirrors get_performance's own merge: the L0 card this drill-down is
     # opened from already combines this department with its international
     # counterpart (if any), so the breakdown has to pull from both too or
