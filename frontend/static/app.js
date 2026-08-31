@@ -1288,16 +1288,33 @@
   // segment); `classMap` maps each real value to good/warn/crit/"" (empty
   // = neutral, matching item 32's Dashboard cards); clicking the active
   // segment/legend item again clears the filter.
+  // [Status bar legibility]: `base` includes every row regardless of
+  // status, but `filters` only ever tracks a handful of them (deadline:
+  // not_due/due/early/on_time/late; progress: no_progress/in_progress/
+  // pending_review/approved/rejected -- Not Required/Pending Triage rows
+  // fall into neither, yet used to count toward `total` below, so a big
+  // Not-Required/Pending-Triage cohort quietly ate most of the bar as dead,
+  // undrawn space). Trimming the denominator to just the tracked counts
+  // means the bar is always fully accounted for. On top of that, a real
+  // but rare category (e.g. a handful of "Completed" among hundreds of
+  // "Not Due") still rendered as a sub-pixel sliver -- a ~4% floor on
+  // every nonzero segment, redistributed proportionally so the bar still
+  // sums to 100%, keeps every real category visible without pretending
+  // the underlying counts are anything other than skewed.
   function _renderAssignedFilterBar(containerId, filters, base, statusGetter, currentFilter, classMap, onSelect) {
     var container = document.getElementById(containerId);
     var real = filters.filter(function (f) { return f[0]; });
-    var total = base.length;
     var counts = {};
     real.forEach(function (f) { counts[f[0]] = base.filter(function (d) { return statusGetter(d) === f[0]; }).length; });
-    var segsHtml = real.map(function (f) {
-      var w = total ? (counts[f[0]] / total * 100) : 0;
+    var tracked = real.reduce(function (sum, f) { return sum + counts[f[0]]; }, 0);
+    var MIN_SEG_PCT = 4;
+    var rawWidths = real.map(function (f) { return tracked ? (counts[f[0]] / tracked * 100) : 0; });
+    var flooredWidths = rawWidths.map(function (w, i) { return counts[real[i][0]] > 0 ? Math.max(w, MIN_SEG_PCT) : 0; });
+    var flooredTotal = flooredWidths.reduce(function (sum, w) { return sum + w; }, 0);
+    var widths = flooredTotal ? flooredWidths.map(function (w) { return w / flooredTotal * 100; }) : flooredWidths;
+    var segsHtml = real.map(function (f, i) {
       var cls = classMap[f[0]] || "neutral";
-      return '<div class="psb-seg ' + cls + '" style="width:' + w + '%;" title="' + f[1] + ': ' + counts[f[0]] + '"></div>';
+      return '<div class="psb-seg ' + cls + '" style="width:' + widths[i] + '%;" title="' + f[1] + ': ' + counts[f[0]] + '"></div>';
     }).join("");
     var legendHtml = real.map(function (f) {
       var active = currentFilter === f[0];

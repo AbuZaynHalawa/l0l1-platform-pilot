@@ -170,7 +170,6 @@
     <div id="hvSpecTitle" style="font-family:var(--font-heading);font-weight:700;font-size:26px;line-height:1.1;letter-spacing:-0.01em;color:var(--ink);margin-top:14px;"></div>
     <div id="hvSpecDesc" style="font-size:12px;line-height:1.75;color:var(--ink-dim);margin-top:14px;"></div>
     <div id="hvSpecSpecs" style="display:grid;gap:2px;margin-top:22px;"></div>
-    <button type="button" id="hvViewAssembly" class="hv-cta-fill" style="width:100%;margin-top:26px;background:#ec3013;border:0;color:#ffffff;padding:14px 18px;font-family:var(--font-heading);font-weight:700;font-size:10px;letter-spacing:0.18em;cursor:pointer;text-align:left;">VIEW ASSEMBLY →</button>
   </div>
 </div>
 
@@ -1094,7 +1093,13 @@
       </div>
       <div class="card table-card">
         <table class="fp-table">
-          <thead><tr><th>Est-No</th><th>Tender</th><th>Bid Manager</th><th>Triage</th><th>Status</th><th></th></tr></thead>
+          <!-- Item [BM Triage column widths]: an even 1/6 split (table-layout:
+               fixed with no explicit widths) squeezed Tender/Bid Manager onto
+               2 lines, which inflated every cell in the row -- Est-No/Triage/
+               Status/Action too -- to match. Explicit widths on every column
+               except Tender leave it as the one flexible column absorbing
+               whatever's left, so a normal project name fits on one line. -->
+          <thead><tr><th style="width:90px;">Est-No</th><th>Tender</th><th style="width:190px;">Bid Manager</th><th style="width:70px;">Triage</th><th style="width:100px;">Status</th><th style="width:140px;"></th></tr></thead>
           <tbody id="bmTriageBody"></tbody>
         </table>
       </div>

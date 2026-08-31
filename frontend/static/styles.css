@@ -370,7 +370,10 @@
      narrower default, since a form usually reads worse stretched full-width. */
   #view-announcements, #view-l0, #view-l1, #view-gantt, #view-support,
   #view-scores, #view-focalpoints, #view-followup, #view-requests, #view-tickets,
-  #view-performance, #view-reports, #view-triage { max-width: 1680px; }
+  #view-performance, #view-reports, #view-triage,
+  /* My Requests (item 22's own list/table view) was left off this list --
+     same dead-strip-on-a-wide-monitor symptom as every view above it. */
+  #view-myrequests { max-width: 1680px; }
   .view[hidden] { display: none; }
   .view-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
 
@@ -825,6 +828,11 @@
   .est-no.l0 { color: var(--l0-1); }
   .est-no.l1 { color: var(--l1-1); }
   .proj-name { display: block; max-width: 340px; white-space: normal; }
+  /* BM Triage's Tender column is sized wider than .proj-name's generic
+     340px cap (see the table's own column widths above) specifically so a
+     normal project name fits on one line -- the shared cap would otherwise
+     force a wrap regardless of how much room the column actually has. */
+  #bmTriageBody .proj-name { max-width: none; }
   .mini-stepper { display: flex; gap: 3px; }
   .mini-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line); }
   .mini-dot.on { background: var(--purple-1); }
@@ -1856,7 +1864,15 @@
      issue (Tender name + Bid Manager email are long, unbroken content) --
      same fix as Manage Tracking above. */
   #view-bmtriage .fp-table { table-layout: fixed; }
-  #view-bmtriage .fp-table td { white-space: normal; word-break: break-word; }
+  /* [BM Triage row height]: scoped to just Tender/Bid Manager (the two
+     genuinely long, unbroken-content columns) instead of every td -- the
+     blanket version let white-space:normal inherit into the Status pill
+     and the Remind BM/Remind Again button too, wrapping "Remind BM" onto
+     2 lines inside its own 84px content box and stretching the whole row
+     to match, even though those columns had all the room they needed. */
+  #view-bmtriage .fp-table td:nth-child(2), #view-bmtriage .fp-table td:nth-child(3) {
+    white-space: normal; word-break: break-word;
+  }
   /* Same wrap-instead-of-nowrap treatment, reusable -- Deliverables
      Configuration / Deliverables Catalog tables also carry sentence-length
      Name/Formula text that shouldn't force the table to horizontal-scroll. */
@@ -2089,8 +2105,11 @@
      visible empty space to the right on a normal desktop -- widen just
      this report so the table has room to lay out without an inner
      scrollbar. Overview PO's card grid doesn't have this problem (cards
-     reflow via auto-fill) so it stays at the app's normal width. */
-  #view-report-masterpo { max-width: 1700px; }
+     reflow via auto-fill) so it stays at the app's normal width.
+     #view-masterpo (the standalone nav tab, item 12) renders the exact
+     same masterPoCore table -- same fix belongs there too, it was just
+     missed when this was originally scoped to the report only. */
+  #view-report-masterpo, #view-masterpo { max-width: 1700px; }
   /* Deliverables Configuration / Deliverables Catalog: same problem once
      their lists became real tables (Item No / Department / Name / Formula
      / Weight / Edit columns) -- .view's 1280px cap squeezed the trailing

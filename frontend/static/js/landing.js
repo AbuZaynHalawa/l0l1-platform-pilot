@@ -289,8 +289,6 @@ function bindStaticUI() {
 
   const specClose = el('hvSpecClose');
   if (specClose) specClose.addEventListener('click', clearSelection);
-  const viewAssemblyBtn = el('hvViewAssembly');
-  if (viewAssemblyBtn) viewAssemblyBtn.addEventListener('click', onViewAssembly);
 }
 
 function setSoundLabel() {
@@ -359,11 +357,6 @@ function clearSelection() {
   state.selected = null;
   renderSpecPanel();
   if (resetCamera) resetCamera();
-}
-
-function onViewAssembly() {
-  viewOverride = viewOverride === 'exploded' ? null : 'exploded';
-  if (state.selected && focusOnPart) focusOnPart(state.selected);
 }
 
 function onExplode() { viewOverride = viewOverride === 'exploded' ? null : 'exploded'; }
