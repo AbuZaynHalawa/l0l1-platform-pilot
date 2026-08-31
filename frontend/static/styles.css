@@ -1797,7 +1797,15 @@
   .gantt-bar.good { background: var(--good); }
   .gantt-bar.warn { background: var(--warn); }
   .gantt-bar.crit { background: var(--crit); }
-  .gantt-bar.neutral { background: var(--purple-1); }
+  /* Item [Timeline Not-Due color collision]: --purple-1 is a legacy token
+     name -- its actual value was rebranded to the app's red accent
+     (var(--algihaz-red)) a while back, same as --crit's own red. Since
+     "Not Due" (neutral) and "Due/Rejected" (crit) are two of only three
+     colors in this legend, using --purple-1 here made them render as the
+     same red, indistinguishable in the chart itself. --neutral is the
+     same grey-blue token Matrix/deadline pills already use for their own
+     "not due" state. */
+  .gantt-bar.neutral { background: var(--neutral); }
   .gantt-bar.milestone { outline: 2px solid var(--purple-2); outline-offset: 1px; }
 
   /* ---------- Deliverables Matrix ---------- */

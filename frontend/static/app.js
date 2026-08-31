@@ -4855,12 +4855,16 @@
       // department (see the barCls branch below) -- three tones is all
       // that logic actually produces: "crit" for Due or Rejected, "good"
       // for Completed, "neutral" for everything else (Not Due, On Hold,
-      // and any deadline_status MATRIX_BUCKET_META doesn't cover) -- .gantt-
-      // bar.neutral is actually var(--purple-1), not a grey, so the swatch
-      // has to match that or it reads as an unexplained extra color. Fixed
-      // 3-item list regardless of filters -- it's not department-based, so
-      // "follow the filters" doesn't apply the same way here.
-      [["var(--good)", "Completed"], ["var(--crit)", "Due / Rejected"], ["var(--purple-1)", "Not Due"]].forEach(function (pair) {
+      // and any deadline_status MATRIX_BUCKET_META doesn't cover). Item
+      // [Timeline Not-Due color collision]: this used to match .gantt-
+      // bar.neutral's own var(--purple-1) -- but --purple-1 was rebranded
+      // to the app's red accent a while back (same red as --crit), so
+      // "Not Due" and "Due/Rejected" rendered as the same color, reading
+      // as though only one status ever showed. Both now use --neutral, the
+      // same grey-blue token Matrix/deadline pills already use for "not
+      // due". Fixed 3-item list regardless of filters -- it's not
+      // department-based, so "follow the filters" doesn't apply here.
+      [["var(--good)", "Completed"], ["var(--crit)", "Due / Rejected"], ["var(--neutral)", "Not Due"]].forEach(function (pair) {
         var lg = el("span", "lg");
         lg.innerHTML = '<span class="sw" style="background:' + pair[0] + '"></span>';
         lg.appendChild(document.createTextNode(pair[1]));
