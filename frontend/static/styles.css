@@ -1623,7 +1623,7 @@
      card's width -- text columns ellipsize under pressure instead of the
      table ever needing horizontal scroll. */
   .aqt { width: 100%; }
-  .aqt-row { display: grid; grid-template-columns: 78px minmax(0,2.3fr) minmax(0,1.1fr) minmax(0,1fr) 148px 168px 96px 200px; align-items: center; gap: 10px; }
+  .aqt-row { display: grid; grid-template-columns: 108px minmax(0,2.3fr) minmax(0,1.1fr) minmax(0,1fr) 148px 168px 116px 200px; align-items: center; gap: 10px; }
   /* [mobile fix] .aqt had no overflow handling at all -- its row's fixed
      columns alone (78+148+168+96+200) sum to 690px, well past any phone
      viewport, so this was leaking real page-level horizontal overflow
@@ -1658,7 +1658,7 @@
   .aqt-actions .btn { padding: 5px 12px; font-size: 11.5px; }
   .aqt-locked { font-size: 11px; color: var(--ink-300); font-style: italic; text-align: right; }
   @media (max-width: 1180px) {
-    .aqt-row { grid-template-columns: 70px minmax(0,2fr) minmax(0,1fr) 130px 150px 88px 170px; }
+    .aqt-row { grid-template-columns: 100px minmax(0,2fr) minmax(0,1fr) 130px 150px 108px 170px; }
     .aqt-focal { display: none; }
   }
   /* Item 142 rework: these spans had ellipsis rules but no min-width, so
