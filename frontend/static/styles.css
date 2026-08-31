@@ -2321,6 +2321,12 @@
   .psc2-legend-item.dim { opacity: .4; }
   .psc2-legend-item.dim .dot { opacity: .5; }
   .psc2-legend-item .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  /* [Assigned Deliverables legend shape]: rounded squares instead of
+     circles, matching the swatch style Timeline/Matrix's own legends use
+     (.gantt-dept-legend .sw / .matrix-legend .sw -- 13px, 4px radius) --
+     scoped to just these two bars so Performance's own summary-card
+     legend (same .psc2-legend-item markup) keeps its circular dots. */
+  #assignedDeadlineBar .dot, #assignedProgressBar .dot { width: 13px; height: 13px; border-radius: 4px; }
   .psc2-legend-item.excellent .dot { background: var(--good); }
   .psc2-legend-item.acceptable .dot { background: var(--warn); }
   .psc2-legend-item.needs-action .dot { background: var(--crit); }
@@ -2329,7 +2335,7 @@
   .psc2-legend-item.crit .dot { background: var(--crit); }
   .psc2-legend-item.neutral .dot { background: var(--neutral); }
   .psc2-legend-item.late-hatch .dot {
-    background: repeating-linear-gradient(45deg, var(--crit) 0, var(--crit) 1px, var(--good) 1px, var(--good) 2px);
+    background: repeating-linear-gradient(45deg, var(--crit) 0, var(--crit) 2px, var(--good) 2px, var(--good) 4px);
   }
   .psc2-hint { font-size: 10.5px; color: var(--ink-300); text-align: right; margin-top: 8px; }
 
