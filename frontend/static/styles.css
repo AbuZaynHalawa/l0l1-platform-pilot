@@ -2292,7 +2292,7 @@
      green/red hatch instead of solid red keeps it visually distinct from
      Due at a glance. */
   .psb-seg.late-hatch {
-    background: repeating-linear-gradient(45deg, var(--crit) 0, var(--crit) 5px, var(--good) 5px, var(--good) 10px);
+    background: repeating-linear-gradient(45deg, var(--crit) 0, var(--crit) 2px, var(--good) 2px, var(--good) 4px);
   }
   .psc2-legend { display: flex; gap: 14px; margin-top: 10px; flex-wrap: wrap; }
   .psc2-legend-item { display: flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; color: var(--ink-700); cursor: pointer; border-radius: 6px; padding: 2px 4px; margin: -2px -4px; transition: opacity .15s ease, color .15s ease; }
@@ -2311,7 +2311,7 @@
   .psc2-legend-item.crit .dot { background: var(--crit); }
   .psc2-legend-item.neutral .dot { background: var(--neutral); }
   .psc2-legend-item.late-hatch .dot {
-    background: repeating-linear-gradient(45deg, var(--crit) 0, var(--crit) 2px, var(--good) 2px, var(--good) 4px);
+    background: repeating-linear-gradient(45deg, var(--crit) 0, var(--crit) 1px, var(--good) 1px, var(--good) 2px);
   }
   .psc2-hint { font-size: 10.5px; color: var(--ink-300); text-align: right; margin-top: 8px; }
 
