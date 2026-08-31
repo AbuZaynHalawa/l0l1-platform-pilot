@@ -1698,29 +1698,41 @@
     box-shadow: var(--shadow-2); padding: 8px;
   }
   .aqt-actions-dropdown .btn, .aqt-actions-dropdown .aqt-locked { width: 100%; text-align: left; }
-  /* [Small-screen actions]: below 640px, Actions collapses from a row of
-     up to 4 buttons down to a single 44px hamburger toggle (min-width
-     wasn't the real fix for a phone -- Approve/Reject/Send reminder/
-     Follow together need real width no matter how the rest of the row is
-     squeezed). That alone frees enough room that Deliverable can keep a
-     genuine minimum width (140px, so a name is still legible) instead of
-     the whole row needing a hard 900px min-width + horizontal scroll to
-     stay usable. .aqt still carries a scroll fallback underneath, in case
-     an unusually narrow phone still can't fit even this. Placed after
-     the base .aqt-actions-inline/.aqt-actions-menu rules above -- same
-     specificity, so source order is what makes this one win at narrow
+  /* [Small-screen actions]: below the breakpoint further down, Actions
+     collapses from a row of up to 4 buttons down to a single 44px
+     hamburger toggle (a min-width wasn't the real fix -- Approve/Reject/
+     Send reminder/Follow together need real width no matter how the
+     rest of the row is squeezed). That alone frees enough room that
+     Deliverable can keep a genuine minimum width (140px, so a name
+     stays legible) instead of the whole row needing a hard min-width +
+     horizontal scroll just to fit Actions. Placed after these base
+     .aqt-actions-inline/.aqt-actions-menu rules -- same specificity, so
+     source order is what makes the media query below win at narrow
      widths. */
-  @media (max-width: 1180px) {
-    .aqt-row { grid-template-columns: 100px minmax(0,1.4fr) minmax(0,1fr) 100px 140px 108px 250px; }
-    .aqt-focal { display: none; }
-  }
-  /* Comes after the 1180px block above -- 640px is a subset of it (both
-     apply at once on a phone), and both set .aqt-row's grid-template-
-     columns, so this one has to win by source order at the narrower
-     width. */
-  @media (max-width: 640px) {
+  /* [981-1360px was worse than a phone]: this app's sidebar goes
+     off-canvas at 980px (see ITEM 154 RESPONSIVE below) -- just *above*
+     that, the sidebar is still in normal flow eating ~264-280px, so the
+     table's real available track width bottoms out around 632px at
+     981px (tighter than plenty of actual phones) and only climbs back to
+     ~1050px by 1400px window -- an old separate "1180px tier" here was
+     budgeted assuming far more room than that (fixed columns alone
+     summed to 698px, wider than the 632px actually available at its own
+     narrow end): Deliverable/Department collapsed straight to 0 and
+     their headers visibly overlapped, not just "wrapped badly". A second
+     attempt widened Actions but only pushed the same problem to just
+     above the boundary (1181px measured at exactly 0px for those same
+     three columns; still only ~25-39px at 1300px, illegibly thin even
+     without literal overlap). One merged tier all the way from here down
+     to 0 -- same tight columns AND the hamburger actions menu (freeing
+     the most room of anything, and this whole zone needs it as much as
+     an actual phone does) -- replaces what used to be two separately-
+     tuned breakpoints that didn't agree with each other's assumptions,
+     and pushes the cutover out to where the wide-desktop layout has
+     actually verified room to breathe (~83/57/52px at 1400px). */
+  @media (max-width: 1360px) {
     .aqt { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     .aqt-row { grid-template-columns: 76px minmax(140px,1.6fr) minmax(0,1fr) 90px 100px 88px 44px; min-width: 620px; }
+    .aqt-focal { display: none; }
     .aqt-actions-inline { display: none; }
     .aqt-actions-menu { display: block; }
   }
