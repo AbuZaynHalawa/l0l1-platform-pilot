@@ -749,6 +749,168 @@
   // myIdentity()'s cached prompt) -- no separate email box just for the
   // Dashboard. Concerns, the Deliverable Matrix, and the announcements feed
   // all scope down too now, not just the stat cards.
+  // Item [request 12]: per-viewer dashboard layout -- hide any section,
+  // reorder the KPI tiles and the two Top Achievers cards (the only two
+  // groups this allows manual left/right reordering for). Saved to this
+  // browser only (localStorage), like every other per-viewer-only
+  // convenience in this app -- there's no server concept of "this admin's
+  // own dashboard layout" to persist it against. Hiding never crosses an
+  // L0/L1 boundary: every section lives in its own static container
+  // (#stageColL0 / #stageColL1 / the KPI row / the achievers row) and
+  // hiding is plain display:none within that same container, so the
+  // remaining siblings in THAT container reflow -- nothing ever moves
+  // into a different container.
+  var DASH_SECTIONS = [
+    { id: "statRow", label: "Active L0/L1 Summary" },
+    { id: "digestL0Card", label: "Latest L0 Announcements" },
+    { id: "milestonesL0Card", label: "Newest L0 Milestones" },
+    { id: "concernsL0Card", label: "L0 Concerns" },
+    { id: "topDeptsL0Card", label: "Top L0 Departments" },
+    { id: "digestL1Card", label: "Latest L1 Announcements" },
+    { id: "milestonesL1Card", label: "Newest L1 Milestones" },
+    { id: "concernsL1Card", label: "L1 Concerns" },
+    { id: "topDeptsL1Card", label: "Top L1 Departments" },
+    { id: "achieversOwnersCard", label: "Top Achievers – Owners" },
+    { id: "achieversSmesCard", label: "Top Achievers – SME" },
+    { id: "matrixCard", label: "Deliverables Matrix" },
+  ];
+  var DASH_KPI_ORDER_DEFAULT = ["briefcase", "folder", "funnel", "clock", "checkCircle"];
+  var DASH_ACHIEVER_ORDER_DEFAULT = ["achieversOwnersCard", "achieversSmesCard"];
+  var dashEditMode = false;
+  function _dashLayoutLoad() {
+    var out = { hidden: [], kpiOrder: DASH_KPI_ORDER_DEFAULT.slice(), achieverOrder: DASH_ACHIEVER_ORDER_DEFAULT.slice() };
+    try {
+      var parsed = JSON.parse(localStorage.getItem("dashboardLayout") || "{}");
+      if (Array.isArray(parsed.hidden)) out.hidden = parsed.hidden;
+      if (Array.isArray(parsed.kpiOrder)) out.kpiOrder = parsed.kpiOrder;
+      if (Array.isArray(parsed.achieverOrder)) out.achieverOrder = parsed.achieverOrder;
+    } catch (e) { /* corrupted/blocked storage -- fall back to defaults */ }
+    return out;
+  }
+  function _dashLayoutSave(state) {
+    try { localStorage.setItem("dashboardLayout", JSON.stringify(state)); } catch (e) { /* private window / storage blocked -- customization just won't persist */ }
+  }
+  function _dashToggleHidden(id) {
+    var state = _dashLayoutLoad();
+    var idx = state.hidden.indexOf(id);
+    if (idx === -1) state.hidden.push(id); else state.hidden.splice(idx, 1);
+    _dashLayoutSave(state);
+    applyDashLayout();
+  }
+  function _dashReorder(listKey, id, dir) {
+    var state = _dashLayoutLoad();
+    var order = state[listKey].slice();
+    var i = order.indexOf(id), j = i + dir;
+    if (i === -1 || j < 0 || j >= order.length) return;
+    var tmp = order[i]; order[i] = order[j]; order[j] = tmp;
+    state[listKey] = order;
+    _dashLayoutSave(state);
+    applyDashLayout();
+  }
+  // A small Hide / (optionally) reorder-arrow strip, inserted at the top
+  // of a section only while edit mode is on -- removed entirely otherwise
+  // so normal viewing is never cluttered by it.
+  function _dashControlsFor(el, sectionId, reorderOpts) {
+    var existing = el.querySelector(".dash-edit-controls");
+    if (existing) existing.remove();
+    if (!dashEditMode) return;
+    var bar = document.createElement("div");
+    bar.className = "dash-edit-controls";
+    if (reorderOpts) {
+      var left = document.createElement("button");
+      left.type = "button"; left.className = "dash-edit-btn"; left.innerHTML = "&#8592;";
+      left.disabled = reorderOpts.isFirst;
+      left.addEventListener("click", function (e) { e.stopPropagation(); reorderOpts.onMove(-1); });
+      var right = document.createElement("button");
+      right.type = "button"; right.className = "dash-edit-btn"; right.innerHTML = "&#8594;";
+      right.disabled = reorderOpts.isLast;
+      right.addEventListener("click", function (e) { e.stopPropagation(); reorderOpts.onMove(1); });
+      bar.appendChild(left); bar.appendChild(right);
+    }
+    if (sectionId) {
+      var hideBtn = document.createElement("button");
+      hideBtn.type = "button"; hideBtn.className = "dash-edit-btn dash-edit-hide";
+      hideBtn.innerHTML = "&#128065;&#65039;&#8203; Hide";
+      hideBtn.addEventListener("click", function (e) { e.stopPropagation(); _dashToggleHidden(sectionId); });
+      bar.appendChild(hideBtn);
+    }
+    el.insertBefore(bar, el.firstChild);
+  }
+  // Re-applies hide state + KPI/achiever order (and, in edit mode, the
+  // controls themselves) -- called after every dashboard render, since
+  // the KPI row's own cards are rebuilt from scratch on every
+  // loadLifetimeKpis() call and would otherwise reset to source order.
+  function applyDashLayout() {
+    var state = _dashLayoutLoad();
+    DASH_SECTIONS.forEach(function (s) {
+      var el = document.getElementById(s.id);
+      if (!el) return;
+      el.classList.toggle("dash-section-hidden", state.hidden.indexOf(s.id) !== -1);
+    });
+    // KPI tiles: reorder only (no per-tile hide -- 5 fixed lifetime
+    // metrics, nothing there worth hiding individually). Falls back
+    // gracefully if a future code change adds/removes a tile: known keys
+    // missing from a stale saved order are appended at the end instead of
+    // silently vanishing.
+    var kpiRow = document.getElementById("dashKpiRow");
+    if (kpiRow && kpiRow.children.length) {
+      var byKey = {};
+      Array.from(kpiRow.children).forEach(function (card) { if (card.dataset.kpi) byKey[card.dataset.kpi] = card; });
+      var kpiOrder = state.kpiOrder.filter(function (k) { return byKey[k]; });
+      DASH_KPI_ORDER_DEFAULT.forEach(function (k) { if (byKey[k] && kpiOrder.indexOf(k) === -1) kpiOrder.push(k); });
+      kpiOrder.forEach(function (key, idx) {
+        var card = byKey[key];
+        kpiRow.appendChild(card);
+        _dashControlsFor(card, null, { isFirst: idx === 0, isLast: idx === kpiOrder.length - 1, onMove: function (dir) { _dashReorder("kpiOrder", key, dir); } });
+      });
+    }
+    var achieversRow = document.getElementById("achieversRow");
+    if (achieversRow) {
+      var achOrder = state.achieverOrder.filter(function (id) { return document.getElementById(id); });
+      DASH_ACHIEVER_ORDER_DEFAULT.forEach(function (id) { if (document.getElementById(id) && achOrder.indexOf(id) === -1) achOrder.push(id); });
+      achOrder.forEach(function (id, idx) {
+        var card = document.getElementById(id);
+        achieversRow.appendChild(card);
+        _dashControlsFor(card, id, { isFirst: idx === 0, isLast: idx === achOrder.length - 1, onMove: function (dir) { _dashReorder("achieverOrder", id, dir); } });
+      });
+    }
+    // Every other (non-reorderable) section just gets the Hide control.
+    DASH_SECTIONS.forEach(function (s) {
+      if (s.id === "achieversOwnersCard" || s.id === "achieversSmesCard") return;
+      var el = document.getElementById(s.id);
+      if (el) _dashControlsFor(el, s.id, null);
+    });
+    var banner = document.getElementById("dashHiddenBanner");
+    if (!state.hidden.length) { banner.hidden = true; banner.innerHTML = ""; return; }
+    banner.hidden = false;
+    banner.innerHTML = "";
+    var label = document.createElement("button");
+    label.type = "button"; label.className = "dash-hidden-banner-btn";
+    label.innerHTML = "&#128065;&#65039;&#8203; " + state.hidden.length + " section" + (state.hidden.length === 1 ? "" : "s") + " hidden &#8211; click to show";
+    var popup = document.createElement("div");
+    popup.className = "dash-hidden-popup"; popup.hidden = true;
+    state.hidden.forEach(function (id) {
+      var meta = DASH_SECTIONS.filter(function (s) { return s.id === id; })[0];
+      var row = document.createElement("div");
+      row.className = "dash-hidden-popup-row";
+      row.appendChild(el("span", "", meta ? meta.label : id));
+      var showBtn = document.createElement("button");
+      showBtn.type = "button"; showBtn.className = "btn"; showBtn.textContent = "Show";
+      showBtn.addEventListener("click", function () { _dashToggleHidden(id); });
+      row.appendChild(showBtn);
+      popup.appendChild(row);
+    });
+    label.addEventListener("click", function () { popup.hidden = !popup.hidden; });
+    banner.appendChild(label);
+    banner.appendChild(popup);
+  }
+  document.getElementById("dashCustomizeBtn").addEventListener("click", function () {
+    dashEditMode = !dashEditMode;
+    this.classList.toggle("active", dashEditMode);
+    this.innerHTML = dashEditMode ? "&#10003; Done Customizing" : "&#9881; Customize";
+    applyDashLayout();
+  });
+
   var dashFocus = "all";
   document.querySelectorAll("#dashFocusToggle .chip").forEach(function (btn) {
     btn.addEventListener("click", function () {
@@ -802,6 +964,7 @@
     ];
     cards.forEach(function (c) {
       var card = el("div", "dash-kpi-card");
+      card.dataset.kpi = c.icon;  // [Request 12]: stable per-tile identity for the saved reorder
       var subHtml = c.sub.indexOf("<SUBTREND>") !== -1 ? c.sub.replace("<SUBTREND>", "") : c.sub;
       card.innerHTML =
         '<div class="dash-kpi-icon ' + c.cls + '">' + DASH_KPI_ICONS[c.icon] + "</div>" +
@@ -815,6 +978,7 @@
       if (c.sub.indexOf("<SUBTREND>") !== -1) card.querySelector(".dash-kpi-sub").insertAdjacentHTML("beforeend", completedTrend);
       row.appendChild(card);
     });
+    applyDashLayout();  // [Request 12]: re-apply the saved KPI order -- this row was just rebuilt from scratch
   }
   async function loadDashboard() {
     var focusEmail = dashFocus === "mine" ? myIdentity() : "";
@@ -1060,6 +1224,7 @@
     }
     await announcementsPromise;
     await matrixPromise;
+    applyDashLayout();  // [Request 12]: hide-state on every static card + initial achievers/matrix positioning
   }
 
   /* ================= DELIVERABLES MATRIX ================= */

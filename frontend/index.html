@@ -288,7 +288,14 @@
           <h1>Dashboard</h1>
           <p class="sub">Click My Items below to narrow this to just what's assigned to you.</p>
         </div>
+        <!-- Item [request 12]: per-viewer layout customization -- hide any
+             section, reorder the KPI tiles / Top Achievers cards. Saved to
+             this browser only (localStorage), same as every other
+             per-viewer-only convenience in this app. -->
+        <button class="btn" id="dashCustomizeBtn" type="button">&#9881; Customize</button>
       </div>
+
+      <div class="dash-hidden-banner" id="dashHiddenBanner" hidden></div>
 
       <div class="dash-focus">
         <div class="subtab-row" id="dashFocusToggle">
@@ -313,13 +320,13 @@
 
       <div class="dash-row dash-stage-split">
         <div class="dash-stage-col" id="stageColL0">
-          <div class="card">
+          <div class="card" id="digestL0Card">
             <div class="section-title stage-title-l0"><span>Latest L0 Announcements</span>
               <button class="section-view-all" type="button" data-view="announcements" data-stage="L0">View all <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
             </div>
             <div id="digestL0List"></div>
           </div>
-          <div class="card">
+          <div class="card" id="milestonesL0Card">
             <div class="section-title stage-title-l0">Newest L0 Milestones</div>
             <div id="milestonesL0"></div>
           </div>
@@ -332,19 +339,19 @@
             </div>
             <ul id="concernsL0List"></ul>
           </div>
-          <div class="card">
+          <div class="card" id="topDeptsL0Card">
             <div class="section-title stage-title-l0">Top L0 Departments</div>
             <div id="topDeptsL0"></div>
           </div>
         </div>
         <div class="dash-stage-col" id="stageColL1">
-          <div class="card">
+          <div class="card" id="digestL1Card">
             <div class="section-title stage-title-l1"><span>Latest L1 Announcements</span>
               <button class="section-view-all" type="button" data-view="announcements" data-stage="L1">View all <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
             </div>
             <div id="digestL1List"></div>
           </div>
-          <div class="card">
+          <div class="card" id="milestonesL1Card">
             <div class="section-title stage-title-l1">Newest L1 Milestones</div>
             <div id="milestonesL1"></div>
           </div>
@@ -355,25 +362,25 @@
             </div>
             <ul id="concernsL1List"></ul>
           </div>
-          <div class="card">
+          <div class="card" id="topDeptsL1Card">
             <div class="section-title stage-title-l1">Top L1 Departments</div>
             <div id="topDeptsL1"></div>
           </div>
         </div>
       </div>
 
-      <div class="dash-row achievers-row">
-        <div class="card">
+      <div class="dash-row achievers-row" id="achieversRow">
+        <div class="card" id="achieversOwnersCard">
           <div class="section-title">Top Achievers &#8211; Owners</div>
           <div class="card-pad"><div id="topOwners" class="achiever-list"></div></div>
         </div>
-        <div class="card">
+        <div class="card" id="achieversSmesCard">
           <div class="section-title">Top Achievers &#8211; SME</div>
           <div class="card-pad"><div id="topSmes" class="achiever-list"></div></div>
         </div>
       </div>
 
-      <div class="card table-card matrix-card">
+      <div class="card table-card matrix-card" id="matrixCard">
         <div class="section-title">
           <span>Deliverables Matrix <span class="cnt">active projects &times; deliverables, live</span></span>
           <div class="matrix-toggle">
