@@ -3277,6 +3277,15 @@
     var metaRows = [["Owner", (d.owner_emails && d.owner_emails.length) ? d.owner_emails.join(", ") : "&#8213;"], ["SME", (d.sme_emails && d.sme_emails.length) ? d.sme_emails.join(", ") : "&#8213;"],
      ["Due Date", dueDateHtml(d)],
      ["Status", statusPillsHtml(d)]];
+    // Item [request]: the modal only ever showed the scheduled Due Date --
+    // once actually Completed, the real completion date (reviewed_at,
+    // already tracked -- same field "Edit Completion Date" below edits)
+    // had nowhere to be read back, which is exactly the gap that made
+    // GAHIZ's own "5 workdays after [due date]" explanation come out
+    // backwards instead of using the real date it completed on.
+    if (d.status === "approved" && d.reviewed_at) {
+      metaRows.push(["Completion Date", fmtDate(d.reviewed_at.slice(0, 10))]);
+    }
     // Item [early bonus]: once Completed, show the real point value earned
     // under the Calculation Criteria, not just the pass/fail status pill.
     if (d.points_earned !== null && d.points_earned !== undefined) {

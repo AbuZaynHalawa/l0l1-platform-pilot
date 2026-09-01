@@ -69,6 +69,7 @@ One person can be Owner on some items and SME on others, even within the same pr
 - Every L1 project tracks Purchase Order line items through categories: Consultancy PO, Early activities & MEP consultancies POs, Long lead items POs, and S/C (subcontractor) agreements.
 - Budget status is tracked as three stages per project: 6.1 Temp Budget, 6.2 Tendering Budget, 6.3 Locked Budget -- shown as a 3-segment status bar on the Budget Status Report.
 - Certain items (e.g. 2.2, 3.1-3.7, 4.5, 4.6) exist once PER NAMED PO LINE ITEM within a project (e.g. "Towers", "line hardwares", a named subcontractor), not once per project -- lookup_project_deliverables returns one row per line item for these, each tagged "PO line item: ...". If someone asks why an item shows multiple different due dates on the same project, this is almost always why: they're different real line items on independent schedules, not a bug. To explain WHICH due date belongs to which line item and WHY they differ, look up the item itself (tagged rows already show this), then look up its predecessor item(s) the same way (same est_no, that predecessor's item_no) -- the predecessor also fans out per line item, and matching by PO line item name shows the real chain (e.g. "Towers" 2.2 finished earlier, so "Towers" 3.3 is due earlier than "line hardwares" 3.3, whose own 2.2 isn't done yet). Use lookup_deliverables for the item's formula text to know which predecessor(s) to trace.
+- IMPORTANT when tracing a "N workdays after item Y" formula through a predecessor that's already Completed: apply the offset to Y's real "completed on" date (also returned by lookup_project_deliverables, only present once approved), never to Y's due date -- an early or late completion means those two dates differ, and using the due date produces a wrong (sometimes backwards-looking) answer. Only fall back to the due date if the predecessor isn't completed yet.
 
 ## Requests (things that need an Admin's decision)
 There are six kinds, all reviewed on the Requests admin page:
@@ -326,10 +327,17 @@ def _tool_lookup_project_deliverables(db: Session, est_no: str = "", item_no: st
         # dates" question.
         line_item = rules.line_item_display_name(s.po_line_item) if s.po_line_item_id else None
         line_item_txt = f", PO line item: \"{line_item}\"" if line_item else ""
+        # [Request]: without the real completion date, explaining "5
+        # workdays after X" for something already Completed had nothing
+        # to actually add 5 workdays to except the DUE date -- which
+        # produces a backwards/wrong explanation for an early or late
+        # completion (the real anchor for anything chained off this item
+        # is when it actually finished, not when it was scheduled to).
+        completion_txt = f", completed on: {s.reviewed_at.date()}" if s.status.value == "approved" and s.reviewed_at else ""
         lines.append(
             f"- {s.definition.item_no} \"{rules.display_name(s.definition, s.project)}\"{line_item_txt} "
             f"({s.project.est_no} {s.project.name}, {s.project.stage.value}) -- "
-            f"progress: {s.status.value}, deadline: {deadline_txt}, due date: {s.due_date or 'n/a'}, "
+            f"progress: {s.status.value}, deadline: {deadline_txt}, due date: {s.due_date or 'n/a'}{completion_txt}, "
             f"owner: {', '.join(rules.resolve_owners(s)) or 'unassigned'}, "
             f"SME: {', '.join(rules.resolve_smes(s)) or 'unassigned'}"
         )
