@@ -2563,6 +2563,35 @@
         "explanation), and mark it resolved &#8212; you get notified the moment they do.</p>",
     },
     {
+      // Item [request 11]: one slide before the closing wrap-up,
+      // announcing the mobile app -- inline SVG phone mockup (same
+      // "recreate the real app's own look, not a stock photo" approach
+      // every other tour visual already uses) instead of a real
+      // screenshot, since there's no build yet to screenshot.
+      eyebrow: "Coming Soon",
+      title: "The Platform, In Your Pocket",
+      body:
+        // Deliberately NOT var(--purple-1)/2 -- those tokens actually
+        // resolve to the app's own everyday brand red, which would make
+        // this read as routine UI chrome instead of a distinct, exciting
+        // one-off announcement. A fresh indigo-to-cyan gradient stands
+        // apart from the red used everywhere else in the app.
+        '<div class="tour-callout" style="background:linear-gradient(135deg, #4f46e5, #06b6d4);' +
+        'color:#fff;border:none;display:flex;align-items:center;gap:10px;">' +
+        '<span style="font-size:22px;">&#128241;</span>' +
+        '<span><b>Mobile app &#8212; in active development.</b> Everything you rely on here, ' +
+        "built for the phone in your pocket.</span></div>" +
+        '<div style="display:flex;gap:22px;align-items:flex-start;margin-top:16px;flex-wrap:wrap;">' +
+        '<div style="flex:0 0 auto;">' + mobileAppMock() + "</div>" +
+        '<div style="flex:1 1 220px;min-width:220px;">' +
+        '<div class="tour-feature-list">' +
+        featureRowMock("&#9989;", "good", "Approve on the go", "Review and approve deliverables the moment an SME request lands, no laptop required.") +
+        featureRowMock("&#128276;", "warn", "Push notifications", "Due-soon nudges, cross-department unlocks and milestone news, right on your lock screen.") +
+        featureRowMock("&#128247;", "accent", "Snap and upload", "Photograph a site document straight into a deliverable instead of scanning it later.") +
+        "</div></div></div>" +
+        '<p class="tour-step-text" style="margin-top:14px;">No action needed &#8212; we\'ll announce it here the moment it\'s ready.</p>',
+    },
+    {
       eyebrow: "You're Ready",
       title: "Finding Your Way Around",
       body:
@@ -2592,6 +2621,39 @@
   }
   function tourPtsRow(tone, timing, pts) {
     return '<tr><td><span class="tour-dot-ic ' + tone + '"></span><b>' + timing + "</b></td><td>" + pts + "</td></tr>";
+  }
+  // Item [request 11]: a stylized phone frame with a miniature dashboard
+  // inside -- inline SVG (re-themes with dark mode, no image asset to
+  // ship) rather than a literal screenshot of a build that doesn't exist
+  // yet. Deliberately a recognizable miniature of the real dashboard (KPI
+  // tiles + a status list), not generic phone-UI chrome, so it reads as
+  // "this app, on mobile" at a glance.
+  function mobileAppMock() {
+    return '<svg width="168" height="336" viewBox="0 0 168 336" xmlns="http://www.w3.org/2000/svg">' +
+      '<rect x="2" y="2" width="164" height="332" rx="26" fill="var(--surface)" stroke="var(--line)" stroke-width="2"/>' +
+      '<rect x="56" y="12" width="56" height="7" rx="3.5" fill="var(--ink-500)" opacity="0.35"/>' +
+      '<rect x="14" y="34" width="140" height="30" rx="8" fill="var(--accent)"/>' +
+      '<text x="24" y="53" font-size="11" font-weight="700" fill="#fff" font-family="inherit">L0/L1 Platform</text>' +
+      '<rect x="14" y="72" width="66" height="46" rx="8" fill="var(--good)" opacity="0.16"/>' +
+      '<text x="22" y="92" font-size="14" font-weight="800" fill="var(--good)" font-family="inherit">92%</text>' +
+      '<text x="22" y="107" font-size="7" fill="var(--ink-500)" font-family="inherit">On-time</text>' +
+      '<rect x="88" y="72" width="66" height="46" rx="8" fill="var(--warn)" opacity="0.16"/>' +
+      '<text x="96" y="92" font-size="14" font-weight="800" fill="var(--warn)" font-family="inherit">7</text>' +
+      '<text x="96" y="107" font-size="7" fill="var(--ink-500)" font-family="inherit">Due soon</text>' +
+      '<rect x="14" y="128" width="140" height="1" fill="var(--line)"/>' +
+      '<text x="14" y="146" font-size="8" font-weight="700" fill="var(--ink-500)" font-family="inherit">ASSIGNED DELIVERABLES</text>' +
+      _mobileMockRow(156, "1.17", "var(--accent)") + _mobileMockRow(178, "3.5", "var(--good)") +
+      _mobileMockRow(200, "4.6", "var(--crit)") + _mobileMockRow(222, "5.3", "var(--good)") +
+      '<rect x="14" y="248" width="140" height="1" fill="var(--line)"/>' +
+      '<circle cx="30" cy="270" r="9" fill="var(--purple-1)"/><rect x="46" y="264" width="94" height="6" rx="3" fill="var(--ink-500)" opacity="0.3"/>' +
+      '<circle cx="30" cy="292" r="9" fill="var(--purple-2)"/><rect x="46" y="286" width="80" height="6" rx="3" fill="var(--ink-500)" opacity="0.3"/>' +
+      '<rect x="42" y="322" width="84" height="6" rx="3" fill="var(--ink-500)" opacity="0.35"/>' +
+      "</svg>";
+  }
+  function _mobileMockRow(y, itemNo, color) {
+    return '<rect x="14" y="' + y + '" width="140" height="16" rx="5" fill="' + color + '" opacity="0.12"/>' +
+      '<text x="20" y="' + (y + 11) + '" font-size="8" font-weight="700" fill="' + color + '" font-family="inherit">' + itemNo + '</text>' +
+      '<circle cx="144" cy="' + (y + 8) + '" r="3.5" fill="' + color + '"/>';
   }
   function featureRowMock(icon, tone, label, desc) {
     return '<div class="tour-feature-row"><div class="tour-feature-ic ' + tone + '">' + icon + "</div>" +
