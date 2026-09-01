@@ -835,7 +835,8 @@
   // remaining siblings in THAT container reflow -- nothing ever moves
   // into a different container.
   var DASH_SECTIONS = [
-    { id: "statRow", label: "Active L0/L1 Summary" },
+    { id: "dashProjectRow", label: "Active L0/L1 Tenders/Projects" },
+    { id: "dashStatusRow", label: "L0/L1 Deliverables Status" },
     { id: "digestL0Card", label: "Latest L0 Announcements" },
     { id: "milestonesL0Card", label: "Newest L0 Milestones" },
     { id: "concernsL0Card", label: "L0 Concerns" },
@@ -1133,6 +1134,14 @@
     // tenders/projects for that stage in the card's plain surface color,
     // with just the Est No taking the stage's identity color.
     var projectRow = el("div", "dash-project-row");
+    // Item [Deliverables Status hideable]: this row and statusRowGroup
+    // below used to be two halves of one #statRow container, which meant
+    // #statRow could only ever be hidden as a single "Active L0/L1
+    // Summary" unit -- no way to hide just Deliverables Status on its
+    // own. Each gets its own stable id instead (rebuilt fresh every
+    // loadDashboard() call, same as the row itself), registered as its
+    // own DASH_SECTIONS entry.
+    projectRow.id = "dashProjectRow";
     [["L0", mine ? "My Active L0 Tenders" : "Active L0 Tenders", d.active_l0, d.recent_l0, "Latest L0 Tenders"],
      ["L1", mine ? "My Active L1 Projects" : "Active L1 Projects", d.active_l1, d.recent_l1, "Latest L1 Projects"]]
       .forEach(function (s) {
@@ -1195,6 +1204,7 @@
       return row;
     }
     var statusRowGroup = el("div", "dash-status-row");
+    statusRowGroup.id = "dashStatusRow";
     [["L0", d.not_due_l0, d.overdue_l0, d.early_l0, d.on_time_l0, d.late_l0,
            d.no_progress_l0, d.in_progress_l0, d.pending_review_l0, d.approved_l0, d.rejected_l0],
      ["L1", d.not_due_l1, d.overdue_l1, d.early_l1, d.on_time_l1, d.late_l1,
