@@ -1283,7 +1283,7 @@ def get_deliverable_detail(submission_id: int, actor_role: str = "Viewer", actor
         )
         if len(sib_subs) > 1:
             siblings = [
-                {"id": s.id, "line_item_name": s.po_line_item.name if s.po_line_item_id else None, "status": s.status.value}
+                {"id": s.id, "line_item_name": rules.line_item_display_name(s.po_line_item) if s.po_line_item_id else None, "status": s.status.value}
                 for s in sib_subs
             ]
     # [4.6 doc reference]: 4.6's owner is reviewing whatever 3.2's owner
@@ -1347,7 +1347,7 @@ def get_deliverable_detail(submission_id: int, actor_role: str = "Viewer", actor
         "milestone_code": sub.definition.milestone_code, "following": following,
         "po_selection": sub.po_selection if is_declaring else None,
         "po_line_item_id": sub.po_line_item_id,
-        "line_item_name": sub.po_line_item.name if sub.po_line_item_id else None,
+        "line_item_name": rules.line_item_display_name(sub.po_line_item) if sub.po_line_item_id else None,
         "siblings": siblings,
         "reference_document": reference_document,
         "history": [

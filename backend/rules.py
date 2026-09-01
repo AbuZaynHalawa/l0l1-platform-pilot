@@ -363,6 +363,21 @@ def display_name(definition: models.DeliverableDefinition, project: models.Proje
     return name
 
 
+def line_item_display_name(li: "models.PoLineItem | None") -> str | None:
+    """A PoLineItem's real, human-chosen name -- None for the synthetic
+    "Item 1 (migrated)" placeholder the one-time backfill created for
+    pre-existing progress on both L1 (_backfill_po_line_items) and L0
+    (_backfill_l0_po_line_items) projects, so it stays a plain, general
+    deliverable name instead of surfacing that internal migration
+    bookkeeping ("4.6 · Review and evaluate... — Item 1 (migrated)") to a
+    real viewer. source_submission_id is null only on that synthetic row
+    -- every real item (manually added or Excel-declared) always has one.
+    """
+    if li is None or li.source_submission_id is None:
+        return None
+    return li.name
+
+
 def submission_display_name(sub: "models.DeliverableSubmission") -> str:
     """display_name(), plus the named PO line item when this is a
     [PO Lifecycle] fan-out submission -- announcements/activity trail/
@@ -371,8 +386,9 @@ def submission_display_name(sub: "models.DeliverableSubmission") -> str:
     name every sibling line item's own submission also carries.
     """
     name = display_name(sub.definition, sub.project)
-    if sub.po_line_item_id:
-        return f"{name} — {sub.po_line_item.name}"
+    li_name = line_item_display_name(sub.po_line_item) if sub.po_line_item_id else None
+    if li_name:
+        return f"{name} — {li_name}"
     return name
 
 

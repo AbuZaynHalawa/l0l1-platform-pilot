@@ -1106,7 +1106,7 @@ def get_deliverables(project_id: int, department: str | None = None, include_aut
             points_earned=points_earned,
             pending_due_date_request_kind=pending_kinds.get(s.id),
             po_line_item_id=s.po_line_item_id,
-            line_item_name=s.po_line_item.name if s.po_line_item_id else None,
+            line_item_name=rules.line_item_display_name(s.po_line_item) if s.po_line_item_id else None,
         ))
         sort_keys.append((s.definition.department.number or 0, rules.item_sort_key(s.definition.item_no)))
 
