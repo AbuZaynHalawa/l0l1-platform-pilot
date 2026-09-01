@@ -1955,6 +1955,32 @@
         </div>
         <div id="adminDefBranchList"></div>
       </div>
+      <!-- Item [request 9/10]: only shown when adding a brand-new deliverable
+           (not editing one) -- an existing item already has its own real
+           applicability/history, nothing to "retrofit". -->
+      <div id="adminDefApplySection" style="margin-top:16px;">
+        <div class="section-title" style="padding:0 0 8px;"><span>Applies To</span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+          <div>
+            <label class="fe-label">Active Projects</label>
+            <label style="display:block;font-weight:400;font-size:13px;margin:4px 0;">
+              <input type="radio" name="adminDefScope" value="all_active" checked /> All active projects</label>
+            <label style="display:block;font-weight:400;font-size:13px;margin:4px 0;">
+              <input type="radio" name="adminDefScope" value="certain" /> Certain projects</label>
+            <div id="adminDefProjectPicker" style="display:none;max-height:160px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;padding:6px 10px;margin-top:6px;"></div>
+          </div>
+          <div>
+            <label class="fe-label">New Projects Going Forward</label>
+            <label style="display:block;font-weight:400;font-size:13px;margin:4px 0;">
+              <input type="radio" name="adminDefReoccur" value="yes" checked /> Automatically for new projects</label>
+            <label style="display:block;font-weight:400;font-size:13px;margin:4px 0;">
+              <input type="radio" name="adminDefReoccur" value="no" /> Only for the selected active projects above</label>
+          </div>
+        </div>
+        <div class="muted" style="font-size:11px;margin-top:8px;">
+          A retrofitted active project's due date is today &#8212; the normal formula could already fall in the past for a project already under way.
+        </div>
+      </div>
       <div class="modal-actions-row" style="justify-content:space-between;">
         <div>
           <button class="btn ghost-crit" id="adminDefRestoreBtn">Restore to Default</button>

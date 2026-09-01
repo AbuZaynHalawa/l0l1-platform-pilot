@@ -11,7 +11,7 @@ after that prefix (admin/..., config/...) so none of them can ever collide
 with deliverables.py's single-segment /{submission_id}-shaped routes,
 regardless of router registration order in main.py.
 """
-from datetime import datetime
+from datetime import datetime, date
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session, object_session
@@ -506,6 +506,19 @@ class DefinitionCreate(BaseModel):
     actor_role: str = "Admin"
     actor_email: str = ""
     actor_name: str = ""
+    # [Request 10]: reoccurring=True (default) means this joins the
+    # permanent catalog -- active=True, so every future new project of
+    # this stage gets it automatically, same as any other catalog item.
+    # reoccurring=False is a one-time addition: created active=False so
+    # _instantiate_deliverables' active==True filter skips it on every
+    # future new project, existing only on whichever projects the
+    # applicability scope below retrofits it onto right now.
+    reoccurring: bool = True
+    # all_active = every currently open (non-terminal, non-archived)
+    # project of this stage; certain = only applicability_project_ids;
+    # none = don't retrofit any existing project (new/reoccurring only).
+    applicability_scope: str = "all_active"
+    applicability_project_ids: list[int] = []
 
 
 @router.post("/admin/definitions", status_code=201)
@@ -524,13 +537,17 @@ def create_admin_definition(payload: DefinitionCreate, db: Session = Depends(get
         stage=payload.stage, item_no=item_no, department_id=payload.department_id,
     ).first():
         raise HTTPException(400, f"{item_no} already exists in {dept.name}")
+    if payload.applicability_scope not in ("all_active", "certain", "none"):
+        raise HTTPException(400, "applicability_scope must be all_active, certain, or none")
+    if payload.applicability_scope == "certain" and not payload.applicability_project_ids:
+        raise HTTPException(400, 'Select at least one project, or choose "All active projects"')
     if payload.deliverable_type == "date_driven":
         _validate_branches(payload.branches)
     d = models.DeliverableDefinition(
         stage=payload.stage, item_no=item_no, name=name, short_name=name, department_id=payload.department_id,
         deliverable_type=payload.deliverable_type, is_milestone=payload.is_milestone,
         milestone_code=payload.milestone_code, milestone_name=payload.milestone_code,
-        is_customized=True, seed_key=None, active=True,
+        is_customized=True, seed_key=None, active=payload.reoccurring,
     )
     db.add(d)
     db.flush()
@@ -539,9 +556,52 @@ def create_admin_definition(payload: DefinitionCreate, db: Session = Depends(get
     _log_definition_change(db, d, "admin_edit", "created", None, _definition_snapshot(d),
                             payload.actor_email, payload.actor_name, f"Created {item_no} {name}")
     db.commit()
+
+    # [Request 9/10]: retrofit onto currently open projects of this stage --
+    # "open" means not archived and not is_project_terminal (L0 Submitted/
+    # Cancelled, L1 Completed), matching every other "closed = read-only"
+    # check in this app. Due date is pinned to TODAY (due_date_locked=True,
+    # the same field a due-date extension/hold uses to freeze a due date
+    # against the next recompute) rather than run through the normal
+    # formula -- a brand-new obligation landing on an already-running
+    # project has no "original schedule" to backdate into, and the formula
+    # could easily already be in the past for a project whose real
+    # timeline has moved on. A brand-new project instead goes through the
+    # completely normal _instantiate_deliverables path at its own creation
+    # time (this block never touches that), so it gets the real formula
+    # date like any other catalog item -- reoccurring=True is what decides
+    # whether it's even offered there at all (the active flag above).
+    retrofitted = 0
+    if payload.applicability_scope in ("all_active", "certain"):
+        stage_enum = models.Stage.L0 if payload.stage == "L0" else models.Stage.L1
+        q = db.query(models.Project).filter(models.Project.stage == stage_enum,
+                                             models.Project.archived == False)  # noqa: E712
+        if payload.applicability_scope == "certain":
+            q = q.filter(models.Project.id.in_(payload.applicability_project_ids))
+        projects = [p for p in q.all() if not rules.is_project_terminal(p)]
+        projects = [p for p in projects if rules.is_bu_applicable(d, p) and rules.is_scope_variant_applicable(d, p)
+                    and rules.is_international_applicable(d, p)]
+        is_tendering_dept = dept.name.startswith("Tendering Department")
+        needs_triage = (stage_enum == models.Stage.L0 and not d.is_milestone and not is_tendering_dept)
+        today = date.today()
+        for p in projects:
+            if db.query(models.DeliverableSubmission).filter_by(
+                project_id=p.id, deliverable_definition_id=d.id,
+            ).first():
+                continue
+            db.add(models.DeliverableSubmission(
+                project_id=p.id, deliverable_definition_id=d.id,
+                applicability="pending" if needs_triage else "applicable",
+                due_date=today, due_date_locked=True,
+            ))
+            retrofitted += 1
+        if retrofitted:
+            db.commit()
+
     return _definition_out(d) | {
-        "note": "New deliverables only join the base project-instantiation flow -- PO Lifecycle tracking, "
-                "the Tendering triage exemption, and auto-complete-from-project-field integrations stay code-only for now.",
+        "retrofitted_count": retrofitted,
+        "note": "PO Lifecycle tracking, the Tendering triage exemption, and auto-complete-from-project-field "
+                "integrations stay code-only for now, even for a retrofitted item.",
     }
 
 

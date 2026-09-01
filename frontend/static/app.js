@@ -8921,6 +8921,7 @@
       document.getElementById("adminDefRestoreBtn").style.display = d.can_restore ? "" : "none";
       document.getElementById("adminDefDeactivateBtn").style.display = "";
       document.getElementById("adminDefDeactivateBtn").textContent = d.active ? "Deactivate" : "Reactivate";
+      document.getElementById("adminDefApplySection").style.display = "none";
     } else {
       document.getElementById("adminDefEyebrow").textContent = "Deliverables Configuration";
       document.getElementById("adminDefTitle").textContent = "Add " + stageLabel + " Deliverable";
@@ -8935,11 +8936,50 @@
       renderBranchEditorRows(document.getElementById("adminDefBranchList"), []);
       document.getElementById("adminDefRestoreBtn").style.display = "none";
       document.getElementById("adminDefDeactivateBtn").style.display = "none";
+      document.getElementById("adminDefApplySection").style.display = "";
+      document.querySelector('input[name="adminDefScope"][value="all_active"]').checked = true;
+      document.querySelector('input[name="adminDefReoccur"][value="yes"]').checked = true;
+      document.getElementById("adminDefProjectPicker").style.display = "none";
+      await _populateAdminDefProjectPicker();
     }
     _refreshAdminDefItemNoSuggestion();
     updateAdminDefWeightReadout();
     document.getElementById("adminDefModalOverlay").hidden = false;
   }
+  // Item [request 9/10]: the "Certain projects" checklist -- every
+  // currently open (non-archived, non-terminal) project of whatever stage
+  // dcTab is currently showing, so picking it stays scoped to the same
+  // catalog the admin is already looking at.
+  async function _populateAdminDefProjectPicker() {
+    var wrap = document.getElementById("adminDefProjectPicker");
+    wrap.innerHTML = "Loading&#8230;";
+    var stage = dcTab === "L1" ? "L1" : "L0";
+    var rows = await api("/api/projects?stage=" + stage);
+    var TERMINAL_L0 = ["Submitted", "Cancelled"], TERMINAL_L1 = ["Completed"];
+    var open = rows.filter(function (p) {
+      if (p.archived) return false;
+      var terminal = stage === "L1" ? TERMINAL_L1 : TERMINAL_L0;
+      return terminal.indexOf(p.status) === -1;
+    });
+    wrap.innerHTML = "";
+    if (!open.length) { wrap.appendChild(el("div", "muted", "No open " + stage + " projects.")); return; }
+    open.forEach(function (p) {
+      var label = el("label", "", "");
+      label.style.cssText = "display:block;font-weight:400;font-size:12.5px;margin:2px 0;";
+      var cb = document.createElement("input");
+      cb.type = "checkbox"; cb.value = p.id; cb.className = "adminDefProjectCb";
+      cb.style.marginRight = "6px";
+      label.appendChild(cb);
+      label.appendChild(document.createTextNode(p.est_no + " – " + p.name));
+      wrap.appendChild(label);
+    });
+  }
+  document.querySelectorAll('input[name="adminDefScope"]').forEach(function (r) {
+    r.addEventListener("change", function () {
+      document.getElementById("adminDefProjectPicker").style.display =
+        document.querySelector('input[name="adminDefScope"]:checked').value === "certain" ? "" : "none";
+    });
+  });
   function _adminDefWeightSiblings(deptId, excludeId) {
     return dcItems.filter(function (it) {
       return it.department_id === deptId && it.id !== excludeId &&
@@ -8998,14 +9038,27 @@
           });
         }
       } else {
-        await api("/api/deliverables/admin/definitions", {
+        var scope = document.querySelector('input[name="adminDefScope"]:checked').value;
+        var reoccur = document.querySelector('input[name="adminDefReoccur"]:checked').value === "yes";
+        var pickedIds = Array.from(document.querySelectorAll(".adminDefProjectCb:checked")).map(function (cb) { return parseInt(cb.value, 10); });
+        if (scope === "certain" && !pickedIds.length) {
+          showToast('Select at least one project, or choose "All active projects"', true);
+          return;
+        }
+        var createRes = await api("/api/deliverables/admin/definitions", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             stage: (dcTab === "L1" ? "L1" : "L0"), item_no: itemNo, name: name, department_id: deptId,
             deliverable_type: dtype, is_milestone: isMs, milestone_code: msCode, branches: branches,
+            reoccurring: reoccur, applicability_scope: scope, applicability_project_ids: pickedIds,
             actor_role: CURRENT_ROLE, actor_email: actingEmail(), actor_name: passiveIdentity(),
           }),
         });
+        closeAdminDefModal();
+        var retro = createRes.retrofitted_count || 0;
+        showToast("Saved" + (retro ? " &#8211; added to " + retro + " active project" + (retro === 1 ? "" : "s") : ""));
+        loadDeliverablesConfig();
+        return;
       }
     } catch (err) {
       showToast("Could not save &#8211; " + apiErrorDetail(err), true);
