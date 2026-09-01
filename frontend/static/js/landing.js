@@ -1581,8 +1581,10 @@ function discharge() {
   const src = ctx.createBufferSource();
   src.buffer = a.zapBuf;
   const g = ctx.createGain();
-  g.gain.setValueAtTime(0.28, t);
-  g.gain.setValueAtTime(0.28, t + dur - 0.09);
+  // Item [request 7]: lowered another 30% off the already-reduced 0.28
+  // (0.28 * 0.7 = 0.196) -- the sign-in discharge zap.
+  g.gain.setValueAtTime(0.196, t);
+  g.gain.setValueAtTime(0.196, t + dur - 0.09);
   g.gain.linearRampToValueAtTime(0, t + dur);
   src.connect(g); g.connect(a.master);
   src.start(t, 0, dur);

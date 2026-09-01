@@ -364,6 +364,16 @@ def update_po_selection(submission_id: int, payload: schemas.PoSelectionUpdate, 
         db.add(models.WorkflowHistory(submission_id=sub.id, action="po_selection_updated",
                                        actor_name=payload.actor_name, note="; ".join(changed_notes)))
     db.commit()
+    # [Request 15]: exception to the general PO Lifecycle rule above (fan-
+    # out normally waits for the declaring item's own approval) -- for
+    # L0's 1.17/1.18 specifically, an item needs its own review (4.6 /
+    # 3.5-3.7) the moment it's added, not once every offer has been
+    # circulated. 1.17/1.18's own approval now means "all offers
+    # circulated", not "these items may finally start being reviewed".
+    # L1's 1.2/4.1/2.11/2.17 are unaffected -- they still only fan out at
+    # their own declaring item's approval, via _finalize_approval below.
+    if is_l0_declaring:
+        po_line_items.sync_from_submission(db, sub)
     return {"po_selection": sub.po_selection, "status": sub.status.value}
 
 

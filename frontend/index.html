@@ -292,7 +292,10 @@
              section, reorder the KPI tiles / Top Achievers cards. Saved to
              this browser only (localStorage), same as every other
              per-viewer-only convenience in this app. -->
-        <button class="btn" id="dashCustomizeBtn" type="button">&#9881; Customize</button>
+        <div style="display:flex;gap:8px;">
+          <button class="btn" id="dashRestoreDefaultsBtn" type="button" hidden>&#8635; Restore Defaults</button>
+          <button class="btn" id="dashCustomizeBtn" type="button">&#9881; Customize</button>
+        </div>
       </div>
 
       <div class="dash-hidden-banner" id="dashHiddenBanner" hidden></div>
@@ -1362,8 +1365,8 @@
           <div class="eyebrow">Workspace</div>
           <h1>My Requests</h1>
           <p class="sub">Every request you've sent to an Admin &#8212; due-date extensions/holds, reassignments,
-            SME nominations, Bid Value access, L0-L1 Group adds, and formula change suggestions &#8212; and
-            where each one stands. Click any row for the full details.</p>
+            SME nominations, Bid Value access, Commercial Offers access, L0-L1 Group adds, and formula change
+            suggestions &#8212; and where each one stands. Click any row for the full details.</p>
         </div>
         <button class="btn" id="myRequestsExportBtn" type="button">&#11015;&#65039; Export</button>
       </div>
@@ -1379,6 +1382,7 @@
           <div class="req-type"><b>Bid Value Access</b><span>On a project's detail page, next to Bid Value, click <b>Request Access</b>.</span></div>
           <div class="req-type"><b>L0-L1 Group Add</b><span>Click <b>Add to L0-L1 Group</b> at the top of any page.</span></div>
           <div class="req-type"><b>Formula Change</b><span>On Deliverables Catalog, click <b>Suggest a Change</b> on any item.</span></div>
+          <div class="req-type"><b>Commercial Offers Access</b><span>Open an L0 tender's 1.18 Circulate Commercial Offers deliverable and click <b>Request Access</b>.</span></div>
         </div>
       </div>
       <div class="card table-card">

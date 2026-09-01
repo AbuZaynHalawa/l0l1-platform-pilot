@@ -849,6 +849,13 @@
     { id: "matrixCard", label: "Deliverables Matrix" },
   ];
   var DASH_KPI_ORDER_DEFAULT = ["briefcase", "folder", "funnel", "clock", "checkCircle"];
+  // [Request: KPI tiles hideable too] real labels for the banner/popup --
+  // state.hidden is one shared list for both DASH_SECTIONS ids and these
+  // KPI keys, since the two namespaces never collide.
+  var DASH_KPI_LABELS = {
+    briefcase: "L0 Tenders – Lifetime", folder: "L1 Projects – Lifetime", funnel: "L0 → L1 Conversion",
+    clock: "Avg. Time to Contract", checkCircle: "Deliverables Completed – This Week",
+  };
   var DASH_ACHIEVER_ORDER_DEFAULT = ["achieversOwnersCard", "achieversSmesCard"];
   var dashEditMode = false;
   function _dashLayoutLoad() {
@@ -870,6 +877,18 @@
     if (idx === -1) state.hidden.push(id); else state.hidden.splice(idx, 1);
     _dashLayoutSave(state);
     applyDashLayout();
+  }
+  // Item [request 18]: full reset -- back to nothing hidden, both orders
+  // back to source order, in one click. Confirmed first since it discards
+  // every customization the viewer has made, same "ask before wiping
+  // someone's own work" bar as any other destructive local action.
+  async function _dashRestoreDefaults() {
+    var ok = await customConfirm("This clears every section you've hidden and any reordering, back to the default layout.",
+      { title: "Restore dashboard to default?", okLabel: "Restore", danger: true });
+    if (!ok) return;
+    try { localStorage.removeItem("dashboardLayout"); } catch (e) {}
+    applyDashLayout();
+    showToast("Dashboard layout restored to default");
   }
   function _dashReorder(listKey, id, dir) {
     var state = _dashLayoutLoad();
@@ -921,11 +940,10 @@
       if (!el) return;
       el.classList.toggle("dash-section-hidden", state.hidden.indexOf(s.id) !== -1);
     });
-    // KPI tiles: reorder only (no per-tile hide -- 5 fixed lifetime
-    // metrics, nothing there worth hiding individually). Falls back
-    // gracefully if a future code change adds/removes a tile: known keys
-    // missing from a stale saved order are appended at the end instead of
-    // silently vanishing.
+    // KPI tiles: reorder + per-tile hide. Falls back gracefully if a
+    // future code change adds/removes a tile: known keys missing from a
+    // stale saved order are appended at the end instead of silently
+    // vanishing.
     var kpiRow = document.getElementById("dashKpiRow");
     if (kpiRow && kpiRow.children.length) {
       var byKey = {};
@@ -935,7 +953,8 @@
       kpiOrder.forEach(function (key, idx) {
         var card = byKey[key];
         kpiRow.appendChild(card);
-        _dashControlsFor(card, null, { isFirst: idx === 0, isLast: idx === kpiOrder.length - 1, onMove: function (dir) { _dashReorder("kpiOrder", key, dir); } });
+        card.classList.toggle("dash-section-hidden", state.hidden.indexOf(key) !== -1);
+        _dashControlsFor(card, key, { isFirst: idx === 0, isLast: idx === kpiOrder.length - 1, onMove: function (dir) { _dashReorder("kpiOrder", key, dir); } });
       });
     }
     var achieversRow = document.getElementById("achieversRow");
@@ -965,9 +984,10 @@
     popup.className = "dash-hidden-popup"; popup.hidden = true;
     state.hidden.forEach(function (id) {
       var meta = DASH_SECTIONS.filter(function (s) { return s.id === id; })[0];
+      var label = meta ? meta.label : (DASH_KPI_LABELS[id] || id);
       var row = document.createElement("div");
       row.className = "dash-hidden-popup-row";
-      row.appendChild(el("span", "", meta ? meta.label : id));
+      row.appendChild(el("span", "", label));
       var showBtn = document.createElement("button");
       showBtn.type = "button"; showBtn.className = "btn"; showBtn.textContent = "Show";
       showBtn.addEventListener("click", function () { _dashToggleHidden(id); });
@@ -982,8 +1002,10 @@
     dashEditMode = !dashEditMode;
     this.classList.toggle("active", dashEditMode);
     this.innerHTML = dashEditMode ? "&#10003; Done Customizing" : "&#9881; Customize";
+    document.getElementById("dashRestoreDefaultsBtn").hidden = !dashEditMode;
     applyDashLayout();
   });
+  document.getElementById("dashRestoreDefaultsBtn").addEventListener("click", _dashRestoreDefaults);
 
   var dashFocus = "all";
   document.querySelectorAll("#dashFocusToggle .chip").forEach(function (btn) {
@@ -2821,15 +2843,16 @@
       eyebrow: "Coming Soon",
       title: "The Platform, In Your Pocket",
       body:
-        // Deliberately NOT var(--purple-1)/2 -- those tokens actually
-        // resolve to the app's own everyday brand red, which would make
-        // this read as routine UI chrome instead of a distinct, exciting
-        // one-off announcement. A fresh indigo-to-cyan gradient stands
-        // apart from the red used everywhere else in the app.
-        '<div class="tour-callout" style="background:linear-gradient(135deg, #4f46e5, #06b6d4);' +
-        'color:#fff;border:none;display:flex;align-items:center;gap:10px;">' +
-        '<span style="font-size:22px;">&#128241;</span>' +
-        '<span><b>Mobile app &#8212; in active development.</b> Everything you rely on here, ' +
+        // Item [request 17]: red gradient (var(--purple-1)/2, the app's
+        // own brand red tokens), every bit of text forced white -- .tour-
+        // callout's own "b { color: var(--ink-900) }" rule otherwise wins
+        // over the div's inline color (a descendant selector beats
+        // inheritance from an ancestor's inline style), which is exactly
+        // why the bold line was still reading dark before this fix.
+        '<div class="tour-callout" style="background:linear-gradient(135deg, var(--purple-1), var(--purple-2));' +
+        'border:none;display:flex;align-items:center;gap:10px;">' +
+        '<span style="font-size:22px;color:#fff;">&#128241;</span>' +
+        '<span style="color:#fff;"><b style="color:#fff;">Mobile app &#8212; in active development.</b> Everything you rely on here, ' +
         "built for the phone in your pocket.</span></div>" +
         '<div style="display:flex;gap:22px;align-items:flex-start;margin-top:16px;flex-wrap:wrap;">' +
         '<div style="flex:0 0 auto;">' + mobileAppMock() + "</div>" +
@@ -3129,7 +3152,7 @@
     return sec;
   }
 
-  function poTextListSection(d, refreshModal, label, canEdit) {
+  function poTextListSection(d, refreshModal, label, canEdit, placeholder) {
     var sec = el("div", "po-selection-section");
     sec.appendChild(el("div", "po-selection-label", label));
     var items = (d.po_selection && d.po_selection.items) || [];
@@ -3153,7 +3176,7 @@
       var addBtn = el("button", "btn", "+ Add item");
       addBtn.addEventListener("click", function () {
         openChecklistEditModal({
-          type: "text", eyebrow: d.item_no, title: "Add " + label.toLowerCase(), placeholder: "Agreement name", selected: "",
+          type: "text", eyebrow: d.item_no, title: "Add " + label.toLowerCase(), placeholder: placeholder || "Agreement name", selected: "",
           onSave: function (name) {
             if (!name || !name.trim()) return;
             savePoSelection(d.id, { items: items.concat([name.trim()]) }, function () { closeChecklistEditModal(); refreshModal(); });
@@ -3273,7 +3296,7 @@
         poBlock.appendChild(poChecklistSection(d, refreshModal, "MEP consultancy", MEP_TYPES, "mep_selected", canEditSelection));
       } else if (isL0Declaring) {
         var l0Label = d.item_no === "1.17" ? "Technical offer items" : "Commercial offer items";
-        poBlock.appendChild(poTextListSection(d, refreshModal, l0Label, canEditSelection));
+        poBlock.appendChild(poTextListSection(d, refreshModal, l0Label, canEditSelection, "Material Name"));
       } else {
         poBlock.appendChild(poTextListSection(d, refreshModal, "S/C agreements", canEditSelection));
       }
