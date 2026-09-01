@@ -340,7 +340,7 @@ L0_ITEMS = [
     ("1.3", "Announce the date of the Pre-bid/Jobex Meetings and circulate related instructions", "tendering", "predecessor", "1.1", 1, "after", "date_driven", None),
     ("1.4", "Announce the deadlines of the Pre-bid clarifications", "tendering", "predecessor", "1.1", 1, "after", "date_driven", None),
     ("1.5", "Assign BID Manager / Calculation Engineer (focal for all communications)", "tendering", "predecessor", "1.1", 1, "after", "date_driven", None),
-    ("1.6", "Request Bid Bond (if applicable)", "tendering", "predecessor", "1.20", 10, "before", "date_driven", None),
+    ("1.6", "Request Bid Bond (if applicable)", "tendering", "predecessor", "1.21", 10, "before", "date_driven", None),
     ("1.7", "Develop Estimate Program and circulate with all departments, External consultant, SME's", "tendering", "predecessor", "1.1", 2, "after", "date_driven", None),
     ("1.8", "Float SC RFQ's - Local", "tendering", "predecessor", "1.1", 7, "after", "date_driven", None),
     ("1.9", "Float Materials RFQ's - Local", "tendering", "predecessor", "1.1", 7, "after", "date_driven", None),
@@ -352,16 +352,19 @@ L0_ITEMS = [
     ("1.15", "Incorporate SME's findings (if applicable)", "tendering", None, None, 0, "after", "on_request", None),
     ("1.16", "Prepare Manpower & Equipment Schedules", "tendering", "predecessor", "5.3", 1, "after", "date_driven", None),
     ("1.17", "Circulate technical offers & Terms received from Vendors & SC & Consultant to Engineering", "tendering", "predecessor", "1.9", 10, "after", "date_driven", "M4"),
-    ("1.18", "Develop a comprehensive Technical-commercial proposal", "tendering", "predecessor", "1.20", 5, "before", "date_driven", None),
-    ("1.19", "Adjust Proposals based on Tender Committee and/or VC Comments", "tendering", "predecessor", "1.18", 1, "after", "date_driven", None),
-    ("1.20", "Submit Proposal to client", "tendering", "bsd", None, 0, "before", "date_driven", "M5"),
-    # Split from 1.17 (previously one combined item covering both
-    # departments) -- same due-date formula (predecessor 1.9, +10 workdays)
-    # as the item it was split from, not a milestone itself (1.17 alone
-    # kept M4; this is a plain supporting item, matching how it worked
-    # before the split -- the combined item wasn't gating anything else,
-    # only Supply Chain/Quality's own downstream items chained off it).
-    ("1.21", "Circulate commercial offers & Terms received from Vendors & SC & Consultant to Supply chain", "tendering", "predecessor", "1.9", 10, "after", "date_driven", None),
+    # Item [request 4]: moved here from 1.21 so it sits next to its
+    # technical-offer sibling 1.17 -- same due-date formula (predecessor
+    # 1.9, +10 workdays) as always, not a milestone (1.17 alone keeps M4).
+    # Now a per-item declaring item too (item [request 5]) -- see
+    # L0_LINE_ITEM_CATEGORY_BY_ITEM_NO / po_line_items.py's "l0_comm_offer"
+    # branch, fanning out to 3.5/3.6/3.7 (Supply Chain / Procurement PBU).
+    ("1.18", "Circulate commercial offers & Terms received from Vendors & SC & Consultant to Supply chain", "tendering", "predecessor", "1.9", 10, "after", "date_driven", None),
+    # 1.19/1.20/1.21 below all shifted up one slot by the 1.21->1.18 move
+    # above (item [request 4]) -- content and formulas unchanged, only the
+    # item_no and (for 1.19) its predecessor reference move.
+    ("1.19", "Develop a comprehensive Technical-commercial proposal", "tendering", "predecessor", "1.21", 5, "before", "date_driven", None),
+    ("1.20", "Adjust Proposals based on Tender Committee and/or VC Comments", "tendering", "predecessor", "1.19", 1, "after", "date_driven", None),
+    ("1.21", "Submit Proposal to client", "tendering", "bsd", None, 0, "before", "date_driven", "M5"),
 
     # The old flat "operation" rows (2.1-2.6, pre-split Operation Units)
     # used to live here -- kept in sync by upsert only because existing
@@ -415,11 +418,13 @@ L0_ITEMS = [
     ("3.2", "Highlight points require Pre-bid clarifications", "supply", "pre_bid", None, 3, "before", "date_driven", None),
     ("3.3", "Provide list of approved and acknowledge suppliers", "supply", None, None, 0, "after", "library", None),
     ("3.4", "Provide P.O.'s and Procurement Historical Data", "supply", None, None, 0, "after", "library", None),
-    # Predecessor 1.21 (not 1.17) -- these are Supply Chain's own follow-up
-    # to the commercial-offers circulation now split out to them specifically.
-    ("3.5", "Review and Evaluate of Main Materials (Long lead items) and Subcontracting Strategy", "supply", "predecessor", "1.21", 2, "after", "date_driven", None),
-    ("3.6", "Prepare List of long lead items, key materials and items fall on critical path", "supply", "predecessor", "1.21", 2, "after", "date_driven", None),
-    ("3.7", "Support tendering with required logistics pricing and provide backup data", "supply", "predecessor", "1.21", 2, "after", "date_driven", None),
+    # Predecessor 1.18 (not 1.17) -- these are Supply Chain's own follow-up
+    # to the commercial-offers circulation split out to them specifically
+    # (moved from 1.21 to 1.18 by item [request 4]). Now per-item, fanned
+    # out one row per manually-added review item on 1.18 (item [request 5]).
+    ("3.5", "Review and Evaluate of Main Materials (Long lead items) and Subcontracting Strategy", "supply", "predecessor", "1.18", 2, "after", "date_driven", None),
+    ("3.6", "Prepare List of long lead items, key materials and items fall on critical path", "supply", "predecessor", "1.18", 2, "after", "date_driven", None),
+    ("3.7", "Support tendering with required logistics pricing and provide backup data", "supply", "predecessor", "1.18", 2, "after", "date_driven", None),
     ("3.8", "Complete Internal Prequalification of Potential Vendors (where applicable)", "supply", None, None, 0, "after", "on_request", None),
     ("3.9", "Participate in negotiation rounds at bidding stage lead by tender team", "supply", None, None, 0, "after", "on_request", None),
 
@@ -430,9 +435,9 @@ L0_ITEMS = [
     ("3.2", "Highlight points require Pre-bid clarifications", "supply_pbu", "pre_bid", None, 3, "before", "date_driven", None),
     ("3.3", "Provide list of approved and acknowledge suppliers", "supply_pbu", None, None, 0, "after", "library", None),
     ("3.4", "Provide P.O.'s and Procurement Historical Data", "supply_pbu", None, None, 0, "after", "library", None),
-    ("3.5", "Review and Evaluate of Main Materials (Long lead items) and Subcontracting Strategy", "supply_pbu", "predecessor", "1.21", 2, "after", "date_driven", None),
-    ("3.6", "Prepare List of long lead items, key materials and items fall on critical path", "supply_pbu", "predecessor", "1.21", 2, "after", "date_driven", None),
-    ("3.7", "Support tendering with required logistics pricing and provide backup data", "supply_pbu", "predecessor", "1.21", 2, "after", "date_driven", None),
+    ("3.5", "Review and Evaluate of Main Materials (Long lead items) and Subcontracting Strategy", "supply_pbu", "predecessor", "1.18", 2, "after", "date_driven", None),
+    ("3.6", "Prepare List of long lead items, key materials and items fall on critical path", "supply_pbu", "predecessor", "1.18", 2, "after", "date_driven", None),
+    ("3.7", "Support tendering with required logistics pricing and provide backup data", "supply_pbu", "predecessor", "1.18", 2, "after", "date_driven", None),
     ("3.8", "Complete Internal Prequalification of Potential Vendors (where applicable)", "supply_pbu", None, None, 0, "after", "on_request", None),
     ("3.9", "Participate in negotiation rounds at bidding stage lead by tender team", "supply_pbu", None, None, 0, "after", "on_request", None),
 
@@ -473,7 +478,7 @@ L0_ITEMS = [
     ("6.2", "Highlight points require Pre-bid clarifications", "costctrl", "pre_bid", None, 3, "before", "date_driven", None),
     ("6.3", "Fleet Productivities (equipment productivity rates)", "costctrl", None, None, 0, "after", "library", None),
 
-    ("7.1", "Prepare Risk Register", "contract", "predecessor", "1.20", 5, "before", "date_driven", None),
+    ("7.1", "Prepare Risk Register", "contract", "predecessor", "1.21", 5, "before", "date_driven", None),
     # Item 172 (corrected): unlike every other department's identically-
     # worded "Highlight points require Pre-bid clarifications" item (e.g.
     # Planning's 5.2 above, which stays at 3 days), Contract's own 7.2 is
@@ -495,10 +500,10 @@ L0_ITEMS = [
     # mirroring L1's existing Treasury/Finance split -- same
     # shared-item_no-across-departments pattern as item 129's 5.1/5.2 split.
     ("9.1", "Prepare Risk Register", "treasury", "predecessor", "2.2", 1, "after", "date_driven", None),
-    ("9.2", "Issue Bid Bonds", "treasury", "predecessor", "1.20", 3, "before", "date_driven", None),
+    ("9.2", "Issue Bid Bonds", "treasury", "predecessor", "1.21", 3, "before", "date_driven", None),
 
     ("10.1", "Prepare Risk Register", "finance", "predecessor", "2.2", 1, "after", "date_driven", None),
-    ("10.2", "Provide Insurance Cost, and additional client requirements", "finance", "predecessor", "1.20", 6, "before", "date_driven", None),
+    ("10.2", "Provide Insurance Cost, and additional client requirements", "finance", "predecessor", "1.21", 6, "before", "date_driven", None),
     ("10.3", "Provide Proposed Business Units, Corporate, Finance and Insurance Overheads", "finance", None, None, 0, "after", "library", None),
     ("10.4", "Provide Proposed Cash Flow & Finance Cost and Parameters", "finance", None, None, 0, "after", "library", None),
 
@@ -509,7 +514,7 @@ L0_ITEMS = [
     ("11.1", "Prepare Risk Register", "quality", "predecessor", "2.2", 1, "after", "date_driven", None),
     ("11.2", "Highlight points require Pre-bid clarifications", "quality", "pre_bid", None, 3, "before", "date_driven", None),
     ("11.3", "Prepare QA/QC Plan - Tender Level", "quality", "predecessor", "1.1", 7, "after", "date_driven", None),
-    ("11.4", "Evaluate Selected subcontractors (for not Qualified / Approved Subcontractors)", "quality", "predecessor", "1.21", 2, "after", "date_driven", None),
+    ("11.4", "Evaluate Selected subcontractors (for not Qualified / Approved Subcontractors)", "quality", "predecessor", "1.18", 2, "after", "date_driven", None),
     ("11.5", "Standard Personnel Requirements (Client's Standards)", "quality", "predecessor", "1.1", 7, "after", "date_driven", None),
 
     # Item 141 second rework: reverted -- HSSE keeps its own full
@@ -916,9 +921,9 @@ L0_SHORT_NAMES = {
     "1.10": "Float Consultant RFQ", "1.11": "Review Project Schedule", "1.12": "Review Execution Plan",
     "1.13": "Prepare Pre-bid Agreements", "1.14": "Incorporate Consultant Findings",
     "1.15": "Incorporate SME Findings", "1.16": "Prepare Manpower Schedule",
-    "1.17": "Circulate Technical Offers", "1.18": "Develop Tech-Comm Proposal",
-    "1.19": "Adjust Proposal (Comments)", "1.20": "Submit Proposal",
-    "1.21": "Circulate Commercial Offers",
+    "1.17": "Circulate Technical Offers", "1.18": "Circulate Commercial Offers",
+    "1.19": "Develop Tech-Comm Proposal", "1.20": "Adjust Proposal (Comments)",
+    "1.21": "Submit Proposal",
 
     "2.1": "Attend Site Visit", "2.2": "Site Visit Report", "2.3": "Highlight Pre-bid Points",
     "2.4": "Prepare Risk Register", "2.5": "Prepare Execution Plan", "2.6": "Review Project Schedule",
@@ -1154,6 +1159,87 @@ def _backfill_po_line_items(db):
                 matched = [c for c in candidates if c in single_cats_present]
                 cat = matched[0] if matched else candidates[0]
             by_category.setdefault(cat, []).append(s)
+        for cat, cat_subs in by_category.items():
+            item = models.PoLineItem(project_id=project.id, category=cat, name="Item 1 (migrated)",
+                                      source="manual", status="active")
+            db.add(item)
+            db.flush()
+            for s in cat_subs:
+                s.po_line_item_id = item.id
+            created += 1
+    if created:
+        db.commit()
+    return created
+
+
+# [Request 5]: L0's own per-item review pattern -- 1.17 (Circulate
+# technical offers, Engineering) and 1.18 (Circulate commercial offers,
+# Supply Chain -- moved here from 1.21 by item [request 4]) each declare a
+# manually-typed list of item names via po_selection.items, the exact same
+# "sc" (2.11/2.17) manual-list shape L1 already uses -- no Excel, no MEP
+# categories, see po_line_items.py's "l0_tech_offer"/"l0_comm_offer"
+# branches. Only 4.6 (Engineering / Engineering (PBU)) and 3.5/3.6/3.7
+# (Supply Chain / Procurement (PBU)) fan out this way.
+L0_LINE_ITEM_CATEGORY_BY_ITEM_NO = {"4.6": "l0_tech_offer", "3.5": "l0_comm_offer", "3.6": "l0_comm_offer", "3.7": "l0_comm_offer"}
+_L0_FAN_OUT_DEPT_NAMES = {"Engineering Department", "Engineering (PBU)", "Supply Chain", "Procurement (PBU)"}
+
+
+def _tag_l0_line_item_categories(db):
+    """Sibling of _tag_line_item_categories above, for L0. Scoped to stage
+    L0 AND these exact department names -- the same item_nos also exist
+    under L1 (different content entirely, e.g. 3.5-3.7 there are the PO
+    Approval/Signature steps) and under the International departments
+    (different department names), neither of which this should ever touch.
+    """
+    defs = (
+        db.query(models.DeliverableDefinition)
+        .join(models.Department)
+        .filter(models.DeliverableDefinition.stage == models.Stage.L0,
+                models.DeliverableDefinition.item_no.in_(L0_LINE_ITEM_CATEGORY_BY_ITEM_NO),
+                models.Department.name.in_(_L0_FAN_OUT_DEPT_NAMES))
+        .all()
+    )
+    changed = 0
+    for d in defs:
+        cat = L0_LINE_ITEM_CATEGORY_BY_ITEM_NO[d.item_no]
+        if d.line_item_category != cat:
+            d.line_item_category = cat
+            changed += 1
+    if changed:
+        db.commit()
+    return changed
+
+
+def _backfill_l0_po_line_items(db):
+    """Mirrors _backfill_po_line_items above, for L0 projects that already
+    had real (plain, one-row-per-project) progress on 4.6/3.5/3.6/3.7
+    before item [request 5] switched them to per-item tracking -- each
+    gets a synthetic "Item 1 (migrated)" PoLineItem per category so
+    existing in-flight progress stays attached instead of orphaning
+    alongside whatever real items get added to 1.17/1.18 going forward.
+    Unlike L1's version, no cross-category ambiguity to resolve here (3.5/
+    3.6/3.7 always share the one "l0_comm_offer" pool together, never
+    split across two candidate categories the way L1's 3.11 is), so no
+    "single_cats_present" inference step is needed.
+    """
+    projects = db.query(models.Project).filter(models.Project.stage == models.Stage.L0).all()
+    created = 0
+    for project in projects:
+        subs = (
+            db.query(models.DeliverableSubmission)
+            .join(models.DeliverableDefinition)
+            .join(models.Department)
+            .filter(models.DeliverableSubmission.project_id == project.id,
+                    models.DeliverableDefinition.item_no.in_(L0_LINE_ITEM_CATEGORY_BY_ITEM_NO),
+                    models.Department.name.in_(_L0_FAN_OUT_DEPT_NAMES),
+                    models.DeliverableSubmission.po_line_item_id.is_(None))
+            .all()
+        )
+        if not subs:
+            continue
+        by_category: dict[str, list] = {}
+        for s in subs:
+            by_category.setdefault(L0_LINE_ITEM_CATEGORY_BY_ITEM_NO[s.definition.item_no], []).append(s)
         for cat, cat_subs in by_category.items():
             item = models.PoLineItem(project_id=project.id, category=cat, name="Item 1 (migrated)",
                                       source="manual", status="active")
@@ -1968,11 +2054,65 @@ def run():
                     models.DeliverableDefinition.item_no.in_(_due_fix_items))
             .all()
         }
+        # Item [request 4]: L0 domestic Tendering's 1.18/1.19/1.20/1.21
+        # renumber -- "Circulate commercial offers" (was 1.21) moves to
+        # 1.18 to sit next to its technical-offer sibling 1.17 (item
+        # [request 5] then makes both per-item declaring items), and
+        # 1.18/1.19/1.20 (Develop Tech-Comm Proposal / Adjust Proposals /
+        # Submit Proposal, M5) shift up one slot each. A straight 4-cycle
+        # (18->19->20->21->18) has no slot that's free to move into first,
+        # so the row that would collide detours through a temporary
+        # item_no. seed_key is deliberately updated alongside item_no
+        # (unlike a plain admin rename via the UI, which leaves seed_key
+        # frozen on purpose -- see its own docstring in models.py) because
+        # this is the catalog's own source-of-truth renumbering: L0_ITEMS
+        # below now supplies these item_nos permanently, so upsert()'s
+        # seed_key-keyed lookup must move with them or every future deploy
+        # would stop finding these rows and insert duplicates instead.
+        # Guarded by NAME, not seed_key -- the rename below deliberately
+        # rewrites seed_key to track each row's new item_no (see the big
+        # comment above), which means seed_key can never be used as the
+        # "already done" marker: it stops matching its own guard the
+        # moment the very first run succeeds, so a seed_key-keyed guard
+        # would silently re-fire the whole rename dance on every later
+        # deploy, rotating which physical row holds which item_no forever
+        # (upsert() below self-heals the *displayed* name/predecessor each
+        # time via its own seed_key lookup, masking the bug completely --
+        # but every existing DeliverableSubmission still points at a fixed
+        # deliverable_definition_id, so the row a real submission is
+        # attached to would silently drift to a different item_no on every
+        # future deploy). Same reasoning, and the same fix, as the
+        # Quality/HSSE rework migration above. Also a safe no-op on a
+        # brand-new DB (nothing to rename yet -- L0_ITEMS below seeds the
+        # correct numbering directly).
+        tendering_dept5 = db.query(models.Department).filter_by(name="Tendering Department").first()
+        already_renumbered5 = tendering_dept5 and db.query(models.DeliverableDefinition).filter_by(
+            stage=models.Stage.L0, department_id=tendering_dept5.id, item_no="1.18",
+        ).filter(models.DeliverableDefinition.name.like("Circulate commercial offers%")).first()
+        if tendering_dept5 and not already_renumbered5:
+            def _rename_l0_tendering_item(old_no, new_no):
+                d = db.query(models.DeliverableDefinition).filter_by(
+                    stage=models.Stage.L0, item_no=old_no, department_id=tendering_dept5.id,
+                ).first()
+                if d:
+                    d.item_no = new_no
+                    d.seed_key = f"L0:{new_no}:{tendering_dept5.id}"
+                    db.flush()
+            _rename_l0_tendering_item("1.21", "1.18-tmp")
+            _rename_l0_tendering_item("1.20", "1.21")
+            _rename_l0_tendering_item("1.19", "1.20")
+            _rename_l0_tendering_item("1.18", "1.19")
+            _rename_l0_tendering_item("1.18-tmp", "1.18")
+            db.commit()
+
         # Same snapshot-before-upsert trick as the L1 block above, for L0's
-        # 5.4/8.4 offset change (3 -> 10 and 3 -> 5 workdays after 1.1) --
-        # forces a same-day recompute on existing projects instead of
-        # waiting for tomorrow's first read.
-        _l0_due_fix_items = ["5.4", "8.4"]
+        # 5.4/8.4 offset change (3 -> 10 and 3 -> 5 workdays after 1.1),
+        # and now also the item [request 4] renumber's predecessor
+        # rewiring (1.6/7.1/9.2/10.2 now point at 1.21 instead of 1.20;
+        # 3.5/3.6/3.7/11.4 now point at 1.18 instead of 1.21; 1.19/1.20 now
+        # chain 1.19->1.21, 1.20->1.19) -- forces a same-day recompute on
+        # existing projects instead of waiting for tomorrow's first read.
+        _l0_due_fix_items = ["5.4", "8.4", "1.6", "1.18", "1.19", "1.20", "1.21", "3.5", "3.6", "3.7", "7.1", "9.2", "10.2", "11.4"]
         _l0_due_fix_before = {
             (d.item_no, d.department_id): (d.anchor_type, d.predecessor_item_no, d.offset_days)
             for d in db.query(models.DeliverableDefinition)
@@ -2011,6 +2151,43 @@ def run():
             upsert("L0", item_no, name, L0_INTERNATIONAL_SHORT_NAMES.get(item_no, name), dept.id, anchor, pred, offset, direction, dtype, bool(ms), ms)
 
         db.commit()
+
+        # Item [request 4] branch fix: upsert() above only updates a
+        # DeliverableDefinition's own denormalized mirror columns (anchor_
+        # type/predecessor_item_no/offset_days/offset_direction) -- actual
+        # due-date computation reads DeliverableFormulaBranch rows instead
+        # (rules.compute_due_date), which upsert() never touches for a
+        # pre-existing row (only _seed_missing_branches below creates
+        # branches, and only for a definition with zero of them). Every
+        # item the [request 4] renumber's predecessor rewiring touches
+        # already has a real branch from a prior deploy, so without this
+        # the formula text/UI would say the predecessor moved while the
+        # real due date silently never does. Scoped to plain, single
+        # "always" branch items -- true for every one of these; skips
+        # anything with real conditional branches (none of these are).
+        _l0_renumber_branch_sync_items = ["1.6", "1.19", "1.20", "3.5", "3.6", "3.7", "7.1", "9.2", "10.2", "11.4"]
+        branch_sync_defs = (
+            db.query(models.DeliverableDefinition)
+            .join(models.Department)
+            .filter(models.DeliverableDefinition.stage == models.Stage.L0,
+                    models.DeliverableDefinition.item_no.in_(_l0_renumber_branch_sync_items),
+                    models.Department.name.notlike("%International%"))
+            .all()
+        )
+        branch_synced = 0
+        for d in branch_sync_defs:
+            only_branch = d.branches[0] if len(d.branches) == 1 else None
+            if only_branch and only_branch.condition_type == "always" and (
+                only_branch.predecessor_item_no != d.predecessor_item_no or only_branch.offset_days != d.offset_days
+            ):
+                only_branch.anchor_type = d.anchor_type
+                only_branch.predecessor_item_no = d.predecessor_item_no
+                only_branch.offset_days = d.offset_days
+                only_branch.offset_direction = d.offset_direction
+                branch_synced += 1
+        if branch_synced:
+            db.commit()
+            print(f"[Request 4]: synced {branch_synced} formula branch(es) to their renumbered predecessor.")
 
         # [Deliverables Configuration]: must run after upsert() above (needs
         # every definition's id, including brand-new ones just inserted)
@@ -2582,6 +2759,12 @@ def run():
         migrated = _backfill_po_line_items(db)
         if migrated:
             print(f"[PO Lifecycle]: backfilled {migrated} synthetic PoLineItem(s) for pre-existing L1 progress.")
+        l0_tagged = _tag_l0_line_item_categories(db)
+        if l0_tagged:
+            print(f"[Request 5]: tagged {l0_tagged} L0 deliverable definition(s) with a line_item_category.")
+        l0_migrated = _backfill_l0_po_line_items(db)
+        if l0_migrated:
+            print(f"[Request 5]: backfilled {l0_migrated} synthetic PoLineItem(s) for pre-existing L0 progress.")
         gap_filled = _fill_po_line_item_gaps(db)
         if gap_filled:
             print(f"[PO Lifecycle]: filled line-item fan-out gaps on {gap_filled} project(s).")

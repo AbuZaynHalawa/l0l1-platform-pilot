@@ -479,6 +479,7 @@
     hold_request: ["&#9208;", "hold-request"], hold_decision: ["&#9208;", "hold-decision"],
     reassignment_decision: ["&#128101;", "reassignment-decision"], sme_nomination_decision: ["&#127891;", "sme-nomination-decision"],
     bid_value_access_decision: ["&#128176;", "bid-value-access-decision"], group_add_decision: ["&#128101;", "group-add-decision"],
+    comm_offer_access_decision: ["&#128188;", "comm-offer-access-decision"],
   };
   // Item 165: single source of truth for the Announcements type filter and
   // its legend -- audience: "all" means every role sees it as a filter
@@ -506,6 +507,7 @@
     { value: "sme_nomination_decision", label: "SME Nomination Decision", sw: "var(--good)", audience: "all" },
     { value: "bid_value_access_decision", label: "Bid Value Access Decision", sw: "var(--good)", audience: "all" },
     { value: "group_add_decision", label: "L0-L1 Group Request Decision", sw: "var(--good)", audience: "all" },
+    { value: "comm_offer_access_decision", label: "Commercial Offers Access Decision", sw: "var(--good)", audience: "all" },
   ];
   // Item [announcement recipients]: the "To:" line used to list every
   // recipient email verbatim -- fine at a handful of test users, unreadable
@@ -893,7 +895,7 @@
         } else {
           recent.forEach(function (p) {
             var row = el("div", "dpc-recent-row");
-            var intlTag = p.is_international ? ' <span class="pill neutral" style="padding:1px 7px;"><span class="dot"></span>Intl</span>' : "";
+            var intlTag = p.is_international ? ' <span class="pill neutral" style="padding:1px 7px;"><span class="dot"></span>International</span>' : "";
             row.innerHTML = '<span class="dpc-recent-est">' + p.est_no + '</span>' +
               '<span class="dpc-recent-name">' + p.name + intlTag + '</span>' +
               '<span class="dpc-recent-date">' + fmtDate(p.announcement_date) + "</span>";
@@ -2852,13 +2854,45 @@
   }
 
   async function openDelivModal(submissionId) {
-    var qs = passiveIdentity() ? "?actor_email=" + encodeURIComponent(passiveIdentity()) : "";
+    var qs = "?actor_role=" + encodeURIComponent(CURRENT_ROLE) + "&actor_email=" + encodeURIComponent(actingEmail() || passiveIdentity() || "");
     var d = await api("/api/deliverables/" + submissionId + qs);
     document.getElementById("delivModalEyebrow").textContent = d.est_no + " – " + deptLabel(d.department, d.department_number);
     document.getElementById("delivModalTitle").textContent = d.item_no + " · " + d.name + (d.line_item_name ? " — " + d.line_item_name : "");
     var authorized = isAssigned({ owner_emails: d.owner_emails, sme_emails: d.sme_emails });
     var body = document.getElementById("delivModalBody");
     body.innerHTML = "";
+
+    // Item [request 8]: 1.18 restricted to the BM + Supply Chain owners --
+    // everyone else gets a request-access screen instead of the normal
+    // deliverable UI, the same pattern as the Bid Value field's own gate.
+    if (d.access_restricted && !d.access_visible) {
+      var restrictBlock = el("div", "po-selection-block");
+      restrictBlock.appendChild(el("div", "po-selection-title", "Restricted"));
+      restrictBlock.appendChild(el("div", "po-selection-empty",
+        "This item is restricted to the Bid Manager and Supply Chain owners. Request access to view it."));
+      if (d.access_request_status === "pending") {
+        restrictBlock.appendChild(el("span", "pill warn", '<span class="dot"></span>Request Pending'));
+      } else if (d.access_request_status === "rejected") {
+        restrictBlock.appendChild(el("span", "pill crit", '<span class="dot"></span>Request Declined'));
+      } else {
+        var reqBtn = el("button", "btn primary", "Request Access");
+        reqBtn.type = "button";
+        reqBtn.addEventListener("click", async function () {
+          try {
+            await api("/api/deliverables/" + submissionId + "/request-comm-offer-access", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ actor_email: actingEmail() || passiveIdentity() || "", actor_name: passiveIdentity() }),
+            });
+            showToast("Access requested");
+            openDelivModal(submissionId);
+          } catch (err) { showToast("Couldn't request access &#8211; " + apiErrorDetail(err), true); }
+        });
+        restrictBlock.appendChild(reqBtn);
+      }
+      body.appendChild(restrictBlock);
+      document.getElementById("delivModalOverlay").hidden = false;
+      return;
+    }
 
     // [PO Lifecycle]: a fan-out item_no (one submission per PO line item)
     // shows as a single collapsed row in the Deliverables list -- this
@@ -2909,15 +2943,25 @@
     // Deliverables window. Nothing is created downstream until this
     // submission is actually approved (see sync_from_submission on the
     // backend); this block is just the scratch pad.
-    if (PO_DECLARING_ITEM_NOS.indexOf(d.item_no) !== -1) {
+    // Item [request 5]: L0's own 1.17/1.18 (Circulate technical/commercial
+    // offers, domestic Tendering Department only -- its International
+    // sibling department shares these same item_no strings for
+    // unrelated, non-declaring content) get the same manual item-list
+    // pattern as L1's S/C agreements above, no Excel and no MEP
+    // categories, per the request.
+    var isL0Declaring = (d.item_no === "1.17" || d.item_no === "1.18") && d.department === "Tendering Department";
+    if (PO_DECLARING_ITEM_NOS.indexOf(d.item_no) !== -1 || isL0Declaring) {
       var canEditSelection = authorized && !d.project_terminal && d.status !== "approved" && d.status !== "pending_review";
       var poBlock = el("div", "po-selection-block");
-      poBlock.appendChild(el("div", "po-selection-title", "PO Lifecycle selection"));
+      poBlock.appendChild(el("div", "po-selection-title", isL0Declaring ? "Items for review" : "PO Lifecycle selection"));
       if (d.item_no === "4.1") {
         poBlock.appendChild(poChecklistSection(d, refreshModal, "Early activities", EARLY_ACTIVITY_TYPES, "selected", canEditSelection));
       } else if (d.item_no === "1.2") {
         poBlock.appendChild(poLongLeadSection(d, refreshModal, canEditSelection));
         poBlock.appendChild(poChecklistSection(d, refreshModal, "MEP consultancy", MEP_TYPES, "mep_selected", canEditSelection));
+      } else if (isL0Declaring) {
+        var l0Label = d.item_no === "1.17" ? "Technical offer items" : "Commercial offer items";
+        poBlock.appendChild(poTextListSection(d, refreshModal, l0Label, canEditSelection));
       } else {
         poBlock.appendChild(poTextListSection(d, refreshModal, "S/C agreements", canEditSelection));
       }
@@ -7751,6 +7795,55 @@
       });
     }
 
+    var coReqs = await api("/api/deliverables/comm-offer-requests?status=pending");
+    var coReqWrap = document.getElementById("commOfferReqList");
+    document.getElementById("commOfferReqCount").textContent = coReqs.length ? "(" + coReqs.length + ")" : "";
+    coReqWrap.innerHTML = "";
+    if (!coReqs.length) {
+      coReqWrap.appendChild(el("div", "empty-state", "No pending Commercial Offers access requests."));
+    } else {
+      coReqs.forEach(function (r) {
+        var row = el("div", "aq-row");
+        var main = el("div", "aq-main");
+        main.appendChild(el("div", "aq-title", r.est_no + " &middot; " + r.project_name));
+        main.appendChild(el("div", "aq-sub",
+          '<span>' + (r.requested_by_name ? r.requested_by_name + " (" + r.requested_by_email + ")" : r.requested_by_email) + '</span>'));
+        row.appendChild(main);
+        var actions = el("div", "deliv-actions");
+        var doApprove = async function () {
+          await api("/api/deliverables/comm-offer-requests/" + r.id + "/decide", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ approved: true, actor_role: CURRENT_ROLE }),
+          });
+          showToast("Access approved for " + r.requested_by_email);
+          loadRequests();
+        };
+        var doReject = async function () {
+          await api("/api/deliverables/comm-offer-requests/" + r.id + "/decide", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ approved: false, actor_role: CURRENT_ROLE }),
+          });
+          showToast("Request rejected");
+          loadRequests();
+        };
+        row.style.cursor = "pointer";
+        row.addEventListener("click", function () {
+          openFuDetailModal({
+            eyebrow: "Commercial Offers Access Request", title: r.est_no + " &middot; " + r.project_name,
+            fields: [["Requested by", r.requested_by_name ? r.requested_by_name + " (" + r.requested_by_email + ")" : r.requested_by_email]],
+            onApprove: doApprove, onReject: doReject,
+          });
+        });
+        var appr = el("button", "btn primary", "Approve");
+        appr.addEventListener("click", function (e) { e.stopPropagation(); doApprove(); });
+        var rej = el("button", "btn ghost-crit", "Reject");
+        rej.addEventListener("click", function (e) { e.stopPropagation(); doReject(); });
+        actions.appendChild(appr); actions.appendChild(rej);
+        row.appendChild(actions);
+        coReqWrap.appendChild(row);
+      });
+    }
+
     var groupReqs = await api("/api/departments/user-add-requests?status=pending");
     var groupReqWrap = document.getElementById("groupAddReqList");
     document.getElementById("groupAddReqCount").textContent = groupReqs.length ? "(" + groupReqs.length + ")" : "";
@@ -8254,9 +8347,33 @@
         return row;
       });
   }
+  function _loadCommOfferHistory() {
+    return _loadRequestHistory("commOfferReqHistory", "commOfferReqHistoryPager",
+      "/api/deliverables/comm-offer-requests?status=", "No decided requests yet.", function (r) {
+        var row = el("div", "aq-row");
+        var main = el("div", "aq-main");
+        main.appendChild(el("div", "aq-title", r.est_no + " &middot; " + r.project_name));
+        main.appendChild(el("div", "aq-sub",
+          '<span>' + (r.requested_by_name ? r.requested_by_name + " (" + r.requested_by_email + ")" : r.requested_by_email) + '</span>' +
+          (r.decided_at ? '<span class="sep">&middot;</span><span>' + fmtDate(r.decided_at.slice(0, 10)) + '</span>' : "")));
+        row.appendChild(main);
+        row.appendChild(el("div", "", _historyStatusPill(r.status)));
+        row.style.cursor = "pointer";
+        row.addEventListener("click", function () {
+          openFuDetailModal({
+            eyebrow: "Commercial Offers Access Request &#8211; " + _historyStatusPill(r.status), title: r.est_no + " &middot; " + r.project_name,
+            fields: [
+              ["Requested by", r.requested_by_name ? r.requested_by_name + " (" + r.requested_by_email + ")" : r.requested_by_email],
+              ["Decided", r.decided_at ? fmtDate(r.decided_at.slice(0, 10)) : ""],
+            ],
+          });
+        });
+        return row;
+      });
+  }
   function loadRequestsHistory() {
     _loadDueDateHistory(); _loadReassignHistory(); _loadSmeNomHistory();
-    _loadGroupAddHistory(); _loadFormulaHistory(); _loadBidValueHistory();
+    _loadGroupAddHistory(); _loadFormulaHistory(); _loadBidValueHistory(); _loadCommOfferHistory();
   }
 
   /* ================= DELIVERABLES CONFIGURATION (branch editor + admin/SME pages) ================= */
@@ -10052,7 +10169,7 @@
     row.appendChild(el("div", "ann-ic " + meta[1], meta[0]));
     var main = el("div", "ann-main");
     var when = new Date(a.created_at).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
-    var intlTag = a.project_international ? ' <span class="pill neutral" style="padding:1px 7px;"><span class="dot"></span>Intl</span>' : "";
+    var intlTag = a.project_international ? ' <span class="pill neutral" style="padding:1px 7px;"><span class="dot"></span>International</span>' : "";
     main.appendChild(el("div", "ann-top", '<span class="ann-title">' + a.title + intlTag + '</span><span class="ann-time">' + when + '</span>'));
     var bodyEl = el("div", "ann-body", a.body);
     main.appendChild(bodyEl);

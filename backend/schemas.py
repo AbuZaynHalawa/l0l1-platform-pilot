@@ -48,6 +48,16 @@ class BidValueAccessDecision(BaseModel):
     actor_role: str = "Viewer"
 
 
+class CommOfferAccessRequestCreate(BaseModel):
+    actor_name: str = ""
+    actor_email: str
+
+
+class CommOfferAccessDecision(BaseModel):
+    approved: bool
+    actor_role: str = "Viewer"
+
+
 class ProjectStatusUpdate(BaseModel):
     status: str
 

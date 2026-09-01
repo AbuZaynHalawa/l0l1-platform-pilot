@@ -325,7 +325,10 @@ def update_po_selection(submission_id: int, payload: schemas.PoSelectionUpdate, 
     sub = db.get(models.DeliverableSubmission, submission_id)
     if not sub:
         raise HTTPException(404, "Deliverable not found")
-    if sub.definition.item_no not in po_line_items.DECLARING_ITEM_NOS:
+    is_l1_declaring = sub.definition.item_no in po_line_items.DECLARING_ITEM_NOS and sub.project.stage == models.Stage.L1
+    is_l0_declaring = (sub.definition.item_no in po_line_items.L0_DECLARING_ITEM_NOS and sub.project.stage == models.Stage.L0
+                        and sub.definition.department.name == "Tendering Department")
+    if not (is_l1_declaring or is_l0_declaring):
         raise HTTPException(400, "This deliverable has no PO Lifecycle selection")
     if rules.is_project_terminal(sub.project):
         raise HTTPException(400, "This project is closed — deliverables are read-only")
@@ -459,7 +462,8 @@ def _finalize_approval(db: Session, sub: "models.DeliverableSubmission", comment
     # becomes real. Placed last, decoupled from the snapshot/unlock logic
     # above: the new items' own due dates and owner-assignment notification
     # come from _instantiate_deliverables itself, not from this function.
-    if sub.definition.item_no in po_line_items.DECLARING_ITEM_NOS and sub.project.stage == models.Stage.L1:
+    if ((sub.definition.item_no in po_line_items.DECLARING_ITEM_NOS and sub.project.stage == models.Stage.L1)
+            or (sub.definition.item_no in po_line_items.L0_DECLARING_ITEM_NOS and sub.project.stage == models.Stage.L0)):
         po_line_items.sync_from_submission(db, sub)
 
     # [4.6 <-> 3.2 mutual close]: 4.6 is Engineering's technical review of
@@ -1096,8 +1100,114 @@ async def bulk_remind_advanced(submission_ids: str = Form(...), actor_role: str 
     return {"sent": sent, "skipped": skipped}
 
 
+def _is_l0_comm_offer(sub: "models.DeliverableSubmission") -> bool:
+    """[Request 8]: 1.18 (Circulate commercial offers), domestic Tendering
+    Department only -- its International sibling shares this same
+    item_no for unrelated content and is never restricted."""
+    return (sub.project.stage == models.Stage.L0 and sub.definition.item_no == "1.18"
+            and sub.definition.department.name == "Tendering Department")
+
+
+def _can_view_comm_offer(db: Session, sub: "models.DeliverableSubmission", actor_role: str, actor_email: str) -> bool:
+    """[Request 8]: visible to an Admin, the project's own Bid Manager, and
+    whoever owns any of that same project's Supply Chain / Procurement
+    (PBU) deliverables -- everyone else needs an approved
+    CommOfferAccessRequest, same standing-grant shape as Bid Value."""
+    if actor_role == "Admin":
+        return True
+    if rules.can_act(actor_role, actor_email, sub.project.bid_manager):
+        return True
+    email = (actor_email or "").strip().lower()
+    if email:
+        supply_subs = (
+            db.query(models.DeliverableSubmission)
+            .join(models.DeliverableDefinition).join(models.Department)
+            .filter(models.DeliverableSubmission.project_id == sub.project_id,
+                    models.Department.name.in_(("Supply Chain", "Procurement (PBU)")))
+            .all()
+        )
+        supply_owner_emails = {e.lower() for s in supply_subs for e in rules.resolve_owners(s)}
+        if email in supply_owner_emails:
+            return True
+    if not email:
+        return False
+    return db.query(models.CommOfferAccessRequest).filter(
+        models.CommOfferAccessRequest.submission_id == sub.id,
+        models.CommOfferAccessRequest.requested_by_email.ilike(email),
+        models.CommOfferAccessRequest.status == "approved",
+    ).first() is not None
+
+
+# Static paths below must stay ahead of GET "/{submission_id}" -- FastAPI/
+# Starlette matches routes in registration order, same reasoning as
+# projects.py's bid-value-requests routes.
+@router.get("/comm-offer-requests")
+def list_comm_offer_requests(status: str = "pending", requested_by_email: str | None = None, db: Session = Depends(get_db)):
+    q = db.query(models.CommOfferAccessRequest)
+    if status:
+        q = q.filter(models.CommOfferAccessRequest.status == status)
+    if requested_by_email:
+        q = q.filter(models.CommOfferAccessRequest.requested_by_email.ilike(requested_by_email.strip()))
+    reqs = q.order_by(models.CommOfferAccessRequest.requested_at.desc()).all()
+    return [
+        {
+            "id": r.id, "submission_id": r.submission_id, "est_no": r.submission.project.est_no,
+            "project_name": r.submission.project.name,
+            "requested_by_email": r.requested_by_email, "requested_by_name": r.requested_by_name,
+            "status": r.status, "requested_at": r.requested_at, "decided_at": r.decided_at,
+        }
+        for r in reqs
+    ]
+
+
+@router.post("/comm-offer-requests/{request_id}/decide")
+def decide_comm_offer_request(request_id: int, decision: schemas.CommOfferAccessDecision, db: Session = Depends(get_db)):
+    req = db.get(models.CommOfferAccessRequest, request_id)
+    if not req:
+        raise HTTPException(404, "Request not found")
+    if req.status != "pending":
+        raise HTTPException(400, "This request has already been decided")
+    if decision.actor_role != "Admin":
+        raise HTTPException(403, "Only an Admin can decide a Commercial Offers access request")
+    req.status = "approved" if decision.approved else "rejected"
+    req.decided_at = datetime.utcnow()
+    db.commit()
+    announcements.comm_offer_access_decision(db, req.submission.project, req.requested_by_email, decision.approved)
+    return {"status": "ok"}
+
+
+@router.post("/{submission_id}/request-comm-offer-access")
+def request_comm_offer_access(submission_id: int, payload: schemas.CommOfferAccessRequestCreate, db: Session = Depends(get_db)):
+    sub = db.get(models.DeliverableSubmission, submission_id)
+    if not sub:
+        raise HTTPException(404, "Deliverable not found")
+    if not _is_l0_comm_offer(sub):
+        raise HTTPException(400, "This deliverable isn't access-restricted")
+    email = payload.actor_email.strip()
+    if not email:
+        raise HTTPException(400, "Your email is required")
+    if _can_view_comm_offer(db, sub, "Viewer", email):
+        raise HTTPException(400, "You already have access")
+    existing = (
+        db.query(models.CommOfferAccessRequest)
+        .filter(models.CommOfferAccessRequest.submission_id == submission_id,
+                models.CommOfferAccessRequest.requested_by_email.ilike(email),
+                models.CommOfferAccessRequest.status == "pending")
+        .first()
+    )
+    if existing:
+        raise HTTPException(400, "A request is already pending")
+    req = models.CommOfferAccessRequest(submission_id=submission_id, requested_by_email=email,
+                                         requested_by_name=payload.actor_name.strip() or None)
+    db.add(req)
+    db.commit()
+    db.refresh(req)
+    announcements.comm_offer_access_requested(db, sub.project, rules.admin_emails(db), email, payload.actor_name.strip() or None)
+    return {"status": "ok", "id": req.id}
+
+
 @router.get("/{submission_id}")
-def get_deliverable_detail(submission_id: int, actor_email: str | None = None, db: Session = Depends(get_db)):
+def get_deliverable_detail(submission_id: int, actor_role: str = "Viewer", actor_email: str | None = None, db: Session = Depends(get_db)):
     """Full detail for the deliverable popup: the item itself, its workflow
     history, and any supplementary documents on top of the primary file.
 
@@ -1185,7 +1295,26 @@ def get_deliverable_detail(submission_id: int, actor_email: str | None = None, d
                 "item_no": "3.2", "file_name": ref_sub.file_name,
                 "file_url": _storage.file_url(ref_sub.file_ref), "submission_id": ref_sub.id,
             }
-    return {
+    is_declaring = (sub.definition.item_no in po_line_items.DECLARING_ITEM_NOS
+                    or (sub.definition.item_no in po_line_items.L0_DECLARING_ITEM_NOS and sub.project.stage == models.Stage.L0
+                        and sub.definition.department.name == "Tendering Department"))
+    # [Request 8]: 1.18 is restricted to the BM + Supply Chain owners --
+    # everyone else gets a stripped shell (item identity + status only, no
+    # file/comment/selection/history/documents) plus whether they have a
+    # request pending, instead of the full detail.
+    access_restricted = _is_l0_comm_offer(sub)
+    access_visible = (not access_restricted) or _can_view_comm_offer(db, sub, actor_role, actor_email or "")
+    access_request_status = None
+    if access_restricted and not access_visible and actor_email:
+        existing_req = (
+            db.query(models.CommOfferAccessRequest)
+            .filter(models.CommOfferAccessRequest.submission_id == submission_id,
+                    models.CommOfferAccessRequest.requested_by_email.ilike(actor_email.strip()))
+            .order_by(models.CommOfferAccessRequest.requested_at.desc())
+            .first()
+        )
+        access_request_status = existing_req.status if existing_req else None
+    out = {
         "id": sub.id, "item_no": sub.definition.item_no, "name": rules.display_name(sub.definition, sub.project),
         "department": sub.definition.department.name, "department_number": sub.definition.department.number,
         "est_no": sub.project.est_no, "project_id": sub.project_id, "project_name": sub.project.name,
@@ -1206,7 +1335,7 @@ def get_deliverable_detail(submission_id: int, actor_email: str | None = None, d
         "submitted_at": sub.submitted_at, "review_comment": sub.review_comment, "reviewed_at": sub.reviewed_at,
         "completion_note": rules.mark_complete_note(sub), "is_milestone": sub.definition.is_milestone,
         "milestone_code": sub.definition.milestone_code, "following": following,
-        "po_selection": sub.po_selection if sub.definition.item_no in po_line_items.DECLARING_ITEM_NOS else None,
+        "po_selection": sub.po_selection if is_declaring else None,
         "po_line_item_id": sub.po_line_item_id,
         "line_item_name": sub.po_line_item.name if sub.po_line_item_id else None,
         "siblings": siblings,
@@ -1216,7 +1345,15 @@ def get_deliverable_detail(submission_id: int, actor_email: str | None = None, d
             for h in history
         ],
         "documents": [_document_out(d) for d in documents],
+        "access_restricted": access_restricted, "access_visible": access_visible,
+        "access_request_status": access_request_status,
     }
+    if access_restricted and not access_visible:
+        for field in ("owner_emails", "sme_emails", "file_name", "file_url", "submitted_at", "review_comment",
+                       "reviewed_at", "po_selection", "reference_document", "history", "documents",
+                       "pending_due_date_request", "awaiting_note"):
+            out[field] = [] if isinstance(out.get(field), list) else None
+    return out
 
 
 @router.get("/{submission_id}/history")

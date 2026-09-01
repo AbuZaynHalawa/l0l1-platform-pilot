@@ -272,7 +272,10 @@
         <select class="role-select" id="actingEmailQuickPick" style="display:none;"><option value="">Quick pick&#8230;</option></select>
         <button class="theme-btn" id="becomeSmeBtn">Become an SME</button>
         <button class="theme-btn" id="groupInviteBtn">Add to L0-L1 Group</button>
-        <button class="theme-btn" id="themeToggle">Dark mode</button>
+        <!-- Item 200: dark mode is fully built and left wired up (JS listener,
+             CSS tokens), just hidden from users for now per product decision --
+             re-show by removing this hidden attribute, no other change needed. -->
+        <button class="theme-btn" id="themeToggle" hidden>Dark mode</button>
         <div class="avatar">YH</div>
       </div>
     </div>
@@ -918,6 +921,7 @@
             <div class="folder-row" data-cat="reassign"><div class="folder-left"><span class="folder-ic">&#128203;</span><div class="folder-name">Reassignment Requests</div></div><div class="folder-right"><span class="folder-pct" id="reassignCount"></span></div></div>
             <div class="folder-row" data-cat="smeNom"><div class="folder-left"><span class="folder-ic">&#128203;</span><div class="folder-name">SME Nominations</div></div><div class="folder-right"><span class="folder-pct" id="smeNomCount"></span></div></div>
             <div class="folder-row" data-cat="bidValue"><div class="folder-left"><span class="folder-ic">&#128203;</span><div class="folder-name">Bid Value Access Requests</div></div><div class="folder-right"><span class="folder-pct" id="bidValueReqCount"></span></div></div>
+            <div class="folder-row" data-cat="commOffer"><div class="folder-left"><span class="folder-ic">&#128203;</span><div class="folder-name">Commercial Offers Access Requests</div></div><div class="folder-right"><span class="folder-pct" id="commOfferReqCount"></span></div></div>
             <div class="folder-row" data-cat="groupAdd"><div class="folder-left"><span class="folder-ic">&#128203;</span><div class="folder-name">Group Add Requests</div></div><div class="folder-right"><span class="folder-pct" id="groupAddReqCount"></span></div></div>
             <div class="folder-row" data-cat="formula"><div class="folder-left"><span class="folder-ic">&#128203;</span><div class="folder-name">Formula Change Requests</div></div><div class="folder-right"><span class="folder-pct" id="formulaReqCount"></span></div></div>
           </div>
@@ -955,6 +959,13 @@
             <div id="bidValueReqList"></div>
             <div id="bidValueReqHistory"></div>
             <div class="pager" id="bidValueReqHistoryPager"></div>
+          </div>
+
+          <div class="req-cat-panel" data-cat="commOffer" hidden>
+            <div class="section-title"><span>Commercial Offers Access Requests</span></div>
+            <div id="commOfferReqList"></div>
+            <div id="commOfferReqHistory"></div>
+            <div class="pager" id="commOfferReqHistoryPager"></div>
           </div>
 
           <div class="req-cat-panel" data-cat="groupAdd" hidden>

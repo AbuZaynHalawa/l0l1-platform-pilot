@@ -100,6 +100,9 @@ class AnnouncementType(str, enum.Enum):
     # action, same convention as every other *_REQUEST above); this is only
     # the decision half, back to whoever asked.
     BID_VALUE_ACCESS_DECISION = "bid_value_access_decision"
+    # [Request 8]: same convention as BID_VALUE_ACCESS_DECISION above -- the
+    # request side stays DEADLINE, this is only the decision half.
+    COMM_OFFER_ACCESS_DECISION = "comm_offer_access_decision"
     # [L0-L1 Group requests]: request side stays DEADLINE (still needs an
     # Admin's action, same convention as every other *_REQUEST above); this
     # is only the decision half, back to whoever asked.
@@ -692,6 +695,28 @@ class BidValueAccessRequest(Base):
     decided_by_email = Column(String, nullable=True)
 
     project = relationship("Project")
+
+
+class CommOfferAccessRequest(Base):
+    """[Request 8]: a Viewer's request to see L0's 1.18 (Circulate
+    commercial offers) submission -- restricted by default to the
+    project's Bid Manager and that project's own Supply Chain /
+    Procurement (PBU) owners. Same request/decide/standing-grant shape as
+    BidValueAccessRequest above, just scoped to a submission instead of a
+    project (1.18 is one-per-project anyway, but the submission is the
+    real thing being restricted).
+    """
+    __tablename__ = "comm_offer_access_requests"
+    id = Column(Integer, primary_key=True)
+    submission_id = Column(Integer, ForeignKey("deliverable_submissions.id"), nullable=False)
+    requested_by_email = Column(String, nullable=False)
+    requested_by_name = Column(String, nullable=True)
+    status = Column(String, default="pending")  # pending | approved | rejected
+    requested_at = Column(DateTime, default=datetime.utcnow)
+    decided_at = Column(DateTime, nullable=True)
+    decided_by_email = Column(String, nullable=True)
+
+    submission = relationship("DeliverableSubmission")
 
 
 class SmeNomination(Base):

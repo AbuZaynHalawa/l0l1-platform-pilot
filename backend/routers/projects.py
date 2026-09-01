@@ -37,6 +37,40 @@ _L1_AUTO_DONE_FIELDS = {
 # department's items do.
 _L0_TENDERING_TRIAGE_ITEMS = {"1.6", "1.7", "1.13", "1.14", "1.15"}
 
+# [Request 7]: the proposal chain -- Develop Tech-Comm Proposal / Adjust
+# Proposals / Submit Proposal to client (M5) -- post item [request 4]'s
+# renumber. The reverse direction (approving 1.21 flips Status to
+# Submitted) already existed before this request, wired off the M5
+# milestone code in deliverables.py's _finalize_approval -- untouched by
+# the renumber since milestone_code travels with the row, not the item_no.
+_L0_PROPOSAL_ITEM_NOS = ("1.19", "1.20", "1.21")
+
+
+def _auto_complete_l0_proposal_items(db: Session, project: "models.Project") -> None:
+    """Setting an L0 tender's Status to Submitted also marks its own
+    1.19/1.20/1.21 Completed -- they're definitionally done the moment the
+    tender itself is submitted, whichever of the two actions (this, or
+    approving 1.21 directly) the BM actually did first. Reuses
+    deliverables._finalize_approval (imported locally to dodge the
+    circular import -- deliverables.py already imports back into this
+    module) so milestone/notification/cross-department-unlock behavior
+    stays identical to a normal approval, not a hand-rolled field flip.
+    """
+    from .deliverables import _finalize_approval
+    subs = (
+        db.query(models.DeliverableSubmission)
+        .join(models.DeliverableDefinition)
+        .join(models.Department)
+        .filter(models.DeliverableSubmission.project_id == project.id,
+                models.DeliverableDefinition.item_no.in_(_L0_PROPOSAL_ITEM_NOS),
+                models.Department.name == "Tendering Department",
+                models.DeliverableSubmission.status != models.SubmissionStatus.APPROVED,
+                models.DeliverableSubmission.applicability != "not_required")
+        .all()
+    )
+    for sub in subs:
+        _finalize_approval(db, sub, "Auto-completed: tender Status set to Submitted.", "system", actor_email=None)
+
 
 def _instantiate_deliverables(db: Session, project: models.Project):
     """The deliverable-generation core of _provision_and_instantiate, split
@@ -389,6 +423,7 @@ def create_l1_project(payload: schemas.ProjectCreateL1, db: Session = Depends(ge
     # alongside its own L1.
     l0.status = models.ProjectStatus.SUBMITTED
     db.commit()
+    _auto_complete_l0_proposal_items(db, l0)  # [Request 7]
     db.refresh(project)
 
     _provision_and_instantiate(db, project)
@@ -961,8 +996,12 @@ def update_project_status(project_id: int, payload: schemas.ProjectStatusUpdate,
     valid = {"In Progress"} | ({"Submitted", "Cancelled"} if project.stage == models.Stage.L0 else {"Completed"})
     if payload.status not in valid:
         raise HTTPException(400, f"Invalid status for {project.stage.value}: must be one of {sorted(valid)}")
+    was_submitted = project.status == models.ProjectStatus.SUBMITTED
     project.status = models.ProjectStatus(payload.status)
     db.commit()
+    # [Request 7]: forward direction of the Status <-> 1.19/1.20/1.21 sync.
+    if project.stage == models.Stage.L0 and project.status == models.ProjectStatus.SUBMITTED and not was_submitted:
+        _auto_complete_l0_proposal_items(db, project)
     db.refresh(project)
     return project
 
@@ -1081,25 +1120,34 @@ def get_deliverables(project_id: int, department: str | None = None, include_aut
     # submission for it exists. General across every fan-out item_no, not
     # just one -- 2.6, 2.14, 3.11 (gated on 4.1), 4.5/2.2/3.1-3.7/4.6 (1.2),
     # 3.8/2.18 (2.11 or 2.17), 3.12 (whichever of those actually applies).
-    if project.stage == models.Stage.L1 and not include_auto_completed:
+    if project.stage in (models.Stage.L1, models.Stage.L0) and not include_auto_completed:
         from . import po_line_items as _po_line_items
         real_definition_ids = {s.deliverable_definition_id for s in subs}
-        # Real names for the four possible declaring items (1.2/4.1/2.11/
-        # 2.17), so a placeholder's note names the actual predecessor --
-        # "Pending 1.2 Provide Early mobilization Plan, Long lead items &
-        # MEP consultancy needs approval" -- the same "item_no + name"
-        # label every other predecessor-gated note in this app already
-        # uses (see rules.awaiting_milestone_note), not a bare item number.
+        # Real names for the declaring items (1.2/4.1/2.11/2.17 on L1;
+        # 1.17/1.18 on L0 -- see item [request 5]), so a placeholder's note
+        # names the actual predecessor -- "Pending 1.2 Provide Early
+        # mobilization Plan, Long lead items & MEP consultancy needs
+        # approval" -- the same "item_no + name" label every other
+        # predecessor-gated note in this app already uses (see
+        # rules.awaiting_milestone_note), not a bare item number. L0's own
+        # query is additionally scoped to "Tendering Department" -- its
+        # International sibling department shares these same item_no
+        # strings for completely different, non-declaring content.
+        declaring_item_nos = _po_line_items.DECLARING_ITEM_NOS if project.stage == models.Stage.L1 \
+            else _po_line_items.L0_DECLARING_ITEM_NOS
+        declaring_q = db.query(models.DeliverableDefinition.item_no, models.DeliverableDefinition.name).filter(
+            models.DeliverableDefinition.stage == project.stage,
+            models.DeliverableDefinition.item_no.in_(declaring_item_nos),
+        )
+        if project.stage == models.Stage.L0:
+            declaring_q = declaring_q.join(models.Department).filter(models.Department.name == "Tendering Department")
         declaring_names: dict[str, str] = {}
-        for item_no, name in db.query(models.DeliverableDefinition.item_no, models.DeliverableDefinition.name).filter(
-            models.DeliverableDefinition.stage == models.Stage.L1,
-            models.DeliverableDefinition.item_no.in_(_po_line_items.DECLARING_ITEM_NOS),
-        ).all():
+        for item_no, name in declaring_q.all():
             declaring_names.setdefault(item_no, name)
         fan_out_q = (
             db.query(models.DeliverableDefinition)
             .join(models.Department)
-            .filter(models.DeliverableDefinition.stage == models.Stage.L1,
+            .filter(models.DeliverableDefinition.stage == project.stage,
                     models.DeliverableDefinition.active == True,  # noqa: E712
                     models.DeliverableDefinition.line_item_category.isnot(None))
         )

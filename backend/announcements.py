@@ -486,6 +486,30 @@ def bid_value_access_decision(db: Session, project: models.Project, requester_em
                     greeting="Team", link_html=_project_link(project.id))
 
 
+def comm_offer_access_requested(db: Session, project: models.Project, admin_emails: list[str],
+                                 requester_email: str, requester_name: str | None) -> models.Announcement:
+    """[Request 8]: same shape as bid_value_access_requested above."""
+    title = "Commercial Offers Access Requested &#8211; Admin Action Needed"
+    who = f"{_b(requester_name)} ({_b(requester_email)})" if requester_name else _b(requester_email)
+    body = f"{who} requested access to view {_b(project.est_no)}'s 1.18 Circulate Commercial Offers. Awaiting your decision."
+    return _create(db, type=models.AnnouncementType.DEADLINE, title=title, body=body,
+                    recipients=sorted({e for e in admin_emails if e}), project=project,
+                    greeting="Admin", link_html=_project_link(project.id))
+
+
+def comm_offer_access_decision(db: Session, project: models.Project, requester_email: str,
+                                approved: bool) -> models.Announcement:
+    if approved:
+        title = "Commercial Offers Access Approved"
+        body = f"Your request to view {_b(project.est_no)}'s 1.18 Circulate Commercial Offers was {_hl('approved', 'good')}."
+    else:
+        title = "Commercial Offers Access Declined"
+        body = f"Your request to view {_b(project.est_no)}'s 1.18 Circulate Commercial Offers was {_hl('declined', 'crit')}."
+    return _create(db, type=models.AnnouncementType.COMM_OFFER_ACCESS_DECISION, title=title, body=body,
+                    recipients=[requester_email] if requester_email else [], project=project,
+                    greeting="Team", link_html=_project_link(project.id))
+
+
 def user_add_requested(db: Session, admin_emails: list[str], email: str, name: str | None,
                         requester_email: str, requester_name: str | None) -> models.Announcement:
     """Not tied to a project -- DEADLINE-typed like every other Follow Up

@@ -34,8 +34,18 @@ MEP_TYPES = ["HCIS Consultancy", "Fire Fighting Consultancy"]
 
 # Which item_no declares which categories, and how its po_selection maps to
 # each -- the single source of truth sync_from_submission and the frontend
-# modal both key off.
+# modal both key off. L1 only -- always paired with a stage==L1 check at
+# every call site, since L0's own catalog reuses some of these same
+# item_no strings for completely different content.
 DECLARING_ITEM_NOS = ("1.2", "4.1", "2.11", "2.17")
+
+# [Request 5]: L0's own declaring items -- 1.17 (Circulate technical
+# offers, Engineering) and 1.18 (Circulate commercial offers, Supply
+# Chain -- moved here from 1.21 by item [request 4]). Always paired with a
+# stage==L0 AND department=="Tendering Department" check at every call
+# site -- tendering_intl (the International Tendering department) has its
+# own, unrelated 1.17/1.18, and this must never touch those.
+L0_DECLARING_ITEM_NOS = ("1.17", "1.18")
 
 # The reverse direction -- which declaring item_no(s) a category's own items
 # won't exist without. "sc" has two candidates since which one actually
@@ -45,6 +55,7 @@ DECLARING_ITEM_NOS = ("1.2", "4.1", "2.11", "2.17")
 # to name the right declaring item(s) in a placeholder's "Pending X" note.
 CATEGORY_DECLARING_ITEM_NOS = {
     "long_lead": ["1.2"], "mep": ["1.2"], "early_activity": ["4.1"], "sc": ["2.11", "2.17"],
+    "l0_tech_offer": ["1.17"], "l0_comm_offer": ["1.18"],
 }
 
 
@@ -77,7 +88,10 @@ def sync_from_submission(db: Session, sub: "models.DeliverableSubmission") -> No
     from _finalize_approval; never a route.
     """
     item_no = sub.definition.item_no
-    if item_no not in DECLARING_ITEM_NOS:
+    is_l1_declaring = item_no in DECLARING_ITEM_NOS
+    is_l0_declaring = (item_no in L0_DECLARING_ITEM_NOS and sub.project.stage == models.Stage.L0
+                        and sub.definition.department.name == "Tendering Department")
+    if not (is_l1_declaring or is_l0_declaring):
         return
     selection = sub.po_selection or {}
     project = sub.project
@@ -130,6 +144,13 @@ def sync_from_submission(db: Session, sub: "models.DeliverableSubmission") -> No
     elif item_no in ("2.11", "2.17"):
         items = [n.strip() for n in (selection.get("items") or []) if n and n.strip()]
         sync_category("sc", items, "manual")
+    elif is_l0_declaring:
+        # [Request 5]: same manual-list shape as "sc" above -- no Excel, no
+        # categories, just the BM's own typed-in list of items that need
+        # review.
+        items = [n.strip() for n in (selection.get("items") or []) if n and n.strip()]
+        category = "l0_tech_offer" if item_no == "1.17" else "l0_comm_offer"
+        sync_category(category, items, "manual")
 
     db.commit()
     from .projects import _instantiate_deliverables
