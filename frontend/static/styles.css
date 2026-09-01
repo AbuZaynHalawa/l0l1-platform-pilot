@@ -495,9 +495,13 @@
   .dash-kpi-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin-bottom: 22px; }
   .dash-kpi-card {
     background: var(--surface); border: 1px solid var(--card-border); border-radius: var(--radius);
-    box-shadow: var(--shadow-1); padding: 16px 18px; display: flex; align-items: flex-start; gap: 12px;
+    box-shadow: var(--shadow-1); padding: 16px 18px; display: flex; flex-direction: column;
     min-height: 108px; transition: transform .16s, box-shadow .16s;
   }
+  /* The icon+text row itself -- moved off .dash-kpi-card so an edit-mode
+     control bar (the card's own first child) stacks above this whole
+     row instead of sharing the card's top-level flex row with it. */
+  .dash-kpi-content { display: flex; align-items: flex-start; gap: 12px; }
   .dash-kpi-card:hover { transform: translateY(-1px); box-shadow: var(--shadow-2); }
   /* Item [queued]: bigger, solid-color icon badges (Yasser's reference --
      "more colors and larger and more visually appealing") -- was a pale

@@ -1004,7 +1004,7 @@
   document.getElementById("dashCustomizeBtn").addEventListener("click", function () {
     dashEditMode = !dashEditMode;
     this.classList.toggle("active", dashEditMode);
-    this.innerHTML = dashEditMode ? "&#10003; Done Customizing" : "&#9881; Customize";
+    this.innerHTML = dashEditMode ? "&#10003; Done Customizing" : "&#9881; Customize View";
     document.getElementById("dashRestoreDefaultsBtn").hidden = !dashEditMode;
     applyDashLayout();
   });
@@ -1065,11 +1065,19 @@
       var card = el("div", "dash-kpi-card");
       card.dataset.kpi = c.icon;  // [Request 12]: stable per-tile identity for the saved reorder
       var subHtml = c.sub.indexOf("<SUBTREND>") !== -1 ? c.sub.replace("<SUBTREND>", "") : c.sub;
+      // Item [request]: icon+body wrapped in their own row (.dash-kpi-
+      // content) so the edit-mode control bar -- inserted as the card's
+      // own first child -- stacks above that whole row instead of
+      // becoming a third item squeezed to its left. .dash-kpi-card
+      // itself is a column flex now; this inner row carries the
+      // side-by-side icon/text layout it always had.
       card.innerHTML =
+        '<div class="dash-kpi-content">' +
         '<div class="dash-kpi-icon ' + c.cls + '">' + DASH_KPI_ICONS[c.icon] + "</div>" +
         '<div class="dash-kpi-body"><div class="dash-kpi-value">' + c.value + (c.valueSuffix ? "<small>" + c.valueSuffix + "</small>" : "") + "</div>" +
         '<div class="dash-kpi-label">' + c.label + "</div>" +
-        '<div class="dash-kpi-sub">' + subHtml + "</div></div>";
+        '<div class="dash-kpi-sub">' + subHtml + "</div></div>" +
+        "</div>";
       // Appended inside .dash-kpi-sub itself (not as a sibling after it) so
       // "This Week" and the trend share one line -- was landing on its own
       // line below, making this the only 3-line card and taller than the
