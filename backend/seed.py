@@ -2152,6 +2152,37 @@ def run():
 
         db.commit()
 
+        # Item [request 4] customization fix: upsert() silently skips every
+        # field (including predecessor_item_no) on a row with
+        # is_customized=True -- correct for an ordinary formula tweak, but
+        # wrong here: this is a structural identity renumber, and a
+        # customized row (found live on production: 3.5/Supply Chain, its
+        # is_customized almost certainly set by a short_name edit alone,
+        # not a deliberate predecessor choice -- its offset/direction still
+        # matched the plain catalog default exactly) would otherwise keep
+        # pointing at whatever the OLD item_no now means post-renumber --
+        # e.g. still "predecessor 1.21" after 1.21 became "Submit Proposal
+        # to client" instead of the "Circulate commercial offers" it used
+        # to be. Force the corrected predecessor through regardless of
+        # is_customized for exactly the renumber-affected item_nos, same
+        # domestic-only department scoping as everywhere else in this
+        # migration.
+        _l0_renumber_predecessor_fix = {"1.6": "1.21", "1.19": "1.21", "1.20": "1.19",
+                                         "3.5": "1.18", "3.6": "1.18", "3.7": "1.18",
+                                         "7.1": "1.21", "9.2": "1.21", "10.2": "1.21", "11.4": "1.18"}
+        predecessor_forced = 0
+        for d in (db.query(models.DeliverableDefinition).join(models.Department)
+                  .filter(models.DeliverableDefinition.stage == models.Stage.L0,
+                          models.DeliverableDefinition.item_no.in_(_l0_renumber_predecessor_fix),
+                          models.Department.name.notlike("%International%")).all()):
+            correct_pred = _l0_renumber_predecessor_fix[d.item_no]
+            if d.predecessor_item_no != correct_pred:
+                d.predecessor_item_no = correct_pred
+                predecessor_forced += 1
+        if predecessor_forced:
+            db.commit()
+            print(f"[Request 4]: force-corrected {predecessor_forced} customized/stale predecessor reference(s) past the renumber.")
+
         # Item [request 4] branch fix: upsert() above only updates a
         # DeliverableDefinition's own denormalized mirror columns (anchor_
         # type/predecessor_item_no/offset_days/offset_direction) -- actual
