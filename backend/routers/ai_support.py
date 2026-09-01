@@ -68,6 +68,7 @@ One person can be Owner on some items and SME on others, even within the same pr
 ## PO Lifecycle and budget (L1 projects only)
 - Every L1 project tracks Purchase Order line items through categories: Consultancy PO, Early activities & MEP consultancies POs, Long lead items POs, and S/C (subcontractor) agreements.
 - Budget status is tracked as three stages per project: 6.1 Temp Budget, 6.2 Tendering Budget, 6.3 Locked Budget -- shown as a 3-segment status bar on the Budget Status Report.
+- Certain items (e.g. 2.2, 3.1-3.7, 4.5, 4.6) exist once PER NAMED PO LINE ITEM within a project (e.g. "Towers", "line hardwares", a named subcontractor), not once per project -- lookup_project_deliverables returns one row per line item for these, each tagged "PO line item: ...". If someone asks why an item shows multiple different due dates on the same project, this is almost always why: they're different real line items on independent schedules, not a bug. To explain WHICH due date belongs to which line item and WHY they differ, look up the item itself (tagged rows already show this), then look up its predecessor item(s) the same way (same est_no, that predecessor's item_no) -- the predecessor also fans out per line item, and matching by PO line item name shows the real chain (e.g. "Towers" 2.2 finished earlier, so "Towers" 3.3 is due earlier than "line hardwares" 3.3, whose own 2.2 isn't done yet). Use lookup_deliverables for the item's formula text to know which predecessor(s) to trace.
 
 ## Requests (things that need an Admin's decision)
 There are six kinds, all reviewed on the Requests admin page:
@@ -141,7 +142,11 @@ _TOOLS = [
             "Look up real deliverable submissions: due date, progress, deadline standing (due/overdue/on "
             "time/early/late), Owner(s), SME(s) -- for a specific project, a specific item, or filtered by "
             "who's assigned. Use this for ANY question about what's due, overdue, or assigned to someone, "
-            "on any project -- not just the asker's own. 'due'/'overdue' maps to the deadline filter, not progress."
+            "on any project -- not just the asker's own. 'due'/'overdue' maps to the deadline filter, not progress. "
+            "PO Lifecycle items (L1 only, e.g. 2.2/3.1-3.7/4.5/4.6) fan out one row per named PO line item "
+            "(e.g. 'Towers', 'line hardwares') -- filtering by item_no on a project can return several rows, "
+            "each tagged with its own PO line item and its own independently-computed due date. That's the "
+            "answer to 'why does item X have different due dates' -- it's several real line items, not one."
         ),
         "input_schema": {
             "type": "object",
@@ -312,8 +317,17 @@ def _tool_lookup_project_deliverables(db: Session, est_no: str = "", item_no: st
             deadline_txt = f"completed {days} day(s) early"
         else:
             deadline_txt = key.replace("_", " ")
+        # [PO Lifecycle]: a fan-out item_no (e.g. 3.3 on an L1 project) has
+        # one submission PER NAMED PO LINE ITEM (Towers, line hardwares,
+        # ...), each with its own independently-computed due date -- omit
+        # this and every row looks identical/contradictory ("3.3 is due
+        # both 3 Sep AND 14 Sep?"). Naming which line item each row is for
+        # is what actually answers a "why does X have two different due
+        # dates" question.
+        line_item = rules.line_item_display_name(s.po_line_item) if s.po_line_item_id else None
+        line_item_txt = f", PO line item: \"{line_item}\"" if line_item else ""
         lines.append(
-            f"- {s.definition.item_no} \"{rules.display_name(s.definition, s.project)}\" "
+            f"- {s.definition.item_no} \"{rules.display_name(s.definition, s.project)}\"{line_item_txt} "
             f"({s.project.est_no} {s.project.name}, {s.project.stage.value}) -- "
             f"progress: {s.status.value}, deadline: {deadline_txt}, due date: {s.due_date or 'n/a'}, "
             f"owner: {', '.join(rules.resolve_owners(s)) or 'unassigned'}, "
