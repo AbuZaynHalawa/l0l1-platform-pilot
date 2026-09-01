@@ -835,8 +835,10 @@
   // remaining siblings in THAT container reflow -- nothing ever moves
   // into a different container.
   var DASH_SECTIONS = [
-    { id: "dashProjectRow", label: "Active L0/L1 Tenders/Projects" },
-    { id: "dashStatusRow", label: "L0/L1 Deliverables Status" },
+    { id: "dashProjectCardL0", label: "Active L0 Tenders" },
+    { id: "dashProjectCardL1", label: "Active L1 Projects" },
+    { id: "dashStatusCardL0", label: "L0 Deliverables Status" },
+    { id: "dashStatusCardL1", label: "L1 Deliverables Status" },
     { id: "digestL0Card", label: "Latest L0 Announcements" },
     { id: "milestonesL0Card", label: "Newest L0 Milestones" },
     { id: "concernsL0Card", label: "L0 Concerns" },
@@ -1146,6 +1148,7 @@
      ["L1", mine ? "My Active L1 Projects" : "Active L1 Projects", d.active_l1, d.recent_l1, "Latest L1 Projects"]]
       .forEach(function (s) {
         var card = el("div", "card dash-project-card " + s[0].toLowerCase());
+        card.id = "dashProjectCard" + s[0]; // hideable per-stage, not as one combined row
         var head = el("div", "dpc-head");
         head.innerHTML = '<div class="dpc-tag">' + s[0] + '</div><div><div class="dpc-value">' + s[2] +
           '</div><div class="dpc-label">' + s[1] + "</div></div>";
@@ -1211,6 +1214,7 @@
            d.no_progress_l1, d.in_progress_l1, d.pending_review_l1, d.approved_l1, d.rejected_l1]]
       .forEach(function (s) {
         var card = el("div", "card dash-status-card " + s[0].toLowerCase());
+        card.id = "dashStatusCard" + s[0]; // hideable per-stage, not as one combined row
         var dscTitleRow = el("div", "section-title-view-all-row");
         dscTitleRow.appendChild(el("div", "dsc-head", s[0] + " Deliverables Status"));
         var dscViewAll = el("button", "section-view-all", "View all " + s[0] + " Assigned Deliverables" +
