@@ -420,6 +420,7 @@
           <h1>Assigned Deliverables</h1>
           <p class="sub">Every deliverable across every project, in one queue.</p>
         </div>
+        <button class="btn" id="assignedExportBtn" type="button">&#11015;&#65039; Export</button>
       </div>
       <!-- Item [pill chip fix]: this used to be a .subtab-row (the
            underline-tab style used for Ask a Question/Knowledge Base), which
@@ -544,9 +545,12 @@
         </div>
         <!-- Item 4: filters live in the header now, filtering the list as
              you type -- no separate filter box below. -->
-        <div class="search-wrap">
-          <span class="sic">&#128269;</span>
-          <input id="l0Search" type="text" placeholder="Filter by Est No, name, RFX, region, scope, Bid Manager&#8230;" />
+        <div style="display:flex;gap:10px;align-items:center;">
+          <div class="search-wrap">
+            <span class="sic">&#128269;</span>
+            <input id="l0Search" type="text" placeholder="Filter by Est No, name, RFX, region, scope, Bid Manager&#8230;" />
+          </div>
+          <button class="btn" id="l0ExportBtn" type="button">&#11015;&#65039; Export</button>
         </div>
       </div>
       <div class="card table-card" id="l0ListCard">
@@ -567,9 +571,12 @@
           <h1>L1 Projects</h1>
           <p class="sub">From announcement through to contract signature &#8211; M1 to M6.</p>
         </div>
-        <div class="search-wrap">
-          <span class="sic">&#128269;</span>
-          <input id="l1Search" type="text" placeholder="Filter by Est No, name, Bid Manager, Project Manager&#8230;" />
+        <div style="display:flex;gap:10px;align-items:center;">
+          <div class="search-wrap">
+            <span class="sic">&#128269;</span>
+            <input id="l1Search" type="text" placeholder="Filter by Est No, name, Bid Manager, Project Manager&#8230;" />
+          </div>
+          <button class="btn" id="l1ExportBtn" type="button">&#11015;&#65039; Export</button>
         </div>
       </div>
       <div class="card table-card" id="l1ListCard">
@@ -731,14 +738,18 @@
            renderScores()/loadScores(). -->
       <div class="split">
         <div class="card table-card">
-          <div class="section-title">Owners <span class="cnt">by on-time approval rate</span></div>
+          <div class="section-title"><span>Owners <span class="cnt">by on-time approval rate</span></span>
+            <button class="btn" id="scoresOwnersExportBtn" type="button" style="font-size:11px;padding:4px 10px;">&#11015;&#65039; Export</button>
+          </div>
           <table class="fp-table">
             <thead><tr><th></th><th>Name</th><th>Email</th><th>Department</th><th>Approved</th><th>Rate</th></tr></thead>
             <tbody id="scoresOwners"></tbody>
           </table>
         </div>
         <div class="card table-card">
-          <div class="section-title">SME <span class="cnt">by average response time</span></div>
+          <div class="section-title"><span>SME <span class="cnt">by average response time</span></span>
+            <button class="btn" id="scoresSmesExportBtn" type="button" style="font-size:11px;padding:4px 10px;">&#11015;&#65039; Export</button>
+          </div>
           <table class="fp-table">
             <thead><tr><th></th><th>Name</th><th>Email</th><th>Department</th><th>Reviews</th><th>Avg Response</th></tr></thead>
             <tbody id="scoresSmes"></tbody>
@@ -765,7 +776,10 @@
       </div>
 
       <div class="card table-card" id="fpDeliverablePanel">
-        <p class="sub fp-hint">Set the Owner email for a specific item to override its department's default, and the SME assigned to new submissions of it. Tendering Department items are always routed to that project's own Bid Manager for the Owner (not editable here), but their SME still is.</p>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;">
+          <p class="sub fp-hint">Set the Owner email for a specific item to override its department's default, and the SME assigned to new submissions of it. Tendering Department items are always routed to that project's own Bid Manager for the Owner (not editable here), but their SME still is.</p>
+          <button class="btn" id="fpExportBtn" type="button" style="flex-shrink:0;">&#11015;&#65039; Export</button>
+        </div>
         <div class="fp-stats" id="fpStats"></div>
         <!-- Item [Focal Points header filters]: the old Department/
              Deliverable/Owner/SME dropdown row + Clear button is gone --
@@ -1099,9 +1113,12 @@
           <h1>BM Triage Status</h1>
           <p class="sub" id="bmTriageSub">Every active L0 tender's Bid Manager triage progress &#8212; pending, reminded, or done.</p>
         </div>
-        <div class="search-wrap">
-          <span class="sic">&#128269;</span>
-          <input id="bmTriageSearch" type="text" placeholder="Filter by Est No, tender, Bid Manager&#8230;" />
+        <div style="display:flex;gap:10px;align-items:center;">
+          <div class="search-wrap">
+            <span class="sic">&#128269;</span>
+            <input id="bmTriageSearch" type="text" placeholder="Filter by Est No, tender, Bid Manager&#8230;" />
+          </div>
+          <button class="btn" id="bmTriageExportBtn" type="button">&#11015;&#65039; Export</button>
         </div>
       </div>
       <div class="card table-card">
@@ -1313,6 +1330,7 @@
       <div class="fp-add-row" id="dfFilterRow" style="margin-bottom:14px;">
         <input type="text" id="dfFilter" placeholder="Filter by item number or name&#8230;" style="flex:1;min-width:220px;" />
         <select id="dfDeptFilter"><option value="">All Departments</option></select>
+        <button class="btn" id="dfExportBtn" type="button">&#11015;&#65039; Export</button>
       </div>
       <div class="card table-card">
         <div class="fp-table-scroll">
@@ -1347,6 +1365,7 @@
             SME nominations, Bid Value access, L0-L1 Group adds, and formula change suggestions &#8212; and
             where each one stands. Click any row for the full details.</p>
         </div>
+        <button class="btn" id="myRequestsExportBtn" type="button">&#11015;&#65039; Export</button>
       </div>
       <!-- Item 22: what you can actually request, and where -- previously
            only listed in the prose above, with nothing to see once a user
@@ -1418,14 +1437,18 @@
           <h1>Custom Report</h1>
           <p class="sub">Pick a data source, choose your columns, then filter and sort the table.</p>
         </div>
+        <div class="report-actions">
+          <button class="btn" id="rcExportBtn" type="button">&#11015;&#65039; Export</button>
+          <button class="btn" id="rcPrintBtn" type="button">&#128424; Print</button>
+        </div>
       </div>
-      <div class="card card-pad" style="margin-bottom:18px;">
+      <div class="card card-pad" style="margin-bottom:18px;" id="rcBuilderCard">
         <div class="rc-step-label">1. Data source</div>
         <div class="filter-chips" id="rcEntityToggle"></div>
         <div class="rc-step-label" style="margin-top:18px;">2. Columns</div>
         <div class="rc-field-grid" id="rcFieldGrid"></div>
       </div>
-      <div class="search-wrap" style="margin-bottom:14px;">
+      <div class="search-wrap" style="margin-bottom:14px;" id="rcSearchWrap">
         <span class="sic">&#128269;</span>
         <input id="rcSearch" type="text" placeholder="Filter the rows below&#8230;" />
       </div>
@@ -1478,6 +1501,7 @@
             <p class="sub">Every PO line item across every active L1 project.</p>
           </div>
           <div class="report-actions">
+            <button class="btn" id="repMasterPoExportBtn" type="button">&#11015;&#65039; Export</button>
             <button class="btn" id="repMasterPoPrintBtn">&#128424; Print</button>
           </div>
         </div>
@@ -1568,6 +1592,7 @@
           <p class="sub">Temp / Tendering / Locked Project Budget on Oracle (6.1 / 6.2 / 6.3), one line per active L1 project. Click any segment for its full details &#8212; same as the PO Lifecycle tab. Workflow status only &#8212; no dollar figures are tracked anywhere in the system today.</p>
         </div>
         <div class="report-actions">
+          <button class="btn" id="repBudgetExportBtn" type="button">&#11015;&#65039; Export</button>
           <button class="btn" id="repBudgetPrintBtn">&#128424; Print</button>
         </div>
       </div>

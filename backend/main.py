@@ -8,7 +8,7 @@ from .database import engine
 from . import models
 from .routers import (
     projects, deliverables, announcements_router, dashboard, departments, milestones, gantt, support, po_line_items,
-    deliverables_config, reports, ai_support,
+    deliverables_config, reports, ai_support, export,
 )
 from .scheduler import scheduler_loop
 
@@ -35,6 +35,7 @@ app.include_router(po_line_items.router)
 app.include_router(deliverables_config.router)
 app.include_router(reports.router)
 app.include_router(ai_support.router)
+app.include_router(export.router)
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 LOCAL_FILES_DIR = Path(__file__).resolve().parent.parent / "data" / "local_storage"

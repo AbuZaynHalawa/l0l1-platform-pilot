@@ -137,6 +137,10 @@
     return {
       onChange: function (cb) { changeCb = cb; },
       state: state,
+      // [Request 3]: carried on every controller so exportTableToExcel()
+      // can reuse this exact table's own columns/header without every
+      // call site having to thread them through separately.
+      columns: columns, theadRowEl: theadRowEl,
       // Lets an external control (e.g. a summary card acting as a
       // shortcut filter) drive a column filter the same way picking it
       // from that column's own dropdown would -- values: array of allowed
@@ -433,6 +437,68 @@
     }
   }
   function apiErrorDetail(err) { return err.detail || err.message; }
+
+  // Item [request 3]: generic "Export to Excel" for any installExcelHeader
+  // table -- reuses that same table's own columns[].get() (already plain,
+  // human-readable text: it's exactly what feeds each column's filter-
+  // dropdown checkbox labels, never raw HTML) and its xh controller's
+  // process() so the export always matches whatever's currently filtered/
+  // sorted on screen, not the full unfiltered dataset. `columns` may
+  // contain null entries (a button-only column like Actions) -- skipped
+  // automatically. theadRowEl supplies the real header label text
+  // (installExcelHeader wraps the original <th> text in .xh-label, so
+  // it's still there to read even after the header's been rebuilt with
+  // sort/filter controls).
+  async function exportTableToExcel(title, xh, rawRows, sheetName) {
+    var ths = Array.prototype.slice.call(xh.theadRowEl.children);
+    var exportCols = [];
+    xh.columns.forEach(function (col, i) {
+      if (!col) return;
+      var labelEl = ths[i] && ths[i].querySelector(".xh-label");
+      exportCols.push({ key: col.key, label: labelEl ? labelEl.textContent.trim() : col.key });
+    });
+    var rows = xh.process(rawRows);
+    var exportRows = rows.map(function (r) {
+      var out = {};
+      xh.columns.forEach(function (col) { if (!col) return; var v = col.get ? col.get(r) : ""; out[col.key] = v == null ? "" : String(v); });
+      return out;
+    });
+    return _postXlsxExport(title, exportCols, exportRows, sheetName);
+  }
+  // Lower-level half of exportTableToExcel, for a table that isn't
+  // installExcelHeader-driven (e.g. Overview PO Report's own dropdown-
+  // filtered view) -- caller builds {key,label} columns and plain-text
+  // rows itself instead of reusing an xh controller.
+  async function _postXlsxExport(title, exportCols, exportRows, sheetName) {
+    var payload = {
+      title: title, sheet_name: (sheetName || title).slice(0, 31),
+      columns: exportCols.map(function (c) { return { key: c.key, label: c.label }; }),
+      rows: exportRows,
+    };
+    try {
+      var resp = await fetch("/api/export/xlsx", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+      });
+      if (!resp.ok) throw new Error("Export failed (" + resp.status + ")");
+      var blob = await resp.blob();
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url; a.download = title.replace(/[^A-Za-z0-9 _-]/g, "").trim().replace(/\s+/g, "_") + ".xlsx";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+      showToast("Exported " + exportRows.length + " row" + (exportRows.length === 1 ? "" : "s"));
+    } catch (err) {
+      showToast("Couldn't export &#8211; " + (err.message || "unknown error"), true);
+    }
+  }
+  // Small "⬇ Export" button, ready to insert next to a table's search bar
+  // or Print button -- every call site just supplies the click handler.
+  function exportButton(onClick) {
+    var btn = el("button", "btn", "&#11015;&#65039; Export");
+    btn.type = "button";
+    btn.addEventListener("click", onClick);
+    return btn;
+  }
   function showToast(msg, isError) {
     var t = document.getElementById("toast");
     t.classList.toggle("error", !!isError);
@@ -728,8 +794,16 @@
     .forEach(function (pair) { document.getElementById(pair[0]).addEventListener("click", function () { switchView(pair[1]); }); });
   document.getElementById("repPerfPrintBtn").addEventListener("click", function () { window.print(); });
   document.getElementById("repMasterPoPrintBtn").addEventListener("click", function () { window.print(); });
+  document.getElementById("repMasterPoExportBtn").addEventListener("click", function () {
+    var term = (document.getElementById("repMasterPoSearch").value || "").trim().toLowerCase();
+    var rows = term ? _masterPoAllRows.filter(function (r) { return (r.project_name + " " + r.name + " " + r.category).toLowerCase().indexOf(term) !== -1; }) : _masterPoAllRows;
+    exportTableToExcel("Master PO Report", _masterPoXh(), rows);
+  });
   document.getElementById("repOverviewPoPrintBtn").addEventListener("click", function () { window.print(); });
   document.getElementById("repBudgetPrintBtn").addEventListener("click", function () { window.print(); });
+  document.getElementById("repBudgetExportBtn").addEventListener("click", function () {
+    exportTableToExcel("Budget Status Report", _budgetXhController(), _budgetAllRows);
+  });
   // Item 154: hamburger nav -- the rail is an off-canvas drawer below the
   // tablet breakpoint (styles.css), opened/closed via these three triggers.
   function closeMobileNav() {
@@ -1559,6 +1633,9 @@
     _assignedXh.onChange(function () { _renderAssignedList(); });
     return _assignedXh;
   }
+  document.getElementById("assignedExportBtn").addEventListener("click", function () {
+    exportTableToExcel("Assigned Deliverables", _getAssignedXh(), _assignedAll.filter(deliverableMatchesFilters));
+  });
   function ASSIGNED_DEADLINE_LABEL(d) {
     if (d.status === "not_required" || d.status === "pending_triage") return "–";
     var meta = DEADLINE_META[d.deadline_status] || ["neutral", d.deadline_status];
@@ -1836,6 +1913,14 @@
     _xhProjects[stage] = xh;
     return xh;
   }
+  function _exportProjectsTable(stage) {
+    var searchEl = document.getElementById(stage === "L0" ? "l0Search" : "l1Search");
+    var term = (searchEl ? searchEl.value : "").trim().toLowerCase();
+    var full = (_projectsCache[stage] || []).filter(function (p) { return _projectMatchesSearch(p, stage, term); });
+    exportTableToExcel(stage === "L0" ? "L0 Tenders" : "L1 Projects", _projectsXh(stage), full);
+  }
+  document.getElementById("l0ExportBtn").addEventListener("click", function () { _exportProjectsTable("L0"); });
+  document.getElementById("l1ExportBtn").addEventListener("click", function () { _exportProjectsTable("L1"); });
   function _renderProjectsTable(stage) {
     var searchEl = document.getElementById(stage === "L0" ? "l0Search" : "l1Search");
     var term = (searchEl ? searchEl.value : "").trim().toLowerCase();
@@ -6816,6 +6901,30 @@
       });
     });
   }
+  document.getElementById("rcPrintBtn").addEventListener("click", function () { window.print(); });
+  document.getElementById("rcExportBtn").addEventListener("click", function () {
+    var def = RC_ENTITIES[rcEntity];
+    var cols = Object.keys(def.fields).filter(function (k) { return rcFields[k]; });
+    if (!cols.length) { showToast("Pick at least one column first", true); return; }
+    var term = document.getElementById("rcSearch").value.trim().toLowerCase();
+    var allKeys = Object.keys(def.fields);
+    var filtered = !term ? rcRows : rcRows.filter(function (r) {
+      return allKeys.some(function (c) { return String(r[c] == null ? "" : r[c]).toLowerCase().indexOf(term) !== -1; });
+    });
+    if (rcXh) filtered = rcXh.process(filtered);
+    var exportCols = cols.map(function (c) { return { key: c, label: def.fields[c] }; });
+    var pillFields = def.pillFields || {};
+    var exportRows = filtered.map(function (r) {
+      var out = {};
+      cols.forEach(function (c) {
+        var pf = pillFields[c];
+        var v = pf && r[c] != null && r[c] !== "" ? pf(r[c])[1] : r[c];
+        out[c] = v == null ? "" : String(v);
+      });
+      return out;
+    });
+    _postXlsxExport("Custom Report – " + (def.label || rcEntity), exportCols, exportRows);
+  });
 
   /* ================= JOURNEY / HISTORY ================= */
   async function loadJourney() {
@@ -7364,6 +7473,12 @@
     _scoresXh[kind].onChange(renderScores);
     return _scoresXh[kind];
   }
+  document.getElementById("scoresOwnersExportBtn").addEventListener("click", function () {
+    exportTableToExcel("Top Achievers – Owners", _scoresXhController("owner"), scoresData.owners || []);
+  });
+  document.getElementById("scoresSmesExportBtn").addEventListener("click", function () {
+    exportTableToExcel("Top Achievers – SME", _scoresXhController("sme"), scoresData.smes || []);
+  });
   function renderAchieversTable(containerId, rows, kind) {
     var wrap = document.getElementById(containerId);
     wrap.innerHTML = "";
@@ -7526,6 +7641,9 @@
     _fpXh.onChange(function () { _fpRenderRows(_fpXh.process(_fpRows)); });
     return _fpXh;
   }
+  document.getElementById("fpExportBtn").addEventListener("click", function () {
+    exportTableToExcel("Focal Points", _fpXhController(), _fpRows);
+  });
   function _fpRenderStats(rows) {
     var owners = {}, smes = {};
     rows.forEach(function (d) {
@@ -8766,7 +8884,10 @@
       { key: "item_no", get: function (d) { return d.item_no; }, uniqueValues: uniq(function (d) { return d.item_no; }) },
       { key: "dept", get: deptOf, uniqueValues: uniq(deptOf) },
       { key: "name", get: function (d) { return d.name; }, uniqueValues: uniq(function (d) { return d.name; }) },
-      null, // Formula -- free text, not a meaningful sort/filter dimension
+      // Formula: not a meaningful sort/filter dimension (free text), but a
+      // real get() so exportTableToExcel still carries it -- the single
+      // most useful column in an actual export of this table.
+      { key: "formula", get: function (d) { return d.formula_text || ""; }, sortable: false, filterable: false },
       { key: "weight", get: weightOf, sortValue: function (d) { return d.kpi_weight_pct == null ? -1 : d.kpi_weight_pct; }, uniqueValues: uniq(weightOf) },
       null,
     ];
@@ -8775,15 +8896,21 @@
     _dfXh.onChange(function () { renderDfItems(); });
     return _dfXh;
   }
-  function renderDfItems() {
+  function _dfPreFiltered() {
     var filterText = document.getElementById("dfFilter").value.trim().toLowerCase();
     var deptFilter = document.getElementById("dfDeptFilter").value;
-    var wrap = document.getElementById("dfItemList");
-    wrap.innerHTML = "";
-    var filtered = dfItems.filter(function (d) {
+    return dfItems.filter(function (d) {
       if (deptFilter && String(d.department_id) !== deptFilter) return false;
       return !filterText || (d.item_no + " " + d.name).toLowerCase().indexOf(filterText) !== -1;
     });
+  }
+  document.getElementById("dfExportBtn").addEventListener("click", function () {
+    exportTableToExcel("Deliverables Catalog – " + dfStage, _getDfXh(), _dfPreFiltered());
+  });
+  function renderDfItems() {
+    var wrap = document.getElementById("dfItemList");
+    wrap.innerHTML = "";
+    var filtered = _dfPreFiltered();
     // Excel-header filters always apply; its sort only overrides the
     // natural department/item_no order once a column header is actually
     // clicked -- process() itself only sorts when a sortKey is set, so the
@@ -9522,6 +9649,9 @@
     var theadRow = document.getElementById("myRequestsBody").closest("table").querySelector("thead tr");
     _myRequestsXh = installExcelHeader(theadRow, columns);
     _myRequestsXh.onChange(function () { _renderMyRequests(_myRequestsXh.process(_myRequestsAll)); });
+    document.getElementById("myRequestsExportBtn").addEventListener("click", function () {
+      exportTableToExcel("My Requests", _myRequestsXh, _myRequestsAll);
+    });
     return _myRequestsXh;
   }
   function _renderMyRequests(rows) {
@@ -9714,6 +9844,14 @@
   }
 
   document.getElementById("bmTriageSearch").addEventListener("input", _renderBmTriageStatus);
+  document.getElementById("bmTriageExportBtn").addEventListener("click", function () {
+    var term = document.getElementById("bmTriageSearch").value.trim().toLowerCase();
+    var rows = _bmTriageCache.filter(function (r) {
+      if (!term) return true;
+      return [r.est_no, r.name, r.bid_manager].filter(Boolean).join(" ").toLowerCase().indexOf(term) !== -1;
+    });
+    exportTableToExcel("BM Triage Status", _getBmTriageXh(), rows);
+  });
   document.getElementById("perfTriageSearch").addEventListener("input", _renderPerfTriage);
   document.getElementById("matrixSearch").addEventListener("input", _renderMatrix);
   document.getElementById("matrixEstFilter").addEventListener("input", _renderMatrix);
