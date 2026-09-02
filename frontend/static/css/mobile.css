@@ -287,3 +287,42 @@ body.mobile-shell .mobile-filter-clear {
 body.mobile-shell .mobile-actions-list { display: flex; flex-direction: column; gap: 10px; }
 body.mobile-shell .mobile-actions-list .btn { width: 100%; min-height: 44px; }
 body.mobile-shell .mobile-actions-list .aqt-locked { text-align: center; color: var(--ink-500); font-size: 13px; padding: 8px 0; }
+
+/* ------------------------------------------------------------------ *
+ * Item [mobile-app] Phase 7: L0/L1 cards + matrix-derived readiness.
+ * ------------------------------------------------------------------ */
+body.mobile-shell #l0ListCard, body.mobile-shell #l1ListCard { display: none; }
+.mobile-project-cards { display: none; }
+body.mobile-shell .mobile-project-cards { display: flex; flex-direction: column; gap: 10px; }
+body.mobile-shell .mp-card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-1); padding: 14px; cursor: pointer;
+}
+body.mobile-shell .mp-card-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+body.mobile-shell .mp-est {
+  font-family: var(--font); font-weight: 800; font-size: 12px;
+  padding: 2px 8px; border-radius: 20px; background: var(--surface-sunken);
+}
+body.mobile-shell .mp-est.l0 { color: var(--l0-1); }
+body.mobile-shell .mp-est.l1 { color: var(--l1-1); }
+body.mobile-shell .mp-card-name {
+  margin-top: 8px; font-family: var(--font); font-weight: 700; font-size: 14.5px; color: var(--ink-900);
+}
+body.mobile-shell .mp-card-sub { margin-top: 4px; font-size: 12px; color: var(--ink-500); }
+body.mobile-shell .mp-readiness { margin-top: 10px; }
+body.mobile-shell .mp-readiness-label {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 11.5px; font-weight: 700; color: var(--ink-700); margin-bottom: 5px;
+}
+body.mobile-shell .mp-critical-badge {
+  background: var(--crit); color: #fff; font-size: 10px; font-weight: 800;
+  padding: 1px 7px; border-radius: 20px;
+}
+body.mobile-shell .mp-readiness-track {
+  height: 6px; border-radius: 4px; background: var(--surface-sunken); overflow: hidden;
+}
+/* Fill color always reads as plain "% complete" (standard progress-bar
+   semantics) -- the separate red mp-critical-badge above already carries
+   the "N items due" signal, so the bar itself doesn't also need to flip
+   red and double up on that same warning. */
+body.mobile-shell .mp-readiness-fill { height: 100%; border-radius: 4px; background: var(--good); }

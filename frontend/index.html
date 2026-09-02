@@ -627,6 +627,11 @@
           </table>
         </div>
       </div>
+      <!-- Item [mobile-app] Phase 7: cards, built by mobile.js's
+           renderProjectCards("L0", list) -- registered as a second render
+           target _renderProjectsTable() (app.js) calls alongside the
+           desktop table, off the exact same searched/sorted/filtered list. -->
+      <div id="l0ListMobile" class="mobile-project-cards"></div>
     </section>
 
     <!-- L1 TABLE -->
@@ -653,6 +658,9 @@
           </table>
         </div>
       </div>
+      <!-- Item [mobile-app] Phase 7: see l0ListMobile's own comment above --
+           identical idiom, registered onto "L1" instead. -->
+      <div id="l1ListMobile" class="mobile-project-cards"></div>
     </section>
 
     <!-- TIMELINE / GANTT -->

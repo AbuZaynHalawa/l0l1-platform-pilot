@@ -2036,6 +2036,12 @@
         loadMiniStepper(list[j].id);
       }
     }
+    // Item [mobile-app] Phase 7: same dual-render idiom as Phase 6's
+    // Assigned Deliverables -- mobile.js's card view, when registered,
+    // gets the exact same filtered/sorted `list` this just rendered as
+    // table rows, never a separate fetch or its own copy of the search/
+    // Excel-header filter state.
+    if (window.__mobile && window.__mobile.renderProjectCards) window.__mobile.renderProjectCards(stage, list);
   }
   document.getElementById("l0Search").addEventListener("input", function () { _renderProjectsTable("L0"); });
   document.getElementById("l1Search").addEventListener("input", function () { _renderProjectsTable("L1"); });
@@ -11196,5 +11202,6 @@
     getAssignedFilters: getAssignedFilters, setAssignedFilters: setAssignedFilters,
     DEADLINE_FILTERS: DEADLINE_FILTERS, PROGRESS_FILTERS: PROGRESS_FILTERS, SME_PROGRESS_FILTERS: SME_PROGRESS_FILTERS,
     statusPillsHtml: statusPillsHtml, dueDateHtml: dueDateHtml, isAssigned: isAssigned,
+    PROJECT_STATUS_CLASS: PROJECT_STATUS_CLASS, L1_MILESTONE_LABELS: L1_MILESTONE_LABELS,
   };
 })();

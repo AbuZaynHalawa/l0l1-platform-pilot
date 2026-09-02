@@ -554,11 +554,145 @@
     });
   }
 
+  // ---------------------------------------------------------------------
+  // Item [mobile-app] Phase 7: L0/L1 cards + matrix-derived readiness.
+  // ---------------------------------------------------------------------
+  // renderProjectCards(stage, list) is called by app.js's own
+  // _renderProjectsTable (app.js), right after it renders the desktop
+  // table, with the exact same searched/sorted/filtered list -- same dual-
+  // render idiom as Phase 6, never a separate copy of that logic.
+  //
+  // Readiness % and the outstanding-critical-items count are both derived
+  // from GET /api/dashboard/matrix?stage=, fetched here directly via
+  // window.__app.api() rather than through app.js's own loadMatrix() --
+  // that function is Dashboard-specific (it also mutates _matrixCache/
+  // matrixStage and repaints the Dashboard's own #matrixWrap table as a
+  // side effect), so calling it from here would risk surprising the
+  // Dashboard's matrix section the next time the user visits it. A plain,
+  // side-effect-free fetch of the same endpoint avoids that entirely,
+  // cached per stage and re-render-triggered once it lands -- guarded
+  // against re-fetching on every keystroke in the L0/L1 search box, which
+  // re-invokes this on every render, not just on first navigation in.
+  var _matrixByStage = {};
+  var _matrixFetchInFlight = {};
+  var _lastProjectListByStage = {};
+  function _projectReadiness(matrix, projectId) {
+    if (!matrix) return null;
+    var completed = 0, total = 0, due = 0;
+    matrix.rows.forEach(function (row) {
+      var cell = row.cells[projectId];
+      if (!cell) return;
+      total++;
+      if (cell.bucket === "completed") completed++;
+      else if (cell.bucket === "due") due++;
+    });
+    return total ? { pct: Math.round((completed / total) * 100), completed: completed, total: total, due: due } : null;
+  }
+  function _projectCard(stage, p) {
+    var app = window.__app;
+    var card = document.createElement("div");
+    card.className = "mp-card";
+    card.addEventListener("click", function () { app.openDetail(p.id); });
+
+    var top = document.createElement("div");
+    top.className = "mp-card-top";
+    var est = document.createElement("span");
+    est.className = "mp-est " + stage.toLowerCase();
+    est.textContent = p.est_no;
+    top.appendChild(est);
+    if (p.is_international) {
+      var intl = document.createElement("span");
+      intl.className = "pill neutral";
+      intl.innerHTML = '<span class="dot"></span>International';
+      top.appendChild(intl);
+    }
+    var statusPill = document.createElement("span");
+    statusPill.className = "pill " + (app.PROJECT_STATUS_CLASS[p.status] || "neutral");
+    statusPill.innerHTML = '<span class="dot"></span>' + p.status;
+    top.appendChild(statusPill);
+    card.appendChild(top);
+
+    var name = document.createElement("div");
+    name.className = "mp-card-name";
+    name.textContent = p.name;
+    card.appendChild(name);
+
+    // L1's own current-milestone label; L0's BSD -- same fields the
+    // desktop table's own Milestones/BSD columns already show, no field
+    // invented for the card that doesn't exist in the schema.
+    if (stage === "L1") {
+      var milestone = document.createElement("div");
+      milestone.className = "mp-card-sub";
+      milestone.textContent = p.current_milestone && app.L1_MILESTONE_LABELS[p.current_milestone]
+        ? p.current_milestone + " – " + app.L1_MILESTONE_LABELS[p.current_milestone] : "Not Started";
+      card.appendChild(milestone);
+    } else if (p.bsd) {
+      var bsd = document.createElement("div");
+      bsd.className = "mp-card-sub";
+      bsd.textContent = "BSD: " + app.fmtDate(p.bsd);
+      card.appendChild(bsd);
+    }
+
+    var readiness = _projectReadiness(_matrixByStage[stage], p.id);
+    if (readiness) {
+      var bar = document.createElement("div");
+      bar.className = "mp-readiness";
+      var barLabel = document.createElement("div");
+      barLabel.className = "mp-readiness-label";
+      barLabel.textContent = "Readiness " + readiness.pct + "%";
+      if (readiness.due > 0) {
+        var crit = document.createElement("span");
+        crit.className = "mp-critical-badge";
+        crit.textContent = readiness.due + (readiness.due === 1 ? " item due" : " items due");
+        barLabel.appendChild(crit);
+      }
+      var track = document.createElement("div");
+      track.className = "mp-readiness-track";
+      var fill = document.createElement("div");
+      fill.className = "mp-readiness-fill";
+      fill.style.width = readiness.pct + "%";
+      track.appendChild(fill);
+      bar.appendChild(barLabel);
+      bar.appendChild(track);
+      card.appendChild(bar);
+    }
+
+    return card;
+  }
+  function _paintProjectCards(stage, list) {
+    var host = document.getElementById(stage === "L0" ? "l0ListMobile" : "l1ListMobile");
+    if (!host) return;
+    host.innerHTML = "";
+    if (!list.length) {
+      var empty = document.createElement("div");
+      empty.className = "empty-state";
+      empty.textContent = "No " + stage + " projects match right now.";
+      host.appendChild(empty);
+      return;
+    }
+    list.forEach(function (p) { host.appendChild(_projectCard(stage, p)); });
+  }
+  function renderProjectCards(stage, list) {
+    _lastProjectListByStage[stage] = list;
+    if (!_matrixByStage[stage] && !_matrixFetchInFlight[stage]) {
+      _matrixFetchInFlight[stage] = true;
+      window.__app.api("/api/dashboard/matrix?stage=" + stage)
+        .then(function (data) { _matrixByStage[stage] = data; })
+        .catch(function () { _matrixByStage[stage] = { rows: [], projects: [] }; }) // fail closed -- cards render without readiness rather than retrying forever
+        .then(function () {
+          _matrixFetchInFlight[stage] = false;
+          _paintProjectCards(stage, _lastProjectListByStage[stage]);
+        });
+    }
+    _paintProjectCards(stage, list);
+  }
+
   // Exposed for later phases (mobile render branches) and for debugging.
   window.__mobile = {
     isMobileMode: isMobileMode,
     openBottomSheet: openBottomSheet,
     closeBottomSheet: closeBottomSheet,
     renderAssignedCards: renderAssignedCards,
+    renderProjectCards: renderProjectCards,
   };
 })();
