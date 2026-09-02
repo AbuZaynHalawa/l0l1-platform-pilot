@@ -96,22 +96,109 @@ body.mobile-shell .mobile-more-row .mmr-badge {
 body.mobile-shell .mobile-more-row .mmr-chevron { flex: 0 0 auto; display: flex; color: var(--ink-300); }
 body.mobile-shell .mobile-more-row .mmr-chevron svg { width: 16px; height: 16px; }
 
-/* Interim GAHIZ reposition -- the bottom nav above is new in this phase,
-   and desktop's floating bubble (styles.css:1621, already 80x122px at
+/* GAHIZ bubble reposition (Phase 3) -- the bottom nav above is new, and
+   desktop's floating bubble (styles.css:1621, already 80x122px at
    right:24/bottom:16, shrunk to 56x86 only under its own max-width:480px
-   rule) sat directly on top of/overlapping the new "More" tab, actually
+   rule) sat directly on top of/overlapping the "More" tab, actually
    blocking that tap target, not just a visual overlap. Only a placement
    fix -- lifted clear of the bar at the same small size the existing
    <480px rule already uses, so it's consistent across the whole
-   mobile-shell range rather than just below 480px. The real GAHIZ
-   treatment (full-height slide-up sheet replacing this floating bubble
-   entirely) is Phase 5's job, not this one. */
+   mobile-shell range rather than just below 480px. Only relevant while the
+   panel below is closed -- app.js's own _openAiChatPanel()/
+   _closeAiChatPanel() (app.js:10403-10412) already hide the bubble
+   whenever the panel is open, unrelated to any of this. */
 body.mobile-shell .ai-chat-bubble {
   right: 10px;
   bottom: calc(58px + env(safe-area-inset-bottom) + 12px);
   width: 56px; height: 86px;
 }
+
+/* ------------------------------------------------------------------ *
+ * Item [mobile-app] Phase 4: bottom-sheet primitive.
+ * ------------------------------------------------------------------ */
+.mobile-sheet-overlay { display: none; }
+body.mobile-shell .mobile-sheet-overlay {
+  position: fixed; inset: 0; z-index: 90;
+  background: rgba(15,18,26,.55);
+  display: flex; align-items: flex-end; justify-content: center;
+}
+body.mobile-shell .mobile-sheet-overlay[hidden] { display: none; }
+body.mobile-shell .mobile-sheet-panel {
+  width: 100%; max-width: 560px;
+  max-height: min(85vh, 720px); max-height: min(85dvh, 720px);
+  background: var(--surface);
+  border-radius: 18px 18px 0 0;
+  box-shadow: 0 -8px 30px rgba(16,36,62,0.18);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  padding-bottom: env(safe-area-inset-bottom);
+  /* No entrance animation on purpose -- an earlier @keyframes slide-up
+     attempt here was found (via getAnimations(): playState "running",
+     currentTime permanently stuck at 0) to sometimes never advance and
+     leave the whole sheet translated fully off-screen and inaccessible.
+     Matches every other overlay in this app anyway (#confirmOverlay,
+     #delivModalOverlay, etc. -- styles.css:1072 -- are all a plain
+     [hidden] toggle, no animation), rather than being the one exception
+     with an unproven failure mode. Worth revisiting as a class-toggled
+     transition (more resilient than @keyframes for this) in Phase 10's
+     polish pass, not before -- correctness first. */
+}
+body.mobile-shell .mobile-sheet-panel.mobile-sheet-full {
+  max-height: 100vh; max-height: 100dvh; height: 100%; border-radius: 0;
+}
+body.mobile-shell .mobile-sheet-handle {
+  width: 40px; height: 4px; border-radius: 4px; background: var(--line);
+  margin: 10px auto 0; flex-shrink: 0; cursor: grab; touch-action: none;
+}
+body.mobile-shell .mobile-sheet-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 16px 12px; flex-shrink: 0; touch-action: none;
+}
+body.mobile-shell .mobile-sheet-panel.mobile-sheet-untitled .mobile-sheet-head { padding-bottom: 4px; }
+body.mobile-shell .mobile-sheet-title { font-family: var(--font); font-weight: 800; font-size: 15px; color: var(--ink-900); }
+body.mobile-shell .mobile-sheet-close {
+  flex: 0 0 auto; min-width: 32px; min-height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; border: 0; background: var(--surface-sunken); color: var(--ink-700);
+  font-size: 13px; cursor: pointer;
+}
+body.mobile-shell .mobile-sheet-body { flex: 1; overflow-y: auto; padding: 4px 16px 16px; -webkit-overflow-scrolling: touch; }
+
+/* ------------------------------------------------------------------ *
+ * Item [mobile-app] Phase 5: GAHIZ's mobile sheet.
+ * ------------------------------------------------------------------ */
+/* Repositions the SAME #aiChatPanel element desktop uses (styles.css:1646,
+   a fixed small card at right:24/bottom:94) into a full-height slide-up
+   sheet -- nothing about its own children/IDs/app.js wiring changes, only
+   where and how big it renders. A small gap at the top (not edge-to-edge)
+   keeps it reading as a sheet, with the same rounded-top-corner language
+   the generic sheet primitive above uses. */
 body.mobile-shell .ai-chat-panel {
-  right: 8px; left: 8px; width: auto;
-  bottom: calc(58px + env(safe-area-inset-bottom) + 90px);
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  top: calc(env(safe-area-inset-top) + 28px);
+  z-index: 90;
+  width: auto; max-width: none;
+  height: auto;
+  border-radius: 20px 20px 0 0;
+  border: 0;
+  box-shadow: 0 -8px 30px rgba(16,36,62,0.18);
+  padding-bottom: env(safe-area-inset-bottom);
+  /* No entrance animation -- see the generic sheet primitive's own comment
+     above (mobile.css) for why: a stuck-running @keyframes animation left
+     this panel permanently translated off-screen in testing. */
+}
+.mobile-ai-chat-backdrop { display: none; }
+body.mobile-shell .mobile-ai-chat-backdrop:not([hidden]) {
+  display: block;
+  position: fixed; inset: 0; z-index: 85;
+  background: rgba(15,18,26,.55);
+}
+/* A visible drag affordance on the sheet's own head, matching the generic
+   primitive's handle -- app.js's markup has no such element, so this is
+   drawn purely with a pseudo-element rather than touching that markup. */
+body.mobile-shell .ai-chat-panel-head { position: relative; touch-action: none; padding-top: 14px; }
+body.mobile-shell .ai-chat-panel-head::before {
+  content: ""; position: absolute; top: 6px; left: 50%; transform: translateX(-50%);
+  width: 40px; height: 4px; border-radius: 4px; background: var(--line);
 }

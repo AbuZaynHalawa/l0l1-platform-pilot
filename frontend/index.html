@@ -2345,6 +2345,36 @@
     <button class="btn" id="aiChatAskTeam">Didn't answer your question? Ask the Team &#8594;</button>
   </div>
 </div>
+<!-- Item [mobile-app] Phase 5: GAHIZ's mobile treatment reuses the exact
+     #aiChatPanel above wholesale -- same DOM, same app.js JS
+     (_openAiChatPanel/_closeAiChatPanel/_renderAiChatMessages/
+     _sendAiChatMessage, all untouched) -- mobile.css just repositions that
+     one element into a full-height slide-up sheet under body.mobile-shell
+     instead of its small floating-card desktop position. The only thing
+     genuinely new is this backdrop (today's desktop panel has none) --
+     mobile.js mirrors #aiChatPanel's own [hidden] toggle onto it via
+     MutationObserver, same non-invasive technique the bottom nav's badges
+     use, so app.js never needs to know this element exists. -->
+<div class="mobile-ai-chat-backdrop" id="mobileAiChatBackdrop" hidden></div>
+
+<!-- Item [mobile-app] Phase 4: bottom-sheet primitive -- one shared
+     overlay+panel pair, reused for every mobile sheet (filters, a row's
+     actions, ...) the same "one shared node reused every call" way
+     #confirmOverlay is one shared node reused by every customConfirm()
+     call (app.js:4694-4703), generalized to accept a content-builder
+     function instead of a fixed title/message since sheet content varies
+     by caller. Empty by design -- mobile.js's openBottomSheet() owns
+     everything that goes into #mobileSheetBody, per call. -->
+<div class="mobile-sheet-overlay" id="mobileSheetOverlay" hidden>
+  <div class="mobile-sheet-panel" id="mobileSheetPanel">
+    <div class="mobile-sheet-handle" id="mobileSheetHandle"></div>
+    <div class="mobile-sheet-head" id="mobileSheetHead">
+      <span class="mobile-sheet-title" id="mobileSheetTitle"></span>
+      <button type="button" class="mobile-sheet-close" id="mobileSheetClose" aria-label="Close">&#10005;</button>
+    </div>
+    <div class="mobile-sheet-body" id="mobileSheetBody"></div>
+  </div>
+</div>
 
 <!-- Item [mobile-app] Phase 3: bottom tab bar. Lives at body level, outside
      .shell, same reasoning as the AI Support bubble above -- reachable from

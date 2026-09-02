@@ -260,9 +260,151 @@
   }
   window.__app.LOADERS.more = _renderMoreScreen;
 
-  // Exposed for later phases (mobile render branches) and for debugging --
-  // kept minimal on purpose.
+  // ---------------------------------------------------------------------
+  // Item [mobile-app] Phase 4: bottom-sheet primitive.
+  // ---------------------------------------------------------------------
+  // One shared overlay+panel pair (index.html), reused for every mobile
+  // sheet -- same "one shared node reused every call" efficiency
+  // customConfirm() already uses (app.js:4694-4703), generalized to accept
+  // a content-builder function instead of a fixed title/message, since
+  // sheet content varies wildly by caller (a filter form, a row's action
+  // list). Not built from customConfirm() itself (hard-wired to a fixed
+  // yes/no shape) or from .aqt-actions-dropdown (an anchored popover, not
+  // a scrimmed slide-up sheet).
+  var _sheetOverlay = document.getElementById("mobileSheetOverlay");
+  var _sheetPanel = document.getElementById("mobileSheetPanel");
+  var _sheetBody = document.getElementById("mobileSheetBody");
+  var _sheetTitleEl = document.getElementById("mobileSheetTitle");
+  var _sheetOnClose = null;
+
+  function closeBottomSheet() {
+    if (_sheetOverlay.hidden) return;
+    _sheetOverlay.hidden = true;
+    _sheetBody.innerHTML = ""; // never leaks one call's content/listeners into the next
+    _sheetPanel.classList.remove("mobile-sheet-full", "mobile-sheet-untitled");
+    if (_sheetOnClose) { var fn = _sheetOnClose; _sheetOnClose = null; fn(); }
+  }
+  // buildContentFn(bodyEl, close) is called once, immediately, with the
+  // now-empty #mobileSheetBody to populate and this sheet's own close
+  // function (so e.g. a filter sheet's own "Apply" button can dismiss it).
+  // opts: { title, fullHeight, onClose }.
+  function openBottomSheet(buildContentFn, opts) {
+    opts = opts || {};
+    _sheetTitleEl.textContent = opts.title || "";
+    _sheetPanel.classList.toggle("mobile-sheet-full", !!opts.fullHeight);
+    _sheetPanel.classList.toggle("mobile-sheet-untitled", !opts.title);
+    _sheetOnClose = opts.onClose || null;
+    _sheetBody.innerHTML = "";
+    _sheetOverlay.hidden = false;
+    buildContentFn(_sheetBody, closeBottomSheet);
+  }
+  document.getElementById("mobileSheetClose").addEventListener("click", closeBottomSheet);
+  _sheetOverlay.addEventListener("click", function (e) {
+    if (e.target === _sheetOverlay) closeBottomSheet(); // backdrop only, never a click bubbling up from the panel
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && !_sheetOverlay.hidden) closeBottomSheet();
+  });
+  // Swipe-down-to-dismiss, dragged from the handle or head only (not the
+  // scrollable body -- that needs its own vertical drags for scrolling).
+  // Plain Pointer Events (unifies touch/mouse/pen in one listener set,
+  // rather than binding both touch* and pointer* and risking a double-
+  // fire) with pointer capture so a fast drag can't slip off the small
+  // handle mid-gesture. A simple threshold-on-release check, not a physics
+  // library -- this is a small enough gesture that a spring feel isn't
+  // worth a dependency in a no-build-step app.
+  (function () {
+    var startY = null, dy = 0, dragging = false;
+    function onDown(e) {
+      dragging = true; startY = e.clientY; dy = 0;
+      _sheetPanel.style.transition = "none";
+      e.currentTarget.setPointerCapture(e.pointerId);
+    }
+    function onMove(e) {
+      if (!dragging) return;
+      dy = Math.max(0, e.clientY - startY);
+      _sheetPanel.style.transform = "translateY(" + dy + "px)";
+    }
+    function onUp() {
+      if (!dragging) return;
+      dragging = false;
+      _sheetPanel.style.transition = "";
+      _sheetPanel.style.transform = "";
+      if (dy > 80) closeBottomSheet();
+    }
+    [document.getElementById("mobileSheetHandle"), document.getElementById("mobileSheetHead")].forEach(function (el) {
+      el.addEventListener("pointerdown", onDown);
+      el.addEventListener("pointermove", onMove);
+      el.addEventListener("pointerup", onUp);
+      el.addEventListener("pointercancel", onUp);
+    });
+  })();
+
+  // ---------------------------------------------------------------------
+  // Item [mobile-app] Phase 5: GAHIZ's mobile sheet.
+  // ---------------------------------------------------------------------
+  // Deliberately NOT routed through openBottomSheet() above -- that
+  // primitive is for brand-new mobile-only content built fresh per call,
+  // while GAHIZ is a large, independently-stateful existing feature
+  // (message history, streaming send, usage badge) that already owns its
+  // own DOM and JS in full. Reusing it means leaving #aiChatPanel and every
+  // one of app.js's chat functions completely untouched, and only adding
+  // what genuinely doesn't exist yet: a backdrop, and swipe-down/Escape/
+  // backdrop-tap dismissal -- all three funneled through app.js's own
+  // #aiChatPanelClose click handler (_closeAiChatPanel), never a
+  // reimplementation of it. mobile.css does the actual visual work
+  // (repositioning the same panel element into a full-height sheet under
+  // body.mobile-shell); this is just the backdrop + dismiss wiring.
+  var _aiBackdrop = document.getElementById("mobileAiChatBackdrop");
+  var _aiPanel = document.getElementById("aiChatPanel");
+  var _aiCloseBtn = document.getElementById("aiChatPanelClose");
+  if (_aiBackdrop && _aiPanel && _aiCloseBtn) {
+    // Mirrors #aiChatPanel's own [hidden] toggle (app.js's
+    // _openAiChatPanel/_closeAiChatPanel) onto the backdrop -- app.js never
+    // needs to know this element exists, same non-invasive technique the
+    // bottom nav's badges use.
+    new MutationObserver(function () {
+      _aiBackdrop.hidden = _aiPanel.hidden;
+    }).observe(_aiPanel, { attributes: true, attributeFilter: ["hidden"] });
+
+    _aiBackdrop.addEventListener("click", function () { _aiCloseBtn.click(); });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && isMobileMode() && !_aiPanel.hidden) _aiCloseBtn.click();
+    });
+    // Swipe-down on the panel's own head to dismiss -- same pointer-drag
+    // idiom as the bottom-sheet primitive above, kept separate since this
+    // drags the real #aiChatPanel element, not #mobileSheetPanel.
+    (function () {
+      var head = document.querySelector("#aiChatPanel .ai-chat-panel-head");
+      if (!head) return;
+      var startY = null, dy = 0, dragging = false;
+      head.addEventListener("pointerdown", function (e) {
+        if (!isMobileMode()) return;
+        dragging = true; startY = e.clientY; dy = 0;
+        _aiPanel.style.transition = "none";
+        head.setPointerCapture(e.pointerId);
+      });
+      head.addEventListener("pointermove", function (e) {
+        if (!dragging) return;
+        dy = Math.max(0, e.clientY - startY);
+        _aiPanel.style.transform = "translateY(" + dy + "px)";
+      });
+      function endDrag() {
+        if (!dragging) return;
+        dragging = false;
+        _aiPanel.style.transition = "";
+        _aiPanel.style.transform = "";
+        if (dy > 80) _aiCloseBtn.click();
+      }
+      head.addEventListener("pointerup", endDrag);
+      head.addEventListener("pointercancel", endDrag);
+    })();
+  }
+
+  // Exposed for later phases (mobile render branches) and for debugging.
   window.__mobile = {
     isMobileMode: isMobileMode,
+    openBottomSheet: openBottomSheet,
+    closeBottomSheet: closeBottomSheet,
   };
 })();
