@@ -1,0 +1,18 @@
+/* Mobile-app shell CSS -- every rule in this file (and every rule ever
+   added to it) MUST be scoped under body.mobile-shell (set by mobile.js's
+   isMobileMode() check, ~780px and below). This file is loaded
+   unconditionally on every device, same as styles.css itself, so that
+   scoping is what keeps it inert for a desktop user even if the JS mode
+   detection somehow fails to run -- a safety property this file has by
+   construction that a bare @media query doesn't get automatically.
+
+   Reuses styles.css's own design tokens (--accent, --ink-*, --surface,
+   --line, --good/--warn/--crit, --l0-1, --l1-1, --radius, --shadow-*, the
+   dark-mode-aware [data-theme]/prefers-color-scheme variants of all of
+   them) throughout -- never a hardcoded color, so dark mode keeps working
+   here for free. See :root token block at styles.css:21-139.
+
+   Phase 1 (this commit): no rules yet -- this file exists and is wired
+   into index.html/main.py's cache-busting so every later phase is a pure
+   content addition here, never a new <link> tag.
+*/

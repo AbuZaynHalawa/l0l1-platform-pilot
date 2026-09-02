@@ -9,6 +9,12 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/static/styles.css" />
+<!-- Item [mobile-app]: bespoke mobile-app shell (bottom nav, cards, bottom
+     sheets, mobile GAHIZ) -- loaded unconditionally like every other
+     stylesheet here, but every rule inside is scoped under body.mobile-shell
+     (see the file's own header comment), so it's inert on desktop by
+     construction, not just by breakpoint luck. -->
+<link rel="stylesheet" href="/static/css/mobile.css" />
 <!-- HV Transformer Landing + Sign-In -- ported from
      design_handoff_hv_transformer_signin/. three.js vendored locally
      (see plan snug-moseying-lemon.md) rather than hitting unpkg.com; the
@@ -2305,6 +2311,10 @@
 </div>
 
 <script src="/static/app.js"></script>
+<!-- Item [mobile-app]: reaches into app.js's shared loaders/helpers via
+     window.__app, exported at the very end of app.js's own IIFE -- must
+     load after it. -->
+<script src="/static/js/mobile.js"></script>
 <script type="module" src="/static/js/landing.js"></script>
 </body>
 </html>

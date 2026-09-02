@@ -11147,4 +11147,25 @@
   var justSignedInThisLoad = true;
   try { justSignedInThisLoad = sessionStorage.getItem("hvSignedIn") !== "1"; } catch (e) {}
   if (justSignedInThisLoad && localStorage.getItem("tourAutoDisabled") !== "1") openTour();
+
+  // Item [mobile-app]: the one deliberate seam mobile.js reaches through --
+  // everything else new lives physically isolated in mobile.js/mobile.css,
+  // this app.js IIFE otherwise stays untouched. Only ever a READ surface
+  // (data loaders, shared render/format helpers, state getters) -- mobile.js
+  // never re-implements a status/deadline/weight calculation, it only
+  // renders what these already compute. CURRENT_ROLE/actingEmail() are
+  // exposed as live getters (not snapshotted values) since both can change
+  // at runtime via the role selector.
+  window.__app = {
+    el: el, api: api, fmtDate: fmtDate, showToast: showToast, customConfirm: customConfirm,
+    deptLabel: deptLabel, renderPager: renderPager, installExcelHeader: installExcelHeader,
+    STATUS_META: STATUS_META, DEADLINE_META: DEADLINE_META,
+    switchView: switchView, LOADERS: LOADERS, ADMIN_ONLY_VIEWS: ADMIN_ONLY_VIEWS,
+    getCurrentRole: function () { return CURRENT_ROLE; },
+    actingEmail: actingEmail, can: can,
+    openDetail: openDetail, openDelivModal: openDelivModal,
+    loadDashboard: loadDashboard, loadAssigned: loadAssigned, loadProjectsTable: loadProjectsTable,
+    getAssignedAll: function () { return _assignedAll; },
+    buildAssignedActionsInto: _buildAssignedActionsInto,
+  };
 })();

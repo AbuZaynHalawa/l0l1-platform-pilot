@@ -72,16 +72,23 @@ def index():
     # would make the browser treat them as two different module
     # identities. If the vendored files ever need cache-busting after a
     # version bump, do it by changing the filename, not a query string.
+    # Item [mobile-app]: mobile.css/mobile.js stamped the same way -- plain
+    # additive files, no import-map identity concerns like the vendored
+    # three.js files have.
     version = str(int(max(
         (FRONTEND_DIR / "static" / "app.js").stat().st_mtime,
         (FRONTEND_DIR / "static" / "styles.css").stat().st_mtime,
         (FRONTEND_DIR / "static" / "css" / "landing.css").stat().st_mtime,
         (FRONTEND_DIR / "static" / "js" / "landing.js").stat().st_mtime,
+        (FRONTEND_DIR / "static" / "css" / "mobile.css").stat().st_mtime,
+        (FRONTEND_DIR / "static" / "js" / "mobile.js").stat().st_mtime,
     )))
     html = html.replace('/static/app.js"', f'/static/app.js?v={version}"')
     html = html.replace('/static/styles.css"', f'/static/styles.css?v={version}"')
     html = html.replace('/static/css/landing.css"', f'/static/css/landing.css?v={version}"')
     html = html.replace('/static/js/landing.js"', f'/static/js/landing.js?v={version}"')
+    html = html.replace('/static/css/mobile.css"', f'/static/css/mobile.css?v={version}"')
+    html = html.replace('/static/js/mobile.js"', f'/static/js/mobile.js?v={version}"')
     return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 
 
