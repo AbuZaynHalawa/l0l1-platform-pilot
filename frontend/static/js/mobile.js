@@ -401,10 +401,164 @@
     })();
   }
 
+  // ---------------------------------------------------------------------
+  // Item [mobile-app] Phase 6: Assigned Deliverables cards + filter sheet.
+  // ---------------------------------------------------------------------
+  // renderAssignedCards(items) is called by app.js's own _renderAssignedList
+  // (app.js, right after it renders the desktop table) with the exact same
+  // filtered/sorted/paginated item slice -- never a separate fetch or a
+  // second copy of the filter/sort/page logic. Registered unconditionally
+  // (not gated on isMobileMode()), same reasoning as everywhere else in
+  // this file: cheap to build into a CSS-hidden container, and it means
+  // the cards are already correct the instant a resize crosses into
+  // mobile-shell, no separate "did the mode just change" re-render needed.
+  function _assignedCard(d) {
+    var app = window.__app;
+    var card = document.createElement("div");
+    card.className = "ma-card";
+    card.addEventListener("click", function () { app.openDelivModal(d.id); });
+
+    var top = document.createElement("div");
+    top.className = "ma-card-top";
+    var est = document.createElement("span");
+    est.className = "ma-est " + (d.stage || "").toLowerCase();
+    est.textContent = d.est_no;
+    var title = document.createElement("span");
+    title.className = "ma-card-title";
+    title.textContent = d.item_no + " · " + d.short_name;
+    title.title = d.name;
+    var actionsBtn = document.createElement("button");
+    actionsBtn.type = "button";
+    actionsBtn.className = "ma-card-actions-btn";
+    actionsBtn.setAttribute("aria-label", "Actions");
+    actionsBtn.innerHTML = "&#8942;";
+    actionsBtn.addEventListener("click", function (e) {
+      e.stopPropagation(); // don't also open the deliverable modal underneath
+      _openAssignedActionsSheet(d);
+    });
+    top.appendChild(est); top.appendChild(title); top.appendChild(actionsBtn);
+    card.appendChild(top);
+
+    var meta = document.createElement("div");
+    meta.className = "ma-card-meta";
+    meta.textContent = app.deptLabel(d.department, d.department_number) + " · " + (d.owner || "Unassigned");
+    card.appendChild(meta);
+
+    var pills = document.createElement("div");
+    pills.className = "ma-card-pills";
+    pills.innerHTML = app.statusPillsHtml(d); // deadline+progress pills, same markup/colors as everywhere else
+    card.appendChild(pills);
+
+    var due = document.createElement("div");
+    due.className = "ma-card-due";
+    due.innerHTML = "Due " + app.dueDateHtml(d);
+    card.appendChild(due);
+
+    return card;
+  }
+  // Row actions, reused a third time (desktop already builds these twice --
+  // inline and into its own small dropdown, app.js:1812-1813) -- into this
+  // sheet's body instead of a third fixed container, same builder function,
+  // zero duplicated action logic (follow/approve/reject/remind/file link).
+  function _openAssignedActionsSheet(d) {
+    var app = window.__app;
+    openBottomSheet(function (bodyEl) {
+      var wrap = document.createElement("div");
+      wrap.className = "mobile-actions-list";
+      app.buildAssignedActionsInto(wrap, d, app.isAssigned(d));
+      bodyEl.appendChild(wrap);
+    }, { title: d.item_no + " · " + d.short_name });
+  }
+  function renderAssignedCards(items) {
+    var host = document.getElementById("assignedListMobile");
+    if (!host) return;
+    host.innerHTML = "";
+    if (!items.length) {
+      var empty = document.createElement("div");
+      empty.className = "empty-state";
+      empty.textContent = "Nothing here right now.";
+      host.appendChild(empty);
+    } else {
+      items.forEach(function (d) { host.appendChild(_assignedCard(d)); });
+    }
+    _updateAssignedFilterBadge();
+  }
+  function _updateAssignedFilterBadge() {
+    var app = window.__app;
+    var badge = document.getElementById("assignedMobileFilterCount");
+    if (!badge) return;
+    var f = app.getAssignedFilters();
+    var count = (f.deadline ? 1 : 0) + (f.progress ? 1 : 0) + (f.stage ? 1 : 0);
+    badge.hidden = !count;
+    badge.textContent = String(count);
+  }
+  // Filter sheet: the exact same 3 axes as the desktop stage toggle +
+  // Deadline/Progress segmented bars (index.html:454-470), as tappable
+  // single-select rows instead. Reads/writes state entirely through
+  // window.__app.getAssignedFilters()/setAssignedFilters() (app.js) --
+  // never its own copy of assignedDeadlineFilter/assignedProgressFilter/
+  // assignedStage, which stays private to app.js's closure on purpose (one
+  // source of truth the desktop bars and this sheet both defer to).
+  function _buildAssignedFilterSheet(bodyEl, close) {
+    var app = window.__app;
+    var current = app.getAssignedFilters();
+    bodyEl.innerHTML = "";
+    function section(labelText, options, currentVal, onPick) {
+      var sec = document.createElement("div");
+      sec.className = "mobile-filter-section";
+      var label = document.createElement("div");
+      label.className = "mobile-filter-section-label";
+      label.textContent = labelText;
+      sec.appendChild(label);
+      var list = document.createElement("div");
+      list.className = "mobile-filter-options";
+      options.forEach(function (opt) {
+        var value = opt[0], text = opt[1];
+        var row = document.createElement("button");
+        row.type = "button";
+        row.className = "mobile-filter-option" + (currentVal === value ? " active" : "");
+        row.textContent = text;
+        row.addEventListener("click", function () {
+          onPick(value);
+          // Re-render in place (not close()) -- stage/deadline/progress can
+          // all be adjusted in one visit, same as clicking multiple desktop
+          // bars in a row without the page reloading between clicks.
+          _buildAssignedFilterSheet(bodyEl, close);
+        });
+        list.appendChild(row);
+      });
+      sec.appendChild(list);
+      bodyEl.appendChild(sec);
+    }
+    section("Stage", [["", "All"], ["L0", "L0 Tenders"], ["L1", "L1 Projects"]], current.stage,
+      function (v) { app.setAssignedFilters({ stage: v }); });
+    section("Deadline Status", app.DEADLINE_FILTERS, current.deadline,
+      function (v) { app.setAssignedFilters({ deadline: v }); });
+    var progressSet = app.getCurrentRole() === "SME" ? app.SME_PROGRESS_FILTERS : app.PROGRESS_FILTERS;
+    section("Progress Status", progressSet, current.progress,
+      function (v) { app.setAssignedFilters({ progress: v }); });
+    var clearBtn = document.createElement("button");
+    clearBtn.type = "button";
+    clearBtn.className = "btn mobile-filter-clear";
+    clearBtn.textContent = "Clear All Filters";
+    clearBtn.addEventListener("click", function () {
+      app.setAssignedFilters({ deadline: "", progress: "", stage: "" });
+      _buildAssignedFilterSheet(bodyEl, close);
+    });
+    bodyEl.appendChild(clearBtn);
+  }
+  var _assignedFilterBtn = document.getElementById("assignedMobileFilterBtn");
+  if (_assignedFilterBtn) {
+    _assignedFilterBtn.addEventListener("click", function () {
+      openBottomSheet(_buildAssignedFilterSheet, { title: "Filter Deliverables" });
+    });
+  }
+
   // Exposed for later phases (mobile render branches) and for debugging.
   window.__mobile = {
     isMobileMode: isMobileMode,
     openBottomSheet: openBottomSheet,
     closeBottomSheet: closeBottomSheet,
+    renderAssignedCards: renderAssignedCards,
   };
 })();

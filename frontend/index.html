@@ -475,6 +475,18 @@
            a multi-select filter. The header row is static markup so the
            controller (and its sort/filter state) survives every re-render;
            only the body rows under it get rebuilt on each load. -->
+      <!-- Item [mobile-app] Phase 6: mobile-only filter trigger -- opens a
+           bottom sheet (mobile.js) covering the exact same stage toggle +
+           Deadline/Progress segmented options as the two elements above,
+           just presented as tappable rows instead of bars. Those two
+           elements and the table below are hidden entirely under
+           body.mobile-shell (mobile.css); this row and #assignedListMobile
+           take their place. -->
+      <div class="mobile-assigned-toolbar">
+        <button type="button" class="btn mobile-assigned-filter-btn" id="assignedMobileFilterBtn">
+          &#128269; Filter<span class="mobile-assigned-filter-count" id="assignedMobileFilterCount" hidden></span>
+        </button>
+      </div>
       <div class="card">
         <div class="aqt" id="assignedTable">
           <div class="aqt-row aqt-head" id="assignedTableHead">
@@ -489,10 +501,19 @@
           </div>
           <div id="assignedList"></div>
         </div>
+        <!-- Item [mobile-app] Phase 6: cards, built by mobile.js's
+             renderAssignedCards() -- registered as a second render target
+             _renderAssignedList() (app.js) calls alongside the desktop
+             table, off the exact same filtered/sorted/paginated item list,
+             so the two views can never show different data. -->
+        <div id="assignedListMobile" class="mobile-assigned-cards"></div>
         <!-- Item [Assigned Deliverables pager]: the full cross-project
              queue can run into the hundreds of rows -- paginated
              (renderPager, 10/page) same as every other long list in the
-             app, instead of rendering the entire filtered set at once. -->
+             app, instead of rendering the entire filtered set at once.
+             Shared by both the desktop table and mobile cards above --
+             one set of controls, one page state, per _renderAssignedList's
+             own comment (app.js). -->
         <div class="pager" id="assignedListPager"></div>
       </div>
     </section>

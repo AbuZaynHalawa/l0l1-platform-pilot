@@ -1618,6 +1618,24 @@
     if (assignedProgressFilter && d.status !== assignedProgressFilter) return false;
     return true;
   }
+  // Item [mobile-app] Phase 6: assignedDeadlineFilter/assignedProgressFilter/
+  // assignedStage are otherwise private to this closure -- mobile.js's
+  // filter sheet needs to read and change them without keeping its own
+  // separate copy of this state (which could drift from what the desktop
+  // filter bars show). setAssignedFilters has the exact same effect as
+  // clicking a filter-bar segment or the L0/L1 stage toggle chip.
+  function getAssignedFilters() {
+    return { deadline: assignedDeadlineFilter, progress: assignedProgressFilter, stage: assignedStage };
+  }
+  function setAssignedFilters(next) {
+    if (next.deadline !== undefined) assignedDeadlineFilter = next.deadline;
+    if (next.progress !== undefined) assignedProgressFilter = next.progress;
+    if (next.stage !== undefined) {
+      assignedStage = next.stage;
+      document.querySelectorAll("#assignedStageToggle .chip").forEach(function (b) { b.classList.toggle("active", b.dataset.stage === assignedStage); });
+    }
+    loadAssigned();
+  }
   // Item 121: jump to Assigned Deliverables pre-filtered, from a Dashboard
   // stat card. axis is "deadline" or "progress" -- resets the OTHER axis
   // and the L0/L1 stage toggle back to "All" since the card being clicked
@@ -1742,7 +1760,15 @@
     items = _getAssignedXh().process(items);
     var wrap = document.getElementById("assignedList");
     var pager = document.getElementById("assignedListPager");
-    renderPager(pager, items, 20, function (pageItems) { _renderAssignedPage(wrap, pageItems); });
+    // Item [mobile-app] Phase 6: one shared pager drives both renders -- the
+    // desktop table (unchanged) and, when mobile.js has registered itself,
+    // its card view -- so both always show the exact same page of the exact
+    // same filtered/sorted/deduped items, never two separately-paginated
+    // views drifting apart.
+    renderPager(pager, items, 20, function (pageItems) {
+      _renderAssignedPage(wrap, pageItems);
+      if (window.__mobile && window.__mobile.renderAssignedCards) window.__mobile.renderAssignedCards(pageItems);
+    });
   }
   function _renderAssignedPage(wrap, items) {
     wrap.innerHTML = "";
@@ -11167,5 +11193,8 @@
     loadDashboard: loadDashboard, loadAssigned: loadAssigned, loadProjectsTable: loadProjectsTable,
     getAssignedAll: function () { return _assignedAll; },
     buildAssignedActionsInto: _buildAssignedActionsInto,
+    getAssignedFilters: getAssignedFilters, setAssignedFilters: setAssignedFilters,
+    DEADLINE_FILTERS: DEADLINE_FILTERS, PROGRESS_FILTERS: PROGRESS_FILTERS, SME_PROGRESS_FILTERS: SME_PROGRESS_FILTERS,
+    statusPillsHtml: statusPillsHtml, dueDateHtml: dueDateHtml, isAssigned: isAssigned,
   };
 })();

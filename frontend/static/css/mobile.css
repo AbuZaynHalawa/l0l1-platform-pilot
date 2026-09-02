@@ -202,3 +202,88 @@ body.mobile-shell .ai-chat-panel-head::before {
   content: ""; position: absolute; top: 6px; left: 50%; transform: translateX(-50%);
   width: 40px; height: 4px; border-radius: 4px; background: var(--line);
 }
+
+/* Pager touch targets -- styles.css's own .pager-btn (26x26px, styles.css:692)
+   is well under the 44px minimum; bumped up only under mobile-shell so the
+   desktop-density pager everywhere else is untouched. Shared by both the
+   desktop table and the mobile cards below (one #assignedListPager,
+   app.js's own comment on _renderAssignedList explains why). */
+body.mobile-shell .pager-btn { width: 44px; height: 44px; font-size: 16px; }
+
+/* ------------------------------------------------------------------ *
+ * Item [mobile-app] Phase 6: Assigned Deliverables cards + filter sheet.
+ * ------------------------------------------------------------------ */
+/* The desktop stage toggle, the two segmented filter-bar cards, and the
+   table itself all give way to the mobile-only toolbar + cards below. */
+body.mobile-shell #assignedStageToggle,
+body.mobile-shell .assigned-bar-card,
+body.mobile-shell #assignedTable { display: none; }
+
+.mobile-assigned-toolbar { display: none; }
+body.mobile-shell .mobile-assigned-toolbar { display: flex; margin-bottom: 12px; }
+body.mobile-shell .mobile-assigned-filter-btn {
+  display: flex; align-items: center; gap: 8px; min-height: 44px;
+  position: relative;
+}
+/* [hidden]-aware on purpose -- an inline/class display rule always beats
+   the native [hidden]{display:none} UA rule regardless of specificity, a
+   bug this app has already hit once before (see landing.css's own
+   #hvSignin[hidden] comment) -- toggling badge.hidden from JS would
+   otherwise do nothing visually. */
+body.mobile-shell .mobile-assigned-filter-count:not([hidden]) {
+  background: var(--algihaz-red); color: #fff; font-size: 10.5px; font-weight: 800;
+  min-width: 17px; height: 17px; border-radius: 20px; padding: 0 5px;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.mobile-assigned-cards { display: none; }
+body.mobile-shell .mobile-assigned-cards { display: flex; flex-direction: column; gap: 10px; }
+body.mobile-shell .ma-card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-1); padding: 12px 14px; cursor: pointer;
+}
+body.mobile-shell .ma-card-top { display: flex; align-items: center; gap: 8px; }
+body.mobile-shell .ma-est {
+  flex: 0 0 auto; font-family: var(--font); font-weight: 800; font-size: 12px;
+  padding: 2px 8px; border-radius: 20px; background: var(--surface-sunken);
+}
+body.mobile-shell .ma-est.l0 { color: var(--l0-1); }
+body.mobile-shell .ma-est.l1 { color: var(--l1-1); }
+body.mobile-shell .ma-card-title {
+  flex: 1; min-width: 0; font-family: var(--font); font-weight: 700; font-size: 13.5px; color: var(--ink-900);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+body.mobile-shell .ma-card-actions-btn {
+  flex: 0 0 auto; min-width: 32px; min-height: 32px; display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; border: 0; background: var(--surface-sunken); color: var(--ink-700);
+  font-size: 16px; cursor: pointer;
+}
+body.mobile-shell .ma-card-meta { margin-top: 6px; font-size: 12px; color: var(--ink-500); }
+body.mobile-shell .ma-card-pills { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+body.mobile-shell .ma-card-due { margin-top: 8px; font-size: 12px; color: var(--ink-700); }
+
+/* Filter sheet content (mobile.js's _buildAssignedFilterSheet). */
+body.mobile-shell .mobile-filter-section { margin-bottom: 18px; }
+body.mobile-shell .mobile-filter-section-label {
+  font-family: var(--font); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink-500); margin-bottom: 8px;
+}
+body.mobile-shell .mobile-filter-options { display: flex; flex-wrap: wrap; gap: 8px; }
+body.mobile-shell .mobile-filter-option {
+  min-height: 40px; padding: 0 14px; border-radius: 20px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--ink-700);
+  font-family: var(--font); font-size: 13px; font-weight: 600; cursor: pointer;
+}
+body.mobile-shell .mobile-filter-option.active {
+  background: var(--algihaz-red); border-color: var(--algihaz-red); color: #fff;
+}
+body.mobile-shell .mobile-filter-clear {
+  width: 100%; min-height: 44px; margin-top: 4px;
+}
+
+/* Row-actions sheet content (mobile.js's _openAssignedActionsSheet) --
+   app.js's buildAssignedActionsInto() builds plain <button class="btn">
+   elements meant for an inline row; stacked full-width here instead. */
+body.mobile-shell .mobile-actions-list { display: flex; flex-direction: column; gap: 10px; }
+body.mobile-shell .mobile-actions-list .btn { width: 100%; min-height: 44px; }
+body.mobile-shell .mobile-actions-list .aqt-locked { text-align: center; color: var(--ink-500); font-size: 13px; padding: 8px 0; }
