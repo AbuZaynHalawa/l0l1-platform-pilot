@@ -1,6 +1,14 @@
 databases:
   - name: l0l1-db
-    plan: free
+    # Upgraded 2026-09-02 (Yasser, directly on Render's dashboard) off the
+    # free tier ahead of its 90-day suspension -- the $6/mo tier (0.1 CPU /
+    # 256 MB RAM, Render's own listing labeled it "0.1c-256mb"). Plan slug
+    # below is inferred from that label, not confirmed against Render's
+    # schema -- this file is documentation only at this point (Render
+    # doesn't retroactively resize an existing database from a Blueprint
+    # sync), so double-check it matches the dashboard before relying on it
+    # for anything that actually re-syncs from this file.
+    plan: basic-256mb
     databaseName: l0l1
     user: l0l1
 
