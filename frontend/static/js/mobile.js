@@ -62,6 +62,23 @@
   // downstream ever has to guess whether the class is set yet.
   _applyModeClass();
 
+  // Item [mobile-app] Phase 2: PWA baseline. Registered unconditionally
+  // (not just under body.mobile-shell) -- a desktop Chrome/Edge user can
+  // install the app too, and the SW itself is a pure app-shell cache, inert
+  // for API calls either way (see sw.js's own header comment). Root scope
+  // ("/", matching Service-Worker-Allowed on the backend route) so it can
+  // control the whole app, not just /static/. Deliberately no top-level
+  // error UI on failure -- this is a progressive enhancement, not a
+  // requirement, and plenty of dev/incognito contexts legitimately have no
+  // SW support or block registration.
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function (err) {
+        console.warn("l0l1: service worker registration failed", err);
+      });
+    });
+  }
+
   // Exposed for later phases (bottom nav, mobile render branches) and for
   // debugging -- kept minimal on purpose for this first phase.
   window.__mobile = {

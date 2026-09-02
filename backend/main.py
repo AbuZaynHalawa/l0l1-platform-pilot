@@ -74,7 +74,10 @@ def index():
     # version bump, do it by changing the filename, not a query string.
     # Item [mobile-app]: mobile.css/mobile.js stamped the same way -- plain
     # additive files, no import-map identity concerns like the vendored
-    # three.js files have.
+    # three.js files have. manifest.json included too (Phase 2) -- same
+    # stale-in-memory-tab concern doesn't really apply to it (browsers fetch
+    # it lazily, not on every page load), but it's one more file whose icon
+    # set could change later, and stamping it costs nothing.
     version = str(int(max(
         (FRONTEND_DIR / "static" / "app.js").stat().st_mtime,
         (FRONTEND_DIR / "static" / "styles.css").stat().st_mtime,
@@ -82,6 +85,7 @@ def index():
         (FRONTEND_DIR / "static" / "js" / "landing.js").stat().st_mtime,
         (FRONTEND_DIR / "static" / "css" / "mobile.css").stat().st_mtime,
         (FRONTEND_DIR / "static" / "js" / "mobile.js").stat().st_mtime,
+        (FRONTEND_DIR / "static" / "manifest.json").stat().st_mtime,
     )))
     html = html.replace('/static/app.js"', f'/static/app.js?v={version}"')
     html = html.replace('/static/styles.css"', f'/static/styles.css?v={version}"')
@@ -89,7 +93,28 @@ def index():
     html = html.replace('/static/js/landing.js"', f'/static/js/landing.js?v={version}"')
     html = html.replace('/static/css/mobile.css"', f'/static/css/mobile.css?v={version}"')
     html = html.replace('/static/js/mobile.js"', f'/static/js/mobile.js?v={version}"')
+    html = html.replace('/static/manifest.json"', f'/static/manifest.json?v={version}"')
     return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/sw.js")
+def service_worker():
+    # Item [mobile-app] Phase 2: served at root scope deliberately, NOT
+    # under /static/ -- a service worker's scope can never be broader than
+    # the path it's served from, and this one needs to control the whole
+    # origin (including the '/' navigation itself), not just /static/.
+    # No cache-busting query string on this route's own registration URL
+    # (mobile.js registers plain "/sw.js") -- that's what lets the browser's
+    # normal byte-diff update check work; a changing URL would instead
+    # register a brand-new SW on every single deploy. media_type is set
+    # explicitly rather than left to FileResponse's guess, since this
+    # route (unlike /static/*) isn't a StaticFiles mount.
+    sw_path = FRONTEND_DIR / "sw.js"
+    return FileResponse(
+        sw_path,
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-cache", "Service-Worker-Allowed": "/"},
+    )
 
 
 @app.get("/health")

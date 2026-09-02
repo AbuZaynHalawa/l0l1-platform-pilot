@@ -2,8 +2,22 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Project Readiness (L0/L1) Platform — Pilot</title>
+<!-- Item [mobile-app] Phase 2: PWA baseline. viewport-fit=cover (above) lets
+     mobile.css use env(safe-area-inset-*) for the bottom nav / GAHIZ sheet
+     on notched/home-indicator devices. manifest.json + icons generated once
+     via a Pillow script from the existing gahiz-badge.png art (never at
+     request time) -- see frontend/static/img/icons/. theme-color matches
+     --algihaz-red (styles.css:22) so the OS chrome/splash matches the app. -->
+<link rel="manifest" href="/static/manifest.json" />
+<meta name="theme-color" content="#d71920" />
+<link rel="icon" href="/static/img/icons/icon-192.png" type="image/png" />
+<link rel="apple-touch-icon" href="/static/img/icons/apple-touch-icon-180.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="L0/L1 Platform" />
+<meta name="mobile-web-app-capable" content="yes" />
 <!-- [Red Dark Design] Inter, per the reskin spec's typography section. -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
