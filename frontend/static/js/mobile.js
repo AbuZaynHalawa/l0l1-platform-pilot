@@ -871,4 +871,137 @@
     renderProjectCards: renderProjectCards,
     renderMobileDashboard: renderMobileDashboard,
   };
+
+  // ---------------------------------------------------------------------
+  // Item [mobile-app] Phase 9: Project/Tender detail two-level drill-down.
+  // ---------------------------------------------------------------------
+  // Real bug, not just a mobile add-on: the Departments/Deliverables split
+  // (index.html's own comment on #dDeliverablesPane) has only ever been a
+  // plain vertical stack at any width narrower than 980px, so reaching the
+  // deliverables list meant scrolling past the entire department list
+  // first, every time. #dFolders/#dDeliverables and everything that
+  // already populates them -- openDetail(), makeFolderRow(),
+  // renderDeliverables(), all in app.js -- are completely untouched here;
+  // this only ever *reacts* to them and, on a mobile department-card tap,
+  // clicks the real desktop .folder-row for that department so the exact
+  // same click handler populates #dDeliverables -- never a second copy of
+  // that logic, and every existing action (upload, mark-complete, review,
+  // file link) inside the resulting list keeps working exactly as-is.
+  var _detailPane = document.getElementById("dDeliverablesPane");
+  var _detailDeptHost = document.getElementById("mobileDetailDeptCards");
+  var _detailBackBtn = document.getElementById("mobileDetailBackBtn");
+
+  function _setDetailDrillLevel(level) {
+    if (_detailPane) _detailPane.dataset.drillLevel = level;
+  }
+  if (_detailBackBtn) {
+    _detailBackBtn.addEventListener("click", function () { _setDetailDrillLevel("departments"); });
+  }
+
+  // Clicks the real desktop .folder-row for this department (or the
+  // tender-documents row, always the first one, when deptName is null) --
+  // iterated in JS rather than a CSS attribute selector, since a
+  // department name can contain characters (parens, quotes) that would
+  // need escaping there.
+  function _openDetailFolder(deptName) {
+    var rows = document.querySelectorAll("#dFolders .folder-row");
+    var target = deptName === null ? rows[0] : null;
+    if (deptName !== null) {
+      rows.forEach(function (r) { if (r.dataset.dept === deptName) target = r; });
+    }
+    if (target) target.click();
+    _setDetailDrillLevel("deliverables");
+  }
+  async function _buildDetailDeptCards(projectId) {
+    var app = window.__app;
+    var host = _detailDeptHost;
+    if (!host) return;
+    var delivs, tenderDocs, depts;
+    try {
+      var results = await Promise.all([
+        app.api("/api/projects/" + projectId + "/deliverables"),
+        app.api("/api/projects/" + projectId + "/tender-documents"),
+        app.api("/api/departments"),
+      ]);
+      delivs = results[0]; tenderDocs = results[1]; depts = results[2];
+    } catch (e) {
+      host.innerHTML = "";
+      return;
+    }
+    // A slow request racing a fast tap to a different project -- never
+    // paint stale department cards over whatever's actually open now.
+    if (_currentDetailProjectId() !== projectId) return;
+
+    var deptNumberOf = {};
+    depts.forEach(function (d) { deptNumberOf[d.name] = d.number; });
+    host.innerHTML = "";
+
+    var tdCard = document.createElement("button");
+    tdCard.type = "button";
+    tdCard.className = "mdd-card";
+    var tdName = document.createElement("div");
+    tdName.className = "mdd-name";
+    tdName.textContent = "0. Tender Documents";
+    var tdCount = document.createElement("div");
+    tdCount.className = "mdd-count";
+    tdCount.textContent = tenderDocs.length + (tenderDocs.length === 1 ? " file" : " files");
+    tdCard.appendChild(tdName); tdCard.appendChild(tdCount);
+    tdCard.addEventListener("click", function () { _openDetailFolder(null); });
+    host.appendChild(tdCard);
+
+    var byDept = {}, deptOrder = [];
+    delivs.forEach(function (d) {
+      if (!byDept[d.department]) { byDept[d.department] = []; deptOrder.push(d.department); }
+      byDept[d.department].push(d);
+    });
+    deptOrder.forEach(function (deptName) {
+      var items = byDept[deptName];
+      var overdue = items.filter(function (d) { return d.deadline_status === "due"; }).length;
+      var card = document.createElement("button");
+      card.type = "button";
+      card.className = "mdd-card";
+      var name = document.createElement("div");
+      name.className = "mdd-name";
+      name.textContent = app.deptLabel(deptName, deptNumberOf[deptName]);
+      var meta = document.createElement("div");
+      meta.className = "mdd-count";
+      meta.textContent = items.length + (items.length === 1 ? " item" : " items");
+      if (overdue > 0) {
+        var badge = document.createElement("span");
+        badge.className = "mdd-overdue-badge";
+        badge.textContent = overdue + (overdue === 1 ? " due" : " due");
+        meta.appendChild(badge);
+      }
+      card.appendChild(name); card.appendChild(meta);
+      card.addEventListener("click", function () { _openDetailFolder(deptName); });
+      host.appendChild(card);
+    });
+  }
+  function _currentDetailProjectId() {
+    var m = /project=(\d+)/.exec(location.hash);
+    return m ? Number(m[1]) : null;
+  }
+  // openDetail() (app.js) sets location.hash = "project=" + id as the very
+  // last thing it does (item 99), with no await between that and every
+  // step before it -- so by the time hashchange fires (a real DOM event,
+  // reliably after that whole synchronous stretch), the hash is always
+  // the freshly-opened project's id, unlike trying to catch this off an
+  // earlier DOM mutation mid-render. Handles every entry point into detail
+  // view uniformly (an L0/L1 card tap, a dashboard milestone tap, a
+  // desktop-style row click, a deep link) without needing to intercept
+  // each one individually.
+  window.addEventListener("hashchange", function () {
+    var pid = _currentDetailProjectId();
+    if (pid == null) return;
+    _setDetailDrillLevel("departments");
+    _buildDetailDeptCards(pid);
+  });
+  // Covers landing directly on a #project=X URL (refresh/deep link) --
+  // openDetail()'s own hash assignment there is a same-value no-op (the
+  // hash already reads that on load), so no hashchange event fires for
+  // this specific path.
+  (function () {
+    var pid = _currentDetailProjectId();
+    if (pid != null) _buildDetailDeptCards(pid);
+  })();
 })();

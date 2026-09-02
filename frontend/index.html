@@ -1268,12 +1268,35 @@
         <div class="fs-row" id="dStepper"></div>
       </div>
 
-      <div class="split detail-split" id="dDeliverablesPane">
-        <div class="card">
+      <!-- Item [mobile-app] Phase 9: two-level drill-down. Real bug fixed
+           here, not just a mobile add-on -- at any width this used to be
+           a plain vertical stack (styles.css:1032's own <=980px rule just
+           drops the 2-column grid to 1 column, it was never actually
+           side-by-side on a phone), so reaching the deliverables list
+           meant scrolling past the ENTIRE department list first, every
+           time. mobile.js toggles data-drill-level on this container
+           between "departments" and "deliverables" (mobile.css shows
+           exactly one data-panel at a time under body.mobile-shell);
+           #dFolders/#dDeliverables and everything that already populates
+           them (openDetail(), makeFolderRow(), renderDeliverables() --
+           all in app.js) are completely untouched -- mobile.js only ever
+           *reacts* to them (a MutationObserver on #dFolderCount, set once
+           per openDetail() render) and, on a mobile department-card tap,
+           clicks the real desktop .folder-row for that department so the
+           exact same click handler populates #dDeliverables. -->
+      <div class="split detail-split" id="dDeliverablesPane" data-drill-level="departments">
+        <div class="card" data-panel="departments">
           <div class="section-title">Departments <span class="cnt" id="dFolderCount"></span></div>
+          <!-- Item [mobile-app] Phase 9: mobile-only department cards --
+               name, item count, own overdue indicator -- built by
+               mobile.js from the same /api/projects/{id}/deliverables +
+               /api/departments data openDetail() itself reads, never a
+               second copy of the desktop's own #dFolders rows. -->
+          <div class="mobile-detail-dept-cards" id="mobileDetailDeptCards"></div>
           <div class="folder-list" id="dFolders"></div>
         </div>
-        <div class="card">
+        <div class="card" data-panel="deliverables">
+          <button type="button" class="mobile-detail-back-btn" id="mobileDetailBackBtn">&#8592; Departments</button>
           <div class="section-title"><span id="dDeliverTitle">Deliverables</span> <span class="cnt" id="dDeliverCount"></span></div>
           <div class="deliv-list" id="dDeliverables"></div>
         </div>

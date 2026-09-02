@@ -422,3 +422,44 @@ body.mobile-shell .dash-kpi-row {
   padding-bottom: 2px; -webkit-overflow-scrolling: touch;
 }
 body.mobile-shell .dash-kpi-card { flex: 0 0 220px; scroll-snap-align: start; }
+
+/* ------------------------------------------------------------------ *
+ * Item [mobile-app] Phase 9: Project/Tender detail two-level drill-down.
+ * ------------------------------------------------------------------ */
+/* #dFolders' own rows stay in the DOM (mobile.js still .click()s them --
+   that works regardless of display) but are visually replaced by the
+   .mdd-card list below; #dDeliverables is untouched, still populated by
+   the exact same renderDeliverables() call that click triggers. Which of
+   the two .card panels shows is driven entirely by data-drill-level on
+   the shared #dDeliverablesPane (mobile.js), toggled between the two
+   values below. */
+body.mobile-shell #dFolders { display: none; }
+body.mobile-shell #dDeliverablesPane[data-drill-level="departments"] [data-panel="deliverables"] { display: none; }
+body.mobile-shell #dDeliverablesPane[data-drill-level="deliverables"] [data-panel="departments"] { display: none; }
+
+.mobile-detail-dept-cards { display: none; }
+body.mobile-shell .mobile-detail-dept-cards { display: flex; flex-direction: column; gap: 10px; }
+body.mobile-shell .mdd-card {
+  display: block; width: 100%; box-sizing: border-box; text-align: left;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-1); padding: 12px 14px; cursor: pointer;
+  font-family: var(--font);
+}
+body.mobile-shell .mdd-name { font-weight: 700; font-size: 13.5px; color: var(--ink-900); }
+body.mobile-shell .mdd-count { margin-top: 4px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-500); }
+body.mobile-shell .mdd-overdue-badge {
+  background: var(--crit); color: #fff; font-size: 10px; font-weight: 800; padding: 1px 7px; border-radius: 20px;
+}
+
+.mobile-detail-back-btn { display: none; }
+body.mobile-shell #dDeliverablesPane[data-drill-level="deliverables"] .mobile-detail-back-btn {
+  display: flex; align-items: center; gap: 6px; min-height: 44px; margin: 0 0 8px;
+  border: 0; background: none; padding: 0; color: var(--algihaz-red);
+  font-family: var(--font); font-weight: 700; font-size: 14px; cursor: pointer;
+}
+
+/* Touch-target bump on the desktop's own deliverable rows -- reused
+   as-is, every existing action (upload/mark-complete/review/file link)
+   keeps working exactly as before, just sized for a thumb. */
+body.mobile-shell .deliv-row { padding: 14px 4px; }
+body.mobile-shell .deliv-actions .btn { min-height: 44px; }
