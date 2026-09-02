@@ -327,6 +327,18 @@
         </div>
       </div>
 
+      <!-- Item [mobile-app] Phase 8: mobile-only dashboard summary --
+           attention strip, L0/L1 readiness, recent activity -- built
+           entirely by mobile.js's renderMobileDashboard() off the exact
+           same /api/dashboard response the desktop sections below already
+           use. Every existing section keeps rendering normally underneath
+           (nothing here replaces them, no data is fetched twice) --
+           mobile.css just reorders the direct children of this view under
+           body.mobile-shell so this new block reads first and Top
+           Achievers/the KPI row move below the fold, per the desktop
+           layout otherwise staying byte-for-byte the same. -->
+      <div id="mobileDashboardSummary" class="mobile-dash-summary"></div>
+
       <!-- Item [dashboard stage split]: headline numbers first, then the
            pooled Deadline/Progress status row, then two parallel columns --
            everything L0-specific stacks under the L0 card, everything

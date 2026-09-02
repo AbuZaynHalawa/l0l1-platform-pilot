@@ -326,3 +326,99 @@ body.mobile-shell .mp-readiness-track {
    the "N items due" signal, so the bar itself doesn't also need to flip
    red and double up on that same warning. */
 body.mobile-shell .mp-readiness-fill { height: 100%; border-radius: 4px; background: var(--good); }
+
+/* ------------------------------------------------------------------ *
+ * Item [mobile-app] Phase 8: mobile dashboard summary.
+ * ------------------------------------------------------------------ */
+/* #view-dashboard's direct children reflow via flex order instead of
+   being torn down and rebuilt -- every existing section (KPI row, stage
+   columns, achievers, matrix) keeps its own id/rendering logic completely
+   untouched; this just changes where each one sits vertically. Default
+   order is 0, so #mobileDashboardSummary (order 1) reads first after the
+   title/focus toggle, dash-stage-split (Concerns lives inside it) stays
+   prominent at 2, the fuller stat-row breakdown at 3, and the KPI row +
+   Top Achievers move below the fold at 4/5 -- the matrix (wide, its own
+   horizontal scroll already, not given a bespoke mobile treatment this
+   phase) stays last. Flex, not grid -- these are a plain top-to-bottom
+   stack with no need for row/column placement, and flex is what lets
+   `order` reflow bare block children with zero markup change. */
+body.mobile-shell #view-dashboard { display: flex; flex-direction: column; }
+body.mobile-shell .mobile-dash-summary { order: 1; }
+body.mobile-shell .dash-stage-split { order: 2; }
+body.mobile-shell .stat-row { order: 3; }
+body.mobile-shell .dash-kpi-row { order: 4; }
+body.mobile-shell .achievers-row { order: 5; }
+body.mobile-shell .matrix-card { order: 6; }
+
+.mobile-dash-summary { display: none; }
+body.mobile-shell .mobile-dash-summary { display: flex; flex-direction: column; gap: 14px; margin-bottom: 18px; }
+
+/* Attention strip -- horizontal scroll-snap, the "swipeable" cards. */
+body.mobile-shell .mds-attention {
+  display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory;
+  padding-bottom: 2px; -webkit-overflow-scrolling: touch;
+}
+body.mobile-shell .mds-attn-card {
+  flex: 0 0 auto; scroll-snap-align: start;
+  width: 140px; min-height: 88px; box-sizing: border-box;
+  border: 0; border-radius: var(--radius-sm); padding: 14px;
+  display: flex; flex-direction: column; justify-content: center; gap: 4px;
+  color: #fff; text-align: left; cursor: pointer;
+}
+body.mobile-shell .mds-attn-card.crit { background: linear-gradient(135deg, var(--crit) 0%, color-mix(in srgb, var(--crit) 75%, black) 100%); }
+body.mobile-shell .mds-attn-card.warn { background: linear-gradient(135deg, var(--warn) 0%, color-mix(in srgb, var(--warn) 75%, black) 100%); }
+body.mobile-shell .mds-attn-count { font-family: var(--font); font-weight: 800; font-size: 26px; line-height: 1; }
+body.mobile-shell .mds-attn-label { font-size: 11.5px; font-weight: 600; opacity: 0.92; }
+
+/* L0/L1 aggregate readiness. */
+body.mobile-shell .mds-readiness-row { display: flex; gap: 10px; }
+body.mobile-shell .mds-readiness-card {
+  flex: 1 1 0; min-width: 0; box-sizing: border-box;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-1); padding: 12px 14px; cursor: pointer;
+}
+body.mobile-shell .mds-readiness-head { display: flex; align-items: baseline; justify-content: space-between; }
+body.mobile-shell .mds-readiness-stage { font-family: var(--font); font-weight: 800; font-size: 12px; letter-spacing: 0.04em; }
+body.mobile-shell .mds-readiness-card.l0 .mds-readiness-stage { color: var(--l0-1); }
+body.mobile-shell .mds-readiness-card.l1 .mds-readiness-stage { color: var(--l1-1); }
+body.mobile-shell .mds-readiness-pct { font-family: var(--font); font-weight: 800; font-size: 18px; color: var(--ink-900); }
+body.mobile-shell .mds-readiness-track {
+  margin-top: 8px; height: 6px; border-radius: 4px; background: var(--surface-sunken); overflow: hidden;
+}
+body.mobile-shell .mds-readiness-card.l0 .mds-readiness-fill { background: var(--l0-1); }
+body.mobile-shell .mds-readiness-card.l1 .mds-readiness-fill { background: var(--l1-1); }
+body.mobile-shell .mds-readiness-fill { height: 100%; border-radius: 4px; }
+body.mobile-shell .mds-readiness-sub { margin-top: 6px; font-size: 10.5px; color: var(--ink-500); }
+
+/* Recent activity. */
+body.mobile-shell .mds-recent-card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-1); padding: 14px;
+}
+body.mobile-shell .mds-recent-title {
+  font-family: var(--font); font-weight: 800; font-size: 13px; color: var(--ink-900); margin-bottom: 10px;
+}
+body.mobile-shell .mds-recent-row {
+  display: flex; align-items: center; gap: 10px; padding: 8px 0; cursor: pointer;
+  border-top: 1px solid var(--line);
+}
+body.mobile-shell .mds-recent-row:first-of-type { border-top: 0; padding-top: 0; }
+body.mobile-shell .mds-recent-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+body.mobile-shell .mds-recent-name {
+  font-size: 12.5px; font-weight: 600; color: var(--ink-900);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+body.mobile-shell .mds-recent-meta {
+  font-size: 11px; color: var(--ink-500);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+body.mobile-shell .mds-recent-date { flex: 0 0 auto; font-size: 11px; color: var(--ink-500); }
+
+/* Swipeable KPI row -- desktop's own grid (styles.css:495, already
+   responsive down to 1-column at <=480px) gives way to a horizontal
+   scroll-snap row instead of ever stacking tiles vertically. */
+body.mobile-shell .dash-kpi-row {
+  display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
+  padding-bottom: 2px; -webkit-overflow-scrolling: touch;
+}
+body.mobile-shell .dash-kpi-card { flex: 0 0 220px; scroll-snap-align: start; }

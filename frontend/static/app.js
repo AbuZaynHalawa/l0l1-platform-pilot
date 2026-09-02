@@ -1343,6 +1343,12 @@
     await announcementsPromise;
     await matrixPromise;
     applyDashLayout();  // [Request 12]: hide-state on every static card + initial achievers/matrix positioning
+    // Item [mobile-app] Phase 8: mobile.js's own summary block, built off
+    // this exact same /api/dashboard response -- no new endpoint, no
+    // second fetch. Awaited achieversPromise passed too, since the
+    // existing desktop achievers cards above already resolved it and it's
+    // cheap to hand along rather than have mobile.js re-request it.
+    if (window.__mobile && window.__mobile.renderMobileDashboard) window.__mobile.renderMobileDashboard(d, achievers);
   }
 
   /* ================= DELIVERABLES MATRIX ================= */

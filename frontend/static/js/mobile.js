@@ -575,7 +575,28 @@
   // re-invokes this on every render, not just on first navigation in.
   var _matrixByStage = {};
   var _matrixFetchInFlight = {};
+  var _matrixWaiters = { L0: [], L1: [] };
   var _lastProjectListByStage = {};
+  // Shared by renderProjectCards below AND Phase 8's dashboard summary --
+  // both need the same per-stage matrix data, and this makes sure two
+  // simultaneous callers (e.g. landing on the Dashboard, which now wants
+  // both L0 and L1 readiness at once) never fire a duplicate request for
+  // the same stage; a second caller just joins the same in-flight fetch's
+  // waiter list instead.
+  function _ensureMatrix(stage, onReady) {
+    if (_matrixByStage[stage]) { onReady(_matrixByStage[stage]); return; }
+    _matrixWaiters[stage].push(onReady);
+    if (_matrixFetchInFlight[stage]) return;
+    _matrixFetchInFlight[stage] = true;
+    window.__app.api("/api/dashboard/matrix?stage=" + stage)
+      .then(function (data) { _matrixByStage[stage] = data; })
+      .catch(function () { _matrixByStage[stage] = { rows: [], projects: [] }; }) // fail closed -- callers render without readiness rather than retrying forever
+      .then(function () {
+        _matrixFetchInFlight[stage] = false;
+        var waiters = _matrixWaiters[stage]; _matrixWaiters[stage] = [];
+        waiters.forEach(function (fn) { fn(_matrixByStage[stage]); });
+      });
+  }
   function _projectReadiness(matrix, projectId) {
     if (!matrix) return null;
     var completed = 0, total = 0, due = 0;
@@ -674,17 +695,171 @@
   }
   function renderProjectCards(stage, list) {
     _lastProjectListByStage[stage] = list;
-    if (!_matrixByStage[stage] && !_matrixFetchInFlight[stage]) {
-      _matrixFetchInFlight[stage] = true;
-      window.__app.api("/api/dashboard/matrix?stage=" + stage)
-        .then(function (data) { _matrixByStage[stage] = data; })
-        .catch(function () { _matrixByStage[stage] = { rows: [], projects: [] }; }) // fail closed -- cards render without readiness rather than retrying forever
-        .then(function () {
-          _matrixFetchInFlight[stage] = false;
-          _paintProjectCards(stage, _lastProjectListByStage[stage]);
-        });
+    _paintProjectCards(stage, list); // paint immediately with whatever's cached (possibly none yet)
+    _ensureMatrix(stage, function () { _paintProjectCards(stage, _lastProjectListByStage[stage]); });
+  }
+
+  // ---------------------------------------------------------------------
+  // Item [mobile-app] Phase 8: mobile dashboard summary.
+  // ---------------------------------------------------------------------
+  // renderMobileDashboard(d, achievers) is called by app.js's own
+  // loadDashboard() (app.js), at the very end, with the exact same
+  // /api/dashboard response (and the already-resolved top-achievers
+  // fetch) every existing desktop dashboard section already rendered from
+  // -- no new endpoint, no second fetch for anything already on the wire.
+  // Everything below is genuinely new content (an attention strip,
+  // aggregate L0/L1 readiness, a merged recent-activity feed); the
+  // existing desktop sections keep rendering exactly as before beneath
+  // it, just visually reordered under body.mobile-shell via mobile.css
+  // (see #view-dashboard's own comment there) rather than torn down and
+  // rebuilt -- Top Achievers and the KPI row move below the fold that way
+  // without a single byte of their own rendering logic changing.
+  function _mobileAttentionCard(label, count, cls, onTap) {
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "mds-attn-card " + cls;
+    var countEl = document.createElement("div");
+    countEl.className = "mds-attn-count";
+    countEl.textContent = String(count);
+    var labelEl = document.createElement("div");
+    labelEl.className = "mds-attn-label";
+    labelEl.textContent = label;
+    btn.appendChild(countEl); btn.appendChild(labelEl);
+    btn.addEventListener("click", onTap);
+    return btn;
+  }
+  // Aggregate (portfolio-wide, not per-project) readiness -- every cell
+  // across every active project in this stage's matrix, not just one
+  // project's row like _projectReadiness above computes for an L0/L1 card.
+  function _aggregateReadiness(matrix) {
+    var completed = 0, total = 0;
+    (matrix ? matrix.rows : []).forEach(function (row) {
+      Object.keys(row.cells).forEach(function (pid) {
+        total++;
+        if (row.cells[pid].bucket === "completed") completed++;
+      });
+    });
+    return { pct: total ? Math.round((completed / total) * 100) : 0, completed: completed, total: total };
+  }
+  function _mobileReadinessCard(stage, matrix) {
+    var card = document.createElement("div");
+    card.className = "mds-readiness-card " + stage.toLowerCase();
+    card.addEventListener("click", function () { window.__app.switchView(stage.toLowerCase()); });
+    var r = _aggregateReadiness(matrix);
+    var head = document.createElement("div");
+    head.className = "mds-readiness-head";
+    var stageEl = document.createElement("span");
+    stageEl.className = "mds-readiness-stage";
+    stageEl.textContent = stage;
+    var pctEl = document.createElement("span");
+    pctEl.className = "mds-readiness-pct";
+    pctEl.textContent = r.pct + "%";
+    head.appendChild(stageEl); head.appendChild(pctEl);
+    var track = document.createElement("div");
+    track.className = "mds-readiness-track";
+    var fill = document.createElement("div");
+    fill.className = "mds-readiness-fill";
+    fill.style.width = r.pct + "%";
+    track.appendChild(fill);
+    var sub = document.createElement("div");
+    sub.className = "mds-readiness-sub";
+    sub.textContent = matrix ? (r.completed + " of " + r.total + " deliverables complete") : "Loading…";
+    card.appendChild(head); card.appendChild(track); card.appendChild(sub);
+    return card;
+  }
+  function renderMobileDashboard(d, achievers) {
+    var host = document.getElementById("mobileDashboardSummary");
+    if (!host) return;
+    var app = window.__app;
+    host.innerHTML = "";
+
+    // Attention strip -- 3 real, distinct deadline/progress buckets
+    // already on the wire (never an invented "due soon" tier this schema
+    // doesn't have), pooled across both stages. Tapping a card jumps to
+    // Assigned Deliverables pre-filtered on that exact axis, through the
+    // same getAssignedFilters/setAssignedFilters seam Phase 6's filter
+    // sheet already uses -- not a separate navigation path.
+    var strip = document.createElement("div");
+    strip.className = "mds-attention";
+    strip.appendChild(_mobileAttentionCard("Due", (d.overdue_l0 || 0) + (d.overdue_l1 || 0), "crit", function () {
+      app.setAssignedFilters({ deadline: "due", progress: "", stage: "" });
+      app.switchView("assigned");
+    }));
+    strip.appendChild(_mobileAttentionCard("Pending Your Review", (d.pending_review_l0 || 0) + (d.pending_review_l1 || 0), "warn", function () {
+      app.setAssignedFilters({ deadline: "", progress: "pending_review", stage: "" });
+      app.switchView("assigned");
+    }));
+    strip.appendChild(_mobileAttentionCard("Late", (d.late_l0 || 0) + (d.late_l1 || 0), "crit", function () {
+      app.setAssignedFilters({ deadline: "late", progress: "", stage: "" });
+      app.switchView("assigned");
+    }));
+    host.appendChild(strip);
+
+    // L0/L1 aggregate readiness -- reuses the exact same per-stage matrix
+    // cache/fetch _ensureMatrix() already serves to renderProjectCards
+    // (Phase 7), so a Dashboard visit followed by an L0 or L1 visit never
+    // re-fetches. Cards render immediately with a "Loading…" sub-line if
+    // the matrix isn't cached yet, then replace themselves in place once
+    // it lands.
+    var readinessRow = document.createElement("div");
+    readinessRow.className = "mds-readiness-row";
+    host.appendChild(readinessRow);
+    ["L0", "L1"].forEach(function (stage) {
+      readinessRow.appendChild(_mobileReadinessCard(stage, _matrixByStage[stage]));
+      _ensureMatrix(stage, function (matrix) {
+        var fresh = _mobileReadinessCard(stage, matrix);
+        var existing = readinessRow.querySelector(".mds-readiness-card." + stage.toLowerCase());
+        if (existing) existing.replaceWith(fresh); else readinessRow.appendChild(fresh);
+      });
+    });
+
+    // Recent activity -- L0 + L1 recent_milestones merged and re-sorted by
+    // date, newest first, same fields renderStageMilestones() (app.js)
+    // already renders separately per stage -- just combined into one feed
+    // and capped to 5 instead of two full per-stage lists.
+    var recentCard = document.createElement("div");
+    recentCard.className = "mds-recent-card";
+    var recentTitle = document.createElement("div");
+    recentTitle.className = "mds-recent-title";
+    recentTitle.textContent = "Recent Activity";
+    recentCard.appendChild(recentTitle);
+    var merged = (d.recent_milestones_l0 || []).slice();
+    merged.forEach(function (m) { m.stage = "L0"; });
+    var l1Milestones = (d.recent_milestones_l1 || []);
+    l1Milestones.forEach(function (m) { m.stage = "L1"; });
+    merged = merged.concat(l1Milestones);
+    merged.sort(function (a, b) { return (b.reviewed_at || "").localeCompare(a.reviewed_at || ""); });
+    merged = merged.slice(0, 5);
+    if (!merged.length) {
+      var empty = document.createElement("div");
+      empty.className = "empty-state";
+      empty.textContent = "No milestones reached yet.";
+      recentCard.appendChild(empty);
+    } else {
+      merged.forEach(function (m) {
+        var row = document.createElement("div");
+        row.className = "mds-recent-row";
+        row.addEventListener("click", function () { app.openDetail(m.project_id); });
+        var est = document.createElement("span");
+        est.className = "mp-est " + m.stage.toLowerCase();
+        est.textContent = m.est_no;
+        var body = document.createElement("span");
+        body.className = "mds-recent-body";
+        var name = document.createElement("span");
+        name.className = "mds-recent-name";
+        name.textContent = m.name;
+        var meta = document.createElement("span");
+        meta.className = "mds-recent-meta";
+        meta.textContent = m.project_name;
+        body.appendChild(name); body.appendChild(meta);
+        var date = document.createElement("span");
+        date.className = "mds-recent-date";
+        date.textContent = app.fmtDate(m.reviewed_at ? m.reviewed_at.slice(0, 10) : null);
+        row.appendChild(est); row.appendChild(body); row.appendChild(date);
+        recentCard.appendChild(row);
+      });
     }
-    _paintProjectCards(stage, list);
+    host.appendChild(recentCard);
   }
 
   // Exposed for later phases (mobile render branches) and for debugging.
@@ -694,5 +869,6 @@
     closeBottomSheet: closeBottomSheet,
     renderAssignedCards: renderAssignedCards,
     renderProjectCards: renderProjectCards,
+    renderMobileDashboard: renderMobileDashboard,
   };
 })();
