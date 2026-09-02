@@ -17,6 +17,21 @@
    content addition here, never a new <link> tag.
 */
 
+/* Item [mobile-app] Phase 10: a couple of upward box-shadows here (the
+   fixed bottom nav, the slide-up sheets) need a color, not a full
+   pre-built shadow value like --shadow-1/2 already are (those are
+   downward offsets, wrong direction for these), so this file needs one
+   small token of its own for the same light/dark shadow tint styles.css's
+   own --shadow-1/2 already use -- same 3-block pattern (bare dark media
+   query, explicit [data-theme="dark"], explicit [data-theme="light"]
+   overriding both) as styles.css's own :root block (styles.css:21-139).
+   Stored as a bare "r,g,b" triplet (no alpha) so each box-shadow below can
+   still pick its own opacity via rgba(var(--mobile-shadow-rgb), 0.NN). */
+:root { --mobile-shadow-rgb: 16,36,62; }
+@media (prefers-color-scheme: dark) { :root { --mobile-shadow-rgb: 0,0,0; } }
+:root[data-theme="dark"] { --mobile-shadow-rgb: 0,0,0; }
+:root[data-theme="light"] { --mobile-shadow-rgb: 16,36,62; }
+
 /* ------------------------------------------------------------------ *
  * Item [mobile-app] Phase 3: bottom nav + "More" screen.
  * ------------------------------------------------------------------ */
@@ -35,7 +50,7 @@ body.mobile-shell .mobile-bottom-nav {
   padding-bottom: env(safe-area-inset-bottom);
   background: var(--surface);
   border-top: 1px solid var(--line);
-  box-shadow: 0 -4px 16px rgba(16,36,62,0.08);
+  box-shadow: 0 -4px 16px rgba(var(--mobile-shadow-rgb), 0.08);
 }
 body.mobile-shell .mobile-bottom-nav .mbn-item {
   flex: 1 1 0;
@@ -128,7 +143,7 @@ body.mobile-shell .mobile-sheet-panel {
   max-height: min(85vh, 720px); max-height: min(85dvh, 720px);
   background: var(--surface);
   border-radius: 18px 18px 0 0;
-  box-shadow: 0 -8px 30px rgba(16,36,62,0.18);
+  box-shadow: 0 -8px 30px rgba(var(--mobile-shadow-rgb), 0.18);
   display: flex; flex-direction: column;
   overflow: hidden;
   padding-bottom: env(safe-area-inset-bottom);
@@ -182,7 +197,7 @@ body.mobile-shell .ai-chat-panel {
   height: auto;
   border-radius: 20px 20px 0 0;
   border: 0;
-  box-shadow: 0 -8px 30px rgba(16,36,62,0.18);
+  box-shadow: 0 -8px 30px rgba(var(--mobile-shadow-rgb), 0.18);
   padding-bottom: env(safe-area-inset-bottom);
   /* No entrance animation -- see the generic sheet primitive's own comment
      above (mobile.css) for why: a stuck-running @keyframes animation left
