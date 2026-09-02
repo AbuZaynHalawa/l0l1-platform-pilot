@@ -497,6 +497,28 @@
       </div>
     </section>
 
+    <!-- Item [mobile-app] Phase 3: mobile-only "More" screen -- the bottom
+         nav's 5th tab, and the fast path from it to every other view (the
+         existing off-canvas rail/hamburger drawer still works too, this is
+         just a faster reach on a phone than opening it). A real view like
+         every other one here (same #view-<name>/switchView()/LOADERS
+         mechanism, registered onto window.__app.LOADERS.more by mobile.js
+         rather than app.js itself), not a bottom sheet -- it's a full
+         destination screen, not a transient overlay. Content is built
+         entirely by mobile.js on each switchView("more") call into this
+         one empty container; nothing about its rows lives in this markup,
+         so a role/permission change is always reflected fresh. Never
+         reachable on desktop -- no desktop nav-item points at "more". -->
+    <section class="view" id="view-more" hidden>
+      <div class="view-head">
+        <div>
+          <div class="eyebrow">More</div>
+          <h1>Everything Else</h1>
+        </div>
+      </div>
+      <div id="mobileMoreScreen" class="mobile-more-screen"></div>
+    </section>
+
     <!-- ANNOUNCEMENTS -->
     <section class="view" id="view-announcements" hidden>
       <div class="view-head">
@@ -2323,6 +2345,36 @@
     <button class="btn" id="aiChatAskTeam">Didn't answer your question? Ask the Team &#8594;</button>
   </div>
 </div>
+
+<!-- Item [mobile-app] Phase 3: bottom tab bar. Lives at body level, outside
+     .shell, same reasoning as the AI Support bubble above -- reachable from
+     every view, not itself a .view section, not gated behind switchView().
+     Unconditionally present in the DOM on every device (mobile.css hides it
+     entirely off body.mobile-shell) so mobile.js never has to build or tear
+     it down. Icons/click-wiring/active-state are all owned by mobile.js
+     (not this app's existing .nav-item machinery) -- deliberately not
+     reusing that class here, since .nav-item's own desktop rail styling is
+     a bare class selector that would otherwise leak into this completely
+     different, fixed-bottom visual context. Badge spans mirror the
+     desktop rail's l0Badge/l1Badge/assignedBadge via a MutationObserver in
+     mobile.js (element ids can't be reused), staying in sync automatically. -->
+<nav class="mobile-bottom-nav" id="mobileBottomNav">
+  <button type="button" class="mbn-item" data-view="dashboard" aria-label="Dashboard">
+    <span class="mbn-ic"></span><span class="mbn-label">Dashboard</span>
+  </button>
+  <button type="button" class="mbn-item" data-view="l0" aria-label="L0 Tenders">
+    <span class="mbn-ic"></span><span class="mbn-label">L0</span><span class="mbn-badge" id="mbnL0Badge"></span>
+  </button>
+  <button type="button" class="mbn-item" data-view="l1" aria-label="L1 Projects">
+    <span class="mbn-ic"></span><span class="mbn-label">L1</span><span class="mbn-badge" id="mbnL1Badge"></span>
+  </button>
+  <button type="button" class="mbn-item" data-view="assigned" aria-label="Deliverables">
+    <span class="mbn-ic"></span><span class="mbn-label">Deliverables</span><span class="mbn-badge" id="mbnAssignedBadge"></span>
+  </button>
+  <button type="button" class="mbn-item" data-view="more" aria-label="More">
+    <span class="mbn-ic"></span><span class="mbn-label">More</span>
+  </button>
+</nav>
 
 <script src="/static/app.js"></script>
 <!-- Item [mobile-app]: reaches into app.js's shared loaders/helpers via

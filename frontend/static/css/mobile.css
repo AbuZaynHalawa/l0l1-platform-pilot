@@ -12,7 +12,106 @@
    them) throughout -- never a hardcoded color, so dark mode keeps working
    here for free. See :root token block at styles.css:21-139.
 
-   Phase 1 (this commit): no rules yet -- this file exists and is wired
-   into index.html/main.py's cache-busting so every later phase is a pure
+   Phase 1: no rules yet -- this file exists and is wired into
+   index.html/main.py's cache-busting so every later phase is a pure
    content addition here, never a new <link> tag.
 */
+
+/* ------------------------------------------------------------------ *
+ * Item [mobile-app] Phase 3: bottom nav + "More" screen.
+ * ------------------------------------------------------------------ */
+
+/* The bar itself is unconditionally in the DOM (index.html) on every
+   device -- display:none here is what actually keeps it off desktop, same
+   safety-by-construction property this whole file has. */
+.mobile-bottom-nav { display: none; }
+
+body.mobile-shell .mobile-bottom-nav {
+  display: flex;
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 30; /* above page content and the AI chat bubble's own z-index, below any modal overlay */
+  height: calc(58px + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  box-shadow: 0 -4px 16px rgba(16,36,62,0.08);
+}
+body.mobile-shell .mobile-bottom-nav .mbn-item {
+  flex: 1 1 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px;
+  min-width: 44px; min-height: 44px;
+  background: none; border: 0; padding: 6px 2px 0;
+  font-family: var(--font); font-size: 10.5px; font-weight: 600; letter-spacing: 0.01em;
+  color: var(--ink-500);
+  position: relative;
+  cursor: pointer;
+}
+body.mobile-shell .mobile-bottom-nav .mbn-item .mbn-ic svg { width: 22px; height: 22px; display: block; }
+body.mobile-shell .mobile-bottom-nav .mbn-item.active { color: var(--algihaz-red); }
+body.mobile-shell .mobile-bottom-nav .mbn-badge {
+  position: absolute; top: 2px; left: 50%; transform: translateX(6px);
+  background: var(--algihaz-red); color: #fff;
+  font-size: 9.5px; font-weight: 800; line-height: 1;
+  min-width: 15px; height: 15px; border-radius: 20px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 3px; box-sizing: border-box;
+}
+body.mobile-shell .mobile-bottom-nav .mbn-badge:empty { display: none; }
+
+/* Room for the fixed bottom nav so the last bit of every page's content
+   doesn't sit underneath it -- .main has no bottom padding of its own on
+   desktop (styles.css:306), where nothing is fixed to the viewport floor. */
+body.mobile-shell .main { padding-bottom: calc(58px + env(safe-area-inset-bottom) + 16px); }
+
+/* "More" screen rows -- built entirely by mobile.js's _renderMoreScreen(),
+   this file only supplies their look. #view-more's content is only ever
+   populated through switchView("more") (no desktop nav-item points at it,
+   so it stays empty there regardless), but every selector here still
+   carries the body.mobile-shell scope for the same by-construction safety
+   the rest of this file has. */
+body.mobile-shell .mobile-more-screen { display: flex; flex-direction: column; gap: 22px; }
+body.mobile-shell .mobile-more-group { display: flex; flex-direction: column; gap: 8px; }
+body.mobile-shell .mobile-more-group-label {
+  font-family: var(--font); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink-500); padding: 0 2px;
+}
+body.mobile-shell .mobile-more-row {
+  display: flex; align-items: center; gap: 12px;
+  min-height: 52px; width: 100%; box-sizing: border-box;
+  padding: 12px 14px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-1);
+  font-family: var(--font); font-size: 14px; font-weight: 600; color: var(--ink-900);
+  text-align: left; cursor: pointer;
+}
+body.mobile-shell .mobile-more-row .mmr-ic { flex: 0 0 auto; display: flex; color: var(--algihaz-red); }
+body.mobile-shell .mobile-more-row .mmr-ic svg { width: 19px; height: 19px; }
+body.mobile-shell .mobile-more-row .mmr-label { flex: 1; min-width: 0; }
+body.mobile-shell .mobile-more-row .mmr-badge {
+  flex: 0 0 auto; background: var(--algihaz-red); color: #fff;
+  font-size: 10.5px; font-weight: 800; padding: 1px 7px; border-radius: 20px;
+}
+body.mobile-shell .mobile-more-row .mmr-chevron { flex: 0 0 auto; display: flex; color: var(--ink-300); }
+body.mobile-shell .mobile-more-row .mmr-chevron svg { width: 16px; height: 16px; }
+
+/* Interim GAHIZ reposition -- the bottom nav above is new in this phase,
+   and desktop's floating bubble (styles.css:1621, already 80x122px at
+   right:24/bottom:16, shrunk to 56x86 only under its own max-width:480px
+   rule) sat directly on top of/overlapping the new "More" tab, actually
+   blocking that tap target, not just a visual overlap. Only a placement
+   fix -- lifted clear of the bar at the same small size the existing
+   <480px rule already uses, so it's consistent across the whole
+   mobile-shell range rather than just below 480px. The real GAHIZ
+   treatment (full-height slide-up sheet replacing this floating bubble
+   entirely) is Phase 5's job, not this one. */
+body.mobile-shell .ai-chat-bubble {
+  right: 10px;
+  bottom: calc(58px + env(safe-area-inset-bottom) + 12px);
+  width: 56px; height: 86px;
+}
+body.mobile-shell .ai-chat-panel {
+  right: 8px; left: 8px; width: auto;
+  bottom: calc(58px + env(safe-area-inset-bottom) + 90px);
+}
