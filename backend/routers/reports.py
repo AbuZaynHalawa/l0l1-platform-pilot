@@ -105,6 +105,7 @@ def get_master_po_report(actor_role: str = "Viewer", db: Session = Depends(get_d
                     "status": item["status"], "step_position": item["step_position"],
                     "total_steps": item["total_steps"], "current_item_no": item["current_item_no"],
                     "current_item_status": item["current_item_status"],
+                    "po_number": item.get("po_number"),
                 })
                 rows[-1].update(enrich)
     return rows

@@ -187,6 +187,9 @@ class SubmissionOut(BaseModel):
     # from "2.6 — Route Survey" as two separate, individually actionable rows.
     po_line_item_id: int | None = None
     line_item_name: str | None = None
+    # [PO number]: set on 3.2, read off the shared PoLineItem so every other
+    # step of the same named line item (3.1, 3.3-3.7, 4.6, ...) shows it too.
+    po_number: str | None = None
     # [PO Lifecycle placeholder visibility]: set only on a synthetic,
     # non-persisted row (id is a negative sentinel, not a real submission)
     # standing in for a fan-out item_no that has zero real submissions yet
@@ -215,6 +218,19 @@ class PoSelectionUpdate(BaseModel):
     mep_selected: list[str] | None = None  # 1.2
     selected: list[str] | None = None  # 4.1
     items: list[str] | None = None  # 2.11 / 2.17
+    actor_name: str = "Owner"
+    actor_role: str = "Owner"
+    actor_email: str = ""
+
+
+class PoNumberUpdate(BaseModel):
+    """[PO number] Owner-entered on 3.2 (Allowable time for negotiating
+    commercial and technical terms) -- writes to the submission's own
+    PoLineItem, not the submission itself, so it's automatically visible
+    on every other step (3.1, 3.3-3.7, 4.6, ...) sharing that same named
+    line item, with nothing to propagate by hand.
+    """
+    po_number: str
     actor_name: str = "Owner"
     actor_role: str = "Owner"
     actor_email: str = ""

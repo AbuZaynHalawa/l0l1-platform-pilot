@@ -1122,7 +1122,19 @@
      implementation-timeline slide grew a second column (the vertical
      rollout-steps flowchart). 960px matches the app's existing
      .modal-card.wide convention rather than inventing a new breakpoint. */
-  .tour-card { max-width: 960px; }
+  /* Item [tour slide width]: .tour-stage below is a shrink-wrap container
+     (inline-flex, sized to whatever it holds) so the floating GAHIZ image
+     can position itself off the card's real edge -- but that leaves
+     .modal-card's own "width: 100%" with nothing definite to resolve
+     against, so every slide ends up sized by ITS OWN content instead of a
+     shared width (most noticeable on "The Platform, In Your Pocket", the
+     one slide with a wide side-by-side phone-mock + feature-list layout,
+     visibly wider than every plain-text slide next to it in the
+     sequence). An explicit width here, instead of the inherited 100%,
+     gives every slide the same determinate size regardless of content;
+     .tour-stage still just shrinks to match it, so the GAHIZ-float trick
+     keeps working unchanged. */
+  .tour-card { width: min(960px, calc(100vw - 48px)); max-width: 960px; }
   .tour-body { min-height: 360px; }
   .tour-step-eyebrow { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); margin-bottom: 4px; }
   .tour-step-title { font-size: 18px; font-weight: 700; margin-bottom: 10px; }
@@ -2723,9 +2735,29 @@
 .po-column .po-registry-box .source { font-size: 10.5px; color: var(--ink-500); margin: 2px 0 6px; }
 .po-column .po-registry-box .row { font-size: 11px; color: var(--ink-700); padding: 2px 0; }
 .po-selection-empty { font-size: 11.5px; color: var(--ink-500); font-style: italic; padding: 4px 0; }
+/* Item [PO Lifecycle track header]: one reference row of item_nos sat
+   directly above the first line item's own dot track (poItemTrackHeader,
+   app.js) -- same flex/gap layout as .po-item-track itself so each label
+   sits over its matching dot. Rotated 90deg rather than left as tiny
+   horizontal text -- the chain can run 18 items deep (long_lead) in a
+   ~230px-wide box, nowhere near enough room for "3.12" to read
+   horizontally at that count without overlapping its neighbors; vertical
+   text fits every entry in the same ~9px column width the dots
+   themselves already use. */
+.po-column .po-item-track-header { display: flex; gap: 2px; margin-bottom: 4px; height: 22px; align-items: flex-end; }
+.po-column .po-item-track-header span {
+  flex: 1; min-width: 0; font-size: 7.5px; font-weight: 700; color: var(--ink-500);
+  writing-mode: vertical-rl; transform: rotate(180deg); text-align: left; line-height: 1;
+}
 .po-column .po-item-row { padding: 4px 0; }
 .po-column .po-item-row .iname { font-size: 11px; color: var(--ink-700); display: flex; justify-content: space-between; gap: 6px; }
 .po-column .po-item-row .istep { font-size: 9.5px; color: var(--accent); white-space: nowrap; }
+/* Item [PO number]: small tag next to the line item's own name in the
+   registry box, once a PO number is known (set on 3.2). */
+.po-number-tag {
+  font-size: 9px; font-weight: 700; color: var(--ink-500); background: var(--surface);
+  border: 0.5px solid var(--line); border-radius: 4px; padding: 0 4px; margin-left: 4px; white-space: nowrap;
+}
 .po-column .po-item-track { display: flex; gap: 2px; margin-top: 2px; }
 .po-column .po-item-track .dot { flex: 1; height: 4px; border-radius: 2px; background: var(--line); }
 .po-column .po-item-track .dot.done { background: var(--good); }

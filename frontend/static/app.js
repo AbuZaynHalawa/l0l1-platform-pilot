@@ -1175,9 +1175,12 @@
         } else {
           recent.forEach(function (p) {
             var row = el("div", "dpc-recent-row");
-            var intlTag = p.is_international ? ' <span class="pill neutral" style="padding:1px 7px;"><span class="dot"></span>International</span>' : "";
+            // Item [Intl badge position]: leads the name now, not trails it --
+            // reads as a property of the project ("International — Name")
+            // rather than an afterthought tacked on the end.
+            var intlTag = p.is_international ? '<span class="pill neutral" style="padding:1px 7px;"><span class="dot"></span>International</span> ' : "";
             row.innerHTML = '<span class="dpc-recent-est">' + p.est_no + '</span>' +
-              '<span class="dpc-recent-name">' + p.name + intlTag + '</span>' +
+              '<span class="dpc-recent-name">' + intlTag + p.name + '</span>' +
               '<span class="dpc-recent-date">' + fmtDate(p.announcement_date) + "</span>";
             row.addEventListener("click", function () { openDetail(p.id); });
             body.appendChild(row);
@@ -2795,11 +2798,11 @@
     },
     {
       eyebrow: "Around the Portal",
-      title: "Meet GAHIZ!",
+      title: "Meet GAHIZ – Your AI Support Agent!",
       gahiz: true, // toggles #tourGahizFloat -- see renderTourStep()
       body:
         '<div class="gahiz-intro"><div class="gahiz-intro-name">GAHIZ is always ready to support you!</div>' +
-        "<b>GAHIZ</b> is Al Gihaz Contracting's AI Agent for the Project Readiness (L0/L1) " +
+        "Al Gihaz Contracting's AI Agent for the Project Readiness (L0/L1) " +
         "Platform.</div>" +
         '<p class="tour-step-text">His bubble sits in the bottom-right corner of every page &#8212; ' +
         "click it any time for a faster first stop than Ask the Team, for the kind of question that " +
@@ -3291,6 +3294,12 @@
     if (d.points_earned !== null && d.points_earned !== undefined) {
       metaRows.push(["Points Earned", pointsEarnedLabel(d.points_earned)]);
     }
+    // [PO number]: read-only here on every OTHER step sharing this line
+    // item -- 3.2 itself gets its own dedicated editable block below
+    // instead, so it isn't shown twice on that one item's modal.
+    if (d.po_number && d.item_no !== "3.2") {
+      metaRows.push(["PO Number", d.po_number]);
+    }
     metaRows.forEach(function (m) {
         var mi = el("div");
         mi.appendChild(el("div", "mk", m[0]));
@@ -3332,6 +3341,55 @@
         poBlock.appendChild(poTextListSection(d, refreshModal, "S/C agreements", canEditSelection));
       }
       body.appendChild(poBlock);
+    }
+
+    // [PO number]: Owner-entered here, on 3.2 specifically, the moment
+    // terms are settled and a real PO number is known -- writes to this
+    // item's own PoLineItem (backend), so every other step sharing it
+    // (3.1, 3.3-3.7, 4.6, ...) picks it up automatically; see this item's
+    // own read-only "PO Number" meta row above for those. Same
+    // openChecklistEditModal text-entry pattern poTextListSection's own
+    // "+ Add item" button already uses, not a raw inline input, for
+    // consistency with every other text-entry point in this modal.
+    if (d.item_no === "3.2" && d.po_line_item_id) {
+      var poNumBlock = el("div", "po-selection-block");
+      poNumBlock.appendChild(el("div", "po-selection-title", "PO Number"));
+      if (d.po_number) {
+        poNumBlock.appendChild(el("div", "po-selection-empty", d.po_number));
+      } else {
+        poNumBlock.appendChild(el("div", "po-selection-empty", "Not set yet"));
+      }
+      if (authorized && !d.project_terminal) {
+        var poNumBtn = el("button", "btn", d.po_number ? "Edit PO Number" : "+ Set PO Number");
+        poNumBtn.type = "button";
+        poNumBtn.addEventListener("click", function () {
+          openChecklistEditModal({
+            type: "text", eyebrow: d.item_no, title: "PO Number", placeholder: "e.g. 4500123456",
+            selected: d.po_number || "",
+            onSave: async function (value) {
+              value = (value || "").trim();
+              if (!value) { showToast("Enter a PO number", true); return; }
+              try {
+                await api("/api/deliverables/" + submissionId + "/po-number", {
+                  method: "PATCH", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    po_number: value, actor_role: CURRENT_ROLE, actor_email: actingEmail(),
+                    actor_name: CURRENT_ROLE + " (pilot)",
+                  }),
+                });
+              } catch (err) {
+                showToast("Could not save &#8211; " + apiErrorDetail(err), true);
+                return;
+              }
+              showToast("PO number saved");
+              closeChecklistEditModal();
+              refreshModal();
+            },
+          });
+        });
+        poNumBlock.appendChild(poNumBtn);
+      }
+      body.appendChild(poNumBlock);
     }
 
     // [4.6 doc reference]: 4.6's owner is reviewing whatever 3.2's owner
@@ -6263,6 +6321,7 @@
     var poStatusOf = function (r) { return _PO_STATUS_LABEL2[r.po_status] || r.po_status; };
     var itemOf = function (r) { return r.current_item_no || ""; };
     var nameOf = function (r) { return r.name; };
+    var poNumberOf = function (r) { return r.po_number || ""; };
     var finalDueOf = function (r) { return fmtDate(r.final_due_date); };
     var actualSignedOf = function (r) { return r.actual_or_signed ? fmtDate(r.actual_or_signed) : ""; };
     var delayOf = function (r) { return r.delay_label; };
@@ -6275,6 +6334,7 @@
       { key: "project", get: projectOf, uniqueValues: uniq(projectOf) },
       { key: "item", get: itemOf, uniqueValues: uniq(itemOf) },
       { key: "name", get: nameOf, uniqueValues: uniq(nameOf) },
+      { key: "po_number", get: poNumberOf, uniqueValues: uniq(poNumberOf) },
       { key: "category", get: categoryOf, uniqueValues: uniq(categoryOf) },
       { key: "po_status", get: poStatusOf, uniqueValues: uniq(poStatusOf) },
       { key: "final_due", get: finalDueOf, sortValue: function (r) { return r.final_due_date || ""; }, uniqueValues: uniq(finalDueOf) },
@@ -6387,13 +6447,14 @@
       document.getElementById("repMasterPoCount").textContent = "Showing " + filtered.length + " of " + rows.length + " PO/deliverable items";
       var body = document.getElementById("repMasterPoBody");
       body.innerHTML = "";
-      if (!filtered.length) { body.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--ink-500);padding:30px;">No matching PO/deliverable items.</td></tr>'; return; }
+      if (!filtered.length) { body.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--ink-500);padding:30px;">No matching PO/deliverable items.</td></tr>'; return; }
       filtered.forEach(function (r) {
         var tr = el("tr");
         tr.appendChild(el("td", "", r.contract_status || "&#8213;"));
         tr.appendChild(el("td", "", r.est_no + " &middot; " + r.project_name));
         tr.appendChild(el("td", "", r.current_item_no || "&#8213;"));
         tr.appendChild(el("td", "", r.name));
+        tr.appendChild(el("td", "", r.po_number || "&#8213;"));
         tr.appendChild(el("td", "", r.category.replace(/_/g, " ")));
         tr.appendChild(el("td", "", '<span class="rep-po-badge ' + _PO_STATUS_BADGE[r.po_status] + '">' + _PO_STATUS_LABEL2[r.po_status] + '</span>'));
         tr.appendChild(el("td", "", fmtDate(r.final_due_date)));
@@ -7225,6 +7286,22 @@
     }
     return '<div class="po-item-track">' + dots + "</div>";
   }
+  // Item [PO Lifecycle track header]: one reference row of item_nos, sat
+  // directly above the first line item's own dot track, so the sequence
+  // (1.1, 2.3, ... 3.7) is readable at a glance instead of needing to
+  // hover each tiny dot for its tooltip. Keyed off the FIRST item's own
+  // _cat -- exactly matches every row's chain for 3 of the 4 columns
+  // (consultancy/long_lead/sc, one category each); early_activity_mep
+  // mixes two same-length 3-step chains sharing 2 of 3 entries, so this
+  // still reads correctly as "the sequence" for that column too, just not
+  // a byte-for-byte guarantee against every row's own chain.
+  function poItemTrackHeader(category) {
+    var chain = poFullChainFor(category);
+    if (!chain.length) return "";
+    return '<div class="po-item-track-header">' + chain.map(function (itemNo) {
+      return "<span>" + itemNo + "</span>";
+    }).join("") + "</div>";
+  }
   function poRegistryBox(items, count, sourceLabel, singleByItemNo) {
     var box = el("div", "po-registry-box");
     box.innerHTML = '<div class="title">Line items (' + count + ')</div><div class="source">' + sourceLabel + "</div>";
@@ -7232,6 +7309,7 @@
       box.insertAdjacentHTML("beforeend", '<div class="row">None declared yet</div>');
       return box;
     }
+    box.insertAdjacentHTML("beforeend", poItemTrackHeader(items[0]._cat));
     items.forEach(function (li) {
       // The item's own current_item_no only says where it sits in its own
       // chain -- drill through any unmet single-item prerequisite (budget,
@@ -7253,8 +7331,12 @@
       // or its last (approved) step once fully done.
       var rowCls = "po-item-row" + (li.open_submission_id ? " clickable" : "");
       var rowAttr = li.open_submission_id ? ' data-open-submission="' + li.open_submission_id + '"' : "";
+      // [PO number]: set on 3.2 (openDelivModal), shown right here once
+      // known -- the PO Lifecycle tab is exactly where "which real PO does
+      // this line item map to" is the natural question to have answered.
+      var poNumHtml = li.po_number ? ' <span class="po-number-tag">PO ' + li.po_number + "</span>" : "";
       box.insertAdjacentHTML("beforeend",
-        '<div class="' + rowCls + '"' + rowAttr + '><div class="iname">' + li.name + '<span class="istep"' + stepStyle + '>' + stepLabel + "</span></div>"
+        '<div class="' + rowCls + '"' + rowAttr + '><div class="iname">' + li.name + poNumHtml + '<span class="istep"' + stepStyle + '>' + stepLabel + "</span></div>"
         + poItemTrack(li, li._cat, singleByItemNo) + "</div>");
     });
     box.querySelectorAll(".po-item-row[data-open-submission]").forEach(function (rowEl) {

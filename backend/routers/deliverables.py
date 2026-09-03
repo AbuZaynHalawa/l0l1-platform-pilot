@@ -170,6 +170,18 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
             .all()
         ):
             latest_submitted_note[h.submission_id] = h.note  # ascending order -> last write wins, matches [-1] below
+    # [PO number]: same batch-fetch-once shape as the two lookups above --
+    # s.po_line_item.po_number per row would be an N+1 lazy load across
+    # potentially thousands of rows; one IN() query for every distinct
+    # po_line_item_id actually present avoids that entirely.
+    po_line_item_ids = {s.po_line_item_id for s in visible_subs if s.po_line_item_id}
+    po_numbers: dict[int, str | None] = {}
+    if po_line_item_ids:
+        po_numbers = {
+            li_id: po_number for li_id, po_number in
+            db.query(models.PoLineItem.id, models.PoLineItem.po_number)
+            .filter(models.PoLineItem.id.in_(po_line_item_ids)).all()
+        }
     out = []
     for s in visible_subs:
         if status and s.status.value != status:
@@ -208,6 +220,7 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
                 if s.status == models.SubmissionStatus.APPROVED else None
             ),
             "pending_due_date_request_kind": pending_kinds.get(s.id),
+            "po_number": po_numbers.get(s.po_line_item_id) if s.po_line_item_id else None,
         })
     return out
 
@@ -375,6 +388,43 @@ def update_po_selection(submission_id: int, payload: schemas.PoSelectionUpdate, 
     if is_l0_declaring:
         po_line_items.sync_from_submission(db, sub)
     return {"po_selection": sub.po_selection, "status": sub.status.value}
+
+
+@router.patch("/{submission_id}/po-number")
+def update_po_number(submission_id: int, payload: schemas.PoNumberUpdate, db: Session = Depends(get_db)):
+    """[PO number]: Owner-entered on 3.2 (Allowable time for negotiating
+    commercial and technical terms) once terms are settled and a real PO
+    number is known. Writes to the submission's own PoLineItem, not the
+    submission itself, so every other step sharing that named line item
+    (3.1, 3.3-3.7, 4.6, ...) shows the same number automatically -- nothing
+    to propagate by hand, no separate field to keep in sync.
+    """
+    sub = db.get(models.DeliverableSubmission, submission_id)
+    if not sub:
+        raise HTTPException(404, "Deliverable not found")
+    if sub.definition.item_no != "3.2" or sub.project.stage != models.Stage.L1:
+        raise HTTPException(400, "PO number can only be set on 3.2")
+    if not sub.po_line_item_id:
+        raise HTTPException(400, "This deliverable isn't tied to a PO line item yet")
+    if rules.is_project_terminal(sub.project):
+        raise HTTPException(400, "This project is closed — deliverables are read-only")
+
+    assigned_owners = rules.resolve_owners(sub)
+    if not rules.can_act(payload.actor_role, payload.actor_email, assigned_owners):
+        raise HTTPException(403, f"Only {', '.join(assigned_owners) or 'the assigned owner'} or an Admin can edit this")
+
+    po_number = payload.po_number.strip()
+    if not po_number:
+        raise HTTPException(400, "PO number can't be empty")
+    line_item = sub.po_line_item
+    old = line_item.po_number
+    line_item.po_number = po_number
+    db.add(models.WorkflowHistory(
+        submission_id=sub.id, action="po_number_set", actor_name=payload.actor_name,
+        note=(f"PO number changed from {old} to {po_number}" if old else f"PO number set to {po_number}"),
+    ))
+    db.commit()
+    return {"po_number": line_item.po_number}
 
 
 def _document_out(d: "models.Document") -> dict:
@@ -1348,6 +1398,10 @@ def get_deliverable_detail(submission_id: int, actor_role: str = "Viewer", actor
         "po_selection": sub.po_selection if is_declaring else None,
         "po_line_item_id": sub.po_line_item_id,
         "line_item_name": rules.line_item_display_name(sub.po_line_item) if sub.po_line_item_id else None,
+        # [PO number]: read off the line item, not this submission -- set on
+        # 3.2 (update_po_number above), shown on every other step of the
+        # same named line item automatically.
+        "po_number": sub.po_line_item.po_number if sub.po_line_item_id else None,
         "siblings": siblings,
         "reference_document": reference_document,
         "history": [

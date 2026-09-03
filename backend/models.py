@@ -597,6 +597,13 @@ class PoLineItem(Base):
     # po_selection on every approval -- null on the synthetic pre-migration
     # "Item 1 (migrated)" rows, which have no real declaring submission.
     source_submission_id = Column(Integer, ForeignKey("deliverable_submissions.id"), nullable=True)
+    # [PO number]: Owner-entered on 3.2 (Allowable time for negotiating
+    # commercial and technical terms), the moment terms are settled and a
+    # real PO number is known -- lives here, not on any one
+    # DeliverableSubmission, so every step sharing this named line item
+    # (3.1, 3.3-3.7, 4.6, ...) shows the same number automatically via
+    # `submissions` below, with nothing to propagate by hand.
+    po_number = Column(String, nullable=True)
 
     project = relationship("Project")
     submissions = relationship("DeliverableSubmission", back_populates="po_line_item",

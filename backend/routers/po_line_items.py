@@ -165,7 +165,8 @@ def list_po_line_items(project_id: int, category: str | None = None, db: Session
     if category:
         q = q.filter(models.PoLineItem.category == category)
     return [
-        {"id": li.id, "category": li.category, "name": li.name, "source": li.source, "meta": li.meta}
+        {"id": li.id, "category": li.category, "name": li.name, "source": li.source, "meta": li.meta,
+         "po_number": li.po_number}
         for li in q.order_by(models.PoLineItem.created_at).all()
     ]
 
@@ -268,6 +269,11 @@ def po_cycle_summary(project_id: int, db: Session = Depends(get_db)):
             counts[item_status] += 1
             items_out.append({
                 "id": li.id, "name": li.name, "source": li.source, "status": item_status,
+                # [PO number]: set on 3.2 (deliverables.update_po_number),
+                # read straight off this same line item -- automatically
+                # current for every category consumer of this summary
+                # (the registry box, Master PO Report), never a second copy.
+                "po_number": li.po_number,
                 "step_position": passed, "total_steps": len(item_seq),
                 "current_item_no": current_item_no, "open_submission_id": open_submission_id,
                 # [PO Lifecycle clickable items] one submission id per step in
