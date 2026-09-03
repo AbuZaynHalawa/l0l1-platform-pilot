@@ -1814,6 +1814,17 @@
       menuWrap.appendChild(dropdown);
       _buildAssignedActionsInto(inlineWrap, d, authorized);
       _buildAssignedActionsInto(dropdown, d, authorized);
+      // [Row actions trimmed]: Approve/Reject/Send reminder used to live
+      // right here -- moved into the deliverable's own modal (openDelivModal,
+      // reached by clicking the row) so the row only ever carries its two
+      // constant actions. This dot is the resulting discoverability gap's
+      // fix: it appears only when the modal actually has one of those three
+      // waiting behind it (pending review and/or overdue), so it's a real
+      // signal, not decoration on every row. Inline-only -- the small-screen
+      // dropdown's own hamburger toggle already says "more" on its own.
+      if (authorized && (d.status === "pending_review" || d.deadline_status === "due")) {
+        inlineWrap.appendChild(moreActionsIndicator(d));
+      }
       actionsCell.appendChild(inlineWrap);
       actionsCell.appendChild(menuWrap);
       row.appendChild(actionsCell);
@@ -1829,35 +1840,23 @@
   function _buildAssignedActionsInto(container, d, authorized) {
     if (authorized && d.file_url) container.appendChild(fileLink(d));
     container.appendChild(followButton(d));
-    if (!authorized) {
-      container.appendChild(el("span", "aqt-locked", "Owner/SME only"));
-    } else {
-      // Item 143 (2nd revision): whole-deliverable Approve/Reject only
-      // exists once Mark Completed has been clicked (Pending SME Review)
-      // -- per-document review no longer exists.
-      if (d.status === "pending_review" && can("review")) {
-        var appr = el("button", "btn primary", "Approve");
-        appr.addEventListener("click", function () { review(d.id, true, loadAssigned); });
-        var rej = el("button", "btn ghost-crit", "Reject");
-        rej.addEventListener("click", function () { review(d.id, false, loadAssigned); });
-        container.appendChild(appr); container.appendChild(rej);
-      }
-      if (d.deadline_status === "due" && can("remind")) {
-        var remindBtn = el("button", "btn ghost-crit", "Send reminder");
-        remindBtn.addEventListener("click", async function () {
-          try {
-            var res = await api("/api/deliverables/bulk-remind", {
-              method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ submission_ids: [d.id], actor_role: CURRENT_ROLE }),
-            });
-            showToast(res.sent ? "Reminder sent to " + d.owner : "No owner to remind");
-          } catch (err) {
-            showToast("Could not send reminder &#8211; " + apiErrorDetail(err), true);
-          }
-        });
-        container.appendChild(remindBtn);
-      }
-    }
+    if (!authorized) container.appendChild(el("span", "aqt-locked", "Owner/SME only"));
+  }
+  // [Row actions trimmed]: a small round "more waiting" hint -- Approve/
+  // Reject (pending review) and Send reminder (overdue) now only live in
+  // the deliverable modal; this just opens the same modal the row itself
+  // opens, so it needs no logic of its own beyond that click and a title
+  // naming which of the two reasons applies.
+  function moreActionsIndicator(d) {
+    var reasons = [];
+    if (d.status === "pending_review") reasons.push("awaiting your review");
+    if (d.deadline_status === "due") reasons.push("overdue – reminder available");
+    var dot = el("button", "aqt-more-actions", "&#8230;");
+    dot.type = "button";
+    dot.title = "More actions: " + reasons.join(", ");
+    dot.setAttribute("aria-label", "More actions available");
+    dot.addEventListener("click", function () { openDelivModal(d.id); });
+    return dot;
   }
   function followButton(d) {
     var btn = el("button", "btn" + (d.following ? " primary" : ""), d.following ? "&#9733; Following" : "&#9734; Follow");
@@ -3475,6 +3474,30 @@
     if (d.project_terminal) {
       actionsRow.appendChild(el("span", "locked-note", "&#128274; Project closed &#8212; read-only"));
     } else {
+
+    // [Row actions trimmed]: Send reminder used to live on the Assigned
+    // Deliverables row itself; it only lives here now (same endpoint/
+    // wording), reached from that row via the "more actions" dot on an
+    // overdue item -- independent of status, same as it always was.
+    if (authorized && d.deadline_status === "due" && can("remind")) {
+      var remindBtn = el("button", "btn ghost-crit", "Send reminder");
+      remindBtn.addEventListener("click", async function () {
+        try {
+          var res = await api("/api/deliverables/bulk-remind", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ submission_ids: [d.id], actor_role: CURRENT_ROLE }),
+          });
+          // This modal's own fetch returns owner_emails (a list), not the
+          // list row's pre-joined "owner" string -- join it the same way
+          // the Owner meta row above already does.
+          var ownerLabel = (d.owner_emails && d.owner_emails.length) ? d.owner_emails.join(", ") : "the owner";
+          showToast(res.sent ? "Reminder sent to " + ownerLabel : "No owner to remind");
+        } catch (err) {
+          showToast("Could not send reminder &#8211; " + apiErrorDetail(err), true);
+        }
+      });
+      actionsRow.appendChild(remindBtn);
+    }
 
     // Item 143 (2nd revision): Upload/Add Document stays available right up
     // until Mark Completed is clicked -- once Pending SME Review, uploads

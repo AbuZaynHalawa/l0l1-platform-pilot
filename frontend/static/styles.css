@@ -1689,17 +1689,22 @@
      card's width -- text columns ellipsize under pressure instead of the
      table ever needing horizontal scroll. */
   .aqt { width: 100%; }
-  /* [Actions column width]: 220px already covered the common case
-     (Follow alone ~75px, Follow+Send reminder ~189px, Approve+Reject
-     ~141px) with real margin; widened further to 270px, narrowing
-     Deliverable's own flexible share (2.3fr -> 1.6fr) to make room --
-     comfortably covers the rare all-4-buttons case (~336px, when an item
-     is both pending review and overdue) too, at the ordinary desktop
-     widths this app already targets. Deliberately NOT sized off the
-     absolute worst case at every possible viewport -- see the 1180px
-     breakpoint below, which still trims Actions back down since Focal
-     Point is already gone there and there's less room to redistribute. */
-  .aqt-row { display: grid; grid-template-columns: 108px minmax(0,1.6fr) minmax(0,1.1fr) minmax(0,1fr) 110px 150px 116px 270px; align-items: center; gap: 10px; }
+  /* [Row actions trimmed]: Approve/Reject/Send reminder moved out of this
+     row into the deliverable modal (see moreActionsIndicator, app.js) --
+     Actions now only ever holds View Document + Follow/Following + the
+     small "more" dot, a measured worst case of ~247px (114+92+27+2x6px
+     gap), so 270px shrinks to 255px with a few px of margin, same spirit
+     as before. That, plus Due Date genuinely needing more room than it
+     had (an awaiting/pending note can run 600px+ of real text behind the
+     ellipsis, and 116px was showing next to none of it) and Est No a
+     little defensive headroom, is where their extra width comes from --
+     Est 108->118, Due 116->175. Kept deliberately short of the full
+     amount each could use: every added px here comes straight out of
+     Deliverable/Department/Focal's flexible share (they absorb the ~39px
+     net difference automatically), and those were already the columns
+     most often mid-ellipsis. (See the 1360px breakpoint below for the
+     narrow-viewport budget, tuned separately.) */
+  .aqt-row { display: grid; grid-template-columns: 118px minmax(0,1.6fr) minmax(0,1.1fr) minmax(0,1fr) 110px 150px 175px 255px; align-items: center; gap: 10px; }
   /* [Header double-padding]: .xh-th-wrap (installExcelHeader) already
      gives every sortable/filterable cell its own 11px top/bottom padding
      -- stacking .aqt-head's own vertical padding on top of that made the
@@ -1726,14 +1731,24 @@
   .aqt-status.warn { color: var(--warn); } .aqt-status.warn .dot { background: var(--warn); }
   .aqt-status.crit { color: var(--crit); } .aqt-status.crit .dot { background: var(--crit); }
   .aqt-status.neutral { color: var(--ink-500); } .aqt-status.neutral .dot { background: var(--ink-300); }
-  /* [Actions on one line]: up to 4 buttons can appear together (Follow +
-     Approve + Reject + Send reminder, when an item is both pending review
-     and overdue) -- the column is now wide enough (360px) that they don't
-     need to; flex-wrap:wrap used to stack them into a ragged multi-row
-     mess whenever the column ran a little short. */
+  /* [Actions on one line]: at most View Document + Follow + the "more"
+     dot appear together now -- nowrap still guards against a ragged
+     multi-row wrap if a future addition ever runs the row long again. */
   .aqt-actions { display: flex; flex-wrap: nowrap; gap: 6px; justify-content: flex-end; }
   .aqt-actions .btn { padding: 5px 12px; font-size: 11.5px; }
   .aqt-locked { font-size: 11px; color: var(--ink-300); font-style: italic; text-align: right; }
+  /* [Row actions trimmed]: hints that Approve/Reject and/or Send reminder
+     are one click away in the deliverable modal, without spelling out
+     which -- moreActionsIndicator (app.js) sets the real reason(s) as the
+     title tooltip. Small and quiet on purpose; the two real buttons next
+     to it still carry the visual weight. */
+  .aqt-more-actions {
+    display: flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; border: 1px solid var(--line); border-radius: 50%;
+    background: var(--surface-sunken); color: var(--accent); font-size: 13px; font-weight: 800;
+    line-height: 1; cursor: pointer; flex: none; padding: 0;
+  }
+  .aqt-more-actions:hover { background: var(--surface); border-color: var(--accent); }
   .aqt-actions-inline { display: flex; flex-wrap: nowrap; gap: 6px; justify-content: flex-end; }
   /* [Small-screen actions]: hidden except under the 640px breakpoint
      above, which flips this pair (menu shown, inline hidden). Popover
@@ -1755,10 +1770,10 @@
   }
   .aqt-actions-dropdown .btn, .aqt-actions-dropdown .aqt-locked { width: 100%; text-align: left; }
   /* [Small-screen actions]: below the breakpoint further down, Actions
-     collapses from a row of up to 4 buttons down to a single 44px
-     hamburger toggle (a min-width wasn't the real fix -- Approve/Reject/
-     Send reminder/Follow together need real width no matter how the
-     rest of the row is squeezed). That alone frees enough room that
+     collapses from a row of buttons down to a single 44px hamburger
+     toggle (a min-width wasn't the real fix -- View Document/Follow
+     together still need real width no matter how the rest of the row is
+     squeezed). That alone frees enough room that
      Deliverable can keep a genuine minimum width (140px, so a name
      stays legible) instead of the whole row needing a hard min-width +
      horizontal scroll just to fit Actions. Placed after these base
