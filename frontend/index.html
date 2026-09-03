@@ -389,13 +389,18 @@
            such wrapper) doesn't have this. .achievers-row .achiever-row
            below now carries the only padding, tuned to match
            .top-dept-row's own so the score column lines up. -->
+      <!-- Item 5 follow-up: the score title ("On-Time Approval Rate" /
+           "Average Response Time") moved up here, once, instead of
+           repeating on every row -- same .section-title flex row every
+           other card's header already uses for a right-aligned extra
+           (see .section-title-view-all-row), so it costs nothing new. -->
       <div class="dash-row achievers-row" id="achieversRow">
         <div class="card" id="achieversOwnersCard">
-          <div class="section-title">Top Achievers &#8211; Owners</div>
+          <div class="section-title">Top Achievers &#8211; Owners <span class="section-title-sub">On-Time Approval Rate</span></div>
           <div id="topOwners" class="achiever-list"></div>
         </div>
         <div class="card" id="achieversSmesCard">
-          <div class="section-title">Top Achievers &#8211; SME</div>
+          <div class="section-title">Top Achievers &#8211; SME <span class="section-title-sub">Average Response Time</span></div>
           <div id="topSmes" class="achiever-list"></div>
         </div>
       </div>

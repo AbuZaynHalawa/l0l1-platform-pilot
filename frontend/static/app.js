@@ -1491,24 +1491,20 @@
       var label = (r.name ? r.name + " &middot; " : "") + r.email;
       var emailLine = label + (r.sample ? ' <span class="sample-tag">Sample</span>' : "");
       main.appendChild(el("div", "achiever-email", emailLine));
-      // Item 5: a bare number/percentage didn't say what it measured --
-      // same title-above-number shape Performance's own cards use
-      // (.pc2-title/.pc2-pct), scaled down for this row.
-      var score = el("div", "achiever-score");
+      // Item 5 follow-up: the score title lives once in the card header
+      // now (index.html), not repeated on every row -- this is back to a
+      // plain number, same shape as .top-dept-pct right above it.
       if (kind === "sme") {
         var smeSub = r.reviewed + " review" + (r.reviewed === 1 ? "" : "s") + (r.department ? " &middot; " + r.department : "");
         main.appendChild(el("div", "achiever-sub", smeSub));
         row.appendChild(main);
-        score.appendChild(el("div", "achiever-score-label", "Average Response Time"));
-        score.appendChild(el("div", "achiever-pct num", r.avg_label));
+        row.appendChild(el("div", "achiever-pct num", r.avg_label));
       } else {
         var ownerSub = r.approved + " / " + r.total + " approved on time" + (r.department ? " &middot; " + r.department : "");
         main.appendChild(el("div", "achiever-sub", ownerSub));
         row.appendChild(main);
-        score.appendChild(el("div", "achiever-score-label", "On-Time Approval Rate"));
-        score.appendChild(el("div", "achiever-pct num", r.pct + "%"));
+        row.appendChild(el("div", "achiever-pct num", r.pct + "%"));
       }
-      row.appendChild(score);
       wrap.appendChild(row);
     });
   }
@@ -6044,47 +6040,132 @@
   // itemized cohort breakdown, per architecture_map.md section 5's
   // "drill-down why this score" modal. Delegated so it works from the
   // card grid and the Compare/History modal's Current-period cells alike.
+  // Item 6: shared builder for both breakdown tables -- a real
+  // installExcelHeader-managed table (sort + filter + export, same as
+  // every other data table in the app) instead of one string of raw
+  // HTML per open. `cols` follow the normal {key,get,uniqueValues,...}
+  // shape; `rowHtml(row)` returns that row's <td>...</td> string (badges/
+  // color identity live there, not in the column config, since those are
+  // presentation, not sortable/filterable values). Built fresh every
+  // modal open -- no persistent cache needed, the whole table is thrown
+  // away and rebuilt next time regardless.
+  function _buildPbdTable(titleText, exportName, cols, rawRows, rowHtml) {
+    var wrap = el("div", "pbd-table-wrap");
+    if (titleText) {
+      var titleRow = el("div", "pbd-table-title-row");
+      titleRow.appendChild(el("div", "pbd-table-title", titleText));
+      var exportBtn = el("button", "btn pbd-export-btn", "&#11015;&#65039; Export");
+      exportBtn.type = "button";
+      titleRow.appendChild(exportBtn);
+      wrap.appendChild(titleRow);
+    }
+    var table = el("table", "pcmp-table pbd-table");
+    var thead = el("thead");
+    var theadRow = el("tr");
+    cols.forEach(function (c) { theadRow.appendChild(el("th", "", c.label)); });
+    thead.appendChild(theadRow);
+    table.appendChild(thead);
+    var tbody = el("tbody");
+    table.appendChild(tbody);
+    var xh = installExcelHeader(theadRow, cols);
+    function draw() {
+      tbody.innerHTML = "";
+      var rows = xh.process(rawRows);
+      if (!rows.length) { tbody.innerHTML = '<tr><td colspan="' + cols.length + '" style="text-align:center;color:var(--ink-500);padding:20px;">No matching rows.</td></tr>'; return; }
+      rows.forEach(function (r) { tbody.insertAdjacentHTML("beforeend", "<tr>" + rowHtml(r) + "</tr>"); });
+    }
+    xh.onChange(draw);
+    draw();
+    if (titleText) {
+      wrap.querySelector(".pbd-export-btn").addEventListener("click", function () {
+        exportTableToExcel(exportName, xh, rawRows);
+      });
+    }
+    wrap.appendChild(table);
+    return wrap;
+  }
+  // Plain-value uniq() (no live cache to read from -- the raw array is
+  // captured directly, same shape _projectsXh/_getAssignedXh's own uniq()
+  // closures use against their own live caches).
+  function _pbdUniq(rows, getter) {
+    var seen = {}, out = [];
+    rows.forEach(function (r) {
+      var v = getter(r); v = v == null || v === "" ? "" : String(v);
+      if (!seen[v]) { seen[v] = true; out.push(v); }
+    });
+    return out.sort(function (a, b) { return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }); });
+  }
   async function openPerfBreakdownModal(deptName, levelKey) {
     var data;
     try {
       data = await api("/api/dashboard/performance/breakdown?department=" + encodeURIComponent(deptName) +
         "&stage=" + encodeURIComponent(levelKey.toUpperCase()));
     } catch (err) { showToast("Could not load breakdown &#8211; " + apiErrorDetail(err), true); return; }
-    // Item 7 (doc redline): this modal had no L0/L1 color distinction at
-    // all before -- the level word in the title now carries the same
-    // identity color used everywhere else (green L1 / orange L0).
+    // Item 7 (doc redline)/item 6: L0/L1 color identity -- the title
+    // already had it; now the Project column in the items table (all one
+    // stage per modal, so a single class covers the whole table) does too.
     var levelColor = levelKey === "l1" ? "var(--l1-1)" : "var(--l0-1)";
     document.getElementById("perfBreakdownTitle").innerHTML = deptName + " &#8211; <span style=\"color:" + levelColor + ";\">" + levelKey.toUpperCase() + "</span> Calculation Breakdown";
     var body = document.getElementById("perfBreakdownBody");
-    var html = "";
+    body.innerHTML = "";
+
+    // Item 6: L0's per_item_groups summary table, previously the only
+    // level that got one -- L1 pools its overall score directly rather
+    // than averaging these groups, but the groups themselves (total
+    // points/due count per deliverable across every project) are just as
+    // real and useful to see for L1, so the backend now always returns
+    // them (see get_performance_breakdown) and both levels render it.
+    var note = data.aggregation === "per_item_averaged"
+      ? "L0 averages each deliverable item's own submitted ÷ due ratio, then averages those ratios equally."
+      : "L1 pools every due submission's points into one ratio -- the totals below are per deliverable, for reference, not each averaged separately into the score.";
+    body.appendChild(el("p", "pbd-note", note));
+    var groupCols = [
+      { key: "item_no", label: "Item", get: function (g) { return g.item_no; }, uniqueValues: function () { return _pbdUniq(data.per_item_groups, function (g) { return g.item_no; }); } },
+      { key: "name", label: "Name", get: function (g) { return g.short_name || g.name; }, uniqueValues: function () { return _pbdUniq(data.per_item_groups, function (g) { return g.short_name || g.name; }); } },
+      { key: "points", label: "Points", get: function (g) { return g.points; }, uniqueValues: function () { return _pbdUniq(data.per_item_groups, function (g) { return g.points; }); } },
+      { key: "due", label: "Due", get: function (g) { return g.due; }, uniqueValues: function () { return _pbdUniq(data.per_item_groups, function (g) { return g.due; }); } },
+      { key: "ratio", label: "Ratio", get: function (g) { return g.pct; }, uniqueValues: function () { return _pbdUniq(data.per_item_groups, function (g) { return g.pct; }); } },
+    ];
+    body.appendChild(_buildPbdTable("By Deliverable", deptName + " " + levelKey.toUpperCase() + " by deliverable", groupCols, data.per_item_groups, function (g) {
+      return "<td>" + g.item_no + "</td><td class=\"pbd-name\">" + (g.short_name || g.name) + "</td>" +
+        "<td class=\"pbd-num\">" + g.points + "</td><td class=\"pbd-num\">" + g.due + "</td><td class=\"pbd-num\">" + g.pct + "%</td>";
+    }));
+
     if (data.aggregation === "per_item_averaged") {
-      html += '<p class="pbd-note">L0 averages each deliverable item\'s own submitted &#247; due ratio, then averages those ratios equally.</p>';
-      html += '<table class="pcmp-table pbd-table"><thead><tr><th>Item</th><th>Name</th><th>Points</th><th>Due</th><th>Ratio</th></tr></thead><tbody>';
-      data.per_item_groups.forEach(function (g) {
-        html += "<tr><td>" + g.item_no + "</td><td>" + g.name + "</td><td>" + g.points + "</td><td>" + g.due + "</td><td>" + g.pct + "%</td></tr>";
-      });
-      html += "</tbody></table>";
-      html += '<div class="pbd-total">Overall = average of ' + data.per_item_groups.length + ' item ratios = <b>' +
-        (data.overall_pct === null ? "&#8213;" : data.overall_pct + "%") + "</b></div>";
+      body.appendChild(el("div", "pbd-total", "Overall = average of " + data.per_item_groups.length + " item ratios = <b>" +
+        (data.overall_pct === null ? "&#8213;" : data.overall_pct + "%") + "</b>"));
     } else {
-      html += '<p class="pbd-note">L1 pools every due submission\'s points into one ratio.</p>';
-      html += '<div class="pbd-total">Overall = ' + data.overall_points + " points &#247; " + data.overall_due +
-        " due items = <b>" + (data.overall_pct === null ? "&#8213;" : data.overall_pct + "%") + "</b></div>";
+      body.appendChild(el("div", "pbd-total", "Overall = " + data.overall_points + " points &#247; " + data.overall_due +
+        " due items = <b>" + (data.overall_pct === null ? "&#8213;" : data.overall_pct + "%") + "</b>"));
     }
-    html += '<table class="pcmp-table pbd-table"><thead><tr><th>Item</th><th>Name</th><th>Project</th><th>Due</th><th>Submitted</th><th>Status</th><th>Points</th></tr></thead><tbody>';
-    data.items.forEach(function (it) {
-      html += "<tr><td>" + it.item_no + "</td><td>" + it.name + "</td><td>" + it.project + "</td>" +
-        "<td>" + (it.due_date ? fmtDate(it.due_date) : "&#8213;") + "</td>" +
-        "<td>" + (it.submitted_date ? fmtDate(it.submitted_date) : "Not submitted") + "</td>" +
-        "<td>" + it.status + "</td><td>" + it.points + "</td></tr>";
-    });
-    html += "</tbody></table>";
-    body.innerHTML = html;
+
+    // Item 6: title above this table now says what it is ("every
+    // individual submission" vs the deliverable-level summary above it).
+    var itemCols = [
+      { key: "item_no", label: "Item", get: function (it) { return it.item_no; }, uniqueValues: function () { return _pbdUniq(data.items, function (it) { return it.item_no; }); } },
+      { key: "name", label: "Name", get: function (it) { return it.short_name || it.name; }, uniqueValues: function () { return _pbdUniq(data.items, function (it) { return it.short_name || it.name; }); } },
+      { key: "project", label: "Project", get: function (it) { return it.project; }, uniqueValues: function () { return _pbdUniq(data.items, function (it) { return it.project; }); } },
+      { key: "due_date", label: "Due", get: function (it) { return fmtDate(it.due_date); }, sortValue: function (it) { return it.due_date || ""; }, uniqueValues: function () { return _pbdUniq(data.items, function (it) { return fmtDate(it.due_date); }); } },
+      { key: "submitted_date", label: "Submitted", get: function (it) { return it.submitted_date ? fmtDate(it.submitted_date) : "Not submitted"; }, sortValue: function (it) { return it.submitted_date || ""; }, uniqueValues: function () { return _pbdUniq(data.items, function (it) { return it.submitted_date ? fmtDate(it.submitted_date) : "Not submitted"; }); } },
+      { key: "status", label: "Status", get: function (it) { return (STATUS_META[it.status] || ["", it.status])[1]; }, uniqueValues: function () { return _pbdUniq(data.items, function (it) { return (STATUS_META[it.status] || ["", it.status])[1]; }); } },
+      { key: "points", label: "Points", get: function (it) { return it.points; }, uniqueValues: function () { return _pbdUniq(data.items, function (it) { return it.points; }); } },
+    ];
+    body.appendChild(_buildPbdTable("Every Submission", deptName + " " + levelKey.toUpperCase() + " submissions", itemCols, data.items, function (it) {
+      var statusMeta = STATUS_META[it.status] || ["neutral", it.status];
+      return "<td>" + it.item_no + "</td><td class=\"pbd-name\">" + (it.short_name || it.name) + "</td>" +
+        "<td class=\"est-no " + levelKey + "\">" + it.project + "</td>" +
+        "<td class=\"pbd-num\">" + (it.due_date ? fmtDate(it.due_date) : "&#8213;") + "</td>" +
+        "<td class=\"pbd-num\">" + (it.submitted_date ? fmtDate(it.submitted_date) : "Not submitted") + "</td>" +
+        "<td><span class=\"pill " + statusMeta[0] + "\"><span class=\"dot\"></span>" + statusMeta[1] + "</span></td>" +
+        "<td class=\"pbd-num\">" + it.points + "</td>";
+    }));
+
     document.getElementById("perfBreakdownOverlay").hidden = false;
   }
   function closePerfBreakdownModal() { document.getElementById("perfBreakdownOverlay").hidden = true; }
   document.getElementById("perfBreakdownClose").addEventListener("click", closePerfBreakdownModal);
   document.getElementById("perfBreakdownOverlay").addEventListener("click", function (e) { if (e.target === this) closePerfBreakdownModal(); });
+  document.getElementById("perfBreakdownPrintBtn").addEventListener("click", function () { window.print(); });
   [document.getElementById("perfCardGrid"), document.getElementById("perfCompareBody")].forEach(function (container) {
     container.addEventListener("click", function (e) {
       var target = e.target.closest(".pc2-pct-clickable");
