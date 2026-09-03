@@ -2294,11 +2294,17 @@
   </div>
 </div>
 
+<!-- Item 6: Print added next to Close -- each table below carries its own
+     Export button (app.js, _buildPbdTable) instead of one combined
+     export, since the two tables have different columns/shapes. -->
 <div class="modal-overlay" id="perfBreakdownOverlay" hidden>
   <div class="modal-card wide">
     <div class="modal-head">
       <div><h2 id="perfBreakdownTitle"></h2></div>
-      <button class="modal-close" id="perfBreakdownClose">&#10005;</button>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button class="btn" id="perfBreakdownPrintBtn" type="button">&#128424;&#65039; Print</button>
+        <button class="modal-close" id="perfBreakdownClose">&#10005;</button>
+      </div>
     </div>
     <div class="modal-body" id="perfBreakdownBody"></div>
   </div>

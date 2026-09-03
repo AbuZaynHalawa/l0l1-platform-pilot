@@ -2659,9 +2659,33 @@
   }
   [data-tooltip]:hover::after { opacity: 1; }
   .pbd-note { font-size: 12px; color: var(--ink-500); margin: 0 0 12px; }
-  .pbd-table { margin-bottom: 16px; }
-  .pbd-table th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-500); padding: 6px 14px; border-bottom: 2px solid var(--line); white-space: nowrap; }
+  /* Item 6: title (once per table, not repeated) + its own Export button,
+     same row shape .dpc-body-title-row already uses. */
+  .pbd-table-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 22px 0 8px; }
+  .pbd-table-title-row:first-child { margin-top: 0; }
+  .pbd-table-title { font-size: 13px; font-weight: 800; color: var(--ink-900); }
+  .pbd-export-btn { padding: 5px 12px; font-size: 11.5px; }
+  .pbd-table-wrap { margin-bottom: 16px; }
+  .pbd-table { margin-bottom: 0; }
+  /* Item 6: darker than the app's now-standard sunken table header (this
+     popup's own explicit ask), and installExcelHeader's sort/filter
+     controls (.xh-th-wrap, .xh-sort-svg, .xh-filter-btn) get their own
+     light-on-dark treatment to stay legible against it. */
+  .pbd-table th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; color: #fff; background: var(--ink-700); padding: 0; border-bottom: none; white-space: nowrap; }
+  .pbd-table th .xh-label { color: #fff; }
+  .pbd-table th .xh-sort-svg .xh-sort-up, .pbd-table th .xh-sort-svg .xh-sort-down { fill: #fff; }
+  .pbd-table th .xh-filter-btn { color: rgba(255,255,255,.75); }
+  .pbd-table th .xh-filter-btn:hover { background: rgba(255,255,255,.15); color: #fff; }
+  .pbd-table th[data-xh-filtered="1"] { background: color-mix(in srgb, var(--ink-700), #000 15%); }
+  .pbd-table th[data-xh-filtered="1"] .xh-filter-btn { color: #fff; background: rgba(255,255,255,.2); }
   .pbd-table td { white-space: normal; }
+  /* Item 6: Name left-aligned (was centered, unreadable once wrapped),
+     numeric columns (Points/Due/Ratio) right-aligned with tabular
+     figures instead -- everything else (Item/Project/Status) keeps the
+     shared .pcmp-table center default, appropriate for short fixed
+     tokens/badges. */
+  .pbd-table td.pbd-name { text-align: left; }
+  .pbd-table td.pbd-num { text-align: right; font-variant-numeric: tabular-nums; }
   .pbd-total { font-size: 13px; color: var(--ink-700); background: var(--accent-soft); border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; }
   .pbd-total b { color: var(--purple-2); font-size: 15px; }
 

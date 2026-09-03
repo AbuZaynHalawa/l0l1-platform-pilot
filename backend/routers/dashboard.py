@@ -975,28 +975,41 @@ def get_performance_breakdown(department: str, stage: str, db: Session = Depends
         submitted_date = s.submitted_at.date() if s.submitted_at else None
         points = rules.kpi_points(s.due_date, submitted_date) or 0.0
         items.append({
-            "item_no": s.definition.item_no, "name": rules.submission_display_name(s), "project": s.project.est_no,
+            "item_no": s.definition.item_no, "name": rules.submission_display_name(s),
+            # Item 6: short_name for the popup's own table (the shortened
+            # label Matrix/Timeline/Assigned Deliverables already show) --
+            # falls back to the full display name for any definition
+            # without a curated short_name, same convention as those.
+            "short_name": s.definition.short_name or rules.submission_display_name(s),
+            "project": s.project.est_no,
             "due_date": s.due_date.isoformat() if s.due_date else None,
             "submitted_date": submitted_date.isoformat() if submitted_date else None,
             "status": s.status.value, "points": points,
         })
     items.sort(key=lambda x: (rules.item_sort_key(x["item_no"]), x["project"]))
 
-    result = {"department": dept.name, "stage": stage, "items": items}
+    # Item 6: the per-deliverable summary table used to be L0-only (its
+    # aggregation genuinely averages these groups into the overall score);
+    # L1 pools everything directly instead, so these totals don't feed its
+    # overall_pct, but they're just as real and useful to see, so both
+    # stages get the table now -- only the aggregation branch below
+    # differs in how (or whether) it uses these groups for the overall %.
+    groups: dict[str, list] = {}
+    for s in cohort:
+        groups.setdefault(s.definition.item_no, []).append(s)
+    per_item = []
+    ratios = []
+    for item_no, item_subs in groups.items():
+        pts = sum((rules.kpi_points(s.due_date, s.submitted_at.date() if s.submitted_at else None) or 0.0) for s in item_subs)
+        ratio = pts / len(item_subs)
+        ratios.append(ratio)
+        per_item.append({"item_no": item_no, "name": item_subs[0].definition.name,
+                          "short_name": item_subs[0].definition.short_name or item_subs[0].definition.name,
+                          "points": round(pts, 2), "due": len(item_subs), "pct": round(ratio * 100, 1)})
+    per_item.sort(key=lambda x: rules.item_sort_key(x["item_no"]))
+
+    result = {"department": dept.name, "stage": stage, "items": items, "per_item_groups": per_item}
     if stage_enum == models.Stage.L0:
-        groups: dict[str, list] = {}
-        for s in cohort:
-            groups.setdefault(s.definition.item_no, []).append(s)
-        per_item = []
-        ratios = []
-        for item_no, item_subs in groups.items():
-            pts = sum((rules.kpi_points(s.due_date, s.submitted_at.date() if s.submitted_at else None) or 0.0) for s in item_subs)
-            ratio = pts / len(item_subs)
-            ratios.append(ratio)
-            per_item.append({"item_no": item_no, "name": item_subs[0].definition.name, "points": round(pts, 2),
-                              "due": len(item_subs), "pct": round(ratio * 100, 1)})
-        per_item.sort(key=lambda x: rules.item_sort_key(x["item_no"]))
-        result["per_item_groups"] = per_item
         # Item [early bonus]: the final department score caps at 100 even
         # though an individual item group's own ratio (above) can exceed it.
         result["overall_pct"] = round(min((sum(ratios) / len(ratios)) * 100, 100.0), 1) if ratios else None
