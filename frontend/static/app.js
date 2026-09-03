@@ -7136,7 +7136,15 @@
     "3.6": { label: "Internal PO signature", needs: ["3.5"] },
     "3.7": { label: "Vendor PO signature", needs: ["3.6"] },
     "2.6": { label: "Early-activity PRs", needs: ["4.1", "6.1", "2.3"] },
-    "2.14": { label: "MEP consultancy PRs", needs: ["4.1", "6.1", "2.3", "2.13"] },
+    // [MEP sequence fix]: was needs: ["4.1", "6.1", "2.3", "2.13"] -- 4.1
+    // declares the EARLY-ACTIVITY items specifically (see 4.1's own note
+    // above), not MEP consultancies -- MEP fans out from 1.2, same as
+    // long-lead (CATEGORY_STEP_SEQUENCE.mep, backend's own
+    // CATEGORY_DECLARING_ITEM_NOS["mep"] == ["1.2"]), so 4.1 was never a
+    // real MEP prerequisite. 2.3 (PM assigned) dropped too -- 2.13 (cost
+    // center request) isn't PM-submitted, so it isn't a real gate on this
+    // step either.
+    "2.14": { label: "MEP consultancy PRs", needs: ["6.1", "2.13"] },
     "3.11": { label: "Issue POs", needs: ["2.6", "2.14"], note: "one combined step — covers both early-activity and MEP lines" },
     "2.7": { label: "Design-firm PR", needs: ["4.1", "6.1", "2.3"] },
     "3.10": { label: "Design-firm PO", needs: ["2.7"] },
