@@ -1346,9 +1346,15 @@
             <input id="perfTriageSearch" type="text" placeholder="Filter by item, name, department&#8230;" />
           </div>
         </div>
+        <!-- Item 8: Item was 60px -- too tight for its own sort label plus
+             the Excel-header filter icon, which read as cramped. Counts in
+             Performance was 140px, wrapping its own header onto 2 lines.
+             Both widened, taken from Name's unbounded auto-width (still
+             flexible, just no longer absorbing literally all the leftover
+             room by itself). -->
         <div class="card table-card">
           <table class="fp-table">
-            <thead><tr><th style="width:60px;">Item</th><th>Name</th><th style="width:200px;">Department</th><th style="width:140px;">Counts in Performance</th></tr></thead>
+            <thead><tr><th style="width:90px;">Item</th><th>Name</th><th style="width:200px;">Department</th><th style="width:190px;">Counts in Performance</th></tr></thead>
             <tbody id="perfTriageBody"></tbody>
           </table>
         </div>
@@ -1380,12 +1386,15 @@
       <div class="card table-card">
         <div class="fp-table-scroll">
           <table class="fp-table wrap-table">
+            <!-- Item 8: Item No/Weight widened -- same cramped sort-label-
+                 plus-filter-icon issue as Manage Tracking's Item column.
+                 Taken from Name/Formula's own unbounded auto-width. -->
             <thead><tr>
-              <th style="width:70px;">Item No</th>
+              <th style="width:90px;">Item No</th>
               <th style="width:190px;">Department</th>
               <th>Name</th>
               <th>Formula</th>
-              <th style="width:100px;">Weight</th>
+              <th style="width:120px;">Weight</th>
               <th style="width:130px;"></th>
             </tr></thead>
             <tbody id="dfItemList"></tbody>
