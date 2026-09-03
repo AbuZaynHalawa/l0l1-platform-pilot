@@ -546,6 +546,9 @@
     reassignment_decision: ["&#128101;", "reassignment-decision"], sme_nomination_decision: ["&#127891;", "sme-nomination-decision"],
     bid_value_access_decision: ["&#128176;", "bid-value-access-decision"], group_add_decision: ["&#128101;", "group-add-decision"],
     comm_offer_access_decision: ["&#128188;", "comm-offer-access-decision"],
+    // Item 4: a reopen's own notice, and the retraction of whatever
+    // milestone/unlock announcement it invalidates.
+    reverted: ["&#8630;", "reverted"],
   };
   // Item 165: single source of truth for the Announcements type filter and
   // its legend -- audience: "all" means every role sees it as a filter
@@ -560,6 +563,7 @@
     { value: "doc_added", label: "Document Added", sw: "var(--purple-1)", audience: "all" },
     { value: "deliverable_approved", label: "Deliverable Approved", sw: "var(--good)", audience: "all" },
     { value: "unlock", label: "Cross-department Unlock", sw: "var(--purple-2)", audience: "all" },
+    { value: "reverted", label: "Reverted", sw: "var(--crit)", audience: "all" },
     { value: "closed", label: "Closed", sw: "var(--neutral-bg);border:1px solid var(--line)", audience: "all" },
     { value: "owner", label: "To Owner", sw: "var(--good)", audience: ["Owner"] },
     { value: "sme_request", label: "SME Review Request", sw: "var(--warn)", audience: ["Owner", "SME"] },
@@ -1945,18 +1949,19 @@
     var columns;
     if (stage === "L0") {
       var regionOf = function (p) { return p.is_international ? (p.country || "International") : joinList(p.region); };
-      // [L0 column rebalance]: order mirrors the reordered <thead>
-      // (index.html) -- installExcelHeader binds columns[i] to the i-th
-      // <th> positionally, so these two must always move together.
+      // [L0 column rebalance]: order mirrors the <thead> in index.html
+      // (RFX/Region between Tender and Scope, the original order) --
+      // installExcelHeader binds columns[i] to the i-th <th> positionally,
+      // so these two must always move together.
       columns = [
         { key: "est_no", get: function (p) { return p.est_no; }, uniqueValues: uniq(function (p) { return p.est_no; }) },
         { key: "name", get: function (p) { return p.name; }, uniqueValues: uniq(function (p) { return p.name; }) },
+        { key: "rfx", get: function (p) { return p.rfx_number || ""; }, uniqueValues: uniq(function (p) { return p.rfx_number || ""; }) },
+        { key: "region", get: regionOf, uniqueValues: uniq(regionOf) },
         { key: "scope", get: function (p) { return joinList(p.scope); }, uniqueValues: uniq(function (p) { return joinList(p.scope); }) },
         { key: "bm", get: function (p) { return p.bid_manager || ""; }, uniqueValues: uniq(function (p) { return p.bid_manager || ""; }) },
         { key: "bsd", get: function (p) { return fmtDate(p.bsd); }, sortValue: function (p) { return p.bsd || ""; }, uniqueValues: uniq(function (p) { return fmtDate(p.bsd); }) },
         { key: "status", get: function (p) { return p.status; }, uniqueValues: uniq(function (p) { return p.status; }) },
-        { key: "rfx", get: function (p) { return p.rfx_number || ""; }, uniqueValues: uniq(function (p) { return p.rfx_number || ""; }) },
-        { key: "region", get: regionOf, uniqueValues: uniq(regionOf) },
       ];
     } else {
       // [queued: milestones filterable] p.current_milestone is the highest-
@@ -2026,12 +2031,12 @@
       var intlPill = p.is_international ? '<span class="pill neutral"><span class="dot"></span>International</span>' : "";
       if (stage === "L0") {
         var regionCell = p.is_international ? (p.country || "International") : joinList(p.region);
-        // [L0 column rebalance]: RFX/Region moved to the end, matching the
-        // reordered <thead> (index.html) and _projectsXh's L0 columns[].
+        // [L0 column rebalance]: original column order (RFX/Region stay
+        // between Tender and Scope, matching the <thead> in index.html
+        // and _projectsXh's L0 columns[]) -- only the widths changed.
         tr2.innerHTML = '<td class="' + estClass + '">' + p.est_no + ' ' + intlPill + '</td><td><span class="proj-name">' + p.name + '</span></td>' +
-          '<td>' + joinList(p.scope) + '</td><td>' + (p.bid_manager || "&#8213;") + '</td>' +
-          '<td class="num">' + fmtDate(p.bsd) + '</td><td>' + statusPill + '</td>' +
-          '<td>' + (p.rfx_number || "&#8213;") + '</td><td>' + regionCell + '</td>';
+          '<td>' + (p.rfx_number || "&#8213;") + '</td><td>' + regionCell + '</td><td>' + joinList(p.scope) + '</td><td>' + (p.bid_manager || "&#8213;") + '</td>' +
+          '<td class="num">' + fmtDate(p.bsd) + '</td><td>' + statusPill + '</td>';
       } else {
         var mini = '<div class="mini-stepper" data-pid="' + p.id + '">&#8230;</div>';
         // Item 11: Contract Status column, same good/neutral pill the
@@ -7127,7 +7132,7 @@
     submitted: "&#128228;", assigned: "&#128100;", review_requested: "&#128269;",
     approved: poIcon("done"), rejected: "&#10060;", unlocked: "&#128275;",
     document_added: "&#128206;", document_approved: poIcon("done"), document_rejected: "&#10060;",
-    reopened: "&#128257;", auto_done: poIcon("done"),
+    reopened: "&#128257;", relocked: "&#128274;", auto_done: poIcon("done"),
     extension_requested: "&#8987;", extension_approved: poIcon("done"), extension_rejected: "&#10060;",
     hold_requested: "&#9208;", hold_approved: poIcon("done"), hold_rejected: "&#10060;", resumed: "&#9654;",
     completion_date_edited: "&#128197;",

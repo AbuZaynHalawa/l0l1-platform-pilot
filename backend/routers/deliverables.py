@@ -698,6 +698,15 @@ def reopen_deliverable(submission_id: int, actor_role: str = "Viewer", actor_ema
     if not rules.can_act(actor_role, actor_email, assigned_owners):
         raise HTTPException(403, f"Only {', '.join(assigned_owners) or 'the assigned owner'} or an Admin can reopen this deliverable")
 
+    # Item 4: snapshot due dates before reopening -- the mirror image of
+    # _finalize_approval's own before/after snapshot, but looking for
+    # dates that DISAPPEAR (item re-locked) instead of appear (unlocked).
+    before = {
+        s.id: s.due_date
+        for s in db.query(models.DeliverableSubmission).filter(models.DeliverableSubmission.project_id == sub.project_id).all()
+    }
+    was_milestone = sub.definition.is_milestone
+
     sub.reviewed_at = None
     sub.review_comment = None
     sub.status = models.SubmissionStatus.NO_PROGRESS  # placeholder so refresh_status doesn't early-return on APPROVED
@@ -707,6 +716,28 @@ def reopen_deliverable(submission_id: int, actor_role: str = "Viewer", actor_ema
     db.commit()
 
     rules.recompute_project_due_dates(db, sub.project, force=True)
+    db.commit()
+
+    # Item 4: reverting an approval should say so, and retract whatever
+    # MILESTONE/UNLOCK notice it had triggered -- announcements are never
+    # deleted (same append-only history WorkflowHistory already is), so
+    # these are explicit follow-up notices next to the originals, not a
+    # silent edit/removal.
+    trigger_label = f"{sub.definition.item_no} {rules.submission_display_name(sub)}"
+    announcements.deliverable_reverted(db, sub.project, assigned_owners, sub.definition.item_no,
+                                        rules.submission_display_name(sub), submission_id=sub.id)
+    if was_milestone:
+        recipients = sorted({d.focal_point_email for d in db.query(models.Department).all() if d.focal_point_email} | rules.system_group_emails(db))
+        announcements.milestone_reverted(db, sub.project, recipients, sub.definition.milestone_code, sub.definition.name)
+    after_subs = db.query(models.DeliverableSubmission).filter(models.DeliverableSubmission.project_id == sub.project_id).all()
+    for s2 in after_subs:
+        if s2.id == sub.id:
+            continue
+        if before.get(s2.id) is not None and s2.due_date is None:
+            announcements.cross_department_relock(db, sub.project, rules.resolve_owners(s2), trigger_label,
+                                                    s2.definition.item_no, rules.submission_display_name(s2), submission_id=s2.id)
+            db.add(models.WorkflowHistory(submission_id=s2.id, action="relocked",
+                                           actor_name="system", note=f"Re-locked by reopening {trigger_label}"))
     db.commit()
     return {"status": "ok"}
 

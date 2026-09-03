@@ -328,6 +328,51 @@ def milestone_reached(db: Session, project: models.Project, recipients: list[str
                     recipients=recipients, project=project, link_html=_project_link(project.id))
 
 
+# Item 4: three revert notices, all sent from reopen_deliverable (never
+# deleted -- announcements are an append-only history the same way
+# WorkflowHistory is, so a stale MILESTONE/UNLOCK notice gets an explicit
+# retraction next to it instead of silently vanishing).
+def deliverable_reverted(db: Session, project: models.Project, recipients: list[str], item_no: str, name: str,
+                          submission_id: int) -> models.Announcement:
+    """The general case: any approved deliverable reopened, milestone or
+    not. milestone_reverted/cross_department_relock below are the two
+    *additional* notices a milestone's own reopen also triggers.
+    """
+    title = f"{item_no} Reopened &#8211; {name}"
+    body = (f"{_b(project.est_no)} &#8211; {project.name}: {_b(f'{item_no} {name}')} was previously approved but has "
+            f"been {_hl('reopened', 'crit')} and needs work again.")
+    return _create(db, type=models.AnnouncementType.REVERTED, title=title, body=body,
+                    recipients=sorted({e for e in recipients if e}), project=project,
+                    submission_id=submission_id, link_html=_deliverable_link(submission_id))
+
+
+def milestone_reverted(db: Session, project: models.Project, recipients: list[str], code: str, name: str) -> models.Announcement:
+    """Retracts a milestone_reached notice once that milestone's own
+    deliverable is reopened -- same recipients (every department focal
+    point + the system group) since the original went out that widely.
+    """
+    title = f"{code} Reverted &#8211; {name}"
+    body = (f"{_b(project.est_no)} &#8211; {project.name}: the earlier notice that milestone "
+            f"{_b(f'{code} ({name})')} had been reached no longer applies &#8211; it was "
+            f"{_hl('reopened', 'crit')}. Deliverables and due dates unlocked by it have been reversed too.")
+    return _create(db, type=models.AnnouncementType.REVERTED, title=title, body=body,
+                    recipients=recipients, project=project, link_html=_project_link(project.id))
+
+
+def cross_department_relock(db: Session, project: models.Project, owner_emails: list[str], trigger_item: str,
+                             relocked_item_no: str, relocked_item_name: str, submission_id: int) -> models.Announcement:
+    """The mirror of cross_department_unlock: the predecessor that had
+    unlocked this item got reopened, so it's no longer actionable -- sent
+    to the same owners who got the original unlock notice.
+    """
+    title = "Deliverable Re-locked &#8211; Predecessor Reopened"
+    body = (f"{_b(trigger_item)} on {_b(project.est_no)} was reopened, so {_b(relocked_item_no)} "
+            f"{relocked_item_name} is {_hl('no longer actionable', 'crit')} until it's re-approved.")
+    return _create(db, type=models.AnnouncementType.REVERTED, title=title, body=body,
+                    recipients=sorted({e for e in owner_emails if e}), project=project,
+                    submission_id=submission_id, greeting="Owner", link_html=_deliverable_link(submission_id))
+
+
 def triage_reminder(db: Session, project: models.Project, bm_email: str, pending_count: int) -> models.Announcement:
     """Item 79's "Remind" action on the admin BM Triage Status page — nudges
     the assigned Bid Manager that they still have pending applicable/

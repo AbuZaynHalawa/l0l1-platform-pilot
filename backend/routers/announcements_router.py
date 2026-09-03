@@ -22,7 +22,7 @@ _ALWAYS_VISIBLE_TYPES = {
     models.AnnouncementType.BROADCAST, models.AnnouncementType.CLOSED,
     models.AnnouncementType.MILESTONE, models.AnnouncementType.BSD_EXTENDED,
     models.AnnouncementType.DOC_ADDED, models.AnnouncementType.DELIVERABLE_APPROVED,
-    models.AnnouncementType.UNLOCK,
+    models.AnnouncementType.UNLOCK, models.AnnouncementType.REVERTED,
 }
 
 

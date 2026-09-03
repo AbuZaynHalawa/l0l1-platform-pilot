@@ -49,6 +49,8 @@ ensure_column("deliverable_definitions", "is_customized", "BOOLEAN")
 ensure_column("deliverable_definitions", "seed_key", "VARCHAR")
 ensure_column("departments", "active", "BOOLEAN")
 ensure_enum_value("announcements", "type", "FORMULA_CHANGE_DECISION")
+# Item 4
+ensure_enum_value("announcements", "type", "REVERTED")
 
 # [Archive]
 ensure_column("projects", "archived", "BOOLEAN")

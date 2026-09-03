@@ -111,6 +111,13 @@ class AnnouncementType(str, enum.Enum):
     # convention as every other *_REQUEST above; this is only the decision
     # half, back to whoever suggested the formula change.
     FORMULA_CHANGE_DECISION = "formula_change_decision"
+    # Item 4: a reopened deliverable's own "this was reverted" notice, plus
+    # the retraction of whatever MILESTONE/UNLOCK announcements it had
+    # triggered (M6 reopened after "M6 Reached" already went out, or an
+    # approval reopened after it unlocked a downstream item) -- see
+    # reopen_deliverable and announcements.deliverable_reverted/
+    # milestone_reverted/cross_department_relock.
+    REVERTED = "reverted"
 
 
 class Department(Base):

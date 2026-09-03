@@ -110,9 +110,13 @@
            so it always spanned the full title column (~493px at desktop)
            regardless of --stage-num -- looked right against the old
            124px title, oversized next to the smaller one. Tied to
-           --stage-num via calc() instead, so it's short and scales down
-           with the title at every breakpoint instead of staying fixed. -->
-      <div style="height:2px;width:calc(var(--stage-num) * 1.6);background:var(--rule);margin:26px 0 18px;"></div>
+           --stage-num via calc() instead, sized to end flush with
+           "READINESS" (the wider of the two stacked words -- measured
+           443px of Archivo bold at a 74.2px computed --stage-num, a
+           5.97x ratio that holds at any size since it's the same
+           text/font just scaling) so it reads as underlining the title
+           itself rather than an arbitrary short dash. -->
+      <div style="height:2px;width:calc(var(--stage-num) * 5.97);background:var(--rule);margin:26px 0 18px;"></div>
       <div style="font-family:var(--font-heading);font-weight:700;font-size:var(--stage-sub);line-height:1.25;letter-spacing:0.04em;color:#ec3013;">L0/L1 PLATFORM</div>
       <div style="font-size:12px;letter-spacing:0.08em;color:var(--ink-dim);margin-top:14px;">Tendering and Early Project Execution Stages</div>
       <div style="display:flex;flex-wrap:wrap;gap:26px;align-items:center;margin-top:38px;">
@@ -576,20 +580,22 @@
       </div>
       <div class="card table-card" id="l0ListCard">
         <div class="table-scroll">
-          <!-- [L0 column rebalance]: RFX/Region moved to the right (after
-               Status, was between Tender and Scope) and Tender given real
-               width instead of an equal 1/8 share -- table-layout:fixed
-               was giving Status the same width as Tender despite needing
-               a fraction of it, which read as "very wide" while Tender's
-               long names wrapped onto 2-3 lines. colgroup widths must
-               stay in this same order -- _renderProjectsTable's L0 branch
-               (app.js) and _projectsXh's L0 columns[] both mirror it. -->
+          <!-- [L0 column rebalance]: original column order kept (RFX/Region
+               stay between Tender and Scope) -- only the widths changed.
+               table-layout:fixed was giving every column an equal 1/8
+               share regardless of content, which read as Status being
+               "very wide" (short text, lots of dead space) while Tender's
+               long names wrapped onto 2-3 lines; RFX/Region narrowed and
+               Status trimmed, Tender gets the difference. colgroup widths
+               must stay in this same order -- _renderProjectsTable's L0
+               branch (app.js) and _projectsXh's L0 columns[] both mirror
+               it. -->
           <table class="data" id="l0Table">
             <colgroup>
-              <col style="width:9%;"><col style="width:27%;"><col style="width:13%;"><col style="width:13%;">
-              <col style="width:9%;"><col style="width:9%;"><col style="width:10%;"><col style="width:10%;">
+              <col style="width:9%;"><col style="width:32%;"><col style="width:9%;"><col style="width:9%;">
+              <col style="width:12%;"><col style="width:12%;"><col style="width:9%;"><col style="width:8%;">
             </colgroup>
-            <thead><tr><th>Est No.</th><th>Tender</th><th>Scope</th><th>Bid Manager</th><th>BSD</th><th>Status</th><th>RFX</th><th>Region</th></tr></thead>
+            <thead><tr><th>Est No.</th><th>Tender</th><th>RFX</th><th>Region</th><th>Scope</th><th>Bid Manager</th><th>BSD</th><th>Status</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
