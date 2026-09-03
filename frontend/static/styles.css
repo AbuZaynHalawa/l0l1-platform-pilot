@@ -433,7 +433,14 @@
   .dash-row > * { min-width: 0; }
   @media (max-width: 980px) { .dash-row { grid-template-columns: 1fr; } }
 
-  .dash-project-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 22px; margin-bottom: 22px; }
+  /* [Dashboard spacing]: was margin-bottom:22px on top of .stat-row's own
+     gap:16px AND its own margin-bottom:22px below -- margins don't
+     collapse between flex items, so the space after Deliverables Status
+     (last child) doubled to 44px against every other section's 22px
+     (this row's own gap to Deliverables Status stayed the intentional
+     16px, tighter than the between-sections rhythm). Spacing between the
+     two rows now comes from .stat-row's gap alone. */
+  .dash-project-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 22px; }
   .dash-project-row > * { min-width: 0; }
   .dash-project-card { padding: 0; border: none; overflow: hidden; display: flex; flex-direction: column; }
   .dash-project-card .dpc-head { padding: 20px 24px; display: flex; align-items: center; gap: 14px; }
@@ -577,7 +584,7 @@
   .dpc-recent-date { font-size: 11px; color: var(--ink-500); flex-shrink: 0; white-space: nowrap; }
   .dpc-empty { padding: 10px 12px; font-size: 12px; color: var(--ink-500); }
 
-  .dash-status-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 22px; margin-bottom: 22px; }
+  .dash-status-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 22px; }
   .dash-status-row > * { min-width: 0; }
   .dash-status-card { padding: 22px 24px 24px; }
   .dash-status-card .dsc-head { font-size: 12.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 12px; }
@@ -2146,6 +2153,12 @@
   #view-scores .split > .card { display: flex; flex-direction: column; }
   #view-scores .achiever-list { flex: 1; overflow-x: hidden; overflow-y: auto; }
   .achiever-row { display: flex; align-items: center; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--line); }
+  /* Item 5: dashboard-only override, matching .top-dept-row's own padding
+     (8px 20px, no wrapper) now that .achievers-row lost its .card-pad --
+     lines the score column up with Top Departments directly above it.
+     The standalone Top Achievers page (#view-scores) still nests
+     .achiever-row inside .card-pad and keeps the base padding above. */
+  .achievers-row .achiever-row { padding: 8px 20px; }
   .achiever-row:last-child { border-bottom: none; }
   .achiever-rank { font-size: 17px; width: 24px; text-align: center; }
   /* Item 29 (doc redline on the original item 25 fix): flex:0 (no grow)
@@ -2158,7 +2171,11 @@
   .achiever-main { flex: 1 1 auto; min-width: 0; max-width: 68%; }
   .achiever-email { font-size: 13px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .achiever-sub { font-size: 11.5px; color: var(--ink-500); margin-top: 1px; }
-  .achiever-pct { font-size: 15px; font-weight: 700; color: var(--good); flex-shrink: 0; margin-left: 12px; }
+  .achiever-pct { font-size: 15px; font-weight: 700; color: var(--good); text-align: right; }
+  /* Item 5: title above the number -- "Average Response Time" / "On-Time
+     Approval Rate", same shape as Performance's own .pc2-title/.pc2-pct. */
+  .achiever-score { display: flex; flex-direction: column; align-items: flex-end; flex-shrink: 0; margin-left: 12px; }
+  .achiever-score-label { font-size: 9px; text-transform: uppercase; letter-spacing: .04em; font-weight: 700; color: var(--ink-500); margin-bottom: 2px; white-space: nowrap; }
   .sample-tag { font-size: 9.5px; font-weight: 700; color: var(--ink-500); background: var(--surface-sunken); border-radius: 8px; padding: 1px 6px; text-transform: uppercase; letter-spacing: .3px; vertical-align: middle; }
 
   /* ---------- history department accordion ---------- */
@@ -2490,13 +2507,16 @@
   .perf-history-btn { font-size: 11.5px; font-weight: 700; padding: 5px 12px; border-radius: 18px; background: var(--accent-soft); color: var(--purple-2); border: 1.5px solid var(--accent-line); cursor: pointer; }
   .perf-history-btn:hover { background: var(--purple-2); color: #fff; }
   .perf-card2-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-  .pc2-title { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; color: var(--ink-500); margin-bottom: 6px; }
-  .pc2-pct { font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  /* Item 7: title/Performance%/status centered -- everything below them
+     (Monthly Trend, YTD, the yearly chart) stays left-aligned, untouched,
+     since only these three were asked for. */
+  .pc2-title { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; color: var(--ink-500); margin-bottom: 6px; text-align: center; }
+  .pc2-pct { font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; text-align: center; }
   .pc2-pct.excellent { color: var(--good); }
   .pc2-pct.acceptable { color: var(--warn); }
   .pc2-pct.needs-action { color: var(--crit); }
   .pc2-pct.na { color: var(--ink-300); }
-  .pc2-status { display: inline-block; font-size: 10.5px; font-weight: 800; padding: 2px 10px; border-radius: 12px; margin: 5px 0 12px; }
+  .pc2-status { display: block; width: max-content; font-size: 10.5px; font-weight: 800; padding: 2px 10px; border-radius: 12px; margin: 5px auto 12px; }
   .pc2-status.excellent { background: var(--good-bg); color: var(--good); }
   .pc2-status.acceptable { background: var(--warn-bg); color: var(--warn); }
   .pc2-status.needs-action { background: var(--crit-bg); color: var(--crit); }

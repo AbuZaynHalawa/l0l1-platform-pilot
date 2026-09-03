@@ -1487,17 +1487,24 @@
       var label = (r.name ? r.name + " &middot; " : "") + r.email;
       var emailLine = label + (r.sample ? ' <span class="sample-tag">Sample</span>' : "");
       main.appendChild(el("div", "achiever-email", emailLine));
+      // Item 5: a bare number/percentage didn't say what it measured --
+      // same title-above-number shape Performance's own cards use
+      // (.pc2-title/.pc2-pct), scaled down for this row.
+      var score = el("div", "achiever-score");
       if (kind === "sme") {
         var smeSub = r.reviewed + " review" + (r.reviewed === 1 ? "" : "s") + (r.department ? " &middot; " + r.department : "");
         main.appendChild(el("div", "achiever-sub", smeSub));
         row.appendChild(main);
-        row.appendChild(el("div", "achiever-pct num", r.avg_label + " avg"));
+        score.appendChild(el("div", "achiever-score-label", "Average Response Time"));
+        score.appendChild(el("div", "achiever-pct num", r.avg_label));
       } else {
         var ownerSub = r.approved + " / " + r.total + " approved on time" + (r.department ? " &middot; " + r.department : "");
         main.appendChild(el("div", "achiever-sub", ownerSub));
         row.appendChild(main);
-        row.appendChild(el("div", "achiever-pct num", r.pct + "%"));
+        score.appendChild(el("div", "achiever-score-label", "On-Time Approval Rate"));
+        score.appendChild(el("div", "achiever-pct num", r.pct + "%"));
       }
+      row.appendChild(score);
       wrap.appendChild(row);
     });
   }

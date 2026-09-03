@@ -372,14 +372,21 @@
         </div>
       </div>
 
+      <!-- Item 5: dropped the .card-pad wrapper (22px/24px) that used to
+           sit on top of .achiever-row's own padding, stacking with it to
+           read as too much space above row 1/below the last row and too
+           much on the right of the score -- Top Departments above (no
+           such wrapper) doesn't have this. .achievers-row .achiever-row
+           below now carries the only padding, tuned to match
+           .top-dept-row's own so the score column lines up. -->
       <div class="dash-row achievers-row" id="achieversRow">
         <div class="card" id="achieversOwnersCard">
           <div class="section-title">Top Achievers &#8211; Owners</div>
-          <div class="card-pad"><div id="topOwners" class="achiever-list"></div></div>
+          <div id="topOwners" class="achiever-list"></div>
         </div>
         <div class="card" id="achieversSmesCard">
           <div class="section-title">Top Achievers &#8211; SME</div>
-          <div class="card-pad"><div id="topSmes" class="achiever-list"></div></div>
+          <div id="topSmes" class="achiever-list"></div>
         </div>
       </div>
 
