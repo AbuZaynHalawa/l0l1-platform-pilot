@@ -394,7 +394,12 @@
         <!-- Item 31: header-inline filter, live as you type -- the matrix
              itself keeps its own scroll (.matrix-wrap), the one deliberate
              exception to the no-horizontal-scroll rule (item 9). -->
-        <div style="display:flex;gap:10px;margin:0 18px 10px;flex-wrap:wrap;">
+        <!-- [Matrix filter spacing]: was margin:0 18px 10px -- zero top
+             margin sat these two fields flush against .section-title's own
+             border-bottom (styles.css:1489), reading as touching/cramped
+             against it. 14px matches the section-title's own vertical
+             padding for consistent rhythm. -->
+        <div style="display:flex;gap:10px;margin:14px 18px 10px;flex-wrap:wrap;">
           <div class="search-wrap" style="flex:2;min-width:220px;">
             <span class="sic">&#128269;</span>
             <input id="matrixSearch" type="text" placeholder="Filter by item number or deliverable name&#8230;" />
