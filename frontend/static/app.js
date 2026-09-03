@@ -1684,7 +1684,12 @@
     ];
     var theadRow = document.getElementById("assignedTableHead");
     _assignedXh = installExcelHeader(theadRow, columns);
-    _assignedXh.onChange(function () { _renderAssignedList(); });
+    // Item 2: also refresh the bars, not just the table rows, whenever a
+    // column filter/sort changes -- _renderAssignedBars reads _assignedXh
+    // right back out via _getAssignedXh(), which is safe to call here
+    // since _assignedXh is assigned above before this callback can ever
+    // actually fire.
+    _assignedXh.onChange(function () { _renderAssignedBars(); _renderAssignedList(); });
     return _assignedXh;
   }
   document.getElementById("assignedExportBtn").addEventListener("click", function () {
@@ -1716,8 +1721,23 @@
     _assignedAll = all;
     document.getElementById("assignedBadge").textContent = everything.filter(function (d) { return d.deadline_status === "due"; }).length || "";
 
-    var deadlineBase = assignedProgressFilter ? all.filter(function (d) { return d.status === assignedProgressFilter; }) : all;
-    var progressBase = assignedDeadlineFilter ? all.filter(function (d) { return d.deadline_status === assignedDeadlineFilter; }) : all;
+    _renderAssignedBars();
+    _renderAssignedList();
+  }
+  // Item 2: split out of loadAssigned so the Excel-header table filters
+  // (Est No, Name, Department, Owner, Due Date) can refresh the bars too,
+  // not just a fresh fetch -- _getAssignedXh's own onChange used to only
+  // call _renderAssignedList, so filtering the table left the bars still
+  // describing the whole (stage-toggle-only) queue above it. Reads
+  // straight from the already-cached _assignedAll, no refetch needed.
+  function _renderAssignedBars() {
+    var all = _assignedAll;
+    // .process() applies the Excel-header filters (sorting too, harmless
+    // here) the same way _renderAssignedList already does for the table
+    // itself, so the bars now describe exactly what's showing below them.
+    var xhFiltered = _getAssignedXh().process(all);
+    var deadlineBase = assignedProgressFilter ? xhFiltered.filter(function (d) { return d.status === assignedProgressFilter; }) : xhFiltered;
+    var progressBase = assignedDeadlineFilter ? xhFiltered.filter(function (d) { return d.deadline_status === assignedDeadlineFilter; }) : xhFiltered;
     var progressFilterSet = CURRENT_ROLE === "SME" ? SME_PROGRESS_FILTERS : PROGRESS_FILTERS;
     // Item 3: two clickable segmented bars (same .psc2-bar/.psb-seg/
     // .psc2-legend pattern the Performance tab's own summary cards use)
@@ -1740,8 +1760,6 @@
       function (d) { return d.status; }, assignedProgressFilter,
       { no_progress: "", in_progress: "warn", pending_review: "warn", approved: "good", rejected: "crit" },
       function (v) { assignedProgressFilter = v; loadAssigned(); });
-
-    _renderAssignedList();
   }
   // Item [Assigned Deliverables pager]: the full cross-project queue can
   // run into the hundreds of rows -- paginated (renderPager, same widget
