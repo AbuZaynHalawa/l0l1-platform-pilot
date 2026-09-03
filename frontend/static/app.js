@@ -7286,22 +7286,6 @@
     }
     return '<div class="po-item-track">' + dots + "</div>";
   }
-  // Item [PO Lifecycle track header]: one reference row of item_nos, sat
-  // directly above the first line item's own dot track, so the sequence
-  // (1.1, 2.3, ... 3.7) is readable at a glance instead of needing to
-  // hover each tiny dot for its tooltip. Keyed off the FIRST item's own
-  // _cat -- exactly matches every row's chain for 3 of the 4 columns
-  // (consultancy/long_lead/sc, one category each); early_activity_mep
-  // mixes two same-length 3-step chains sharing 2 of 3 entries, so this
-  // still reads correctly as "the sequence" for that column too, just not
-  // a byte-for-byte guarantee against every row's own chain.
-  function poItemTrackHeader(category) {
-    var chain = poFullChainFor(category);
-    if (!chain.length) return "";
-    return '<div class="po-item-track-header">' + chain.map(function (itemNo) {
-      return "<span>" + itemNo + "</span>";
-    }).join("") + "</div>";
-  }
   function poRegistryBox(items, count, sourceLabel, singleByItemNo) {
     var box = el("div", "po-registry-box");
     box.innerHTML = '<div class="title">Line items (' + count + ')</div><div class="source">' + sourceLabel + "</div>";
@@ -7309,7 +7293,6 @@
       box.insertAdjacentHTML("beforeend", '<div class="row">None declared yet</div>');
       return box;
     }
-    box.insertAdjacentHTML("beforeend", poItemTrackHeader(items[0]._cat));
     items.forEach(function (li) {
       // The item's own current_item_no only says where it sits in its own
       // chain -- drill through any unmet single-item prerequisite (budget,
