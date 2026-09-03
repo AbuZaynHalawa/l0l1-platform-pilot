@@ -52,8 +52,14 @@
   --ink-dim: rgba(243, 242, 242, 0.58);
   --ink-faint: rgba(243, 242, 242, 0.3);
   --rule: rgba(243, 242, 242, 0.16);
-  --stage-num: clamp(54px, 6.6vw, 124px);
-  --stage-sub: clamp(14px, 1.35vw, 21px);
+  /* [Title/subtitle balance]: was 124px/21px at the wide end (~5.9:1) --
+     "Project Readiness" (the generic category) was drowning out "L0/L1"
+     (the actual product identity), which read as a caption underneath
+     the real headline instead of half of one lockup. Rebalanced to
+     ~100px/30px (~3.3:1) -- PROJECT READINESS down a notch, L0/L1
+     PLATFORM up enough to carry real weight. */
+  --stage-num: clamp(48px, 5.3vw, 100px);
+  --stage-sub: clamp(18px, 1.9vw, 30px);
   --edge: 44px;
   --gutter: 196px;
   --nav-top: 148px;
@@ -109,7 +115,8 @@
   #hvLanding {
     --edge: 20px;
     --gutter: 0px;
-    --stage-num: clamp(52px, 15vw, 96px);
+    --stage-num: clamp(44px, 12vw, 78px);
+    --stage-sub: clamp(17px, 4vw, 26px);
     --nav-v: none;
     --nav-h: flex;
     --panel-w: 100%;
