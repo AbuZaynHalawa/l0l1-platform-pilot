@@ -563,8 +563,20 @@
       </div>
       <div class="card table-card" id="l0ListCard">
         <div class="table-scroll">
+          <!-- [L0 column rebalance]: RFX/Region moved to the right (after
+               Status, was between Tender and Scope) and Tender given real
+               width instead of an equal 1/8 share -- table-layout:fixed
+               was giving Status the same width as Tender despite needing
+               a fraction of it, which read as "very wide" while Tender's
+               long names wrapped onto 2-3 lines. colgroup widths must
+               stay in this same order -- _renderProjectsTable's L0 branch
+               (app.js) and _projectsXh's L0 columns[] both mirror it. -->
           <table class="data" id="l0Table">
-            <thead><tr><th>Est No.</th><th>Tender</th><th>RFX</th><th>Region</th><th>Scope</th><th>Bid Manager</th><th>BSD</th><th>Status</th></tr></thead>
+            <colgroup>
+              <col style="width:9%;"><col style="width:27%;"><col style="width:13%;"><col style="width:13%;">
+              <col style="width:9%;"><col style="width:9%;"><col style="width:10%;"><col style="width:10%;">
+            </colgroup>
+            <thead><tr><th>Est No.</th><th>Tender</th><th>Scope</th><th>Bid Manager</th><th>BSD</th><th>Status</th><th>RFX</th><th>Region</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -589,8 +601,17 @@
       </div>
       <div class="card table-card" id="l1ListCard">
         <div class="table-scroll">
+          <!-- [L1 column rebalance]: Est No given real room for the
+               International badge (was cramped against Project), Project
+               widened -- colgroup order mirrors _renderProjectsTable's L1
+               branch and _projectsXh's L1 columns[] (app.js); Contract
+               Status is the new column (item 11). -->
           <table class="data" id="l1Table">
-            <thead><tr><th>Est No.</th><th>Project</th><th>Milestones (M1&#8211;M6)</th><th>Bid Manager</th><th>Project Manager</th><th>Status</th></tr></thead>
+            <colgroup>
+              <col style="width:13%;"><col style="width:27%;"><col style="width:18%;">
+              <col style="width:13%;"><col style="width:13%;"><col style="width:8%;"><col style="width:8%;">
+            </colgroup>
+            <thead><tr><th>Est No.</th><th>Project</th><th>Milestones (M1&#8211;M6)</th><th>Bid Manager</th><th>Project Manager</th><th>Status</th><th>Contract</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -918,9 +939,18 @@
           <p class="sub">Projects added by mistake or no longer relevant &#8212; hidden from every report, dashboard, and listing. Restore any of them back to active at any time.</p>
         </div>
       </div>
+      <!-- Item 12: filter/sort added (Excel header, same as every other
+           table -- see loadArchivedProjects/installExcelHeader in app.js),
+           an Archive Date column, and colgroup widths so Est No. has real
+           room for the International badge and Name isn't squeezed by
+           Stage/Status's already-fixed widths. -->
       <div class="card table-card">
         <table class="fp-table">
-          <thead><tr><th>Est-No</th><th>Name</th><th style="width:70px;">Stage</th><th style="width:140px;">Status</th><th style="width:120px;"></th></tr></thead>
+          <colgroup>
+            <col style="width:15%;"><col style="width:34%;"><col style="width:9%;">
+            <col style="width:14%;"><col style="width:13%;"><col style="width:15%;">
+          </colgroup>
+          <thead id="archivedProjectsHead"><tr><th>Est-No</th><th>Name</th><th>Stage</th><th>Status</th><th>Archived</th><th></th></tr></thead>
           <tbody id="archivedProjectsBody"></tbody>
         </table>
       </div>

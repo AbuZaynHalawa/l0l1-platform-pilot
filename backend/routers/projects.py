@@ -1023,6 +1023,10 @@ def archive_project(project_id: int, payload: schemas.ArchiveUpdate, db: Session
     if not project:
         raise HTTPException(404, "Project not found")
     project.archived = payload.archived
+    # Item 12: stamp/clear alongside the toggle so Archived Projects can
+    # show a real archive date -- cleared on restore since an active
+    # project has no current archive date to show.
+    project.archived_at = datetime.utcnow() if payload.archived else None
     db.commit()
     db.refresh(project)
     return project

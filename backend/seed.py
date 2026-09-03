@@ -52,6 +52,10 @@ ensure_enum_value("announcements", "type", "FORMULA_CHANGE_DECISION")
 
 # [Archive]
 ensure_column("projects", "archived", "BOOLEAN")
+# Item 12: archive date column. Existing already-archived rows get NULL
+# (no way to know their real archive date retroactively) -- they'll pick
+# one up the next time they're archived/unarchived.
+ensure_column("projects", "archived_at", "TIMESTAMP")
 # ensure_column's ALTER TABLE gives every already-existing row NULL, not
 # False -- fine for the query filters above (.is_not(True) treats NULL as
 # "not archived" the same NULL-safe way Department.active does), but

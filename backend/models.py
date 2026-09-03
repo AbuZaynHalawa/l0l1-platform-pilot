@@ -256,6 +256,10 @@ class Project(Base):
     # can review it and un-archive it at any time. See routers/projects.py's
     # archive_project endpoint and list_projects's `archived` param.
     archived = Column(Boolean, default=False)
+    # Item 12: when `archived` last flipped True -- set/cleared alongside it
+    # in archive_project below, not a general-purpose updated_at (that
+    # column already exists and changes on any edit, not just archiving).
+    archived_at = Column(DateTime, nullable=True)
 
     submissions = relationship("DeliverableSubmission", back_populates="project", cascade="all, delete-orphan",
                                 foreign_keys="DeliverableSubmission.project_id")

@@ -1920,15 +1920,18 @@
     var columns;
     if (stage === "L0") {
       var regionOf = function (p) { return p.is_international ? (p.country || "International") : joinList(p.region); };
+      // [L0 column rebalance]: order mirrors the reordered <thead>
+      // (index.html) -- installExcelHeader binds columns[i] to the i-th
+      // <th> positionally, so these two must always move together.
       columns = [
         { key: "est_no", get: function (p) { return p.est_no; }, uniqueValues: uniq(function (p) { return p.est_no; }) },
         { key: "name", get: function (p) { return p.name; }, uniqueValues: uniq(function (p) { return p.name; }) },
-        { key: "rfx", get: function (p) { return p.rfx_number || ""; }, uniqueValues: uniq(function (p) { return p.rfx_number || ""; }) },
-        { key: "region", get: regionOf, uniqueValues: uniq(regionOf) },
         { key: "scope", get: function (p) { return joinList(p.scope); }, uniqueValues: uniq(function (p) { return joinList(p.scope); }) },
         { key: "bm", get: function (p) { return p.bid_manager || ""; }, uniqueValues: uniq(function (p) { return p.bid_manager || ""; }) },
         { key: "bsd", get: function (p) { return fmtDate(p.bsd); }, sortValue: function (p) { return p.bsd || ""; }, uniqueValues: uniq(function (p) { return fmtDate(p.bsd); }) },
         { key: "status", get: function (p) { return p.status; }, uniqueValues: uniq(function (p) { return p.status; }) },
+        { key: "rfx", get: function (p) { return p.rfx_number || ""; }, uniqueValues: uniq(function (p) { return p.rfx_number || ""; }) },
+        { key: "region", get: regionOf, uniqueValues: uniq(regionOf) },
       ];
     } else {
       // [queued: milestones filterable] p.current_milestone is the highest-
@@ -1951,6 +1954,8 @@
         { key: "bm", get: function (p) { return p.bid_manager || ""; }, uniqueValues: uniq(function (p) { return p.bid_manager || ""; }) },
         { key: "pm", get: function (p) { return p.project_manager || ""; }, uniqueValues: uniq(function (p) { return p.project_manager || ""; }) },
         { key: "status", get: function (p) { return p.status; }, uniqueValues: uniq(function (p) { return p.status; }) },
+        // Item 11: Contract Status column.
+        { key: "contract_status", get: function (p) { return p.contract_status || ""; }, uniqueValues: uniq(function (p) { return p.contract_status || ""; }) },
       ];
     }
     var theadRow = document.querySelector((stage === "L0" ? "#l0Table" : "#l1Table") + " thead tr");
@@ -1982,7 +1987,7 @@
       var msg = term ? "No " + stage + " projects match &#8220;" + term + "&#8221;."
         : hasFilters ? "No " + stage + " projects match the current column filters."
         : "No " + stage + " projects yet.";
-      tr.innerHTML = '<td colspan="' + (stage === "L0" ? 8 : 6) + '" style="text-align:center;color:var(--ink-500);padding:30px;">' + msg + '</td>';
+      tr.innerHTML = '<td colspan="' + (stage === "L0" ? 8 : 7) + '" style="text-align:center;color:var(--ink-500);padding:30px;">' + msg + '</td>';
       tbody.appendChild(tr);
       return;
     }
@@ -1996,13 +2001,25 @@
       var intlPill = p.is_international ? '<span class="pill neutral"><span class="dot"></span>International</span>' : "";
       if (stage === "L0") {
         var regionCell = p.is_international ? (p.country || "International") : joinList(p.region);
+        // [L0 column rebalance]: RFX/Region moved to the end, matching the
+        // reordered <thead> (index.html) and _projectsXh's L0 columns[].
         tr2.innerHTML = '<td class="' + estClass + '">' + p.est_no + ' ' + intlPill + '</td><td><span class="proj-name">' + p.name + '</span></td>' +
-          '<td>' + (p.rfx_number || "&#8213;") + '</td><td>' + regionCell + '</td><td>' + joinList(p.scope) + '</td><td>' + (p.bid_manager || "&#8213;") + '</td>' +
-          '<td class="num">' + fmtDate(p.bsd) + '</td><td>' + statusPill + '</td>';
+          '<td>' + joinList(p.scope) + '</td><td>' + (p.bid_manager || "&#8213;") + '</td>' +
+          '<td class="num">' + fmtDate(p.bsd) + '</td><td>' + statusPill + '</td>' +
+          '<td>' + (p.rfx_number || "&#8213;") + '</td><td>' + regionCell + '</td>';
       } else {
         var mini = '<div class="mini-stepper" data-pid="' + p.id + '">&#8230;</div>';
-        tr2.innerHTML = '<td class="' + estClass + '">' + p.est_no + '</td><td><span class="proj-name">' + p.name + '</span></td>' +
-          '<td>' + mini + '</td><td>' + (p.bid_manager || "&#8213;") + '</td><td>' + (p.project_manager || "&#8213;") + '</td><td>' + statusPill + '</td>';
+        // Item 11: Contract Status column, same good/neutral pill the
+        // Master PO report and Reports > Projects table already use.
+        var contractPill = p.contract_status
+          ? '<span class="pill ' + (p.contract_status === "Signed" ? "good" : "neutral") + '"><span class="dot"></span>' + p.contract_status + "</span>"
+          : "&#8213;";
+        // [L1 International badge]: was missing entirely -- L0's own Est
+        // cell already shows it (is_international carries through from
+        // the L0 source per project creation), this just matches that.
+        tr2.innerHTML = '<td class="' + estClass + '">' + p.est_no + ' ' + intlPill + '</td><td><span class="proj-name">' + p.name + '</span></td>' +
+          '<td>' + mini + '</td><td>' + (p.bid_manager || "&#8213;") + '</td><td>' + (p.project_manager || "&#8213;") + '</td><td>' + statusPill + '</td>' +
+          '<td>' + contractPill + '</td>';
       }
       tr2.addEventListener("click", function (pid) { return function () { openDetail(pid); }; }(p.id));
       tbody.appendChild(tr2);
@@ -6473,7 +6490,11 @@
       if (!filtered.length) { body.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--ink-500);padding:30px;">No matching PO/deliverable items.</td></tr>'; return; }
       filtered.forEach(function (r) {
         var tr = el("tr");
-        tr.appendChild(el("td", "", r.contract_status || "&#8213;"));
+        // Item [request 11]: was plain text -- same good/neutral pill every
+        // other contract-status cell in the app already uses (line ~6786).
+        tr.appendChild(el("td", "", r.contract_status
+          ? '<span class="pill ' + (r.contract_status === "Signed" ? "good" : "neutral") + '"><span class="dot"></span>' + r.contract_status + "</span>"
+          : "&#8213;"));
         tr.appendChild(el("td", "", r.est_no + " &middot; " + r.project_name));
         tr.appendChild(el("td", "", r.current_item_no || "&#8213;"));
         tr.appendChild(el("td", "", r.name));
@@ -9714,13 +9735,49 @@
   }
 
   /* ================= ARCHIVED PROJECTS (admin) ================= */
+  // Item 12: filter/sort added -- same Excel-header controller and
+  // cache-then-re-render split every other table in the app already
+  // uses (see _projectsXh), built once and reused across reloads.
+  var _archivedCache = [];
+  var _archivedXhInst = null;
+  function _archivedXh() {
+    if (_archivedXhInst) return _archivedXhInst;
+    function uniq(getter) {
+      return function () {
+        var seen = {}, out = [];
+        _archivedCache.forEach(function (p) {
+          var v = getter(p); v = v == null || v === "" ? "" : String(v);
+          if (!seen[v]) { seen[v] = true; out.push(v); }
+        });
+        return out.sort(function (a, b) { return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }); });
+      };
+    }
+    var archivedAtOf = function (p) { return p.archived_at ? fmtDate(p.archived_at.slice(0, 10)) : ""; };
+    var columns = [
+      { key: "est_no", get: function (p) { return p.est_no; }, uniqueValues: uniq(function (p) { return p.est_no; }) },
+      { key: "name", get: function (p) { return p.name; }, uniqueValues: uniq(function (p) { return p.name; }) },
+      { key: "stage", get: function (p) { return p.stage; }, uniqueValues: uniq(function (p) { return p.stage; }) },
+      { key: "status", get: function (p) { return p.status; }, uniqueValues: uniq(function (p) { return p.status; }) },
+      { key: "archived_at", get: archivedAtOf, sortValue: function (p) { return p.archived_at || ""; }, uniqueValues: uniq(archivedAtOf) },
+      { key: "actions", sortable: false, filterable: false },
+    ];
+    var theadRow = document.querySelector("#archivedProjectsHead tr");
+    _archivedXhInst = installExcelHeader(theadRow, columns);
+    _archivedXhInst.onChange(_renderArchivedProjects);
+    return _archivedXhInst;
+  }
   async function loadArchivedProjects() {
-    var projects = await api("/api/projects?archived=true");
+    _archivedCache = await api("/api/projects?archived=true");
+    _renderArchivedProjects();
+  }
+  function _renderArchivedProjects() {
+    var projects = _archivedXh().process(_archivedCache);
     var tbody = document.getElementById("archivedProjectsBody");
     tbody.innerHTML = "";
     if (!projects.length) {
       var tr = el("tr");
-      tr.innerHTML = '<td colspan="5" style="text-align:center;color:var(--ink-500);padding:30px;">No archived projects.</td>';
+      var msg = _archivedCache.length ? "No archived projects match the current column filters." : "No archived projects.";
+      tr.innerHTML = '<td colspan="6" style="text-align:center;color:var(--ink-500);padding:30px;">' + msg + '</td>';
       tbody.appendChild(tr);
       return;
     }
@@ -9728,10 +9785,13 @@
       var tr2 = el("tr");
       var estClass = "est-no " + p.stage.toLowerCase();
       var statusPill = '<span class="pill ' + (PROJECT_STATUS_CLASS[p.status] || "neutral") + '"><span class="dot"></span>' + p.status + '</span>';
-      tr2.appendChild(el("td", estClass, p.est_no));
+      // Item 12: International badge -- matches L0/L1's own Est cell.
+      var intlPill = p.is_international ? ' <span class="pill neutral"><span class="dot"></span>International</span>' : "";
+      tr2.appendChild(el("td", estClass, p.est_no + intlPill));
       tr2.appendChild(el("td", "", '<span class="proj-name">' + p.name + '</span>'));
       tr2.appendChild(el("td", "", p.stage));
       tr2.appendChild(el("td", "", statusPill));
+      tr2.appendChild(el("td", "", p.archived_at ? fmtDate(p.archived_at.slice(0, 10)) : "&#8213;"));
       var actions = el("td");
       var viewBtn = el("button", "btn", "View");
       viewBtn.addEventListener("click", function (e) { e.stopPropagation(); openDetail(p.id); });
