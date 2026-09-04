@@ -148,7 +148,11 @@ def list_all_deliverables(status: str | None = None, actor_email: str | None = N
     if scope_to_mine:
         matched_ids = [s.id for s in light_subs if not s.auto_completed and _is_mine(s)]
         q = q.filter(models.DeliverableSubmission.id.in_(matched_ids))
-    visible_subs = [s for s in q.all() if not s.auto_completed]
+    # Item 1: a closed project (rules.is_project_terminal) doesn't need
+    # tracking/monitoring anymore -- excluded from this cross-project
+    # queue the same way an archived one already is above. .project is
+    # contains_eager'd on `q` already, so this is free (no per-row query).
+    visible_subs = [s for s in q.all() if not s.auto_completed and not rules.is_project_terminal(s.project)]
     doc_counts = rules.document_counts(db, [s.id for s in visible_subs])
     pending_kinds = rules.pending_due_date_request_kinds(db, [s.id for s in visible_subs])
     # Second N+1, same shape as awaiting_milestone_note's: rules.mark_complete_note(s)
@@ -489,8 +493,7 @@ def _finalize_approval(db: Session, sub: "models.DeliverableSubmission", comment
             sub.project.contract_status = models.ContractStatus.SIGNED
             db.commit()
         if sub.definition.milestone_code == "M5" and sub.project.stage == models.Stage.L0:
-            sub.project.status = models.ProjectStatus.SUBMITTED
-            db.commit()
+            rules.set_project_status(db, sub.project, models.ProjectStatus.SUBMITTED)
 
     # Snapshot due dates, recompute the whole project (correctly cascades
     # through however many chained levels), then notify whoever just
@@ -1060,6 +1063,13 @@ def get_follow_up(department: str | None = None, project_id: int | None = None, 
     # source of truth for "stop counting this as due" (deadline_status()'s
     # very first check) -- a paused item was still surfacing here demanding
     # a reminder, the one real bug fix bundled with this page's redesign.
+    # Item 1: this used to only fetch active_projects above to know which
+    # projects' due dates needed a fresh recompute -- the actual query below
+    # had no project-status filter of its own at all, so a deliverable that
+    # was still overdue the moment its project closed kept demanding
+    # reminders on this page forever after. Scoped to the same IN_PROGRESS
+    # set now (closed projects don't need tracking/reminders anymore).
+    active_project_ids = [p.id for p in active_projects]
     q = (
         db.query(models.DeliverableSubmission)
         .join(models.DeliverableDefinition)
@@ -1074,6 +1084,7 @@ def get_follow_up(department: str | None = None, project_id: int | None = None, 
             ]),
             models.DeliverableSubmission.on_hold.isnot(True),
             models.Project.archived.is_not(True),
+            models.DeliverableSubmission.project_id.in_(active_project_ids),
         )
     )
     if department:

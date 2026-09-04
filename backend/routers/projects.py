@@ -421,8 +421,7 @@ def create_l1_project(payload: schemas.ProjectCreateL1, db: Session = Depends(ge
     # Item 119: the L0 stage is done the moment its L1 exists -- close it
     # out immediately instead of leaving it sitting as still "In Progress"
     # alongside its own L1.
-    l0.status = models.ProjectStatus.SUBMITTED
-    db.commit()
+    rules.set_project_status(db, l0, models.ProjectStatus.SUBMITTED)
     _auto_complete_l0_proposal_items(db, l0)  # [Request 7]
     db.refresh(project)
 
@@ -997,8 +996,12 @@ def update_project_status(project_id: int, payload: schemas.ProjectStatusUpdate,
     if payload.status not in valid:
         raise HTTPException(400, f"Invalid status for {project.stage.value}: must be one of {sorted(valid)}")
     was_submitted = project.status == models.ProjectStatus.SUBMITTED
-    project.status = models.ProjectStatus(payload.status)
-    db.commit()
+    # Item 1: this is the admin's manual lever, the one most likely to
+    # actually reopen a closed project (vs. the other three call sites,
+    # which only ever close one) -- same set_project_status either way,
+    # so a manual reopen gets the same due-date shift an automatic one
+    # would never trigger in the first place.
+    rules.set_project_status(db, project, models.ProjectStatus(payload.status))
     # [Request 7]: forward direction of the Status <-> 1.19/1.20/1.21 sync.
     if project.stage == models.Stage.L0 and project.status == models.ProjectStatus.SUBMITTED and not was_submitted:
         _auto_complete_l0_proposal_items(db, project)

@@ -267,6 +267,25 @@ class Project(Base):
     # in archive_project below, not a general-purpose updated_at (that
     # column already exists and changes on any edit, not just archiving).
     archived_at = Column(DateTime, nullable=True)
+    # Item 1: when this project last became terminal (rules.is_project_
+    # terminal -- L0 Submitted/Cancelled, L1 Completed), cleared when it
+    # leaves that state. Backs two things: performance freezes as of this
+    # date instead of drifting with real time while closed (rules.
+    # deadline_status), and reopening shifts every due date forward by
+    # however long it sat closed (rules.set_project_status). Not the same
+    # thing as `archived` -- a closed project still shows up everywhere
+    # except the tracking/monitoring tabs (item 1); archived is a
+    # separate, admin-only "hide this everywhere" flag.
+    closed_at = Column(DateTime, nullable=True)
+    # Item 1: cumulative days this project has spent closed, across every
+    # close/reopen cycle -- rules.recompute_project_due_dates adds this to
+    # every still-open submission's freshly-formula-computed due date as
+    # its very last step, so the shift survives the engine's own daily
+    # recompute instead of being silently overwritten by it (a one-time
+    # direct edit to due_date, or to a root anchor like announcement_date,
+    # would only look right until the next recompute ran). Not applied to
+    # already-resolved (Approved) submissions -- those are historical fact.
+    due_date_shift_days = Column(Integer, default=0)
 
     submissions = relationship("DeliverableSubmission", back_populates="project", cascade="all, delete-orphan",
                                 foreign_keys="DeliverableSubmission.project_id")

@@ -124,6 +124,7 @@ class ProjectOut(BaseModel):
     country: str | None = None
     archived: bool = False  # [Archive]
     archived_at: datetime | None = None  # item 12
+    closed_at: datetime | None = None  # item 1
     # [queued: L1 Projects milestone filter] highest-reached milestone code
     # (e.g. "M3"), or None if none reached yet -- L1 only, computed and
     # attached in list_projects, not a real column. Frontend maps the code

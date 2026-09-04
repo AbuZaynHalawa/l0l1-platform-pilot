@@ -5,7 +5,7 @@ Milestones are derived, not stored: a milestone is "reached" exactly when its
 linked deliverable (is_milestone=True) has status APPROVED for that project.
 """
 import re
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from sqlalchemy.orm import Session, joinedload
 
 from . import models
@@ -106,6 +106,48 @@ def is_project_terminal(project: "models.Project") -> bool:
     return (project.stage == models.Stage.L0 and project.status in
             (models.ProjectStatus.SUBMITTED, models.ProjectStatus.CANCELLED)) or (
             project.stage == models.Stage.L1 and project.status == models.ProjectStatus.COMPLETED)
+
+
+def set_project_status(db: Session, project: "models.Project", new_status: "models.ProjectStatus") -> None:
+    """Item 1: the one place a project's status is ever assigned -- every
+    call site that used to do `project.status = ...` directly goes through
+    this instead, so closed_at and the reopen due-date shift can't be
+    forgotten at any of them (auto M5/M6/L1-completion, the admin's manual
+    status dropdown, or the "L0 closes the moment its L1 exists" auto-set).
+
+    Closing (not terminal -> terminal): stamps closed_at. That date is
+    what rules.deadline_status freezes a closed project's "as of" clock
+    to, so its due/overdue counts stop drifting with real time while shut.
+
+    Reopening (terminal -> not terminal): the project sat closed for
+    (today - closed_at) days, doing nothing -- every still-open due date
+    shifts forward by exactly that many days. Adds to project's own
+    due_date_shift_days (cumulative across every close/reopen cycle)
+    instead of editing announcement_date/BSD or any submission's due_date
+    directly: those get silently overwritten the next time
+    recompute_project_due_dates runs (it runs at least daily, on any
+    read) since it deterministically rebuilds every due date from the
+    formula engine -- shifting a root anchor only actually reaches
+    submissions still chained to it, not ones already anchored on a real
+    (already-approved) predecessor's completion date. due_date_shift_days
+    is applied as recompute's own last step instead (see there), so it's
+    engine-native and survives every future recompute. A same-day
+    close+reopen shifts nothing.
+    """
+    was_terminal = is_project_terminal(project)
+    project.status = new_status
+    now_terminal = is_project_terminal(project)
+    if now_terminal and not was_terminal:
+        project.closed_at = datetime.utcnow()
+    elif was_terminal and not now_terminal:
+        if project.closed_at is not None:
+            closed_days = (date.today() - project.closed_at.date()).days
+            if closed_days > 0:
+                project.due_date_shift_days = (project.due_date_shift_days or 0) + closed_days
+                db.commit()
+                recompute_project_due_dates(db, project, force=True)
+        project.closed_at = None
+    db.commit()
 
 
 def can_act(actor_role: str, actor_email: str, assigned_email) -> bool:
@@ -999,8 +1041,19 @@ def deadline_status(submission: "models.DeliverableSubmission") -> tuple[str, in
         return ("on_time", None)
     if submission.due_date is None:
         return ("not_due", None)
-    if date.today() > submission.due_date:
-        return ("due", -(date.today() - submission.due_date).days)
+    # Item 1: a closed project's performance is frozen as of the moment it
+    # closed -- everything not yet resolved by then stays exactly as it
+    # read that day (a not_due item doesn't newly flip to due just because
+    # real time keeps passing while it's shut). closed_at is cleared on
+    # reopen, so this only ever applies while actually closed; a project
+    # that was already terminal before this feature shipped has no
+    # closed_at yet (nothing to freeze against) until it next changes
+    # status.
+    today = date.today()
+    if submission.project.closed_at is not None:
+        today = min(today, submission.project.closed_at.date())
+    if today > submission.due_date:
+        return ("due", -(today - submission.due_date).days)
     return ("not_due", None)
 
 
@@ -1148,6 +1201,19 @@ def recompute_project_due_dates(db: Session, project: models.Project, force: boo
         project.duration_ratio_insufficient = False
         _run_due_date_pass(db, project, subs, lookup)
 
+    # Item 1: reopening a project that sat closed for N days shifts every
+    # still-open due date forward by N (set_project_status). Applied here,
+    # after the formula engine's own passes above are done, so it's a
+    # clean additive step on top of a fresh formula result every time this
+    # runs -- not a one-time edit the next recompute would silently undo.
+    # Skipped for Approved (a real, already-resolved historical date) and
+    # for anything with no due_date to shift (Not Required/Pending Triage).
+    if project.due_date_shift_days:
+        shift = timedelta(days=project.due_date_shift_days)
+        for s in subs:
+            if s.due_date is not None and s.status != models.SubmissionStatus.APPROVED:
+                s.due_date = s.due_date + shift
+
     project.due_dates_computed_on = today
 
 
@@ -1162,7 +1228,7 @@ def check_l1_completion(db: Session, project: "models.Project") -> None:
         return
     subs = db.query(models.DeliverableSubmission).filter(models.DeliverableSubmission.project_id == project.id).all()
     if subs and all(s.status == models.SubmissionStatus.APPROVED for s in subs):
-        project.status = models.ProjectStatus.COMPLETED
+        set_project_status(db, project, models.ProjectStatus.COMPLETED)
 
 
 def kpi_points(due_date: date | None, submitted_date: date | None, grace_days: int = 4) -> float | None:

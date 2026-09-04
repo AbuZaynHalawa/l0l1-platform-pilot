@@ -58,6 +58,11 @@ ensure_column("projects", "archived", "BOOLEAN")
 # (no way to know their real archive date retroactively) -- they'll pick
 # one up the next time they're archived/unarchived.
 ensure_column("projects", "archived_at", "TIMESTAMP")
+# Item 1: closed date column, same NULL-until-next-transition backfill
+# story as archived_at above -- an already-terminal project won't get a
+# real performance freeze date until it next changes status.
+ensure_column("projects", "closed_at", "TIMESTAMP")
+ensure_column("projects", "due_date_shift_days", "INTEGER")
 # ensure_column's ALTER TABLE gives every already-existing row NULL, not
 # False -- fine for the query filters above (.is_not(True) treats NULL as
 # "not archived" the same NULL-safe way Department.active does), but
