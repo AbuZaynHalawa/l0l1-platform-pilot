@@ -1005,6 +1005,7 @@ def get_performance_breakdown(department: str, stage: str, db: Session = Depends
         ratios.append(ratio)
         per_item.append({"item_no": item_no, "name": item_subs[0].definition.name,
                           "short_name": item_subs[0].definition.short_name or item_subs[0].definition.name,
+                          "weight": item_subs[0].definition.kpi_weight,
                           "points": round(pts, 2), "due": len(item_subs), "pct": round(ratio * 100, 1)})
     per_item.sort(key=lambda x: rules.item_sort_key(x["item_no"]))
 

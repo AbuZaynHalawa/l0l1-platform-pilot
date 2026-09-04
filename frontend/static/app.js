@@ -6062,7 +6062,11 @@
     var table = el("table", "pcmp-table pbd-table");
     var thead = el("thead");
     var theadRow = el("tr");
-    cols.forEach(function (c) { theadRow.appendChild(el("th", "", c.label)); });
+    // Item 6 follow-up: header text was always left-aligned (installExcelHeader's
+    // own layout) regardless of which way a column's own cells aligned --
+    // c.align lets a numeric column's header sit right-aligned to actually
+    // match its data instead of just guessing which side looked closer.
+    cols.forEach(function (c) { theadRow.appendChild(el("th", c.align === "right" ? "pbd-th-num" : "", c.label)); });
     thead.appendChild(theadRow);
     table.appendChild(thead);
     var tbody = el("tbody");
@@ -6119,44 +6123,58 @@
       ? "L0 averages each deliverable item's own submitted ÷ due ratio, then averages those ratios equally."
       : "L1 pools every due submission's points into one ratio -- the totals below are per deliverable, for reference, not each averaged separately into the score.";
     body.appendChild(el("p", "pbd-note", note));
+    // Item 6 follow-up: Weight added; Due dropped as its own column (it's
+    // the same number Total Points now shows, just relabeled -- showing
+    // both read as a mistake, not two different facts). Earned Points/
+    // Total Points moved next to each other at the far right, in place of
+    // the old separate Points/.../Ratio columns.
     var groupCols = [
       { key: "item_no", label: "Item", get: function (g) { return g.item_no; }, uniqueValues: function () { return _pbdUniq(data.per_item_groups, function (g) { return g.item_no; }); } },
       { key: "name", label: "Name", get: function (g) { return g.short_name || g.name; }, uniqueValues: function () { return _pbdUniq(data.per_item_groups, function (g) { return g.short_name || g.name; }); } },
-      { key: "points", label: "Points", get: function (g) { return g.points; }, uniqueValues: function () { return _pbdUniq(data.per_item_groups, function (g) { return g.points; }); } },
-      { key: "due", label: "Due", get: function (g) { return g.due; }, uniqueValues: function () { return _pbdUniq(data.per_item_groups, function (g) { return g.due; }); } },
-      { key: "ratio", label: "Ratio", get: function (g) { return g.pct; }, uniqueValues: function () { return _pbdUniq(data.per_item_groups, function (g) { return g.pct; }); } },
+      { key: "weight", label: "Weight", align: "right", get: function (g) { return g.weight; }, uniqueValues: function () { return _pbdUniq(data.per_item_groups, function (g) { return g.weight; }); } },
+      { key: "earned", label: "Earned Points", align: "right", get: function (g) { return g.points; }, uniqueValues: function () { return _pbdUniq(data.per_item_groups, function (g) { return g.points; }); } },
+      { key: "total", label: "Total Points", align: "right", get: function (g) { return g.due; }, uniqueValues: function () { return _pbdUniq(data.per_item_groups, function (g) { return g.due; }); } },
     ];
     body.appendChild(_buildPbdTable("By Deliverable", deptName + " " + levelKey.toUpperCase() + " by deliverable", groupCols, data.per_item_groups, function (g) {
-      return "<td>" + g.item_no + "</td><td class=\"pbd-name\">" + (g.short_name || g.name) + "</td>" +
-        "<td class=\"pbd-num\">" + g.points + "</td><td class=\"pbd-num\">" + g.due + "</td><td class=\"pbd-num\">" + g.pct + "%</td>";
+      return "<td class=\"pbd-left\">" + g.item_no + "</td><td class=\"pbd-left\">" + (g.short_name || g.name) + "</td>" +
+        "<td class=\"pbd-num\">" + (g.weight === null || g.weight === undefined ? "&#8213;" : g.weight) + "</td>" +
+        "<td class=\"pbd-num\">" + g.points + "</td><td class=\"pbd-num\">" + g.due + "</td>";
     }));
 
-    if (data.aggregation === "per_item_averaged") {
-      body.appendChild(el("div", "pbd-total", "Overall = average of " + data.per_item_groups.length + " item ratios = <b>" +
-        (data.overall_pct === null ? "&#8213;" : data.overall_pct + "%") + "</b>"));
-    } else {
-      body.appendChild(el("div", "pbd-total", "Overall = " + data.overall_points + " points &#247; " + data.overall_due +
-        " due items = <b>" + (data.overall_pct === null ? "&#8213;" : data.overall_pct + "%") + "</b>"));
-    }
+    // Item 6 follow-up: same "earned / total = %" shape for both levels
+    // now -- .pbd-note above already explains L0's real per-item-averaged
+    // math vs L1's pooled one, so this line doesn't need two different
+    // wordings on top of that; overall_pct itself is untouched (still the
+    // correct backend-computed value for whichever method applies), these
+    // sums are just the visible earned/total this table's own rows add up
+    // to alongside it.
+    var sumEarned = data.per_item_groups.reduce(function (sum, g) { return sum + g.points; }, 0);
+    var sumTotal = data.per_item_groups.reduce(function (sum, g) { return sum + g.due; }, 0);
+    body.appendChild(el("div", "pbd-total", "Overall = " + (Math.round(sumEarned * 100) / 100) + " earned points &#247; " +
+      sumTotal + " total points = <b>" + (data.overall_pct === null ? "&#8213;" : data.overall_pct + "%") + "</b>"));
 
     // Item 6: title above this table now says what it is ("every
     // individual submission" vs the deliverable-level summary above it).
+    // Item 6 follow-up: every column's header now aligns the same way its
+    // own cells do (left for text/badges, right for numbers/dates) --
+    // Item/Project/Status used to sit center by .pcmp-table's own default
+    // while their left-aligned xh header sat at the opposite edge.
     var itemCols = [
       { key: "item_no", label: "Item", get: function (it) { return it.item_no; }, uniqueValues: function () { return _pbdUniq(data.items, function (it) { return it.item_no; }); } },
       { key: "name", label: "Name", get: function (it) { return it.short_name || it.name; }, uniqueValues: function () { return _pbdUniq(data.items, function (it) { return it.short_name || it.name; }); } },
       { key: "project", label: "Project", get: function (it) { return it.project; }, uniqueValues: function () { return _pbdUniq(data.items, function (it) { return it.project; }); } },
-      { key: "due_date", label: "Due", get: function (it) { return fmtDate(it.due_date); }, sortValue: function (it) { return it.due_date || ""; }, uniqueValues: function () { return _pbdUniq(data.items, function (it) { return fmtDate(it.due_date); }); } },
-      { key: "submitted_date", label: "Submitted", get: function (it) { return it.submitted_date ? fmtDate(it.submitted_date) : "Not submitted"; }, sortValue: function (it) { return it.submitted_date || ""; }, uniqueValues: function () { return _pbdUniq(data.items, function (it) { return it.submitted_date ? fmtDate(it.submitted_date) : "Not submitted"; }); } },
+      { key: "due_date", label: "Due", align: "right", get: function (it) { return fmtDate(it.due_date); }, sortValue: function (it) { return it.due_date || ""; }, uniqueValues: function () { return _pbdUniq(data.items, function (it) { return fmtDate(it.due_date); }); } },
+      { key: "submitted_date", label: "Submitted", align: "right", get: function (it) { return it.submitted_date ? fmtDate(it.submitted_date) : "Not submitted"; }, sortValue: function (it) { return it.submitted_date || ""; }, uniqueValues: function () { return _pbdUniq(data.items, function (it) { return it.submitted_date ? fmtDate(it.submitted_date) : "Not submitted"; }); } },
       { key: "status", label: "Status", get: function (it) { return (STATUS_META[it.status] || ["", it.status])[1]; }, uniqueValues: function () { return _pbdUniq(data.items, function (it) { return (STATUS_META[it.status] || ["", it.status])[1]; }); } },
-      { key: "points", label: "Points", get: function (it) { return it.points; }, uniqueValues: function () { return _pbdUniq(data.items, function (it) { return it.points; }); } },
+      { key: "points", label: "Points", align: "right", get: function (it) { return it.points; }, uniqueValues: function () { return _pbdUniq(data.items, function (it) { return it.points; }); } },
     ];
     body.appendChild(_buildPbdTable("Every Submission", deptName + " " + levelKey.toUpperCase() + " submissions", itemCols, data.items, function (it) {
       var statusMeta = STATUS_META[it.status] || ["neutral", it.status];
-      return "<td>" + it.item_no + "</td><td class=\"pbd-name\">" + (it.short_name || it.name) + "</td>" +
-        "<td class=\"est-no " + levelKey + "\">" + it.project + "</td>" +
+      return "<td class=\"pbd-left\">" + it.item_no + "</td><td class=\"pbd-left\">" + (it.short_name || it.name) + "</td>" +
+        "<td class=\"pbd-left est-no " + levelKey + "\">" + it.project + "</td>" +
         "<td class=\"pbd-num\">" + (it.due_date ? fmtDate(it.due_date) : "&#8213;") + "</td>" +
         "<td class=\"pbd-num\">" + (it.submitted_date ? fmtDate(it.submitted_date) : "Not submitted") + "</td>" +
-        "<td><span class=\"pill " + statusMeta[0] + "\"><span class=\"dot\"></span>" + statusMeta[1] + "</span></td>" +
+        "<td class=\"pbd-left\"><span class=\"pill " + statusMeta[0] + "\"><span class=\"dot\"></span>" + statusMeta[1] + "</span></td>" +
         "<td class=\"pbd-num\">" + it.points + "</td>";
     }));
 

@@ -2678,13 +2678,19 @@
   .pbd-table th .xh-filter-btn:hover { background: rgba(255,255,255,.15); color: #fff; }
   .pbd-table th[data-xh-filtered="1"] { background: color-mix(in srgb, var(--ink-700), #000 15%); }
   .pbd-table th[data-xh-filtered="1"] .xh-filter-btn { color: #fff; background: rgba(255,255,255,.2); }
+  /* Item 6 follow-up: installExcelHeader's own .xh-th-wrap is a left-
+     anchored flex row (label then sort icon then filter icon) -- a
+     numeric column's header pushes that whole group to the right instead
+     so it actually sits over its right-aligned data, not floating at the
+     opposite edge of the column from it. */
+  .pbd-table th.pbd-th-num .xh-th-wrap { justify-content: flex-end; }
   .pbd-table td { white-space: normal; }
-  /* Item 6: Name left-aligned (was centered, unreadable once wrapped),
-     numeric columns (Points/Due/Ratio) right-aligned with tabular
-     figures instead -- everything else (Item/Project/Status) keeps the
-     shared .pcmp-table center default, appropriate for short fixed
-     tokens/badges. */
-  .pbd-table td.pbd-name { text-align: left; }
+  /* Item 6 follow-up: every column now gets an explicit alignment
+     matching its own header (see c.align in _buildPbdTable, app.js) --
+     .pcmp-table's shared center default used to apply to whichever
+     column didn't ask for one of these two, which is exactly what made
+     Item/Project/Status disagree with their own (left) header before. */
+  .pbd-table td.pbd-left { text-align: left; }
   .pbd-table td.pbd-num { text-align: right; font-variant-numeric: tabular-nums; }
   .pbd-total { font-size: 13px; color: var(--ink-700); background: var(--accent-soft); border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; }
   .pbd-total b { color: var(--purple-2); font-size: 15px; }
