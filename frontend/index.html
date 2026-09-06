@@ -629,13 +629,15 @@
                International badge (was cramped against Project), Project
                widened -- colgroup order mirrors _renderProjectsTable's L1
                branch and _projectsXh's L1 columns[] (app.js); Contract
-               Status is the new column (item 11). -->
+               Status is the new column (item 11); Scope (item 17,
+               inherited from the L0 source at L1 creation) sits before
+               Milestones. -->
           <table class="data" id="l1Table">
             <colgroup>
-              <col style="width:13%;"><col style="width:27%;"><col style="width:18%;">
-              <col style="width:13%;"><col style="width:13%;"><col style="width:8%;"><col style="width:8%;">
+              <col style="width:12%;"><col style="width:24%;"><col style="width:13%;"><col style="width:16%;">
+              <col style="width:12%;"><col style="width:12%;"><col style="width:6%;"><col style="width:5%;">
             </colgroup>
-            <thead><tr><th>Est No.</th><th>Project</th><th>Milestones (M1&#8211;M6)</th><th>Bid Manager</th><th>Project Manager</th><th>Status</th><th>Contract</th></tr></thead>
+            <thead><tr><th>Est No.</th><th>Project</th><th>Scope</th><th>Milestones (M1&#8211;M6)</th><th>Bid Manager</th><th>Project Manager</th><th>Status</th><th>Contract</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -1191,7 +1193,9 @@
                Status/Action too -- to match. Explicit widths on every column
                except Tender leave it as the one flexible column absorbing
                whatever's left, so a normal project name fits on one line. -->
-          <thead><tr><th style="width:90px;">Est-No</th><th>Tender</th><th style="width:190px;">Bid Manager</th><th style="width:70px;">Triage</th><th style="width:100px;">Status</th><th style="width:140px;"></th></tr></thead>
+          <!-- Item 16: Est-No and Bid Manager both widened a bit further,
+               taken from Tender's own flexible share. -->
+          <thead><tr><th style="width:110px;">Est-No</th><th>Tender</th><th style="width:220px;">Bid Manager</th><th style="width:70px;">Triage</th><th style="width:100px;">Status</th><th style="width:140px;"></th></tr></thead>
           <tbody id="bmTriageBody"></tbody>
         </table>
       </div>
@@ -1350,7 +1354,12 @@
         </div>
       </div>
       <div id="perfTriagePane" hidden>
-        <p class="sub fp-hint">Choose which catalog items count toward on-time performance tracking. Turning an item off excludes it everywhere &#8212; department scores, Top Achievers, everything &#8212; for every project, past and future. Milestones stay on; they anchor the due-date chain regardless.</p>
+        <!-- Item 15: dropped the old "Milestones stay on" line -- a
+             milestone's due-date-chain anchoring (rules.py) reads its
+             submission's own approval status directly, not kpi_relevant,
+             so turning one off here doesn't touch that; e.g. 1.1 (just
+             the GO-approach announcement) can now be excluded. -->
+        <p class="sub fp-hint">Choose which catalog items count toward on-time performance tracking. Turning an item off excludes it everywhere &#8212; department scores, Top Achievers, everything &#8212; for every project, past and future.</p>
         <div style="display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:0 0 14px;">
           <div class="focus-toggle" id="perfTriageStageToggle" style="margin:0;">
             <button class="chip active" data-stage="L0">L0 Tenders</button>

@@ -1130,7 +1130,9 @@
       }
       renderPager(pager, items, 6, function (pageItems) {
         list.innerHTML = "";
-        pageItems.forEach(function (c) { list.appendChild(el("li", "", c)); });
+        // Item 21: hover movement to match Top Achievers -- was a bare,
+        // classless <li> with no hover feedback at all.
+        pageItems.forEach(function (c) { list.appendChild(el("li", "concern-row", c)); });
       });
     });
 
@@ -1976,6 +1978,9 @@
       columns = [
         { key: "est_no", get: function (p) { return p.est_no; }, uniqueValues: uniq(function (p) { return p.est_no; }) },
         { key: "name", get: function (p) { return p.name; }, uniqueValues: uniq(function (p) { return p.name; }) },
+        // Item 17: Scope, before Milestones -- inherited from the L0
+        // source at L1 creation, same field/joinList L0's own table uses.
+        { key: "scope", get: function (p) { return joinList(p.scope); }, uniqueValues: uniq(function (p) { return joinList(p.scope); }) },
         { key: "milestone", get: milestoneLabelOf, sortValue: milestoneRankOf, uniqueValues: uniq(milestoneLabelOf) },
         { key: "bm", get: function (p) { return p.bid_manager || ""; }, uniqueValues: uniq(function (p) { return p.bid_manager || ""; }) },
         { key: "pm", get: function (p) { return p.project_manager || ""; }, uniqueValues: uniq(function (p) { return p.project_manager || ""; }) },
@@ -2043,8 +2048,10 @@
         // [L1 International badge]: was missing entirely -- L0's own Est
         // cell already shows it (is_international carries through from
         // the L0 source per project creation), this just matches that.
+        // Item 17: Scope, same inherited-from-the-L0-source field L0's own
+        // table already reads.
         tr2.innerHTML = '<td class="' + estClass + '">' + p.est_no + ' ' + intlPill + '</td><td><span class="proj-name">' + p.name + '</span></td>' +
-          '<td>' + mini + '</td><td>' + (p.bid_manager || "&#8213;") + '</td><td>' + (p.project_manager || "&#8213;") + '</td><td>' + statusPill + '</td>' +
+          '<td>' + joinList(p.scope) + '</td><td>' + mini + '</td><td>' + (p.bid_manager || "&#8213;") + '</td><td>' + (p.project_manager || "&#8213;") + '</td><td>' + statusPill + '</td>' +
           '<td>' + contractPill + '</td>';
       }
       tr2.addEventListener("click", function (pid) { return function () { openDetail(pid); }; }(p.id));
@@ -6137,7 +6144,7 @@
     ];
     body.appendChild(_buildPbdTable("By Deliverable", deptName + " " + levelKey.toUpperCase() + " by deliverable", groupCols, data.per_item_groups, function (g) {
       return "<td class=\"pbd-left\">" + g.item_no + "</td><td class=\"pbd-left\">" + (g.short_name || g.name) + "</td>" +
-        "<td class=\"pbd-num\">" + (g.weight === null || g.weight === undefined ? "&#8213;" : g.weight) + "</td>" +
+        "<td class=\"pbd-num\">" + (g.weight === null || g.weight === undefined ? "&#8213;" : "&asymp; " + g.weight + "%") + "</td>" +
         "<td class=\"pbd-num\">" + g.points + "</td><td class=\"pbd-num\">" + g.due + "</td>";
     }));
 
@@ -6381,26 +6388,30 @@
       tr.appendChild(el("td", "", r.department));
       var tdToggle = el("td");
       var toggleBtn = el("button", "chip" + (r.kpi_relevant ? " active" : ""), r.kpi_relevant ? "On" : "Off");
-      if (r.is_milestone) {
-        toggleBtn.disabled = true;
-        toggleBtn.title = "Milestones always count — they anchor the due-date chain.";
-      } else {
-        toggleBtn.addEventListener("click", async function () {
-          var next = !r.kpi_relevant;
-          try {
-            await api("/api/departments/performance-triage/" + r.id, {
-              method: "PATCH", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ kpi_relevant: next }),
-            });
-          } catch (err) {
-            showToast("Could not update &#8211; " + apiErrorDetail(err), true);
-            return;
-          }
-          r.kpi_relevant = next;
-          toggleBtn.textContent = next ? "On" : "Off";
-          toggleBtn.classList.toggle("active", next);
-        });
-      }
+      // Item 15: milestones used to be locked On here on the (mistaken)
+      // assumption that turning one off would break the due-date chain --
+      // is_milestone's chain-anchoring (rules.py: an approved milestone
+      // unblocks its dependents) reads the submission's own approval
+      // status directly, entirely independent of kpi_relevant, which only
+      // gates *scoring* inclusion (_kpi_cohort). The backend never
+      // enforced this rule either -- it was frontend-only. 1.1 (just the
+      // GO-approach announcement) is the concrete case: real work, but
+      // not something that should count toward on-time performance.
+      toggleBtn.addEventListener("click", async function () {
+        var next = !r.kpi_relevant;
+        try {
+          await api("/api/departments/performance-triage/" + r.id, {
+            method: "PATCH", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ kpi_relevant: next }),
+          });
+        } catch (err) {
+          showToast("Could not update &#8211; " + apiErrorDetail(err), true);
+          return;
+        }
+        r.kpi_relevant = next;
+        toggleBtn.textContent = next ? "On" : "Off";
+        toggleBtn.classList.toggle("active", next);
+      });
       tdToggle.appendChild(toggleBtn);
       tr.appendChild(tdToggle);
       tbody.appendChild(tr);

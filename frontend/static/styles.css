@@ -92,23 +92,15 @@
      status text at the spec's literal #D71920 reads too dim at that
      size/weight against #071525 -- the button/accent uses still get the
      literal brand red via --purple-1). */
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --ink-900: #f1f5f9; --ink-700: #a9b8c9; --ink-500: #7e8ea3; --ink-300: #56657a;
-      --page-bg-1: #071525; --page-bg-2: #0a1c2e;
-      --surface: #102a43; --surface-sunken: #0d2138; --line: #1d3a55;
-      --card-border: #1d3a55;
-      --concern-bg: #3a1f22; --concern-border: #7a3630; --concern-text: #ff8787;
-      --accent-soft: #2a1418; --accent-line: #5a2226;
-      --purple-1: #d71920; --purple-2: #b51218; --on-accent: #ffffff;
-      --pop-coral: #ff8787; --pop-coral-ink: #ff8787; --pop-mint: #34d399; --pop-mint-ink: #34d399;
-      --good: #159447; --good-bg: #0f2e1e; --good-2: #1e7e42; --crit: #ec7063; --crit-bg: #3a1f22; --warn: #f59e0b; --warn-bg: #3a2c14;
-      --neutral: #7e8ea3; --neutral-bg: #16283f;
-      --l0-1: #d86b08; --l1-1: #159447;
-      --ai-accent: #7656e8; --ai-accent-light: #201a3d; --ai-accent-border: #3d3268;
-      --shadow-1: 0 4px 15px rgba(0,0,0,0.35); --shadow-2: 0 10px 26px rgba(0,0,0,0.45);
-    }
-  }
+  /* Item 22: dark mode used to also switch on automatically for anyone
+     whose OS/browser was set to dark, via this same block applying to
+     bare :root with no guard -- deactivated per request; dark now only
+     ever applies when someone explicitly picks it with the in-app
+     themeToggle (which sets data-theme="dark" below). The base :root
+     above already carries these exact light values as its default, so
+     removing this changes nothing for anyone not on OS dark mode, and
+     the explicit :root[data-theme="dark"] override two rules down is
+     untouched -- picking dark manually still works exactly as before. */
   :root[data-theme="dark"] {
     --ink-900: #f1f5f9; --ink-700: #a9b8c9; --ink-500: #7e8ea3; --ink-300: #56657a;
     --page-bg-1: #071525; --page-bg-2: #0a1c2e;
@@ -187,7 +179,13 @@
   .btn, .chip, .theme-btn, .role-select, .nav-item, .card, .stat-tile,
   .dsc-child, .dash-project-card, .report-category-box, .modal-close,
   .dpc-recent-row, .folder-row, .aqt-body-row, .fu-row, .achiever-row,
-  .subtab-row .chip, .rank-row, .ann-row, .aq-row-clickable {
+  .subtab-row .chip, .rank-row, .ann-row, .aq-row-clickable,
+  /* Items 20/21: Latest Announcements/Milestones now get the same
+     background+movement treatment as Latest Projects/Tenders
+     (.dpc-recent-row); Concerns/Top Departments get the movement-only
+     treatment .achiever-row already has (see the two hover blocks
+     below -- neither of these four had any hover feedback before). */
+  .digest-row, .milestone-row, .concern-row, .top-dept-row {
     transition: all 0.2s ease-in-out;
   }
   /* self-contained controls + cards: scale + lift */
@@ -203,9 +201,16 @@
   /* rows in a list: no scale, no reflow */
   .nav-item:hover, .dpc-recent-row:hover, .folder-row:hover,
   .aqt-body-row:hover, .fu-row:hover, .ann-row:hover, .achiever-row:hover,
-  .aq-row-clickable:hover {
+  .aq-row-clickable:hover,
+  .digest-row:hover, .milestone-row:hover, .concern-row:hover, .top-dept-row:hover {
     transform: translateX(3px);
   }
+  /* Item 20: same background shift .dpc-recent-row/.milestone-row already
+     had, now on Announcements too (.milestone-row's own is set further
+     down where the rest of its rules live). Concerns/Top Departments
+     (item 21) intentionally get movement only, matching .achiever-row's
+     own hover, which never had a background change either. */
+  .digest-row:hover { background: var(--surface-sunken); }
 
   @media (prefers-reduced-motion: reduce) {
     * { animation: none !important; transition: none !important; }
@@ -215,7 +220,8 @@
     .card:hover, .dsc-child:hover, .dash-project-card:hover, .stat-tile:hover,
     .nav-item:hover, .dpc-recent-row:hover, .folder-row:hover,
     .aqt-body-row:hover, .fu-row:hover, .ann-row:hover, .achiever-row:hover,
-    .aq-row-clickable:hover {
+    .aq-row-clickable:hover,
+    .digest-row:hover, .milestone-row:hover, .concern-row:hover, .top-dept-row:hover {
       transform: none !important;
     }
   }
@@ -373,7 +379,11 @@
   #view-performance, #view-reports, #view-triage,
   /* My Requests (item 22's own list/table view) was left off this list --
      same dead-strip-on-a-wide-monitor symptom as every view above it. */
-  #view-myrequests { max-width: 1680px; }
+  #view-myrequests,
+  /* Item 19: Custom Report (the builder itself, #view-reports above is
+     just the report-picker landing page) was left at the 1280px default
+     too -- same fix. */
+  #view-report-custom { max-width: 1680px; }
   .view[hidden] { display: none; }
   .view-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
 

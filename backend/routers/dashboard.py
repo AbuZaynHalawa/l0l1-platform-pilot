@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, joinedload, contains_eager
 
 from .. import models, rules
 from ..database import get_db
+from .deliverables_config import _normalized_weight_pct
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -1005,7 +1006,13 @@ def get_performance_breakdown(department: str, stage: str, db: Session = Depends
         ratios.append(ratio)
         per_item.append({"item_no": item_no, "name": item_subs[0].definition.name,
                           "short_name": item_subs[0].definition.short_name or item_subs[0].definition.name,
-                          "weight": item_subs[0].definition.kpi_weight,
+                          # Item 23: the raw kpi_weight column is meaningless on
+                          # its own (defaults to 1.0, same as every unweighted
+                          # sibling) -- Deliverables Catalog's own Weight column
+                          # shows the normalized "% of this department+stage's
+                          # scoring" instead, so this uses the exact same helper
+                          # instead of silently showing a different number.
+                          "weight": _normalized_weight_pct(item_subs[0].definition),
                           "points": round(pts, 2), "due": len(item_subs), "pct": round(ratio * 100, 1)})
     per_item.sort(key=lambda x: rules.item_sort_key(x["item_no"]))
 
