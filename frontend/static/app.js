@@ -87,6 +87,121 @@
   document.addEventListener("click", function (e) {
     if (_xhOpenPanel && !_xhOpenPanel.contains(e.target) && !e.target.closest(".xh-filter-btn")) _xhClosePanel();
   });
+  // Item 18: user-customizable column widths/visibility, for any <table>
+  // built on a <colgroup> (table.data/.fp-table's own fixed-layout
+  // convention -- every column's width already lives on one <col>
+  // element per column, in order, so this needs no changes to any row-
+  // render function at all: hiding a column is just display:none on its
+  // <col> (removes that whole column from the table natively, HTML
+  // handles it), widening/narrowing is just that <col>'s own width.
+  // One shared modal (#colCustomOverlay) reused across every table that
+  // opts in -- _colCustomActive tracks which table's controller the
+  // modal is currently open for for Save/Reset to act on.
+  var _colCustomActive = null;
+  function _colCustomLoad(storageKey) {
+    try {
+      var raw = localStorage.getItem("colCustom:" + storageKey);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; } // corrupted/blocked storage -- falls back to defaults below
+  }
+  function _colCustomSave(storageKey, state) {
+    try { localStorage.setItem("colCustom:" + storageKey, JSON.stringify(state)); } catch (e) { /* private window / storage blocked -- just won't persist */ }
+  }
+  function installColumnCustomizer(opts) {
+    // opts: { storageKey, title, colgroupEl, columns: [{key,label,defaultWidth}] }
+    // defaultWidth is a plain number (% of the table) -- matches how
+    // every colgroup on these tables is already hand-tuned to sum to 100.
+    function currentState() {
+      var saved = _colCustomLoad(opts.storageKey);
+      var widths = {}, hidden = {};
+      opts.columns.forEach(function (c) {
+        widths[c.key] = (saved && saved.widths && typeof saved.widths[c.key] === "number") ? saved.widths[c.key] : c.defaultWidth;
+        hidden[c.key] = !!(saved && saved.hidden && saved.hidden[c.key]);
+      });
+      return { widths: widths, hidden: hidden };
+    }
+    function apply() {
+      var state = currentState();
+      var cols = Array.prototype.slice.call(opts.colgroupEl.children);
+      opts.columns.forEach(function (c, i) {
+        var col = cols[i];
+        if (!col) return;
+        col.style.width = state.widths[c.key] + "%";
+        // [Column hiding]: display:none on a <col> is silently ignored by
+        // real browsers (a <col> isn't a normal rendered box) -- the
+        // header/data cells stayed visible at their old width, undoing
+        // nothing. visibility:collapse is the mechanism actually defined
+        // for hiding a whole table column, verified to collapse the real
+        // cells to 0 width.
+        col.style.visibility = state.hidden[c.key] ? "collapse" : "";
+      });
+    }
+    apply(); // restore any saved customization immediately on page load
+    var controller = {
+      open: function () { _openColCustomModal(controller, opts, currentState()); },
+      apply: apply,
+    };
+    return controller;
+  }
+  function _openColCustomModal(controller, opts, state) {
+    _colCustomActive = { controller: controller, opts: opts };
+    document.getElementById("colCustomTitle").textContent = "Customize " + opts.title + " Columns";
+    var list = document.getElementById("colCustomList");
+    list.innerHTML = "";
+    function updateTotal() {
+      var total = 0;
+      list.querySelectorAll(".colcustom-width").forEach(function (inp) { total += Number(inp.value) || 0; });
+      document.getElementById("colCustomTotal").textContent = "Total: " + Math.round(total * 10) / 10 + "%" +
+        (Math.round(total) === 100 ? "" : " (doesn't need to be exactly 100)");
+    }
+    opts.columns.forEach(function (c) {
+      var row = el("div", "colcustom-row");
+      var cb = document.createElement("input");
+      cb.type = "checkbox"; cb.checked = !state.hidden[c.key]; cb.className = "colcustom-visible"; cb.dataset.key = c.key;
+      var label = el("label", "colcustom-label");
+      label.appendChild(cb);
+      label.appendChild(el("span", "", c.label));
+      row.appendChild(label);
+      var widthWrap = el("div", "colcustom-width-wrap");
+      var inp = document.createElement("input");
+      inp.type = "number"; inp.min = "2"; inp.max = "100"; inp.step = "1";
+      inp.className = "colcustom-width"; inp.dataset.key = c.key;
+      inp.value = Math.round(state.widths[c.key] * 10) / 10;
+      inp.addEventListener("input", updateTotal);
+      widthWrap.appendChild(inp);
+      widthWrap.appendChild(el("span", "colcustom-pct", "%"));
+      row.appendChild(widthWrap);
+      list.appendChild(row);
+    });
+    updateTotal();
+    document.getElementById("colCustomOverlay").hidden = false;
+  }
+  function _closeColCustomModal() { document.getElementById("colCustomOverlay").hidden = true; _colCustomActive = null; }
+  document.getElementById("colCustomClose").addEventListener("click", _closeColCustomModal);
+  document.getElementById("colCustomOverlay").addEventListener("click", function (e) { if (e.target === this) _closeColCustomModal(); });
+  document.getElementById("colCustomSave").addEventListener("click", function () {
+    if (!_colCustomActive) return;
+    var opts = _colCustomActive.opts;
+    var widths = {}, hidden = {};
+    document.querySelectorAll("#colCustomList .colcustom-width").forEach(function (inp) {
+      widths[inp.dataset.key] = Math.max(2, Number(inp.value) || opts.columns.filter(function (c) { return c.key === inp.dataset.key; })[0].defaultWidth);
+    });
+    document.querySelectorAll("#colCustomList .colcustom-visible").forEach(function (cb) { hidden[cb.dataset.key] = !cb.checked; });
+    _colCustomSave(opts.storageKey, { widths: widths, hidden: hidden });
+    _colCustomActive.controller.apply();
+    showToast(opts.title + " columns updated");
+    _closeColCustomModal();
+  });
+  document.getElementById("colCustomReset").addEventListener("click", async function () {
+    if (!_colCustomActive) return;
+    var opts = _colCustomActive.opts;
+    if (!(await customConfirm("This clears any column widths/visibility you've set for " + opts.title + ", back to the default layout.",
+      { title: "Restore default columns?", okLabel: "Restore", danger: true }))) return;
+    try { localStorage.removeItem("colCustom:" + opts.storageKey); } catch (e) {}
+    _colCustomActive.controller.apply();
+    showToast(opts.title + " columns restored to default");
+    _closeColCustomModal();
+  });
   function installExcelHeader(theadRowEl, columns) {
     var state = { sortKey: null, sortDir: "asc", filters: {} }; // filters[key] = Set of allowed values, absent = no filter
     var changeCb = null;
@@ -2003,6 +2118,32 @@
   }
   document.getElementById("l0ExportBtn").addEventListener("click", function () { _exportProjectsTable("L0"); });
   document.getElementById("l1ExportBtn").addEventListener("click", function () { _exportProjectsTable("L1"); });
+  // Item 18: column widths/visibility. Widths below are each table's own
+  // current hand-tuned colgroup (order must match the <colgroup> in
+  // index.html exactly) -- restoring defaults gets a viewer back to
+  // exactly what shipped, not just "some" default.
+  var _l0ColCustom = installColumnCustomizer({
+    storageKey: "l0table", title: "L0 Tenders",
+    colgroupEl: document.querySelector("#l0Table colgroup"),
+    columns: [
+      { key: "est_no", label: "Est No.", defaultWidth: 9 }, { key: "tender", label: "Tender", defaultWidth: 32 },
+      { key: "rfx", label: "RFX", defaultWidth: 9 }, { key: "region", label: "Region", defaultWidth: 9 },
+      { key: "scope", label: "Scope", defaultWidth: 12 }, { key: "bm", label: "Bid Manager", defaultWidth: 12 },
+      { key: "bsd", label: "BSD", defaultWidth: 9 }, { key: "status", label: "Status", defaultWidth: 8 },
+    ],
+  });
+  document.getElementById("l0ColCustomBtn").addEventListener("click", _l0ColCustom.open);
+  var _l1ColCustom = installColumnCustomizer({
+    storageKey: "l1table", title: "L1 Projects",
+    colgroupEl: document.querySelector("#l1Table colgroup"),
+    columns: [
+      { key: "est_no", label: "Est No.", defaultWidth: 12 }, { key: "project", label: "Project", defaultWidth: 24 },
+      { key: "scope", label: "Scope", defaultWidth: 13 }, { key: "milestones", label: "Milestones (M1–M6)", defaultWidth: 16 },
+      { key: "bm", label: "Bid Manager", defaultWidth: 12 }, { key: "pm", label: "Project Manager", defaultWidth: 12 },
+      { key: "status", label: "Status", defaultWidth: 6 }, { key: "contract", label: "Contract", defaultWidth: 5 },
+    ],
+  });
+  document.getElementById("l1ColCustomBtn").addEventListener("click", _l1ColCustom.open);
   function _renderProjectsTable(stage) {
     var searchEl = document.getElementById(stage === "L0" ? "l0Search" : "l1Search");
     var term = (searchEl ? searchEl.value : "").trim().toLowerCase();
@@ -9906,6 +10047,19 @@
     _archivedXhInst.onChange(_renderArchivedProjects);
     return _archivedXhInst;
   }
+  // Item 18: column widths/visibility -- matches the colgroup in
+  // index.html; the trailing Actions column is deliberately left out of
+  // the customizable set (View/Restore buttons, not real data).
+  var _archivedColCustom = installColumnCustomizer({
+    storageKey: "archivedtable", title: "Archived Projects",
+    colgroupEl: document.querySelector("#view-archivedprojects colgroup"),
+    columns: [
+      { key: "est_no", label: "Est-No", defaultWidth: 15 }, { key: "name", label: "Name", defaultWidth: 34 },
+      { key: "stage", label: "Stage", defaultWidth: 9 }, { key: "status", label: "Status", defaultWidth: 14 },
+      { key: "archived_at", label: "Archived", defaultWidth: 13 }, { key: "actions", label: "Actions", defaultWidth: 15 },
+    ],
+  });
+  document.getElementById("archivedColCustomBtn").addEventListener("click", _archivedColCustom.open);
   async function loadArchivedProjects() {
     _archivedCache = await api("/api/projects?archived=true");
     _renderArchivedProjects();

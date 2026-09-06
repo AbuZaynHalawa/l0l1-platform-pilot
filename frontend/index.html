@@ -581,6 +581,8 @@
             <input id="l0Search" type="text" placeholder="Filter by Est No, name, RFX, region, scope, Bid Manager&#8230;" />
           </div>
           <button class="btn" id="l0ExportBtn" type="button">&#11015;&#65039; Export</button>
+          <!-- Item 18: column widths/visibility, user-customizable. -->
+          <button class="btn" id="l0ColCustomBtn" type="button">&#9881;&#65039; Columns</button>
         </div>
       </div>
       <div class="card table-card" id="l0ListCard">
@@ -621,6 +623,8 @@
             <input id="l1Search" type="text" placeholder="Filter by Est No, name, Bid Manager, Project Manager&#8230;" />
           </div>
           <button class="btn" id="l1ExportBtn" type="button">&#11015;&#65039; Export</button>
+          <!-- Item 18: column widths/visibility, user-customizable. -->
+          <button class="btn" id="l1ColCustomBtn" type="button">&#9881;&#65039; Columns</button>
         </div>
       </div>
       <div class="card table-card" id="l1ListCard">
@@ -964,6 +968,8 @@
           <h1>Archived Projects</h1>
           <p class="sub">Projects added by mistake or no longer relevant &#8212; hidden from every report, dashboard, and listing. Restore any of them back to active at any time.</p>
         </div>
+        <!-- Item 18: column widths/visibility, user-customizable. -->
+        <button class="btn" id="archivedColCustomBtn" type="button">&#9881;&#65039; Columns</button>
       </div>
       <!-- Item 12: filter/sort added (Excel header, same as every other
            table -- see loadArchivedProjects/installExcelHeader in app.js),
@@ -2290,6 +2296,28 @@
       <button class="modal-close" id="kbDetailClose">&#10005;</button>
     </div>
     <div class="modal-body" id="kbDetailBody"></div>
+  </div>
+</div>
+
+<!-- Item 18: shared column-customize popup, reused across every table
+     that opts in (see installColumnCustomizer, app.js) -- one modal, one
+     set of controls, so a new table only ever needs its own column list,
+     not a new UI. -->
+<div class="modal-overlay" id="colCustomOverlay" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <div><h2 id="colCustomTitle">Customize Columns</h2></div>
+      <button class="modal-close" id="colCustomClose">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <p class="sub" style="margin-top:0;">Show or hide columns, and set how wide each one is (as a % of the table). Percentages don't need to add up to 100 -- narrower than that leaves room to spare, wider scrolls.</p>
+      <div id="colCustomList" class="colcustom-list"></div>
+      <div class="colcustom-total" id="colCustomTotal"></div>
+    </div>
+    <div class="modal-actions-row">
+      <button class="btn" id="colCustomReset" type="button">Restore Defaults</button>
+      <button class="btn primary" id="colCustomSave" type="button">Save</button>
+    </div>
   </div>
 </div>
 
