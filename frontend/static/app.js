@@ -7931,6 +7931,29 @@
   document.getElementById("scoresSmesExportBtn").addEventListener("click", function () {
     exportTableToExcel("Top Achievers – SME", _scoresXhController("sme"), scoresData.smes || []);
   });
+  // Item 18: column widths/visibility -- both tables share the same
+  // column shape (rank/Name/Email/Department + 2 metric columns), just
+  // different labels/keys for the last two.
+  var _scoresOwnersColCustom = installColumnCustomizer({
+    storageKey: "scoresownerstable", title: "Top Achievers – Owners",
+    colgroupEl: document.querySelector("#scoresOwnersTable colgroup"),
+    columns: [
+      { key: "rank", label: "Rank", defaultWidth: 6 }, { key: "name", label: "Name", defaultWidth: 22 },
+      { key: "email", label: "Email", defaultWidth: 28 }, { key: "department", label: "Department", defaultWidth: 20 },
+      { key: "approved", label: "Approved", defaultWidth: 12 }, { key: "rate", label: "Rate", defaultWidth: 12 },
+    ],
+  });
+  document.getElementById("scoresOwnersColCustomBtn").addEventListener("click", _scoresOwnersColCustom.open);
+  var _scoresSmesColCustom = installColumnCustomizer({
+    storageKey: "scoressmestable", title: "Top Achievers – SME",
+    colgroupEl: document.querySelector("#scoresSmesTable colgroup"),
+    columns: [
+      { key: "rank", label: "Rank", defaultWidth: 6 }, { key: "name", label: "Name", defaultWidth: 22 },
+      { key: "email", label: "Email", defaultWidth: 28 }, { key: "department", label: "Department", defaultWidth: 20 },
+      { key: "reviews", label: "Reviews", defaultWidth: 12 }, { key: "avg_response", label: "Avg Response", defaultWidth: 12 },
+    ],
+  });
+  document.getElementById("scoresSmesColCustomBtn").addEventListener("click", _scoresSmesColCustom.open);
   function renderAchieversTable(containerId, rows, kind) {
     var wrap = document.getElementById(containerId);
     wrap.innerHTML = "";
@@ -8096,6 +8119,17 @@
   document.getElementById("fpExportBtn").addEventListener("click", function () {
     exportTableToExcel("Focal Points", _fpXhController(), _fpRows);
   });
+  // Item 18: column widths/visibility.
+  var _fpColCustom = installColumnCustomizer({
+    storageKey: "focalpointstable", title: "Focal Points",
+    colgroupEl: document.querySelector("#fpTable colgroup"),
+    columns: [
+      { key: "item", label: "Item", defaultWidth: 6 }, { key: "deliverable", label: "Deliverable", defaultWidth: 28 },
+      { key: "department", label: "Department", defaultWidth: 16 }, { key: "owner", label: "Deliverable's Owner Email", defaultWidth: 22 },
+      { key: "sme", label: "SME Email", defaultWidth: 22 }, { key: "actions", label: "Actions", defaultWidth: 6 },
+    ],
+  });
+  document.getElementById("fpColCustomBtn").addEventListener("click", _fpColCustom.open);
   function _fpRenderStats(rows) {
     var owners = {}, smes = {};
     rows.forEach(function (d) {
@@ -9359,6 +9393,17 @@
   document.getElementById("dfExportBtn").addEventListener("click", function () {
     exportTableToExcel("Deliverables Catalog – " + dfStage, _getDfXh(), _dfPreFiltered());
   });
+  // Item 18: column widths/visibility.
+  var _dfColCustom = installColumnCustomizer({
+    storageKey: "dftable", title: "Deliverables Catalog",
+    colgroupEl: document.querySelector("#dfTable colgroup"),
+    columns: [
+      { key: "item_no", label: "Item No", defaultWidth: 6 }, { key: "department", label: "Department", defaultWidth: 14 },
+      { key: "name", label: "Name", defaultWidth: 31 }, { key: "formula", label: "Formula", defaultWidth: 31 },
+      { key: "weight", label: "Weight", defaultWidth: 9 }, { key: "actions", label: "Actions", defaultWidth: 9 },
+    ],
+  });
+  document.getElementById("dfColCustomBtn").addEventListener("click", _dfColCustom.open);
   function renderDfItems() {
     var wrap = document.getElementById("dfItemList");
     wrap.innerHTML = "";
@@ -10158,6 +10203,21 @@
     });
     return _myRequestsXh;
   }
+  // Item 18: column widths/visibility -- top-level, not inside
+  // _myRequestsXhController above, since that function (and its own
+  // Export button wiring) only ever runs once loadMyRequests() gets past
+  // its "set your acting email" early-return. A viewer with no acting
+  // email set yet would otherwise see a Columns button that silently did
+  // nothing -- customizing columns needs no data loaded at all.
+  var _myRequestsColCustom = installColumnCustomizer({
+    storageKey: "myrequeststable", title: "My Requests",
+    colgroupEl: document.querySelector("#myRequestsTable colgroup"),
+    columns: [
+      { key: "type", label: "Type", defaultWidth: 13 }, { key: "request", label: "Request", defaultWidth: 67 },
+      { key: "status", label: "Status", defaultWidth: 12 }, { key: "requested", label: "Requested", defaultWidth: 8 },
+    ],
+  });
+  document.getElementById("myRequestsColCustomBtn").addEventListener("click", _myRequestsColCustom.open);
   function _renderMyRequests(rows) {
     var tbody = document.getElementById("myRequestsBody");
     tbody.innerHTML = "";
@@ -10356,6 +10416,26 @@
     });
     exportTableToExcel("BM Triage Status", _getBmTriageXh(), rows);
   });
+  // Item 18: column widths/visibility.
+  var _bmTriageColCustom = installColumnCustomizer({
+    storageKey: "bmtriagetable", title: "BM Triage Status",
+    colgroupEl: document.querySelector("#bmTriageTable colgroup"),
+    columns: [
+      { key: "est_no", label: "Est-No", defaultWidth: 9 }, { key: "tender", label: "Tender", defaultWidth: 50 },
+      { key: "bm", label: "Bid Manager", defaultWidth: 17 }, { key: "triage", label: "Triage", defaultWidth: 5 },
+      { key: "status", label: "Status", defaultWidth: 8 }, { key: "actions", label: "Actions", defaultWidth: 11 },
+    ],
+  });
+  document.getElementById("bmTriageColCustomBtn").addEventListener("click", _bmTriageColCustom.open);
+  var _perfTriageColCustom = installColumnCustomizer({
+    storageKey: "perftriagetable", title: "Manage Tracking",
+    colgroupEl: document.querySelector("#perfTriageTable colgroup"),
+    columns: [
+      { key: "item", label: "Item", defaultWidth: 7 }, { key: "name", label: "Name", defaultWidth: 63 },
+      { key: "department", label: "Department", defaultWidth: 15 }, { key: "counts", label: "Counts in Performance", defaultWidth: 15 },
+    ],
+  });
+  document.getElementById("perfTriageColCustomBtn").addEventListener("click", _perfTriageColCustom.open);
   document.getElementById("perfTriageSearch").addEventListener("input", _renderPerfTriage);
   document.getElementById("matrixSearch").addEventListener("input", _renderMatrix);
   document.getElementById("matrixEstFilter").addEventListener("input", _renderMatrix);

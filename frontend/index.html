@@ -798,18 +798,35 @@
       <div class="split">
         <div class="card table-card">
           <div class="section-title"><span>Owners <span class="cnt">by on-time approval rate</span></span>
-            <button class="btn" id="scoresOwnersExportBtn" type="button" style="font-size:11px;padding:4px 10px;">&#11015;&#65039; Export</button>
+            <div style="display:flex;gap:6px;">
+              <button class="btn" id="scoresOwnersExportBtn" type="button" style="font-size:11px;padding:4px 10px;">&#11015;&#65039; Export</button>
+              <!-- Item 18: column widths/visibility, user-customizable. -->
+              <button class="btn" id="scoresOwnersColCustomBtn" type="button" style="font-size:11px;padding:4px 10px;">&#9881;&#65039; Columns</button>
+            </div>
           </div>
-          <table class="fp-table">
+          <!-- Item 18: colgroup added (was an even 1/6 split). -->
+          <table class="fp-table" id="scoresOwnersTable">
+            <colgroup>
+              <col style="width:6%;"><col style="width:22%;"><col style="width:28%;">
+              <col style="width:20%;"><col style="width:12%;"><col style="width:12%;">
+            </colgroup>
             <thead><tr><th></th><th>Name</th><th>Email</th><th>Department</th><th>Approved</th><th>Rate</th></tr></thead>
             <tbody id="scoresOwners"></tbody>
           </table>
         </div>
         <div class="card table-card">
           <div class="section-title"><span>SME <span class="cnt">by average response time</span></span>
-            <button class="btn" id="scoresSmesExportBtn" type="button" style="font-size:11px;padding:4px 10px;">&#11015;&#65039; Export</button>
+            <div style="display:flex;gap:6px;">
+              <button class="btn" id="scoresSmesExportBtn" type="button" style="font-size:11px;padding:4px 10px;">&#11015;&#65039; Export</button>
+              <!-- Item 18: column widths/visibility, user-customizable. -->
+              <button class="btn" id="scoresSmesColCustomBtn" type="button" style="font-size:11px;padding:4px 10px;">&#9881;&#65039; Columns</button>
+            </div>
           </div>
-          <table class="fp-table">
+          <table class="fp-table" id="scoresSmesTable">
+            <colgroup>
+              <col style="width:6%;"><col style="width:22%;"><col style="width:28%;">
+              <col style="width:20%;"><col style="width:12%;"><col style="width:12%;">
+            </colgroup>
             <thead><tr><th></th><th>Name</th><th>Email</th><th>Department</th><th>Reviews</th><th>Avg Response</th></tr></thead>
             <tbody id="scoresSmes"></tbody>
           </table>
@@ -838,15 +855,22 @@
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;">
           <p class="sub fp-hint">Set the Owner email for a specific item to override its department's default, and the SME assigned to new submissions of it. Tendering Department items are always routed to that project's own Bid Manager for the Owner (not editable here), but their SME still is.</p>
           <button class="btn" id="fpExportBtn" type="button" style="flex-shrink:0;">&#11015;&#65039; Export</button>
+          <!-- Item 18: column widths/visibility, user-customizable. -->
+          <button class="btn" id="fpColCustomBtn" type="button" style="flex-shrink:0;">&#9881;&#65039; Columns</button>
         </div>
         <div class="fp-stats" id="fpStats"></div>
         <!-- Item [Focal Points header filters]: the old Department/
              Deliverable/Owner/SME dropdown row + Clear button is gone --
              every column below has its own Excel-header filter+sort now,
              same convention as every other table (installExcelHeader in
-             loadFocalDeliverables()). -->
+             loadFocalDeliverables()). Item 18: colgroup added (was an
+             even 1/6 split, no explicit widths at all). -->
         <div class="fp-table-scroll">
-          <table class="fp-table">
+          <table class="fp-table" id="fpTable">
+            <colgroup>
+              <col style="width:6%;"><col style="width:28%;"><col style="width:16%;">
+              <col style="width:22%;"><col style="width:22%;"><col style="width:6%;">
+            </colgroup>
             <thead><tr><th>Item</th><th>Deliverable</th><th>Department</th><th>Deliverable's Owner Email</th><th>SME Email</th><th></th></tr></thead>
             <tbody id="focalPointsBody"></tbody>
           </table>
@@ -1189,19 +1213,21 @@
             <input id="bmTriageSearch" type="text" placeholder="Filter by Est No, tender, Bid Manager&#8230;" />
           </div>
           <button class="btn" id="bmTriageExportBtn" type="button">&#11015;&#65039; Export</button>
+          <!-- Item 18: column widths/visibility, user-customizable. -->
+          <button class="btn" id="bmTriageColCustomBtn" type="button">&#9881;&#65039; Columns</button>
         </div>
       </div>
       <div class="card table-card">
-        <table class="fp-table">
-          <!-- Item [BM Triage column widths]: an even 1/6 split (table-layout:
-               fixed with no explicit widths) squeezed Tender/Bid Manager onto
-               2 lines, which inflated every cell in the row -- Est-No/Triage/
-               Status/Action too -- to match. Explicit widths on every column
-               except Tender leave it as the one flexible column absorbing
-               whatever's left, so a normal project name fits on one line. -->
-          <!-- Item 16: Est-No and Bid Manager both widened a bit further,
-               taken from Tender's own flexible share. -->
-          <thead><tr><th style="width:110px;">Est-No</th><th>Tender</th><th style="width:220px;">Bid Manager</th><th style="width:70px;">Triage</th><th style="width:100px;">Status</th><th style="width:140px;"></th></tr></thead>
+        <!-- Item [BM Triage column widths]/Item 16: converted from inline
+             px widths to a colgroup (% of table) -- item 18's column
+             customizer needs one <col> per column to operate on, the
+             same convention L0/L1/Archived Projects already use. -->
+        <table class="fp-table" id="bmTriageTable">
+          <colgroup>
+            <col style="width:9%;"><col style="width:50%;"><col style="width:17%;">
+            <col style="width:5%;"><col style="width:8%;"><col style="width:11%;">
+          </colgroup>
+          <thead><tr><th>Est-No</th><th>Tender</th><th>Bid Manager</th><th>Triage</th><th>Status</th><th></th></tr></thead>
           <tbody id="bmTriageBody"></tbody>
         </table>
       </div>
@@ -1377,16 +1403,23 @@
             <span class="sic">&#128269;</span>
             <input id="perfTriageSearch" type="text" placeholder="Filter by item, name, department&#8230;" />
           </div>
+          <!-- Item 18: column widths/visibility, user-customizable. -->
+          <button class="btn" id="perfTriageColCustomBtn" type="button">&#9881;&#65039; Columns</button>
         </div>
         <!-- Item 8: Item was 60px -- too tight for its own sort label plus
              the Excel-header filter icon, which read as cramped. Counts in
              Performance was 140px, wrapping its own header onto 2 lines.
              Both widened, taken from Name's unbounded auto-width (still
              flexible, just no longer absorbing literally all the leftover
-             room by itself). -->
+             room by itself). Item 18: converted to a colgroup (% of
+             table) so the column customizer has a <col> per column to
+             operate on. -->
         <div class="card table-card">
-          <table class="fp-table">
-            <thead><tr><th style="width:90px;">Item</th><th>Name</th><th style="width:200px;">Department</th><th style="width:190px;">Counts in Performance</th></tr></thead>
+          <table class="fp-table" id="perfTriageTable">
+            <colgroup>
+              <col style="width:7%;"><col style="width:63%;"><col style="width:15%;"><col style="width:15%;">
+            </colgroup>
+            <thead><tr><th>Item</th><th>Name</th><th>Department</th><th>Counts in Performance</th></tr></thead>
             <tbody id="perfTriageBody"></tbody>
           </table>
         </div>
@@ -1414,20 +1447,27 @@
         <input type="text" id="dfFilter" placeholder="Filter by item number or name&#8230;" style="flex:1;min-width:220px;" />
         <select id="dfDeptFilter"><option value="">All Departments</option></select>
         <button class="btn" id="dfExportBtn" type="button">&#11015;&#65039; Export</button>
+        <!-- Item 18: column widths/visibility, user-customizable. -->
+        <button class="btn" id="dfColCustomBtn" type="button">&#9881;&#65039; Columns</button>
       </div>
       <div class="card table-card">
         <div class="fp-table-scroll">
-          <table class="fp-table wrap-table">
-            <!-- Item 8: Item No/Weight widened -- same cramped sort-label-
-                 plus-filter-icon issue as Manage Tracking's Item column.
-                 Taken from Name/Formula's own unbounded auto-width. -->
+          <!-- Item 8: Item No/Weight widened -- same cramped sort-label-
+               plus-filter-icon issue as Manage Tracking's Item column.
+               Taken from Name/Formula's own unbounded auto-width. Item
+               18: converted to a colgroup (% of table). -->
+          <table class="fp-table wrap-table" id="dfTable">
+            <colgroup>
+              <col style="width:6%;"><col style="width:14%;"><col style="width:31%;">
+              <col style="width:31%;"><col style="width:9%;"><col style="width:9%;">
+            </colgroup>
             <thead><tr>
-              <th style="width:90px;">Item No</th>
-              <th style="width:190px;">Department</th>
+              <th>Item No</th>
+              <th>Department</th>
               <th>Name</th>
               <th>Formula</th>
-              <th style="width:120px;">Weight</th>
-              <th style="width:130px;"></th>
+              <th>Weight</th>
+              <th></th>
             </tr></thead>
             <tbody id="dfItemList"></tbody>
           </table>
@@ -1451,7 +1491,11 @@
             SME nominations, Bid Value access, Commercial Offers access, L0-L1 Group adds, and formula change
             suggestions &#8212; and where each one stands. Click any row for the full details.</p>
         </div>
-        <button class="btn" id="myRequestsExportBtn" type="button">&#11015;&#65039; Export</button>
+        <div style="display:flex;gap:10px;">
+          <button class="btn" id="myRequestsExportBtn" type="button">&#11015;&#65039; Export</button>
+          <!-- Item 18: column widths/visibility, user-customizable. -->
+          <button class="btn" id="myRequestsColCustomBtn" type="button">&#9881;&#65039; Columns</button>
+        </div>
       </div>
       <!-- Item 22: what you can actually request, and where -- previously
            only listed in the prose above, with nothing to see once a user
@@ -1468,9 +1512,13 @@
           <div class="req-type"><b>Commercial Offers Access</b><span>Open an L0 tender's 1.18 Circulate Commercial Offers deliverable and click <b>Request Access</b>.</span></div>
         </div>
       </div>
+      <!-- Item 18: converted to a colgroup (% of table). -->
       <div class="card table-card">
-        <table class="fp-table">
-          <thead><tr><th style="width:170px;">Type</th><th>Request</th><th style="width:150px;">Status</th><th style="width:110px;">Requested</th></tr></thead>
+        <table class="fp-table" id="myRequestsTable">
+          <colgroup>
+            <col style="width:13%;"><col style="width:67%;"><col style="width:12%;"><col style="width:8%;">
+          </colgroup>
+          <thead><tr><th>Type</th><th>Request</th><th>Status</th><th>Requested</th></tr></thead>
           <tbody id="myRequestsBody"></tbody>
         </table>
       </div>
@@ -2313,10 +2361,14 @@
       <p class="sub" style="margin-top:0;">Show or hide columns, and set how wide each one is (as a % of the table). Percentages don't need to add up to 100 -- narrower than that leaves room to spare, wider scrolls.</p>
       <div id="colCustomList" class="colcustom-list"></div>
       <div class="colcustom-total" id="colCustomTotal"></div>
-    </div>
-    <div class="modal-actions-row">
-      <button class="btn" id="colCustomReset" type="button">Restore Defaults</button>
-      <button class="btn primary" id="colCustomSave" type="button">Save</button>
+      <!-- Item 18 follow-up: was a sibling of .modal-body instead of
+           nested inside it like every other .modal-actions-row in the
+           app -- that's where the row's own horizontal padding actually
+           comes from, so it sat flush against the modal's edges. -->
+      <div class="modal-actions-row" style="margin-top:20px;">
+        <button class="btn" id="colCustomReset" type="button">Restore Defaults</button>
+        <button class="btn primary" id="colCustomSave" type="button">Save</button>
+      </div>
     </div>
   </div>
 </div>
