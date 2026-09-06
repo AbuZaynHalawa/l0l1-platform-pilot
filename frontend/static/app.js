@@ -3268,6 +3268,52 @@
     // separate page to land on.)
     switchView("dashboard");
   }
+  // #tourPrintBtn: prints the actual slides, not a reflowed summary --
+  // one .tour-card per TOUR_STEPS entry, same markup/classes renderTourStep()
+  // itself uses (modal-head/eyebrow/h2/modal-body.tour-body), so every
+  // mockup/diagram inside a step's body gets the exact CSS context it
+  // renders under on screen instead of a narrower ad-hoc print width. Each
+  // card forces a page break after it (.tour-print-pagebreak, styles.css)
+  // so it's one slide per PDF page, via the browser's own print dialog --
+  // "Save as PDF" there is what actually produces the PDF, no server
+  // round-trip or PDF library needed for content that's already HTML.
+  // #tourPrintView (index.html, a sibling of #tourOverlay) is the print
+  // target; .printing-tour (styles.css) swaps it in for the modal chrome
+  // under @media print.
+  function buildTourPrintDoc() {
+    var html = "";
+    TOUR_STEPS.forEach(function (s, i) {
+      var last = i === TOUR_STEPS.length - 1;
+      // .tour-print-page just centers the page; .tour-stage inside it is
+      // untouched from its on-screen shape (inline-flex, shrink-wrapped to
+      // the card) so #tourGahizFloat's absolute left:0/bottom:0 keeps
+      // resolving against the card's own edge exactly like it does live,
+      // instead of the full page width.
+      html += '<div class="tour-print-page' + (last ? "" : " tour-print-pagebreak") + '"><div class="tour-stage">' +
+        (s.gahiz ? '<img class="tour-gahiz-float" src="/static/img/gahiz-float.png" alt="GAHIZ">' : "") +
+        '<div class="modal-card tour-card">' +
+        '<div class="modal-head"><div><div class="eyebrow">' + s.eyebrow + "</div><h2>" + s.title + "</h2></div></div>" +
+        '<div class="modal-body tour-body">' + s.body + "</div>" +
+        "</div></div></div>";
+    });
+    return html;
+  }
+  function printTour() {
+    document.getElementById("tourPrintView").innerHTML = buildTourPrintDoc();
+    document.body.classList.add("printing-tour");
+    var cleanup = function () {
+      document.body.classList.remove("printing-tour");
+      document.getElementById("tourPrintView").innerHTML = "";
+      window.removeEventListener("afterprint", cleanup);
+    };
+    window.addEventListener("afterprint", cleanup);
+    window.print();
+    // afterprint doesn't fire reliably in every browser's print-to-PDF
+    // path -- this is just a backstop so the app doesn't get stuck hiding
+    // its own chrome if it's missed.
+    setTimeout(cleanup, 5000);
+  }
+  document.getElementById("tourPrintBtn").addEventListener("click", printTour);
   document.getElementById("tourStartBtn").addEventListener("click", openTour);
   document.getElementById("tourClose").addEventListener("click", closeTour);
   document.getElementById("tourPrev").addEventListener("click", function () {

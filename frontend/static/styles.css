@@ -1203,6 +1203,54 @@
   .tour-nav { display: flex; gap: 8px; }
   .tour-nav .btn[disabled] { opacity: .4; cursor: default; pointer-events: none; }
 
+  /* #tourPrintBtn / #tourPrintView: "Print / PDF" reproduces the actual
+     slides, not a reflowed document -- printTour() (app.js) renders one
+     .tour-stage > .tour-card per TOUR_STEPS entry into #tourPrintView
+     (the SAME classes renderTourStep() itself uses for the live modal, so
+     every mockup/diagram inside a step's body gets the identical CSS
+     context/width it renders under normally, instead of breaking against
+     some ad-hoc narrower print column), stamps body.printing-tour, and
+     calls window.print(); the class is removed on the browser's own
+     "afterprint" event. Scoped under .printing-tour so this doesn't fight
+     the Performance/Reports/PO-Lifecycle print rules that already exist
+     (@media print block further down). */
+  .tour-print-view { display: none; }
+  .tour-print-page { display: block; }
+  @media print {
+    @page { size: landscape; margin: 10mm; }
+    body.printing-tour .shell, body.printing-tour .rail, body.printing-tour .topbar, body.printing-tour #tourOverlay
+      { display: none !important; }
+    body.printing-tour .tour-print-view { display: block !important; }
+    /* .tour-print-page (block, text-align:center) is print-only and does
+       nothing but center a page on itself -- .tour-stage inside it keeps
+       its on-screen inline-flex/shrink-wrap shape untouched, so
+       #tourGahizFloat's absolute left:0/bottom:0 keeps resolving against
+       the card's own edge exactly like it does live, instead of the full
+       page width once its container stops shrink-wrapping. */
+    body.printing-tour .tour-print-page { text-align: center; }
+    /* text-align:center above centers the shrink-wrapped .tour-stage as a
+       unit (it's still inline-flex, untouched) -- reset back to left here
+       or it inherits into every paragraph/list inside the card too. */
+    /* .modal-card caps every modal at max-height:88vh + overflow:hidden
+       (the normal "scrolls inside a fixed-height dialog" behavior) -- a
+       step whose content is taller than one landscape page was silently
+       losing its bottom half to that clip instead of flowing to a second
+       page. Reset both here; break-inside is deliberately left alone
+       (not "avoid") so a genuinely tall slide is allowed to spill onto a
+       following page rather than get squeezed or clipped -- the NEXT
+       slide still always starts fresh via .tour-print-pagebreak below. */
+    body.printing-tour .tour-card { width: 960px; max-width: none; max-height: none; overflow: visible; text-align: left; box-shadow: none; border: 1px solid var(--line); }
+    body.printing-tour .tour-body { max-height: none; overflow: visible; }
+    /* the <860px responsive breakpoint that hides GAHIZ on a narrow phone
+       screen isn't relevant to a landscape print page, but headless
+       print evaluates it against the render viewport, not the paper size
+       -- force it back on here. */
+    body.printing-tour .tour-gahiz-float { display: block !important; }
+    body.printing-tour .tour-print-pagebreak { break-after: page; }
+    body.printing-tour .mock-window, body.printing-tour .tour-callout, body.printing-tour .tour-feature-list
+      { break-inside: avoid; }
+  }
+
   /* ---------- tour: vertical rollout-steps flowchart (implementation timeline slide) ---------- */
   .tt-layout { display: grid; grid-template-columns: 210px 1fr; gap: 20px; align-items: start; }
   .tt-steps { display: flex; flex-direction: column; align-items: center; }

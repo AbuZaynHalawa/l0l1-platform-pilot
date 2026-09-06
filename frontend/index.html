@@ -2225,6 +2225,13 @@
     </div>
   </div>
 </div>
+<!-- Print target for #tourPrintBtn: every TOUR_STEPS entry rendered in full,
+     one after another (not just whichever single step is on screen) -- built
+     on demand in printTour(), otherwise empty and display:none. A sibling of
+     #tourOverlay, not nested inside it, so the modal's own overflow:hidden/
+     fixed positioning/scroll can never clip it once @media print flips it
+     to visible and hides the modal itself. -->
+<div class="tour-print-view" id="tourPrintView"></div>
 
 <!-- Item 131: interactive System Introduction walkthrough -->
 <div class="modal-overlay" id="tourOverlay" hidden>
@@ -2242,6 +2249,7 @@
           <h2 id="tourTitle"></h2>
         </div>
         <div class="tour-close-group">
+          <button class="btn" id="tourPrintBtn" type="button">&#128424; Print / PDF</button>
           <span class="tour-close-label">Close</span>
           <button class="modal-close" id="tourClose">&#10005;</button>
         </div>
