@@ -143,6 +143,16 @@ export function mount() {
     return;
   }
 
+  // Item [mobile-v2]: the 3D scene is a genuine desktop showpiece (WebGL,
+  // Web Audio, a real hero moment) -- not something to shrink onto a
+  // phone. On mobile this whole overlay never gets built at all (stays
+  // `hidden`, its default in the markup); mobile.js owns its own real
+  // sign-in screen instead (same /api/auth/login call, its own markup),
+  // gating #mobileShell the same way this overlay gates .shell for desktop.
+  let isMobile = false;
+  try { isMobile = window.matchMedia('(max-width: 780px)').matches; } catch (err) {}
+  if (isMobile) return;
+
   stopped = false;
 
   els.root = el('hvLanding');

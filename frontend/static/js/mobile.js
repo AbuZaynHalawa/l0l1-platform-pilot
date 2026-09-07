@@ -164,7 +164,7 @@
   var SCREENS = ["home", "portfolio", "project-detail", "actions", "alerts", "more"];
   var NAV_TABS = [
     { key: "home", label: "Home", icon: "&#127968;" },
-    { key: "portfolio", label: "Portfolio", icon: "&#128193;" },
+    { key: "portfolio", label: "L0/L1", icon: "&#128193;" },
     { key: "actions", label: "Actions", icon: "&#9989;" },
     { key: "alerts", label: "Alerts", icon: "&#128276;" },
     { key: "more", label: "More", icon: "&#8942;" },
@@ -212,7 +212,6 @@
         ? await api("/api/deliverables" + qs({ actor_email: STATE.email, actor_role: STATE.role }))
         : [];
       var dueMine = mine.filter(function (d) { return d.deadline_status === "due"; });
-      var todayMine = mine.filter(function (d) { var r = relDate(d.due_date); return r && (r.txt === "Today" || r.txt === "Tomorrow"); });
       var rejectedMine = mine.filter(function (d) { return d.status === "rejected"; });
 
       var atRiskProjects = [];
@@ -247,7 +246,7 @@
         attnCards.push({ ic: "&#10060;", title: d.item_no + " · " + d.short_name, sub: d.est_no + " — rejected, needs rework", onTap: function () { openDeliverableSheet(d); } });
       });
       atRiskProjects.slice(0, 2).forEach(function (p) {
-        attnCards.push({ ic: "&#128201;", title: p.name, sub: p.est_no + " — readiness " + p.pct + "%", onTap: function () { openProjectByEstNo(p.est_no, p.stage); } });
+        attnCards.push({ ic: "&#128201;", title: p.name, sub: p.est_no + " — " + p.pct + "% complete", onTap: function () { openProjectByEstNo(p.est_no, p.stage); } });
       });
       if (!attnCards.length) {
         attnSection.appendChild(el("div", "m-attn-empty", '<span class="m-attn-empty-ic">&#9989;</span>Nothing urgent right now.'));
@@ -262,50 +261,54 @@
       }
       root.appendChild(attnSection);
 
-      // Today
-      var todaySection = el("div", "m-section");
-      var todayCard = el("div", "m-card m-tap m-today-strip");
-      todayCard.innerHTML = '<div class="m-today-num">' + todayMine.length + '</div>' +
-        '<div class="m-today-txt">due today or tomorrow' + (STATE.email ? "" : " — set your email in Profile") + '</div><span class="m-today-arrow">&#8250;</span>';
-      todayCard.addEventListener("click", function () { STATE.actionsBucket = "due-today"; showScreen("actions"); });
-      todaySection.appendChild(todayCard);
-      root.appendChild(todaySection);
+      // Due Deliverables -- the platform's own "Due" term (DEADLINE_META),
+      // not an invented "today or tomorrow" window -- taps straight into
+      // the real Due bucket on Actions.
+      var dueSection = el("div", "m-section");
+      var dueCard = el("div", "m-card m-tap m-today-strip");
+      dueCard.innerHTML = '<div class="m-today-num">' + dueMine.length + '</div>' +
+        '<div class="m-today-txt">Due Deliverables' + (STATE.email ? "" : " — set your email in Profile") + '</div><span class="m-today-arrow">&#8250;</span>';
+      dueCard.addEventListener("click", function () { _actionsProjectFilter = null; STATE.actionsBucket = "due"; showScreen("actions"); });
+      dueSection.appendChild(dueCard);
+      root.appendChild(dueSection);
 
-      // Portfolio snapshot
+      // L0 / L1 snapshot
       var snapSection = el("div", "m-section");
-      snapSection.appendChild(el("div", "m-section-head", "<h2>Portfolio Snapshot</h2>"));
-      var allPct = atRiskProjects.length || dash.active_l0 || dash.active_l1
-        ? Object.assign({}, readinessByProject(await getMatrix("L0")), {}) : {};
+      snapSection.appendChild(el("div", "m-section-head", "<h2>L0 / L1 Snapshot</h2>"));
       var m0b = await getMatrix("L0"), m1b = await getMatrix("L1");
       var r0b = readinessByProject(m0b), r1b = readinessByProject(m1b);
       var allVals = Object.values(r0b).concat(Object.values(r1b));
-      var avgReadiness = allVals.length ? Math.round(allVals.reduce(function (a, b) { return a + b; }, 0) / allVals.length) : 0;
+      var avgComplete = allVals.length ? Math.round(allVals.reduce(function (a, b) { return a + b; }, 0) / allVals.length) : 0;
       var snapGrid = el("div", "m-card");
       var grid = el("div", "m-snapshot-grid");
       grid.innerHTML =
         '<div class="m-snap-tile"><div class="m-snap-num">' + dash.active_l0 + '</div><div class="m-snap-lbl">Active L0</div></div>' +
         '<div class="m-snap-tile"><div class="m-snap-num">' + dash.active_l1 + '</div><div class="m-snap-lbl">Active L1</div></div>' +
-        '<div class="m-snap-tile readiness"><div class="m-snap-num">' + avgReadiness + '%</div><div class="m-snap-lbl">Readiness</div></div>';
+        '<div class="m-snap-tile readiness"><div class="m-snap-num">' + avgComplete + '%</div><div class="m-snap-lbl">Complete</div></div>';
       snapGrid.appendChild(grid);
       snapGrid.classList.add("m-tap");
       snapGrid.addEventListener("click", function () { showScreen("portfolio"); });
       snapSection.appendChild(snapGrid);
       root.appendChild(snapSection);
 
-      // Recent activity
-      var recent = (dash.recent_l0 || []).concat(dash.recent_l1 || []).concat(dash.recent_milestones_l0 || []).concat(dash.recent_milestones_l1 || []);
-      if (recent.length) {
-        var actSection = el("div", "m-section");
-        actSection.appendChild(el("div", "m-section-head", "<h2>Recent Activity</h2>"));
-        var actCard = el("div", "m-card");
-        recent.slice(0, 5).forEach(function (r) {
-          var row = el("div", "m-activity-row");
-          var txt = r.name ? ("<b>" + r.est_no + "</b> — " + r.name) : ("<b>" + (r.est_no || "") + "</b> — " + (r.milestone_code || ""));
-          row.innerHTML = '<span class="m-act-ic">&#128276;</span><span class="m-act-txt">' + txt + '</span>';
-          actCard.appendChild(row);
+      // Latest L0 / L1 -- the single newest tender and newest project,
+      // real data (dashboard's recent_l0/recent_l1), not a mixed activity
+      // feed.
+      var latestL0 = (dash.recent_l0 || [])[0], latestL1 = (dash.recent_l1 || [])[0];
+      if (latestL0 || latestL1) {
+        var latestSection = el("div", "m-section");
+        latestSection.appendChild(el("div", "m-section-head", "<h2>Latest L0 &amp; L1</h2>"));
+        [["L0", latestL0], ["L1", latestL1]].forEach(function (pair) {
+          var stage = pair[0], p = pair[1];
+          if (!p) return;
+          var card = el("div", "m-card m-tap");
+          card.style.marginBottom = "8px";
+          card.innerHTML = '<div class="m-proj-top"><div><div class="m-proj-name">' + escapeHtml(p.name) +
+            '</div><div class="m-proj-est">' + p.est_no + '</div></div><span class="m-pill tone-accent">' + stage + '</span></div>';
+          card.addEventListener("click", function () { openProjectByEstNo(p.est_no, stage); });
+          latestSection.appendChild(card);
         });
-        actSection.appendChild(actCard);
-        root.appendChild(actSection);
+        root.appendChild(latestSection);
       }
     } catch (e) {
       root.innerHTML = '<div class="m-empty-state">Couldn’t load your home screen. Pull to refresh or try again.</div>';
@@ -359,7 +362,7 @@
           '<div class="m-proj-top"><div><div class="m-proj-name">' + escapeHtml(p.name) + '</div><div class="m-proj-est">' + p.est_no + '</div></div>' +
           '<span class="m-pill tone-' + statusTone2 + '">' + p.status + '</span></div>' +
           '<div class="m-proj-mid"><span class="m-ring">' + (readiness !== null ? ringSvg(readiness, 40, 5) : "") + '</span>' +
-          '<div class="m-proj-next">' + (readiness !== null ? '<div class="m-lbl">Readiness</div><div class="m-val">' + readiness + '%</div>' : '<div class="m-val">No active items</div>') + '</div>' +
+          '<div class="m-proj-next">' + (readiness !== null ? '<div class="m-lbl">Complete</div><div class="m-val">' + readiness + '%</div>' : '<div class="m-val">No active items</div>') + '</div>' +
           (nextMs ? '<div class="m-proj-next" style="text-align:right;"><div class="m-lbl">Next</div><div class="m-val">' + nextMs + " · " + (MSTONES[nextMs] || "") + '</div></div>' : "") +
           "</div>";
         card.addEventListener("click", function () { openProjectByEstNo(p.est_no, stage, p); });
@@ -407,7 +410,7 @@
       var ringWrap = el("div", "m-ring-big-wrap");
       ringWrap.innerHTML = '<div style="position:relative;">' + ringSvg(pct === undefined ? 0 : pct, 108, 9) +
         '<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">' +
-        '<span class="m-ring-big-num">' + (pct === undefined ? "—" : pct + "%") + '</span><span class="m-ring-big-lbl">Ready</span></div></div>';
+        '<span class="m-ring-big-num">' + (pct === undefined ? "—" : pct + "%") + '</span><span class="m-ring-big-lbl">Complete</span></div></div>';
       if (due.length) {
         var nextAction = el("div", "m-next-action", "&#9888;&#65039; " + due.length + " item" + (due.length === 1 ? "" : "s") + " past due");
         ringWrap.appendChild(nextAction);
@@ -447,12 +450,15 @@
         });
       }
 
+      // "Follow" is a real per-deliverable action (there's no whole-project
+      // follow in the real data model) -- this row sticks to two things
+      // that are genuinely real for the whole project instead.
       var actRow = el("div", "m-actions-row");
-      var followBtn = el("button", "m-btn", "Follow");
-      followBtn.addEventListener("click", function () { toast("Following isn’t wired to a single project yet — follow individual deliverables from Actions."); });
+      var viewAllBtn = el("button", "m-btn", "All Deliverables");
+      viewAllBtn.addEventListener("click", function () { _actionsProjectFilter = estNo; STATE.actionsBucket = "all"; showScreen("actions"); });
       var askBtn = el("button", "m-btn primary", "Ask GAHIZ");
       askBtn.addEventListener("click", function () { openGahizSheet("What's the status of " + estNo + "?"); });
-      actRow.appendChild(followBtn); actRow.appendChild(askBtn);
+      actRow.appendChild(viewAllBtn); actRow.appendChild(askBtn);
       root.appendChild(actRow);
     } catch (e) {
       root.innerHTML = '<div class="m-empty-state">Couldn’t load this project.</div>';
@@ -473,8 +479,12 @@
 
   // ========================================================= ACTIONS ======
   var _actionsProjectFilter = null;
+  // "Overdue" was never the platform's own word for this -- deadline_status
+  // "due" (DEADLINE_META) is always labeled "Due" everywhere else in the
+  // app (Assigned Deliverables, the Dashboard, GAHIZ's own answers), so
+  // this matches that instead of inventing new vocabulary.
   var ACTION_BUCKETS = [
-    { key: "due-today", label: "Due Today" }, { key: "due", label: "Overdue" },
+    { key: "due-today", label: "Due Today" }, { key: "due", label: "Due" },
     { key: "upcoming", label: "Upcoming" }, { key: "completed", label: "Completed" },
   ];
   async function renderActions() {
@@ -565,9 +575,18 @@
         var comment = el("textarea", "m-comment-box");
         comment.placeholder = "What did you do? (required to mark complete)";
         body.appendChild(comment);
+        var fileInput = el("input"); fileInput.type = "file"; fileInput.id = "mFileInput_" + d.id; fileInput.hidden = true;
+        var fileRow = el("div", "m-file-row");
+        var fileBtn = el("button", "m-file-btn", "📎 Attach a file (optional)");
+        fileBtn.addEventListener("click", function () { fileInput.click(); });
+        fileInput.addEventListener("change", function () {
+          fileBtn.textContent = fileInput.files[0] ? "📎 " + fileInput.files[0].name : "📎 Attach a file (optional)";
+        });
+        fileRow.appendChild(fileBtn); fileRow.appendChild(fileInput);
+        body.appendChild(fileRow);
         var row = el("div", "m-actions-row");
         var completeBtn = el("button", "m-btn primary", "Mark Complete");
-        completeBtn.addEventListener("click", function () { submitMarkComplete(d, comment.value, close); });
+        completeBtn.addEventListener("click", function () { submitMarkComplete(d, comment.value, fileInput.files[0], close); });
         row.appendChild(completeBtn);
         body.appendChild(row);
       }
@@ -592,9 +611,15 @@
       body.appendChild(followRow);
     });
   }
-  async function submitMarkComplete(d, comment, close) {
+  async function submitMarkComplete(d, comment, file, close) {
     if (!comment || !comment.trim()) { toast("A comment is required."); return; }
     try {
+      if (file) {
+        var fd = new FormData();
+        fd.append("file", file);
+        fd.append("actor_name", STATE.role); fd.append("actor_role", STATE.role); fd.append("actor_email", STATE.email);
+        await api("/api/deliverables/" + d.id + "/upload", { method: "POST", body: fd });
+      }
       await api("/api/deliverables/" + d.id + "/mark-complete", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ actor_name: STATE.role, actor_role: STATE.role, actor_email: STATE.email, comment: comment.trim() }),
@@ -629,6 +654,11 @@
   }
 
   // ========================================================== ALERTS ======
+  async function findProjectById(stage, id) {
+    if (!stage || !id) return null;
+    var list = _portfolioAll[stage] || (_portfolioAll[stage] = await api("/api/projects" + qs({ stage: stage })));
+    return list.find(function (p) { return p.id === id; }) || null;
+  }
   async function renderAlerts() {
     var root = _screenEls.alerts.querySelector(".m-screen-inner");
     root.innerHTML = '<div class="m-skel m-skel-card"></div><div class="m-skel m-skel-card"></div>';
@@ -656,7 +686,16 @@
           var bodyText = (a.body || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
           row.innerHTML = '<span class="m-alert-ic">' + icon + '</span><div class="m-alert-main"><div class="m-alert-txt"><b>' + escapeHtml(a.title || "") + "</b>" +
             (bodyText ? " — " + escapeHtml(bodyText.length > 110 ? bodyText.slice(0, 110) + "…" : bodyText) : "") +
-            '</div><div class="m-alert-time">' + timeAgo(a.created_at) + "</div></div>";
+            '</div><div class="m-alert-time">' + timeAgo(a.created_at) + "</div></div>" +
+            (a.project_id ? '<span class="m-deliv-chev">&#8250;</span>' : "");
+          if (a.project_id && a.stage) {
+            row.classList.add("m-tap");
+            row.addEventListener("click", async function () {
+              var p = await findProjectById(a.stage, a.project_id);
+              if (p) openProjectByEstNo(p.est_no, a.stage, p);
+              else toast("That project couldn’t be found — it may be archived.");
+            });
+          }
           card.appendChild(row);
         });
         root.appendChild(card);
@@ -712,9 +751,10 @@
     ]);
     if (STATE.role === "Admin") {
       group("Admin", [
+        { ic: "&#10133;", label: "Create L0 / L1", onTap: function () { openDesktopView("create"); } },
+        { ic: "&#128227;", label: "Follow Up", onTap: function () { openDesktopView("followup"); } },
         { ic: "&#128202;", label: "Reports", onTap: function () { openDesktopView("reports"); } },
         { ic: "&#128100;", label: "Focal Points", onTap: function () { openDesktopView("focalpoints"); } },
-        { ic: "&#9881;&#65039;", label: "Deliverables Configuration", onTap: function () { openDesktopView("deliverableconfig"); } },
       ]);
     }
     group("About", [
@@ -774,7 +814,7 @@
   function openGahizSheet(prefill) {
     openSheet(function (body, close) {
       var head = el("div", "m-gahiz-head");
-      head.innerHTML = '<img src="/static/img/gahiz-icon.png" alt="GAHIZ"><div><h2>GAHIZ</h2><div class="m-gahiz-sub">How can I help?</div></div>';
+      head.innerHTML = '<img src="/static/img/gahiz-badge.png" alt="GAHIZ"><div><h2>GAHIZ</h2><div class="m-gahiz-sub">How can I help?</div></div>';
       var closeBtn = el("button", "m-gahiz-close", "&#10005;");
       closeBtn.addEventListener("click", close);
       head.appendChild(closeBtn);
@@ -836,6 +876,65 @@
     }, { full: true });
   }
 
+  // ========================================================== SIGN IN =====
+  // Replaces the desktop 3D landing overlay for mobile entirely (see
+  // landing.js's own early-return) -- a real, lightweight sign-in screen
+  // hitting the exact same /api/auth/login endpoint, gating #mobileShell
+  // the same way #hvLanding gates .shell on desktop.
+  function isSignedIn() {
+    try { return sessionStorage.getItem("hvSignedIn") === "1"; } catch (e) { return false; }
+  }
+  var _signinEl;
+  function buildSigninScreen() {
+    if (_signinEl) return _signinEl;
+    _signinEl = el("div", "m-signin");
+    _signinEl.innerHTML =
+      '<div class="m-signin-card">' +
+      '<img class="m-signin-logo" src="/static/img/logo-white.png" alt="Al Gihaz Contracting">' +
+      '<img class="m-signin-gahiz" src="/static/img/gahiz-badge.png" alt="GAHIZ">' +
+      '<h1>Project Readiness</h1><div class="m-signin-sub">L0/L1 Platform</div>' +
+      '<div class="m-signin-field"><label>Email</label><input type="email" id="mSigninEmail" placeholder="name@algihaz.com" autocomplete="username"></div>' +
+      '<div class="m-signin-field"><label>Password</label><input type="password" id="mSigninPassword" placeholder="••••••••" autocomplete="current-password"></div>' +
+      '<div class="m-signin-error" id="mSigninError" hidden></div>' +
+      '<button class="m-btn primary" id="mSigninSubmit" style="width:100%;margin-top:6px;">Sign In</button>' +
+      "</div>";
+    document.body.appendChild(_signinEl);
+
+    var emailEl = _signinEl.querySelector("#mSigninEmail");
+    var passEl = _signinEl.querySelector("#mSigninPassword");
+    var errEl = _signinEl.querySelector("#mSigninError");
+    var btn = _signinEl.querySelector("#mSigninSubmit");
+    var savedEmail = localStorage.getItem("mobileActingEmail");
+    if (savedEmail) emailEl.value = savedEmail;
+
+    async function submit() {
+      errEl.hidden = true;
+      btn.disabled = true; btn.textContent = "Signing in…";
+      try {
+        var r = await api("/api/auth/login", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: emailEl.value, password: passEl.value }),
+        });
+        if (!r.ok) { errEl.textContent = r.error || "Incorrect email or password."; errEl.hidden = false; }
+        else {
+          try {
+            sessionStorage.setItem("hvSignedIn", "1");
+            if (emailEl.value) setEmail(emailEl.value); // updates STATE + localStorage together -- otherwise Home still shows "set your email" until the next reload
+          } catch (e) {}
+          _signinEl.classList.add("dismissing");
+          setTimeout(function () { _signinEl.hidden = true; showMobileShell(); }, 320);
+        }
+      } catch (e) {
+        errEl.textContent = "Could not reach the server — check your connection and try again.";
+        errEl.hidden = false;
+      }
+      btn.disabled = false; btn.textContent = "Sign In";
+    }
+    btn.addEventListener("click", submit);
+    passEl.addEventListener("keydown", function (e) { if (e.key === "Enter") submit(); });
+    return _signinEl;
+  }
+
   // ============================================================ INIT =======
   function buildShell() {
     if (document.getElementById("mobileShell")) return;
@@ -843,7 +942,7 @@
     SCREENS.forEach(function (name) {
       var screen = el("div", "m-screen"); screen.id = "mScreen-" + name; screen.hidden = name !== "home";
       var needsBack = name === "project-detail";
-      var titleMap = { home: "", portfolio: "Portfolio", "project-detail": "", actions: "My Actions", alerts: "Alerts", more: "More" };
+      var titleMap = { home: "", portfolio: "L0/L1", "project-detail": "", actions: "My Actions", alerts: "Alerts", more: "More" };
       if (titleMap[name] || needsBack) {
         var top = el("div", "m-topbar");
         if (needsBack) {
@@ -861,7 +960,7 @@
     _navEl = el("div", "m-nav");
     _shell.appendChild(_navEl);
     _fabEl = el("button", "m-fab");
-    _fabEl.innerHTML = '<img src="/static/img/gahiz-icon.png" alt="GAHIZ">';
+    _fabEl.innerHTML = '<img src="/static/img/gahiz-badge.png" alt="GAHIZ">';
     _fabEl.addEventListener("click", function () { openGahizSheet(); });
     _shell.appendChild(_fabEl);
     document.body.appendChild(_shell);
@@ -870,10 +969,16 @@
     renderNav();
   }
 
-  function boot() {
+  function showMobileShell() {
     buildShell();
-    applyShellClass();
     if (isMobileMode()) showScreen(STATE.tab, false);
+  }
+
+  function boot() {
+    applyShellClass();
+    if (!isMobileMode()) return; // desktop -- nothing mobile-specific to show
+    if (isSignedIn()) { showMobileShell(); return; }
+    buildSigninScreen().hidden = false;
   }
 
   // matchMedia's own change listener (not a generic "resize" handler) is

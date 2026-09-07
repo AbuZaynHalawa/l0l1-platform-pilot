@@ -34,7 +34,6 @@ body.mobile-shell .rail,
 body.mobile-shell .rail-toggle,
 body.mobile-shell .rail-backdrop,
 body.mobile-shell #tourOverlay,
-body.mobile-shell #confirmOverlay ~ *:not(#mobileShell):not(#confirmOverlay),
 body.mobile-shell .modal-overlay:not(#mobileSheetOverlay):not(#mobileGahizOverlay) {
   display: none !important;
 }
@@ -49,6 +48,31 @@ body.mobile-shell #mobileShell {
   font-family: var(--font-body, Inter, system-ui, sans-serif);
   color: var(--ink-900);
 }
+/* Defensive: the desktop 3D landing overlay never gets BUILT on mobile
+   (landing.js's own early-return), so this is belt-and-braces only. */
+body.mobile-shell #hvLanding { display: none !important; }
+
+/* ---------- mobile sign-in (replaces the desktop 3D landing gate) ---- */
+.m-signin {
+  position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center;
+  padding: 24px; box-sizing: border-box; background: linear-gradient(160deg, var(--navy-dark), var(--navy));
+  opacity: 1; transition: opacity .3s ease;
+}
+.m-signin.dismissing { opacity: 0; }
+.m-signin-card { width: 100%; max-width: 360px; text-align: center; }
+.m-signin-logo { height: 30px; object-fit: contain; margin-bottom: 22px; }
+.m-signin-gahiz { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; box-shadow: 0 10px 30px rgba(0,0,0,.35); margin-bottom: 18px; }
+.m-signin-card h1 { color: #fff; font-size: 24px; font-weight: 800; margin: 0; letter-spacing: -0.01em; }
+.m-signin-sub { color: rgba(255,255,255,.55); font-size: 12px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; margin: 4px 0 30px; }
+.m-signin-field { text-align: left; margin-bottom: 14px; }
+.m-signin-field label { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: rgba(255,255,255,.45); margin-bottom: 6px; }
+.m-signin-field input {
+  width: 100%; box-sizing: border-box; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16);
+  border-radius: 12px; padding: 13px 14px; font-size: 15px; color: #fff; font-family: inherit; outline: none;
+}
+.m-signin-field input::placeholder { color: rgba(255,255,255,.3); }
+.m-signin-field input:focus { border-color: var(--algihaz-red); }
+.m-signin-error { color: #ff6a5c; font-size: 12.5px; text-align: left; margin: -4px 0 12px; }
 
 /* ---------- screens ---------- */
 .m-screen {
@@ -111,7 +135,13 @@ body.mobile-shell #mobileShell {
   transition: transform .15s ease;
 }
 .m-fab:active { transform: scale(.92); }
-.m-fab img { width: 46px; height: 46px; object-fit: contain; pointer-events: none; }
+/* gahiz-badge.png (not -icon.png) -- an edge-to-edge face crop, the same
+   asset the desktop chat panel/loading badge already use at small sizes.
+   -icon.png has real headroom/whitespace around the figure (a mid-shot,
+   tablet visible), which at 46px inside a circular button just showed a
+   tiny floating figure with square corners poking past the circle --
+   this fills the full circle cleanly instead. */
+.m-fab img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; pointer-events: none; }
 
 /* ---------- shared: section headers, cards, pills, chips ---------- */
 .m-section { margin-bottom: 26px; }
@@ -337,7 +367,7 @@ body.mobile-shell:not([data-theme="light"]) .m-chip.active { background: var(--a
 
 /* ---------- GAHIZ sheet ---------- */
 .m-gahiz-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
-.m-gahiz-head img { width: 44px; height: 44px; object-fit: contain; flex: 0 0 auto; }
+.m-gahiz-head img { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; flex: 0 0 auto; }
 .m-gahiz-head h2 { font-size: 17px; font-weight: 800; margin: 0; }
 .m-gahiz-head .m-gahiz-sub { font-size: 11.5px; color: var(--ink-500); }
 .m-gahiz-close { margin-left: auto; width: 32px; height: 32px; border-radius: 50%; border: none; background: var(--surface-sunken); font-size: 14px; cursor: pointer; }
