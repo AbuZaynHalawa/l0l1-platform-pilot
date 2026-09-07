@@ -166,6 +166,21 @@ def can_act(actor_role: str, actor_email: str, assigned_email) -> bool:
     return any(actor == c.strip().lower() for c in candidates if c)
 
 
+def is_assigned_email(actor_email: str, assigned_email) -> bool:
+    """The same plain email-membership check can_act does, deliberately
+    WITHOUT its Admin-always-passes shortcut. Used to detect a genuine
+    self-approval attempt (the same real person as both Owner and the SME
+    finalizing their own work) -- an Admin calling this legitimately isn't
+    "the owner" just because the role bypasses every other check, so that
+    shortcut would misfire here and block a real Admin review by mistake.
+    """
+    if not assigned_email or not actor_email:
+        return False
+    actor = actor_email.strip().lower()
+    candidates = assigned_email if isinstance(assigned_email, (list, tuple, set)) else [assigned_email]
+    return any(actor == c.strip().lower() for c in candidates if c)
+
+
 def resolve_smes(sub: "models.DeliverableSubmission") -> list[str]:
     """Every SME who may approve/reject this submission — any one of them
     can act. Falls back: submission-level list -> catalog default list ->

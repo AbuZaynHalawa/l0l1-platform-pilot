@@ -600,6 +600,19 @@ def mark_complete(submission_id: int, payload: schemas.MarkCompleteRequest, db: 
     if not comment:
         raise HTTPException(400, "A comment is required to mark this complete")
 
+    # Item [self-approval]: "SME wins ties" below used to apply even when
+    # the SAME real person is assigned as both Owner and SME on this item
+    # -- their own Mark Completed silently finalized itself with no
+    # independent second person ever looking at it. Genuinely no one
+    # else is assigned when that's the setup, so this can't require a
+    # DIFFERENT named SME (there may not be one) -- instead it drops to
+    # the same PENDING_REVIEW path an Owner-only call takes, which an
+    # Admin (or a real second SME, if one exists) can still act on via
+    # /review. is_assigned_email (not can_act) deliberately ignores the
+    # Admin-role shortcut here: an Admin reviewing someone else's item is
+    # not "self"-approving just because the role passes every check.
+    self_approval = is_sme and rules.is_assigned_email(payload.actor_email, owner_emails)
+
     # SME wins ties (someone assigned as both owner and SME on the same
     # item) — their own Mark Completed is always the stronger, final action.
     # Item [points bug]: this branch never recorded submitted_at (only the
@@ -607,7 +620,7 @@ def mark_complete(submission_id: int, payload: schemas.MarkCompleteRequest, db: 
     # every Admin-triggered completion took this branch too, since
     # rules.can_act() treats Admin as passing every actor check, so is_sme
     # is always true for Admin regardless of who's actually assigned.
-    if is_sme:
+    if is_sme and not self_approval:
         sub.submitted_at = sub.submitted_at or datetime.utcnow()
         _finalize_approval(db, sub, comment, payload.actor_name, actor_email=payload.actor_email)
         return {"status": "ok", "completed": True}
@@ -654,6 +667,15 @@ async def review_deliverable(submission_id: int, approved: bool = Form(...), com
     assigned_smes = rules.resolve_smes(sub)
     if not rules.can_act(actor_role, actor_email, assigned_smes):
         raise HTTPException(403, f"Only {', '.join(assigned_smes) or 'the assigned SME'} or an Admin can review this deliverable")
+    # Item [self-approval]: closes the other half of the same gap
+    # mark_complete now guards -- without this, a self-approver blocked
+    # there from auto-finalizing could just approve their own item here
+    # instead, via the very PENDING_REVIEW state that block routed it
+    # into. is_assigned_email (not can_act) again deliberately skips the
+    # Admin-role shortcut: a real Admin reviewing someone else's item is
+    # not self-approving.
+    if approved and rules.is_assigned_email(actor_email, rules.resolve_owners(sub)):
+        raise HTTPException(403, "You're assigned as this item's Owner -- someone else (another SME, or an Admin) needs to approve it.")
 
     if file is not None and file.filename:
         content = await file.read()
