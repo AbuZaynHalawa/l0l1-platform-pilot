@@ -79,6 +79,20 @@
   var SM = window.__app ? window.__app.STATUS_META : {};
   var MSTONES = window.__app ? window.__app.L1_MILESTONE_LABELS : {};
   var fmtDate = window.__app ? window.__app.fmtDate : function (s) { return s || ""; };
+  // Desktop's own 24x24 line-icon set (app.js's NAV_ICONS) -- reused as-is
+  // for the bottom nav and More menu instead of emoji, so mobile speaks
+  // the same icon language as desktop rather than inventing a second one.
+  // "more" has no desktop equivalent (no such nav concept there) -- one
+  // extra icon hand-drawn in the exact same stroke convention.
+  // Object.assign onto a fresh object, not the shared window.__app.NAV_ICONS
+  // reference itself -- desktop's own nav still reads that exact object,
+  // so it shouldn't gain a stray "more" key it never uses just because
+  // mobile.js needed one extra icon.
+  var ICONS = Object.assign({}, window.__app ? window.__app.NAV_ICONS : {}, {
+    more: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+      '<circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg>',
+  });
+  function icon(name) { return ICONS[name] || ""; }
 
   function toneOf(deadlineKey) { return (DL[deadlineKey] || ["neutral"])[0]; }
   function labelOf(deadlineKey) { return (DL[deadlineKey] || [, deadlineKey])[1] || deadlineKey; }
@@ -163,11 +177,11 @@
   // ------------------------------------------------------------ navigation --
   var SCREENS = ["home", "portfolio", "project-detail", "actions", "alerts", "more"];
   var NAV_TABS = [
-    { key: "home", label: "Home", icon: "&#127968;" },
-    { key: "portfolio", label: "L0/L1", icon: "&#128193;" },
-    { key: "actions", label: "Actions", icon: "&#9989;" },
-    { key: "alerts", label: "Alerts", icon: "&#128276;" },
-    { key: "more", label: "More", icon: "&#8942;" },
+    { key: "home", label: "Home", iconName: "dashboard" },
+    { key: "portfolio", label: "L0/L1", iconName: "l0" },
+    { key: "actions", label: "Actions", iconName: "assigned" },
+    { key: "alerts", label: "Alerts", iconName: "announcements" },
+    { key: "more", label: "More", iconName: "more" },
   ];
 
   var _shell, _navEl, _fabEl;
@@ -191,7 +205,7 @@
     _navEl.innerHTML = "";
     NAV_TABS.forEach(function (t) {
       var btn = el("button", "m-nav-btn" + (STATE.tab === t.key ? " active" : ""));
-      btn.innerHTML = '<span class="m-nav-ic">' + t.icon + "</span><span class=\"m-nav-lbl\">" + t.label + "</span>";
+      btn.innerHTML = '<span class="m-nav-ic">' + icon(t.iconName) + "</span><span class=\"m-nav-lbl\">" + t.label + "</span>";
       btn.addEventListener("click", function () { showScreen(t.key); });
       _navEl.appendChild(btn);
     });
@@ -734,31 +748,31 @@
       var list = el("div", "m-more-list");
       items.forEach(function (it) {
         var row = el("div", "m-more-item");
-        row.innerHTML = '<span class="m-more-ic">' + it.ic + '</span><span class="m-more-txt">' + it.label + '</span><span class="m-deliv-chev">&#8250;</span>';
+        row.innerHTML = '<span class="m-more-ic">' + icon(it.iconName) + '</span><span class="m-more-txt">' + it.label + '</span><span class="m-deliv-chev">&#8250;</span>';
         row.addEventListener("click", it.onTap);
         list.appendChild(row);
       });
       root.appendChild(list);
     }
     group("Insights", [
-      { ic: "&#127942;", label: "Performance & Top Achievers", onTap: function () { openDesktopView("performance"); } },
-      { ic: "&#128218;", label: "Deliverables Catalog", onTap: function () { openDesktopView("deliverableformulas"); } },
-      { ic: "&#128203;", label: "BM Triage Status", onTap: function () { openDesktopView("bmtriage"); } },
+      { iconName: "scores", label: "Performance & Top Achievers", onTap: function () { openDesktopView("performance"); } },
+      { iconName: "deliverableformulas", label: "Deliverables Catalog", onTap: function () { openDesktopView("deliverableformulas"); } },
+      { iconName: "bmtriage", label: "BM Triage Status", onTap: function () { openDesktopView("bmtriage"); } },
     ]);
     group("Requests", [
-      { ic: "&#128231;", label: "My Requests", onTap: function () { openDesktopView("myrequests"); } },
-      { ic: "&#128172;", label: "Ask the Team", onTap: function () { openDesktopView("support"); } },
+      { iconName: "myrequests", label: "My Requests", onTap: function () { openDesktopView("myrequests"); } },
+      { iconName: "support", label: "Ask the Team", onTap: function () { openDesktopView("support"); } },
     ]);
     if (STATE.role === "Admin") {
       group("Admin", [
-        { ic: "&#10133;", label: "Create L0 / L1", onTap: function () { openDesktopView("create"); } },
-        { ic: "&#128227;", label: "Follow Up", onTap: function () { openDesktopView("followup"); } },
-        { ic: "&#128202;", label: "Reports", onTap: function () { openDesktopView("reports"); } },
-        { ic: "&#128100;", label: "Focal Points", onTap: function () { openDesktopView("focalpoints"); } },
+        { iconName: "create", label: "Create L0 / L1", onTap: function () { openDesktopView("create"); } },
+        { iconName: "followup", label: "Follow Up", onTap: function () { openDesktopView("followup"); } },
+        { iconName: "reports", label: "Reports", onTap: function () { openDesktopView("reports"); } },
+        { iconName: "focalpoints", label: "Focal Points", onTap: function () { openDesktopView("focalpoints"); } },
       ]);
     }
     group("About", [
-      { ic: "&#129302;", label: "L0/L1 Walkthrough", onTap: function () { if (window.__app && window.__app.openTour) window.__app.openTour(); } },
+      { iconName: "journey", label: "L0/L1 Walkthrough", onTap: function () { if (window.__app && window.__app.openTour) window.__app.openTour(); } },
     ]);
   }
   function openDesktopView(viewName) {
@@ -890,9 +904,8 @@
     _signinEl = el("div", "m-signin");
     _signinEl.innerHTML =
       '<div class="m-signin-card">' +
-      '<img class="m-signin-logo" src="/static/img/logo-white.png" alt="Al Gihaz Contracting">' +
-      '<img class="m-signin-gahiz" src="/static/img/gahiz-badge.png" alt="GAHIZ">' +
-      '<h1>Project Readiness</h1><div class="m-signin-sub">L0/L1 Platform</div>' +
+      '<img class="m-signin-logo" src="/static/img/landing/algihaz-logo-dark.png" alt="Al Gihaz Contracting">' +
+      '<h1>Sign in</h1><div class="m-signin-sub">Project Readiness (L0/L1) Platform</div>' +
       '<div class="m-signin-field"><label>Email</label><input type="email" id="mSigninEmail" placeholder="name@algihaz.com" autocomplete="username"></div>' +
       '<div class="m-signin-field"><label>Password</label><input type="password" id="mSigninPassword" placeholder="••••••••" autocomplete="current-password"></div>' +
       '<div class="m-signin-error" id="mSigninError" hidden></div>' +

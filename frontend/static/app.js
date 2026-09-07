@@ -11740,5 +11740,10 @@
     // mobile -- switchView lets "More" drop back to the real desktop
     // view for those instead of a half-built mobile knockoff.
     switchView: switchView, openTour: openTour,
+    // The real line-icon set (24x24, stroke=currentColor) every desktop
+    // nav item already uses -- mobile.js's bottom nav and More menu reuse
+    // these directly instead of emoji, so both surfaces speak the same
+    // visual icon language rather than two different ones.
+    NAV_ICONS: NAV_ICONS,
   };
 })();
