@@ -167,7 +167,12 @@
           </label>
           <a href="#" style="font-size:11px;color:var(--ink-dim);">Forgot password?</a>
         </div>
-        <button type="submit" class="hv-cta-fill" style="background:#ec3013;border:0;color:#ffffff;padding:15px 20px;font-family:var(--font-heading);font-weight:700;font-size:11px;letter-spacing:0.18em;cursor:pointer;text-align:left;">SIGN IN →</button>
+        <!-- Real credential check now (backend/routers/auth.py) -- shows
+             here on a wrong email/password instead of silently letting
+             anyone in. Hidden by default, toggled by setSigninError()
+             in landing.js. -->
+        <div id="hvSigninError" hidden style="font-size:11.5px;line-height:1.5;color:#ff6a5c;margin-top:-8px;"></div>
+        <button type="submit" id="hvSigninSubmit" class="hv-cta-fill" style="background:#ec3013;border:0;color:#ffffff;padding:15px 20px;font-family:var(--font-heading);font-weight:700;font-size:11px;letter-spacing:0.18em;cursor:pointer;text-align:left;">SIGN IN →</button>
       </form>
     </div>
   </div>

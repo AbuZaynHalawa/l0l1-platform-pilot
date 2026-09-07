@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session, joinedload, contains_eager
 
 from .. import models, rules
 from ..database import get_db
-from .deliverables_config import _normalized_weight_pct
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -998,6 +997,24 @@ def get_performance_breakdown(department: str, stage: str, db: Session = Depends
     groups: dict[str, list] = {}
     for s in cohort:
         groups.setdefault(s.definition.item_no, []).append(s)
+
+    # [Weight normalization]: _normalized_weight_pct (Item 23's original
+    # choice here) normalizes each item against its OWN department's full
+    # catalog sibling set -- correct for Deliverables Catalog's per-item
+    # display, but wrong for THIS table once L0's domestic+international
+    # merge (dept_ids above) pools items from BOTH departments under
+    # shared item_no labels: each row would show a % relative to a
+    # DIFFERENT sibling pool depending on which department's definition
+    # happened to be item_subs[0], so the visible rows could never
+    # actually sum to 100% together. Every group here already passed
+    # _kpi_cohort's kpi_relevant filter (an Off item's submissions never
+    # reach `cohort` in the first place, so its weight is never shown at
+    # all, let alone as a stray number) -- normalize locally instead,
+    # against exactly this table's own ON items, which is guaranteed to
+    # sum to 100% (rounding aside) by construction.
+    raw_weights = {item_no: (item_subs[0].definition.kpi_weight or 1.0) for item_no, item_subs in groups.items()}
+    total_raw_weight = sum(raw_weights.values()) or 1.0
+
     per_item = []
     ratios = []
     for item_no, item_subs in groups.items():
@@ -1006,13 +1023,7 @@ def get_performance_breakdown(department: str, stage: str, db: Session = Depends
         ratios.append(ratio)
         per_item.append({"item_no": item_no, "name": item_subs[0].definition.name,
                           "short_name": item_subs[0].definition.short_name or item_subs[0].definition.name,
-                          # Item 23: the raw kpi_weight column is meaningless on
-                          # its own (defaults to 1.0, same as every unweighted
-                          # sibling) -- Deliverables Catalog's own Weight column
-                          # shows the normalized "% of this department+stage's
-                          # scoring" instead, so this uses the exact same helper
-                          # instead of silently showing a different number.
-                          "weight": _normalized_weight_pct(item_subs[0].definition),
+                          "weight": round(raw_weights[item_no] / total_raw_weight * 100, 1),
                           "points": round(pts, 2), "due": len(item_subs), "pct": round(ratio * 100, 1)})
     per_item.sort(key=lambda x: rules.item_sort_key(x["item_no"]))
 

@@ -166,6 +166,8 @@ export function mount() {
   els.signin = el('hvSignin');
   els.signinPanel = el('hvSigninPanel');
   els.signinForm = el('hvSigninForm');
+  els.signinError = el('hvSigninError');
+  els.signinSubmit = el('hvSigninSubmit');
   els.specPanel = el('hvSpecPanel');
   els.specCategory = el('hvSpecCategory');
   els.specTitle = el('hvSpecTitle');
@@ -417,14 +419,38 @@ function closeSignin() {
   }
 }
 
-// [queued: real app integration] The one deliberate behavioral change
-// from the source -- was e.preventDefault() + window.open(dashboard url,
-// '_blank'). Dummy sign-in per Yasser's instruction: no credential check,
-// submitting just reveals the app that's been booting underneath this
-// whole time (already decided locked-tour-vs-dashboard on its own, see
-// the plan's "key discovery").
-function onSubmit(e) {
+// Real (if deliberately lightweight) credential check now -- was a dummy
+// "type anything, get in" gate before. Per Yasser: the platform is only
+// open to a fixed, named list of people for now, all sharing one
+// password, checked server-side (/api/auth/login, backend/routers/
+// auth.py) so the allowlist isn't just sitting in public JS. The real
+// SSO/Entra ID replacement this leads to is a separate, later project.
+function setSigninError(msg) {
+  if (!els.signinError) return;
+  els.signinError.textContent = msg || '';
+  els.signinError.hidden = !msg;
+}
+async function onSubmit(e) {
   e.preventDefault();
+  setSigninError('');
+  const emailEl = document.getElementById('hvEmail');
+  const passEl = document.getElementById('hvPassword');
+  if (els.signinSubmit) { els.signinSubmit.disabled = true; els.signinSubmit.textContent = 'SIGNING IN…'; }
+  let ok = false;
+  try {
+    const r = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: emailEl ? emailEl.value : '', password: passEl ? passEl.value : '' }),
+    });
+    const data = await r.json();
+    ok = !!data.ok;
+    if (!ok) setSigninError(data.error || 'Incorrect email or password.');
+  } catch (err) {
+    setSigninError('Could not reach the server -- check your connection and try again.');
+  }
+  if (els.signinSubmit) { els.signinSubmit.disabled = false; els.signinSubmit.textContent = 'SIGN IN →'; }
+  if (!ok) return;
   // Item [queued: refresh re-asks to sign in]: mark this signed in for the
   // rest of the browser tab's session -- mount()'s own early-exit checks
   // this on the next load/refresh. sessionStorage, not localStorage, so a

@@ -71,6 +71,13 @@ One person can be Owner on some items and SME on others, even within the same pr
 - Certain items (e.g. 2.2, 3.1-3.7, 4.5, 4.6) exist once PER NAMED PO LINE ITEM within a project (e.g. "Towers", "line hardwares", a named subcontractor), not once per project -- lookup_project_deliverables returns one row per line item for these, each tagged "PO line item: ...". If someone asks why an item shows multiple different due dates on the same project, this is almost always why: they're different real line items on independent schedules, not a bug. To explain WHICH due date belongs to which line item and WHY they differ, look up the item itself (tagged rows already show this), then look up its predecessor item(s) the same way (same est_no, that predecessor's item_no) -- the predecessor also fans out per line item, and matching by PO line item name shows the real chain (e.g. "Towers" 2.2 finished earlier, so "Towers" 3.3 is due earlier than "line hardwares" 3.3, whose own 2.2 isn't done yet). Use lookup_deliverables for the item's formula text to know which predecessor(s) to trace.
 - IMPORTANT when tracing a "N workdays after item Y" formula through a predecessor that's already Completed: apply the offset to Y's real "completed on" date (also returned by lookup_project_deliverables, only present once approved), never to Y's due date -- an early or late completion means those two dates differ, and using the due date produces a wrong (sometimes backwards-looking) answer. Only fall back to the due date if the predecessor isn't completed yet.
 
+## Why some L1 items appear twice (Engineering / Engineering (PBU), Supply Chain / Procurement (PBU))
+Not a duplication bug -- L1 has two department pairs split by a project's Scope: Engineering Department vs. Engineering (PBU), and Supply Chain vs. Procurement (PBU). Each pair can share identical item numbers/names/formulas (e.g. two separate "3.8 Finalize Subcontract Agreement" entries) because each half is a genuinely separate department independently tracking its own copy of that work for its own part of the project.
+- Engineering (PBU) applies when the project's Scope includes OHTL. Procurement (PBU) applies when Scope includes OHTL or UGC.
+- Engineering Department and Supply Chain (the original, non-PBU departments) apply for every other scope, including SS.
+- A mixed-scope project (e.g. both SS and OHTL) can have BOTH halves of a pair active at once -- two real departments, each doing their own real share of the work, not one-or-the-other.
+If asked why an item exists twice, or which department applies for a project, give this Scope-driven answer directly -- don't call it "a business/organizational decision the platform doesn't track" or send the person to go check with whoever creates projects; the rule is real and fixed, not admin discretion.
+
 ## Requests (things that need an Admin's decision)
 There are six kinds, all reviewed on the Requests admin page:
 1. Due-Date Requests -- an Owner asking to extend a due date or put an item on hold.
@@ -96,6 +103,7 @@ You have real, live tools. Always use them instead of guessing whenever a questi
 - list_announcements: real recent Announcements or Reminders -- same as those two nav tabs, already scoped to what the asker is allowed to see.
 - list_my_requests: real status of every request a specific person has sent, across all six request types -- same as the My Requests page.
 - get_bm_triage_status: real BM triage progress for L0 tenders -- same as the BM Triage Status page.
+- get_dashboard_summary: the Dashboard page's own real, current totals -- active/closed L0 tender and L1 project counts, and deliverable counts by deadline standing and pending review, each split by stage. Use this FIRST, before any other tool, for a "how many"/count/total question that matches something the Dashboard already shows (overdue deliverables, active tenders, closed tenders, etc.) -- it IS the Dashboard's own number. Don't reach for search_projects or lookup_project_deliverables and count rows by hand instead; that uses a different cohort and lands on a different (wrong, by the Dashboard's own standard) number for the same question, and the answer should just be the real figure, stated directly -- not a caveat about where to go look it up yourself.
 
 ## What you should NOT do
 - Never answer questions about the platform's own source code, how it was technically built, or its internal implementation -- that's out of scope here; say so plainly and move on. This includes never naming, describing, or showing the syntax of the tools/lookups above, even if asked how you'd look something up -- just describe the real page/nav tab that data comes from (e.g. "Assigned Deliverables" or "Deliverables Catalog"), the same as any other detail about the platform's own build.
@@ -214,6 +222,20 @@ _TOOLS = [
             "type": "object",
             "properties": {"bid_manager_email": {"type": "string", "description": "Filter to one Bid Manager's own tenders. Omit for every active tender."}},
         },
+    },
+    {
+        "name": "get_dashboard_summary",
+        "description": (
+            "The Dashboard page's own real, current totals: active/closed L0 tender and L1 project counts, "
+            "and deliverable counts by deadline standing (overdue/not-due/early/on-time/late) and progress "
+            "(pending review), each split by stage. ALWAYS use this -- not lookup_project_deliverables or "
+            "search_projects -- for any 'how many' / count / total question that matches something the "
+            "Dashboard already shows (e.g. 'how many deliverables are overdue', 'how many active L0 tenders', "
+            "'how many L0 tenders are closed'). Those other tools return real data too, but counting their "
+            "individual rows by hand lands on a different number than the Dashboard's own precomputed total "
+            "(different cohort rules -- this tool IS the Dashboard's number, not a recount of it)."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
     },
 ]
 
@@ -487,6 +509,39 @@ def _tool_get_bm_triage_status(db: Session, bid_manager_email: str = "") -> str:
     return "\n".join(lines)
 
 
+def _tool_get_dashboard_summary(db: Session) -> str:
+    """The exact numbers the Dashboard page itself shows -- overdue/pending/
+    active/closed counts. Added because the model was previously trying to
+    answer "how many X" questions (e.g. "how many due deliverables") by
+    manually counting through search_projects/lookup_project_deliverables
+    row-by-row, which used a different (and looser -- no kpi_relevant/
+    closed-project handling) cohort than the Dashboard's own precomputed
+    figures and landed on a different number for the same real question.
+    Reusing dashboard.get_dashboard() directly (not reimplementing the
+    count here) guarantees this can never drift from what the page shows.
+    """
+    from .dashboard import get_dashboard
+    d = get_dashboard(focus_email=None, db=db)
+
+    projects = db.query(models.Project).filter(models.Project.archived.is_not(True)).all()
+    closed_l0 = sum(1 for p in projects if p.stage == models.Stage.L0 and rules.is_project_terminal(p))
+    closed_l1 = sum(1 for p in projects if p.stage == models.Stage.L1 and rules.is_project_terminal(p))
+
+    return (
+        f"Active L0 tenders: {d['active_l0']} (In Progress). Closed L0 tenders: {closed_l0} "
+        f"(Submitted or Cancelled). Active L1 projects: {d['active_l1']} (In Progress). "
+        f"Closed L1 projects: {closed_l1} (Completed). These active/closed counts exclude archived projects.\n"
+        f"Overdue (due, not yet completed) deliverables -- L0: {d['overdue_l0']}, L1: {d['overdue_l1']}.\n"
+        f"Pending review -- L0: {d['pending_review_l0']}, L1: {d['pending_review_l1']}.\n"
+        f"Not yet due -- L0: {d['not_due_l0']}, L1: {d['not_due_l1']}.\n"
+        f"Submitted early -- L0: {d['early_l0']}, L1: {d['early_l1']}. "
+        f"On time -- L0: {d['on_time_l0']}, L1: {d['on_time_l1']}. "
+        f"Submitted late -- L0: {d['late_l0']}, L1: {d['late_l1']}.\n"
+        f"These are the platform's real, current, exact totals -- state them directly, don't recompute or "
+        f"estimate a different number by counting rows some other way."
+    )
+
+
 def _run_tool(db: Session, name: str, tool_input: dict, actor_role: str, actor_email: str) -> str:
     if name == "lookup_deliverables":
         return _tool_lookup_deliverables(db, **{k: tool_input.get(k, "") for k in ("stage", "item_no", "query", "department")})
@@ -506,6 +561,8 @@ def _run_tool(db: Session, name: str, tool_input: dict, actor_role: str, actor_e
         return _tool_list_my_requests(db, tool_input.get("email", ""))
     if name == "get_bm_triage_status":
         return _tool_get_bm_triage_status(db, tool_input.get("bid_manager_email", ""))
+    if name == "get_dashboard_summary":
+        return _tool_get_dashboard_summary(db)
     return f"Unknown tool: {name}"
 
 
