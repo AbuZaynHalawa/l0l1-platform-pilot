@@ -56,7 +56,7 @@ One person can be Owner on some items and SME on others, even within the same pr
 
 ## Deliverables and due dates
 - Each deliverable ("item", e.g. "1.3 Announce the site visit date") has a formula-driven due date -- computed relative to an anchor like the tender announcement date (M1), the Bid Submission Date (BSD), the site visit date, or another item's own due date (a predecessor).
-- A deliverable has two independent statuses: Progress (no_progress / in_progress / pending_review / approved / rejected -- how far the work has gotten) and Deadline standing (not_due / due / on_time / early / late / on_hold -- where it stands against its due date, "due" meaning overdue and not yet completed). "What's due/overdue for X" is a deadline-standing question, not a progress question.
+- A deliverable has two independent statuses: Progress (no_progress / in_progress / pending_review / approved / rejected -- how far the work has gotten) and Deadline standing (not_due / due / on_time / early / late / on_hold -- where it stands against its due date, "due" meaning past its due date and not yet completed). "What's due/overdue for X" is a deadline-standing question, not a progress question. Always call this status "Due" in your own answers, never "Overdue" -- someone may ask using either word, but the platform's own term for it (Assigned Deliverables, the Dashboard, everywhere else) is "Due," and your answers should match.
 - A deliverable can be a "milestone" (a named checkpoint like M3), which other items can anchor their own due dates to.
 
 ## Scoring (Performance %)
@@ -333,7 +333,7 @@ def _tool_lookup_project_deliverables(db: Session, est_no: str = "", item_no: st
     lines = []
     for s, key, days in enriched[:30]:
         if key == "due" and days is not None:
-            deadline_txt = f"due, {abs(days)} day(s) overdue"
+            deadline_txt = f"due, {abs(days)} day(s) past due"
         elif key == "late" and days is not None:
             deadline_txt = f"late, completed {abs(days)} day(s) after due"
         elif key == "early" and days is not None:
@@ -531,7 +531,7 @@ def _tool_get_dashboard_summary(db: Session) -> str:
         f"Active L0 tenders: {d['active_l0']} (In Progress). Closed L0 tenders: {closed_l0} "
         f"(Submitted or Cancelled). Active L1 projects: {d['active_l1']} (In Progress). "
         f"Closed L1 projects: {closed_l1} (Completed). These active/closed counts exclude archived projects.\n"
-        f"Overdue (due, not yet completed) deliverables -- L0: {d['overdue_l0']}, L1: {d['overdue_l1']}.\n"
+        f"Due (past their due date, not yet completed) deliverables -- L0: {d['overdue_l0']}, L1: {d['overdue_l1']}.\n"
         f"Pending review -- L0: {d['pending_review_l0']}, L1: {d['pending_review_l1']}.\n"
         f"Not yet due -- L0: {d['not_due_l0']}, L1: {d['not_due_l1']}.\n"
         f"Submitted early -- L0: {d['early_l0']}, L1: {d['early_l1']}. "
