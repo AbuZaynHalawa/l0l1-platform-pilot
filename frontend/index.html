@@ -2,8 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Project Readiness (L0/L1) Platform — Pilot</title>
+<!-- Mobile app v2 (mobile.js/mobile.css) -- PWA installability. -->
+<link rel="manifest" href="/static/manifest.json" />
+<meta name="theme-color" content="#d71920" />
+<link rel="apple-touch-icon" href="/static/img/icons/apple-touch-icon-180.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<link rel="stylesheet" href="/static/css/mobile.css" />
 <!-- [Red Dark Design] Inter, per the reskin spec's typography section. -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -2481,6 +2488,11 @@
 </div>
 
 <script src="/static/app.js"></script>
+<!-- Mobile app v2 -- reads window.__app (set at the very end of app.js's
+     own IIFE) for shared constants/formatters; otherwise fully separate
+     from app.js's desktop-DOM-coupled render code. See mobile.js's own
+     header comment and the plan doc for the architecture. -->
+<script src="/static/js/mobile.js"></script>
 <script type="module" src="/static/js/landing.js"></script>
 </body>
 </html>

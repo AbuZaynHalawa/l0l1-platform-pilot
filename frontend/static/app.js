@@ -11723,4 +11723,22 @@
   var justSignedInThisLoad = true;
   try { justSignedInThisLoad = sessionStorage.getItem("hvSignedIn") !== "1"; } catch (e) {}
   if (justSignedInThisLoad && localStorage.getItem("tourAutoDisabled") !== "1") openTour();
+
+  // Mobile app (mobile.js, a separate file/screen system entirely) reads
+  // real shared constants through this one deliberate seam instead of
+  // re-declaring its own copies that could quietly drift from these --
+  // never DOM-coupled helpers (those are desktop-element-specific), just
+  // plain lookup tables and pure formatters. Read-only: mobile.js never
+  // assigns into this object.
+  window.__app = {
+    DEADLINE_META: DEADLINE_META, STATUS_META: STATUS_META,
+    L1_MILESTONE_LABELS: L1_MILESTONE_LABELS, ANN_ICON: ANN_ICON,
+    fmtDate: fmtDate, fmtCurrency: fmtCurrency,
+    // The one DOM-coupled function mobile.js's "More" menu needs: a
+    // handful of dense power-admin screens (Reports, Deliverables
+    // Configuration's full editor) are deliberately NOT rebuilt for
+    // mobile -- switchView lets "More" drop back to the real desktop
+    // view for those instead of a half-built mobile knockoff.
+    switchView: switchView, openTour: openTour,
+  };
 })();

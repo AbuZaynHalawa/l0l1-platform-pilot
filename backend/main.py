@@ -78,14 +78,31 @@ def index():
         (FRONTEND_DIR / "static" / "styles.css").stat().st_mtime,
         (FRONTEND_DIR / "static" / "css" / "landing.css").stat().st_mtime,
         (FRONTEND_DIR / "static" / "js" / "landing.js").stat().st_mtime,
+        (FRONTEND_DIR / "static" / "css" / "mobile.css").stat().st_mtime,
+        (FRONTEND_DIR / "static" / "js" / "mobile.js").stat().st_mtime,
     )))
     html = html.replace('/static/app.js"', f'/static/app.js?v={version}"')
     html = html.replace('/static/styles.css"', f'/static/styles.css?v={version}"')
     html = html.replace('/static/css/landing.css"', f'/static/css/landing.css?v={version}"')
     html = html.replace('/static/js/landing.js"', f'/static/js/landing.js?v={version}"')
+    html = html.replace('/static/css/mobile.css"', f'/static/css/mobile.css?v={version}"')
+    html = html.replace('/static/js/mobile.js"', f'/static/js/mobile.js?v={version}"')
     return HTMLResponse(html, headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+# Mobile PWA: a service worker's scope can never be broader than the path
+# it's served from, so /static/sw.js could only ever control pages under
+# /static/ -- the app itself is served from / -- hence this dedicated
+# root-scope route rather than letting NoCacheStaticFiles serve it.
+# Never cached itself, so the browser's own SW-update check (byte-diff
+# against this response) runs on its normal schedule instead of being
+# stuck behind a stale cached copy of the worker.
+@app.get("/sw.js")
+def service_worker():
+    return FileResponse(FRONTEND_DIR / "sw.js", media_type="application/javascript",
+                         headers={"Cache-Control": "no-cache"})

@@ -455,7 +455,16 @@ async function onSubmit(e) {
   // rest of the browser tab's session -- mount()'s own early-exit checks
   // this on the next load/refresh. sessionStorage, not localStorage, so a
   // genuinely new session (closing the browser) still gates normally.
-  try { sessionStorage.setItem('hvSignedIn', '1'); } catch (err) {}
+  try {
+    sessionStorage.setItem('hvSignedIn', '1');
+    // Item [mobile-v2]: the mobile shell's Profile screen seeds its acting
+    // email from whichever of the six real addresses just signed in here,
+    // instead of asking for it a second time -- localStorage (not
+    // sessionStorage like hvSignedIn above) so it still saves that retype
+    // on a plain refresh or the next day, same "remembered until someone
+    // explicitly changes it" durability as every other profile field.
+    if (emailEl && emailEl.value) localStorage.setItem('mobileActingEmail', emailEl.value.trim());
+  } catch (err) {}
   els.root.classList.add('hv-dismissing');
   window.setTimeout(() => {
     destroy();
